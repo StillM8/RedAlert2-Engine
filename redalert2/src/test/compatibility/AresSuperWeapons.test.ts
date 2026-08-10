@@ -15,6 +15,10 @@ SW.AffectsTarget=Land,Units
 SW.AffectsHouse=Enemies
 SW.RequiresTarget=Land
 SW.AITargeting=Offensive
+SW.Range=3.5,4
+SW.InitialReady=yes
+SW.VirtualCharge=true
+SW.Group=2
 `);
         const section = ini.getSection("MOBlast")!;
         const definition = parseAresSuperWeaponDefinition(section);
@@ -24,6 +28,10 @@ SW.AITargeting=Offensive
         expect(definition?.swDamage).toBe(500);
         expect(definition?.swWarhead).toBe("MOBlastWH");
         expect(definition?.swAffectsTarget).toBe("Land,Units");
+        expect(definition?.swRange).toEqual([3.5, 4]);
+        expect(definition?.swInitialReady).toBe(true);
+        expect(definition?.swVirtualCharge).toBe(true);
+        expect(definition?.swGroup).toBe(2);
         expect(definition?.extensionEntries.get("SW.Damage")).toBe("500");
         expect(rules.typeId).toBe("GenericWarhead");
         expect(rules.type).toBeUndefined();

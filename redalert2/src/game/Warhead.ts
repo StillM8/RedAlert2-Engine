@@ -392,7 +392,7 @@ export class Warhead {
     detonate(gameWorld: GameWorld, baseDamage: number, centerTile: Position, elevation: number, centerCoords: Vector3, zone: ZoneType, collisionType: CollisionType | undefined, target: {
         obj?: GameObject;
         getBridge?(): GameObject;
-    }, weaponInfo: WeaponInfo | undefined, friendly: boolean, areaEffectSmudge: string | undefined, customSpread?: number, isWeatherStorm = false): void {
+    }, weaponInfo: WeaponInfo | undefined, friendly: boolean, areaEffectSmudge: string | undefined, customSpread?: number, isWeatherStorm = false, targetFilter?: (object: GameObject, tile: Position) => boolean): void {
         const weapon = weaponInfo?.weapon ?? this.createDummyWeaponInfo() as any;
         const sourceObj = weaponInfo?.obj;
         const sourcePlayer = weaponInfo?.player;
@@ -406,6 +406,8 @@ export class Warhead {
         while ((currentTile = tileFinder.getNextTile())) {
             for (const obj of gameWorld.map.getObjectsOnTile(currentTile)) {
                 if (processedObjects.has(obj) && !obj.isBuilding())
+                    continue;
+                if (targetFilter && !targetFilter(obj, currentTile))
                     continue;
                 if (collisionType === CollisionType.UnderBridge && obj.isUnit() && (obj as UnitObject).onBridge)
                     continue;
