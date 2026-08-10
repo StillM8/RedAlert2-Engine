@@ -172,8 +172,12 @@ export class Application {
             const shellEngine = isNativeShell() ? getNativeShellEngine() : undefined;
             const persistedEngine = isNativeShell() ? localStorage.getItem('_ra2_native_engine') : null;
             const nativeEngine = shellEngine ?? persistedEngine;
-            if (nativeEngine === 'ra2' || nativeEngine === 'yr') {
-                this.config.getGeneralData().set('engine', nativeEngine);
+            if (nativeEngine === 'ra2' || nativeEngine === 'yr' || nativeEngine === 'mo') {
+                // Mental Omega uses the YR rules/runtime as its base engine;
+                // the MO flavor is still kept distinct at the shell/client
+                // level while its complete installation remains the selected
+                // game-resource profile.
+                this.config.getGeneralData().set('engine', nativeEngine === 'mo' ? 'yr' : nativeEngine);
                 console.log(`[Application] Native shell selected ${nativeEngine} engine${shellEngine ? ' from the Android app variant' : ' from imported archives'}.`);
             }
             console.log('[Application] config.ini loaded and parsed successfully.');
@@ -551,7 +555,7 @@ export class Application {
         }
         try {
             await this.loadConfig();
-            Engine.setActiveEngine(this.config.engine === "yr" ? EngineType.YurisRevenge : EngineType.RedAlert2);
+            Engine.setActiveEngine(this.config.engine === "yr" || this.config.engine === "mo" ? EngineType.YurisRevenge : EngineType.RedAlert2);
             this.initializePreferredViewportSize();
             this.updateViewportSize();
         }
@@ -618,7 +622,16 @@ export class Application {
             .catch(e => this.sentry?.captureException(e));
         this.fsAccessLib = browserFileSystemAccess;
         const urlParams = new URLSearchParams(window.location.search);
-        const modName = urlParams.get('mod');
+        const requestedModName = urlParams.get('mod');
+        const nativeShellEngine = isNativeShell() ? getNativeShellEngine() : undefined;
+        // The Android Mental Omega flavor accepts the complete MO installation
+        // as its game resources. Do not reinterpret that same directory as an
+        // OPFS `mods/mentalomega` overlay (older APK URLs included that query
+        // parameter and produced a misleading "mod not found" message).
+        const modName = nativeShellEngine === 'mo' ? undefined : requestedModName;
+        if (requestedModName && nativeShellEngine === 'mo') {
+            console.info('[Application] Ignoring legacy MO mod query; the selected full MO folder is the game profile.');
+        }
         let gameResConfig = this.loadGameResConfig(this.localPrefs);
         try {
             const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry);

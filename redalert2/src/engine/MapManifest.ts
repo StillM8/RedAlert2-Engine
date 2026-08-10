@@ -39,8 +39,13 @@ export class MapManifest {
         if (!basicSection) {
             throw new Error(`Map "${mapFileName}" is missing the [Basic] section after parsing`);
         }
+        // Keep the relative path in fileName so MapFileLoader can resolve
+        // maps shipped below a mod directory such as MapsMO/Standard. Use
+        // only the leaf name for the fallback UI label so long mod paths do
+        // not spill out of the map picker.
         this.fileName = mapFileName;
-        this.uiName = "NOSTR:" + (basicSection.getString("Name") || mapFileName.replace(/\.[^.]+$/, ""));
+        const mapLeafName = mapFileName.split('/').pop() || mapFileName;
+        this.uiName = "NOSTR:" + (basicSection.getString("Name") || mapLeafName.replace(/\.[^.]+$/, ""));
         const waypointsSectionContent = this.extractIniSection("Waypoints", mapContent);
         let maxPlayersFromWaypoints = 0;
         if (waypointsSectionContent) {

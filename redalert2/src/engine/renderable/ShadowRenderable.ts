@@ -105,7 +105,15 @@ export class ShadowRenderable {
         }
     }
     frameHasShadowData(frameNo: number): boolean {
-        return !!this.shpFile.getImage(this.frameOffset + frameNo).imageData.length;
+        const imageCount = Math.min(this.shpFile.numImages, this.shpFile.images.length);
+        const imageIndex = this.frameOffset + frameNo;
+        // Aggregated MO art can advertise a shadow frame that is outside the
+        // aggregate (for example a one-frame Shadow=yes animation).  Shadow
+        // visibility is optional; it must never make the whole map fail.
+        if (imageIndex < 0 || imageIndex >= imageCount) {
+            return false;
+        }
+        return !!this.shpFile.getImage(imageIndex).imageData.length;
     }
     get3DObject(): THREE.Object3D | undefined {
         return this.object3d;

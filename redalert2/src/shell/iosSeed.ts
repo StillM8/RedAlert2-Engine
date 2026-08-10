@@ -2,15 +2,18 @@ import { StorageKey } from '../LocalPrefs';
 import { GameResSource } from '../engine/gameRes/GameResSource';
 import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/async/cancellation';
 
+export type NativeShellEngine = 'ra2' | 'yr' | 'mo';
+
 declare global {
     interface Window {
         __RA2_SHELL__?: {
             platform: string;
             version: string;
-            engine?: 'ra2' | 'yr';
+            engine?: NativeShellEngine;
             thermalState?: string;
         };
         Ra2Android?: {
+            platformReady?: () => boolean;
             pickGameDirectory: () => boolean;
             pickModDirectory?: () => boolean;
             pickModArchives?: () => boolean;
@@ -195,8 +198,8 @@ function ensureShellMarker(): void {
     window.__RA2_SHELL__ = {
         platform: params.get('platform') || 'native',
         version: params.get('shellVersion') || '0.1.0',
-        ...(params.get('engine') === 'ra2' || params.get('engine') === 'yr'
-            ? { engine: params.get('engine') as 'ra2' | 'yr' }
+        ...(params.get('engine') === 'ra2' || params.get('engine') === 'yr' || params.get('engine') === 'mo'
+            ? { engine: params.get('engine') as NativeShellEngine }
             : {}),
     };
 }
@@ -207,7 +210,7 @@ export function isNativeShell(): boolean {
     return !!window.__RA2_SHELL__;
 }
 
-export function getNativeShellEngine(): 'ra2' | 'yr' | undefined {
+export function getNativeShellEngine(): NativeShellEngine | undefined {
     ensureShellMarker();
     return window.__RA2_SHELL__?.engine;
 }
@@ -260,7 +263,7 @@ interface NativeModImportResult {
 export function canImportModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
-        && getNativeShellEngine() === 'yr'
+        && (getNativeShellEngine() === 'yr' || getNativeShellEngine() === 'mo')
         && (typeof window.Ra2Android?.pickModDirectory === 'function'
             || typeof window.Ra2Android?.pickModArchives === 'function');
 }
@@ -349,8 +352,8 @@ export async function importModFromShell(
         const metadata = [
             '[General]',
             `ID=${modId}`,
-            'Name=Mental Omega 3.3.6',
-            'Version=3.3.6',
+            'Name=Mental Omega',
+            'Version=folder',
             'Author=Mental Omega team',
             'Website=https://mentalomega.com/',
             '',
@@ -360,7 +363,7 @@ export async function importModFromShell(
         await metaWritable.write(metadata);
         await metaWritable.close();
         nativeApi.deleteNativeModImport?.(token);
-        return { id: modId, name: 'Mental Omega 3.3.6', version: '3.3.6' };
+        return { id: modId, name: 'Mental Omega', version: 'folder' };
     }
     catch (error) {
         nativeApi.deleteNativeModImport?.(token);
@@ -581,11 +584,12 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
     const missingRequiredFiles = REQUIRED_RA2_GAME_FILES.filter((file) => !manifestPaths.has(file));
     const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(file));
     const requestedEngine = getNativeShellEngine();
-    const engineFilesAvailable = requestedEngine !== 'yr' || hasYuriFiles;
+    const requiresYuriFiles = requestedEngine === 'yr' || requestedEngine === 'mo';
+    const engineFilesAvailable = !requiresYuriFiles || hasYuriFiles;
     if (missingRequiredFiles.length > 0 || !engineFilesAvailable) {
         console.warn(
             `[nativeShell] Resource import is incomplete for ${requestedEngine ?? 'the detected'} engine; ` +
-            `missing ${missingRequiredFiles.concat(!hasYuriFiles && requestedEngine === 'yr' ? OPTIONAL_YR_GAME_FILES : []).join(', ')}. ` +
+            `missing ${missingRequiredFiles.concat(!hasYuriFiles && requiresYuriFiles ? OPTIONAL_YR_GAME_FILES : []).join(', ')}. ` +
             'The game-resource chooser will remain available.',
         );
         localStorage.removeItem(StorageKey.GameRes);
@@ -594,7 +598,7 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
     else {
         const selectedEngine = requestedEngine ?? (hasYuriFiles ? 'yr' : 'ra2');
         localStorage.setItem(NATIVE_ENGINE_STORAGE_KEY, selectedEngine);
-        console.info(`[nativeShell] Selected ${selectedEngine === 'yr' ? "Yuri's Revenge" : "Red Alert 2"} resources`);
+        console.info(`[nativeShell] Selected ${selectedEngine === 'mo' ? 'Mental Omega' : selectedEngine === 'yr' ? "Yuri's Revenge" : "Red Alert 2"} resources`);
     }
     const totalBytes = manifest.files.reduce((sum, f) => sum + f.size, 0);
     let copiedBytes = 0;

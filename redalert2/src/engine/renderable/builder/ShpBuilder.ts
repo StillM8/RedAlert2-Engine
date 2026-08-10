@@ -8,6 +8,7 @@ export class ShpBuilder {
     static textureCache = new Map();
     static geometryCache = new Map();
     static materialCache = new Map();
+    static frameClampWarnings = new Set();
     private scale!: number;
     private depth!: boolean;
     private depthOffset!: number;
@@ -49,6 +50,7 @@ export class ShpBuilder {
         ShpBuilder.textureCache.clear();
         ShpBuilder.geometryCache.forEach((cache) => cache.forEach((geometry) => geometry.dispose()));
         ShpBuilder.geometryCache.clear();
+        ShpBuilder.frameClampWarnings.clear();
     }
     constructor(shpFile, palette, camera, scale = 1, depth = false, depthOffset = 0) {
         this.scale = scale;
@@ -138,12 +140,28 @@ export class ShpBuilder {
         }
         this.frameOffset = frameOffset;
     }
+    getEffectiveFrameNo(frameNo) {
+        const imageCount = Math.min(this.shpFile.numImages, this.shpFile.images.length);
+        if (!imageCount) {
+            return 0;
+        }
+        const requestedFrameNo = Math.trunc(frameNo + this.frameOffset);
+        const effectiveFrameNo = Math.max(0, Math.min(requestedFrameNo, imageCount - 1));
+        if (effectiveFrameNo !== requestedFrameNo) {
+            const key = `${this.shpFile.filename ?? "<unnamed>"}:${requestedFrameNo}:${effectiveFrameNo}`;
+            if (!ShpBuilder.frameClampWarnings.has(key)) {
+                ShpBuilder.frameClampWarnings.add(key);
+                console.warn(`[ShpBuilder] Clamped out-of-range frame ${requestedFrameNo} to ${effectiveFrameNo} for ${this.shpFile.filename ?? "<unnamed>"}`);
+            }
+        }
+        return effectiveFrameNo;
+    }
     initTexture() {
         ShpBuilder.prepareTexture(this.shpFile);
         this.atlas = ShpBuilder.textureCache.get(this.shpFile);
     }
     getSpriteGeometryOptions(frameNo) {
-        frameNo += this.frameOffset;
+        frameNo = this.getEffectiveFrameNo(frameNo);
         const image = this.shpFile.getImage(frameNo);
         const offset = {
             x: image.x - Math.floor(this.shpSize.width / 2) + Math.floor(this.offset.x),
@@ -163,8 +181,7 @@ export class ShpBuilder {
         };
     }
     getGeometryCacheKey(frameNo) {
-        return (frameNo +
-            this.frameOffset +
+        return (this.getEffectiveFrameNo(frameNo) +
             "_" +
             this.shpSize.width +
             "_" +
@@ -213,7 +230,7 @@ export class ShpBuilder {
         return this.shpSize;
     }
     get frameCount() {
-        return this.shpFile.numImages;
+        return Math.min(this.shpFile.numImages, this.shpFile.images.length);
     }
     getBatchPaletteIndex(palette) {
         const index = this.batchPalettes.findIndex((p) => p.hash === palette.hash);

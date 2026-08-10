@@ -46,8 +46,11 @@ export class VirtualFileSystem {
         this.archivesByPriority = [];
     }
     private hasMentalOmegaArchives(): boolean {
-        return ["expandmo95.mix", "expandmo96.mix", "expandmo97.mix", "expandmo99.mix"]
-            .some((name) => this.allArchives.has(name));
+        // MO releases do not all ship the same archive numbering. In
+        // particular, extracted client folders may contain expandmo94.mix,
+        // while newer packages use expandmo95/96/97/99. Any expandmo## file
+        // is enough to activate the MO filename aliases and companion mixes.
+        return [...this.allArchives.keys()].some((name) => /^expandmo\d{2}\.mix$/i.test(name));
     }
     private containsFileDirect(filename: string): boolean {
         for (const archive of this.archivesByPriority) {
@@ -233,7 +236,7 @@ export class VirtualFileSystem {
     async loadExtraMixFiles(engineType: EngineType): Promise<void> {
         this.logger.info("Loading extra mix files...");
         const rfsEntries = new Set<string>();
-        for await (const entry of this.rfs.getEntries()) {
+        for await (const entry of this.rfs.getEntriesRecursive()) {
             rfsEntries.add(entry.toLowerCase());
         }
         // Mental Omega keeps its Ares payload in expandmo##.mix files rather
@@ -298,7 +301,7 @@ export class VirtualFileSystem {
         const extensionsToLoad = ["ini", "csf"];
         const excludeSet = new Set<string>((options?.exclude || []).map(f => f.toLowerCase()));
         const filesForMemArchive: VirtualFile[] = [];
-        for await (const entryName of this.rfs.getEntries()) {
+        for await (const entryName of this.rfs.getEntriesRecursive()) {
             const lowerEntryName = entryName.toLowerCase();
             if (extensionsToLoad.some((ext) => lowerEntryName.endsWith("." + ext)) &&
                 !excludeSet.has(lowerEntryName)) {

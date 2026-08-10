@@ -21,7 +21,7 @@ import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
 import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib/async/cancellation";
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
-import { canImportModFromShell, downloadModFromShell, importModFromShell } from "@/shell/nativeShell";
+import { canImportModFromShell, downloadModFromShell, getNativeShellEngine, importModFromShell } from "@/shell/nativeShell";
 interface ModManager {
     listLocal(): Promise<any[]>;
     listRemote(): Promise<any[]>;
@@ -249,6 +249,9 @@ export class ModSelScreen extends MainMenuScreen {
                             this.messageBoxApi.destroy();
                             if (imported) {
                                 await this.refreshImportedMod(imported);
+                                if (getNativeShellEngine() === 'mo') {
+                                    this.modManager.loadMod(imported.id);
+                                }
                             }
                         }
                         catch (error) {

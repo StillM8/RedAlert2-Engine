@@ -27,11 +27,22 @@ android {
             dimension = "game"
             applicationId = "com.ammaar.ra2android"
             buildConfigField("String", "GAME_ENGINE", "\"ra2\"")
+            buildConfigField("String", "GAME_MOD", "\"\"")
         }
         create("yr") {
             dimension = "game"
             applicationId = "com.ammaar.yurirevengeandroid"
             buildConfigField("String", "GAME_ENGINE", "\"yr\"")
+            buildConfigField("String", "GAME_MOD", "\"\"")
+        }
+        create("mo") {
+            dimension = "game"
+            applicationId = "com.ammaar.mentalomegaandroid"
+            buildConfigField("String", "GAME_ENGINE", "\"mo\"")
+            // Mental Omega is distributed to the Android client as a complete
+            // standalone game directory. It is the selected game profile, not
+            // a second OPFS mod directory layered on top of that same folder.
+            buildConfigField("String", "GAME_MOD", "\"\"")
         }
     }
 

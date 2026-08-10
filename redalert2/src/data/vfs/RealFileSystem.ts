@@ -100,4 +100,11 @@ export class RealFileSystem {
             }
         }
     }
+    async *getEntriesRecursive(): AsyncGenerator<string, void, undefined> {
+        for (const dir of this.directories) {
+            for await (const entryName of dir.getEntriesRecursive()) {
+                yield entryName;
+            }
+        }
+    }
 }

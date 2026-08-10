@@ -466,7 +466,7 @@ export class Engine {
             // user map directory. Scan every registered directory so maps
             // shipped by mods (including Mental Omega's loose maps) appear in
             // the lobby alongside the bundled map manifests.
-            for await (const entryName of this.rfs.getEntries()) {
+            for await (const entryName of this.rfs.getEntriesRecursive()) {
                 const lowerEntryName = entryName.toLowerCase();
                 try {
                     if (lowerEntryName.endsWith(".pkt")) {

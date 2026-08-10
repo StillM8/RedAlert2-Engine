@@ -47,7 +47,15 @@ class MainActivity : Activity() {
         private const val APP_URL_BASE =
             "https://${Ra2WebViewClient.APP_ASSET_HOST}/index.html?shell=1&platform=android"
         private val APP_URL: String
-            get() = "$APP_URL_BASE&engine=${BuildConfig.GAME_ENGINE}"
+            get() = buildString {
+                append(APP_URL_BASE)
+                append("&engine=")
+                append(Uri.encode(BuildConfig.GAME_ENGINE))
+                if (BuildConfig.GAME_MOD.isNotEmpty()) {
+                    append("&mod=")
+                    append(Uri.encode(BuildConfig.GAME_MOD))
+                }
+            }
         private const val WEBVIEW_STATE_KEY = "ra2.webview.state"
         private const val MAX_RENDERER_RECOVERIES = 3
         private const val RECOVERY_WINDOW_MS = 5 * 60 * 1000L
@@ -68,6 +76,19 @@ class MainActivity : Activity() {
             "multimd.mix",
             "ra2md.mix",
         )
+
+        private fun requiredGameFiles(): List<String> =
+            REQUIRED_RA2_GAME_FILES + if (BuildConfig.GAME_ENGINE == "yr" || BuildConfig.GAME_ENGINE == "mo") {
+                OPTIONAL_YR_GAME_FILES
+            } else {
+                emptyList()
+            }
+
+        private fun gameDisplayName(): String = when (BuildConfig.GAME_ENGINE) {
+            "yr" -> "Yuri's Revenge"
+            "mo" -> "Mental Omega"
+            else -> "Red Alert 2"
+        }
     }
 
     private lateinit var webView: WebView
@@ -137,6 +158,34 @@ class MainActivity : Activity() {
             webViewClient = object : WebViewClient() {
                 private val delegate = Ra2WebViewClient(this@MainActivity)
 
+                private fun handleMainFrameNavigation(uri: Uri): Boolean {
+                    val isTrustedAppUrl = uri.scheme.equals("https", ignoreCase = true) &&
+                        uri.host.equals(Ra2WebViewClient.APP_ASSET_HOST, ignoreCase = true)
+                    val isSafeBlankUrl = uri.scheme.equals("about", ignoreCase = true) &&
+                        uri.path.equals("blank", ignoreCase = true)
+                    if (isTrustedAppUrl || isSafeBlankUrl) return false
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        true
+                    } catch (error: Exception) {
+                        Log.w(TAG, "Blocked unsupported WebView navigation: $uri", error)
+                        true
+                    }
+                }
+
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: android.webkit.WebResourceRequest,
+                ): Boolean {
+                    if (!request.isForMainFrame) return false
+                    return handleMainFrameNavigation(request.url)
+                }
+
+                @Suppress("DEPRECATION")
+                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
+                    return handleMainFrameNavigation(Uri.parse(url))
+                }
+
                 override fun shouldInterceptRequest(
                     view: WebView,
                     request: android.webkit.WebResourceRequest,
@@ -190,6 +239,15 @@ class MainActivity : Activity() {
     /** Native folder selection is required because Android maps a webkitdirectory
      * input to file selection, not to a Storage Access Framework tree URI. */
     inner class AndroidBridge {
+        @JavascriptInterface
+        fun platformReady(): Boolean {
+            runOnUiThread {
+                val powerManager = getSystemService(PowerManager::class.java)
+                if (powerManager != null) pushPowerState(powerManager)
+            }
+            return true
+        }
+
         @JavascriptInterface
         fun pickGameDirectory(): Boolean {
             runOnUiThread { launchGameDirectoryPicker() }
@@ -711,14 +769,12 @@ class MainActivity : Activity() {
                     throw IOException("The selected folder does not contain any readable files")
                 }
                 normalizeGameRoot(staging, files)
-                val missing = REQUIRED_RA2_GAME_FILES.filterNot { required ->
+                val requiredFiles = requiredGameFiles()
+                val missing = requiredFiles.filterNot { required ->
                     files.any { it.path.equals(required, ignoreCase = true) }
                 }
                 if (missing.isNotEmpty()) {
-                    throw IOException(
-                        "This is not a complete Red Alert 2 folder. " +
-                            "Missing: ${missing.joinToString()}",
-                    )
+                    throw IOException("This is not a complete ${gameDisplayName()} folder. Missing: ${missing.joinToString()}")
                 }
 
                 val manifestFiles = JSONArray()
@@ -758,7 +814,7 @@ class MainActivity : Activity() {
      * imported root so the web VFS sees the same layout as the desktop game.
      */
     private fun normalizeGameRoot(destinationRoot: File, files: MutableList<ImportedFile>) {
-        val requiredNames = (REQUIRED_RA2_GAME_FILES + OPTIONAL_YR_GAME_FILES)
+        val requiredNames = requiredGameFiles()
             .map { it.lowercase() }
             .toSet()
         val rootHasAll = requiredNames.all { required ->
@@ -976,7 +1032,7 @@ class MainActivity : Activity() {
         (view.parent as? android.view.ViewGroup)?.removeView(view)
         view.destroy()
         if (rendererRecoveryCount > MAX_RENDERER_RECOVERIES) {
-            showFatalMessage("Red Alert 2 ran out of memory and could not recover.\n\nClose other apps and launch again.")
+            showFatalMessage("${gameDisplayName()} ran out of memory and could not recover.\n\nClose other apps and launch again.")
             return
         }
 
@@ -1094,12 +1150,15 @@ class MainActivity : Activity() {
         if (::webView.isInitialized) {
             webView.onResume()
             webView.resumeTimers()
+            val powerManager = getSystemService(PowerManager::class.java)
+            if (powerManager != null) pushPowerState(powerManager)
         }
     }
 
     override fun onPause() {
         if (::webView.isInitialized) {
             webView.onPause()
+            webView.pauseTimers()
         }
         super.onPause()
     }
@@ -1113,6 +1172,12 @@ class MainActivity : Activity() {
             webView.stopLoading()
             webView.destroy()
         }
+        nativeDownloads.values.forEach { job ->
+            job.cancelled.set(true)
+            job.connection?.disconnect()
+        }
+        nativeDownloads.clear()
+        downloadExecutor.shutdownNow()
         importExecutor.shutdownNow()
         filePathCallback?.onReceiveValue(null)
         filePathCallback = null

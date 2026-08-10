@@ -36,6 +36,11 @@ function App() {
                     installShellDebugLog();
                     installShellRepl();
                     installPowerStateReceiver();
+                    // Android may publish the initial thermal/battery state
+                    // before the WebView bridge exists. A one-shot handshake
+                    // makes the native state delivery reliable on cold boot
+                    // and after renderer recovery.
+                    window.Ra2Android?.platformReady?.();
                     await seedGameResFromShell();
                     await app.main();
                     console.log('App.tsx: app.main() completed.');

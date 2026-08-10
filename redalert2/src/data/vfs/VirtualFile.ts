@@ -3,11 +3,11 @@ import { IOError } from './IOError';
 export class VirtualFile {
     public stream: DataStream;
     public filename: string;
-    public static async fromRealFile(realFile: File): Promise<VirtualFile> {
+    public static async fromRealFile(realFile: File, filename: string = realFile.name): Promise<VirtualFile> {
         try {
             const arrayBuffer = await realFile.arrayBuffer();
             const dataStream = new DataStream(arrayBuffer);
-            return new VirtualFile(dataStream, realFile.name);
+            return new VirtualFile(dataStream, filename);
         }
         catch (error) {
             if (error instanceof DOMException) {

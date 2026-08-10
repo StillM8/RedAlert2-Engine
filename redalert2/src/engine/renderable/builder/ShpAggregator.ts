@@ -2,10 +2,17 @@ import { ShpFile } from "@/data/ShpFile";
 import { ShpImage } from "@/data/ShpImage";
 export class ShpAggregator {
     static getShpFrameInfo(file: ShpFile, hasShadow: boolean) {
+        // A few modern YR/MO animation SHPs contain a single frame while
+        // their art section still advertises Shadow=yes.  Treating that as a
+        // shadowed file produces zero visible frames and later points the
+        // shadow builder one frame past the aggregate.  A shadow needs a
+        // separate image, so a one-frame file is a normal, shadowless sprite.
+        const imageCount = Math.min(file.numImages, file.images.length);
+        const hasUsableShadow = hasShadow && imageCount >= 2;
         return {
             file,
-            hasShadow,
-            frameCount: Math.floor(file.numImages * (hasShadow ? 0.5 : 1)),
+            hasShadow: hasUsableShadow,
+            frameCount: hasUsableShadow ? Math.floor(imageCount * 0.5) : imageCount,
         };
     }
     aggregate(frames: Array<{

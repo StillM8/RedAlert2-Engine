@@ -33,6 +33,34 @@ export class RealFileSystemDir {
             throw e;
         }
     }
+
+    /** Enumerate files below this directory using game-style relative paths. */
+    async *getEntriesRecursive(prefix: string = ""): AsyncGenerator<string, void, undefined> {
+        try {
+            for await (const [key, entryHandle] of this.handle.entries()) {
+                const entryPath = prefix ? `${prefix}/${key}` : key;
+                if (entryHandle.kind === "file") {
+                    yield entryPath;
+                }
+                else {
+                    const child = new RealFileSystemDir(
+                        entryHandle as FileSystemDirectoryHandle,
+                        this.caseSensitive,
+                    );
+                    yield* child.getEntriesRecursive(entryPath);
+                }
+            }
+        }
+        catch (e: any) {
+            if (e.name === "NotFoundError") {
+                throw new FileNotFoundError(`Directory \"${this.handle.name}\" not found`, e);
+            }
+            if (e instanceof DOMException) {
+                throw new IOError(`Directory \"${this.handle.name}\" could not be read (${e.name})`, e);
+            }
+            throw e;
+        }
+    }
     async listEntries(): Promise<string[]> {
         const entries: string[] = [];
         for await (const entry of this.getEntries()) {
@@ -103,8 +131,28 @@ export class RealFileSystemDir {
     async getRawFile(filename: string, skipCaseFix: boolean = false, type?: string): Promise<File> {
         let fileHandle: FileSystemFileHandle;
         try {
-            const resolvedName = skipCaseFix ? filename : await this.fixEntryCase(filename);
-            fileHandle = await this.handle.getFileHandle(resolvedName);
+            const segments = filename.split('/');
+            if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+                throw new FileNotFoundError(`Invalid relative file path \"${filename}\"`);
+            }
+            const fileName = segments.pop()!;
+            let directoryHandle = this.handle;
+            for (const directoryName of segments) {
+                const resolvedDirectoryName = skipCaseFix
+                    ? directoryName
+                    : await this.resolveChildName(directoryHandle, directoryName, "directory");
+                if (!resolvedDirectoryName) {
+                    throw new FileNotFoundError(`Directory \"${directoryName}\" not found while opening \"${filename}\"`);
+                }
+                directoryHandle = await directoryHandle.getDirectoryHandle(resolvedDirectoryName);
+            }
+            const resolvedName = skipCaseFix
+                ? fileName
+                : await this.resolveChildName(directoryHandle, fileName, "file");
+            if (!resolvedName) {
+                throw new FileNotFoundError(`File \"${filename}\" not found in directory \"${this.handle.name}\"`);
+            }
+            fileHandle = await directoryHandle.getFileHandle(resolvedName);
         }
         catch (e: any) {
             if (e.name === "NotFoundError") {
@@ -126,7 +174,31 @@ export class RealFileSystemDir {
     }
     async openFile(filename: string, skipCaseFix: boolean = false): Promise<VirtualFile> {
         const rawFile = await this.getRawFile(filename, skipCaseFix);
-        return VirtualFile.fromRealFile(rawFile);
+        return VirtualFile.fromRealFile(rawFile, filename);
+    }
+
+    private async resolveChildName(
+        directoryHandle: FileSystemDirectoryHandle,
+        entryName: string,
+        kind: "file" | "directory",
+    ): Promise<string | undefined> {
+        if (this.caseSensitive) {
+            try {
+                if (kind === "file") {
+                    return (await directoryHandle.getFileHandle(entryName)).name;
+                }
+                return (await directoryHandle.getDirectoryHandle(entryName)).name;
+            }
+            catch {
+                return undefined;
+            }
+        }
+        for await (const [key, entryHandle] of directoryHandle.entries()) {
+            if (entryHandle.kind === kind && equalsIgnoreCase(key, entryName)) {
+                return key;
+            }
+        }
+        return undefined;
     }
     async writeFile(virtualFile: VirtualFile, filenameOverride?: string): Promise<void> {
         const resolvedFilename = filenameOverride ?? virtualFile.filename;
