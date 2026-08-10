@@ -1,7 +1,7 @@
 import { StorageKey } from '../LocalPrefs';
 import { GameResSource } from '../engine/gameRes/GameResSource';
 import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/async/cancellation';
-import { getGameProfile, hasMentalOmegaSignature, isGameProfileId, type GameProfileId } from '../engine/GameProfile';
+import { getGameProfile, isGameProfileId, type GameProfileId } from '../engine/GameProfile';
 import { gamePathKey, normalizeGamePath } from '../engine/GamePath';
 import type { ArchiveSource } from '../data/ArchiveSource';
 
@@ -201,19 +201,15 @@ function ensureShellMarker(): void {
     if (!params.has('shell'))
         return;
     const rawEngine = params.get('engine');
-    // Older debug/release APKs used engine=mo. Accept that URL once, but
-    // normalize it immediately so the runtime never has a third engine type.
     const engine: NativeShellEngine | undefined = rawEngine === 'ra2'
         ? 'ra2'
-        : rawEngine === 'yr' || rawEngine === 'mo'
+        : rawEngine === 'yr'
             ? 'yr'
             : undefined;
     const rawProfile = params.get('profile');
     const profile: NativeShellProfile | undefined = isGameProfileId(rawProfile)
         ? rawProfile
-        : rawEngine === 'mo'
-            ? 'mental-omega'
-            : engine;
+        : engine;
     window.__RA2_SHELL__ = {
         platform: params.get('platform') || 'native',
         version: params.get('shellVersion') || '0.1.0',
@@ -625,17 +621,14 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
         }
     }));
     const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(gamePathKey(file)));
-    const hasMoSignature = hasMentalOmegaSignature(manifest.files.map((file) => file.path));
     const requestedProfile = getNativeShellProfile();
-    const selectedProfile = requestedProfile ?? (hasMoSignature ? 'mental-omega' : hasYuriFiles ? 'yr' : 'ra2');
+    const selectedProfile = requestedProfile ?? (hasYuriFiles ? 'yr' : 'ra2');
     const profile = getGameProfile(selectedProfile);
     const missingRequiredFiles = profile.requiredFiles.filter((file) => !manifestPaths.has(gamePathKey(file)));
-    const profileFilesAvailable = selectedProfile !== 'mental-omega' || hasMoSignature;
-    if (missingRequiredFiles.length > 0 || !profileFilesAvailable) {
+    if (missingRequiredFiles.length > 0) {
         console.warn(
             `[nativeShell] Resource import is incomplete for ${selectedProfile}; ` +
-            `missing ${missingRequiredFiles.join(', ') || 'Mental Omega signature'}. ` +
-            'The game-resource chooser will remain available.',
+            `missing ${missingRequiredFiles.join(', ')}. The game-resource chooser will remain available.`,
         );
         localStorage.removeItem(StorageKey.GameRes);
         localStorage.removeItem(NATIVE_ENGINE_STORAGE_KEY);
@@ -689,7 +682,7 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             `Preparing game files... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`,
         );
     }
-    if (missingRequiredFiles.length === 0 && profileFilesAvailable) {
+    if (missingRequiredFiles.length === 0) {
         const config = String(GameResSource.Local);
         localStorage.setItem(StorageKey.GameRes, config);
     }

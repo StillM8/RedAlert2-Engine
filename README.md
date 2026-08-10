@@ -266,7 +266,6 @@ The Android shell is split into two installable app variants:
 |---|---|---|
 | `ra2` | Red Alert 2 | `com.ammaar.ra2android.debug` |
 | `yr` | Yuri's Revenge | `com.ammaar.yurirevengeandroid.debug` |
-| `mo` | Mental Omega Client | `com.ammaar.mentalomegaandroid.debug` |
 
 With the Android SDK and Gradle available, build either variant from the repo
 root:
@@ -274,7 +273,6 @@ root:
 ```sh
 ./scripts/build-android.sh --variant ra2
 ./scripts/build-android.sh --variant yr
-./scripts/build-android.sh --variant mo
 ```
 
 Use `--device` to install and launch the selected variant through `adb`:
@@ -288,19 +286,6 @@ The first launch opens the in-app game-resource setup. Choose **Select folder**
 and select the directory containing the retail files; selecting individual files
 is not sufficient. The Yuri variant requires `langmd.mix`, `multimd.mix`, and
 `ra2md.mix` in addition to the Red Alert 2 files.
-
-The Mental Omega Android Client is a separate APK, but it still requires a
-complete Mental Omega + Yuri's Revenge installation. Place that full folder at
-`Download/RA2 MO`, open the MO app, choose **Select folder**, and select `RA2 MO`.
-Do not select a ZIP or a single MIX file. The client preserves the folder tree,
-loads the loose `MapsMO` maps and MO MIX archives, and runs them through the
-shared Yuri-compatible engine.
-
-Internally, Mental Omega is modeled as the Yuri's Revenge engine with a
-`mental-omega` game profile. The profile detector rejects an ordinary Yuri
-installation, and the client records Ares/Phobos rule extensions for
-compatibility diagnostics; complete Ares gameplay parity is still under
-development.
 
 Returning to any app from Home or Android Back preserves the existing WebView
 and game session instead of booting a new session.

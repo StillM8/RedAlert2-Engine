@@ -40,7 +40,7 @@ export class MapManifest {
             throw new Error(`Map "${mapFileName}" is missing the [Basic] section after parsing`);
         }
         // Keep the relative path in fileName so MapFileLoader can resolve
-        // maps shipped below a mod directory such as MapsMO/Standard. Use
+        // maps shipped below nested mod directories. Use
         // only the leaf name for the fallback UI label so long mod paths do
         // not spill out of the map picker.
         this.fileName = mapFileName;
@@ -59,7 +59,7 @@ export class MapManifest {
         this.official = basicSection.getBool("Official");
         // Map authors commonly write "Standard" while the engine's mode
         // catalog stores the filter as "standard". Treat this metadata as
-        // case-insensitive so mod maps (notably Mental Omega's) are usable in
+        // case-insensitive so mod maps are usable in
         // the skirmish and LAN map pickers.
         const supportedModeFilters = basicSection
             .getArray("GameMode", /,\s*/, ["standard"])

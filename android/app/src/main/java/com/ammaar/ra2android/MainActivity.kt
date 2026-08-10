@@ -91,7 +91,6 @@ class MainActivity : Activity() {
 
         private fun gameDisplayName(): String = when (BuildConfig.GAME_PROFILE) {
             "yr" -> "Yuri's Revenge"
-            "mental-omega" -> "Mental Omega"
             else -> "Red Alert 2"
         }
     }
@@ -811,23 +810,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun hasMentalOmegaSignature(files: Collection<ImportedFile>): Boolean {
-        var hasExpandArchive = false
-        var hasMoContent = false
-        files.forEach { file ->
-            val path = file.path.replace('\\', '/').lowercase()
-            val leaf = path.substringAfterLast('/')
-            if (Regex("^expandmo\\d{2}\\.mix$").matches(leaf)) {
-                hasExpandArchive = true
-            }
-            if (path.startsWith("mapsmo/") ||
-                Regex("^(mapsmo\\d+|multimo|movmo\\d+)\\.mix$").matches(leaf)) {
-                hasMoContent = true
-            }
-        }
-        return hasExpandArchive && hasMoContent
-    }
-
     private fun queryDisplayName(uri: Uri): String {
         contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
@@ -863,13 +845,6 @@ class MainActivity : Activity() {
                 if (missing.isNotEmpty()) {
                     throw IOException("This is not a complete ${gameDisplayName()} folder. Missing: ${missing.joinToString()}")
                 }
-                if (BuildConfig.GAME_PROFILE == "mental-omega" && !hasMentalOmegaSignature(files)) {
-                    throw IOException(
-                        "This is a Yuri's Revenge folder, not a complete Mental Omega installation. " +
-                            "Select the full MO folder containing an expandmo##.mix archive and MapsMO/ content.",
-                    )
-                }
-
                 val manifestFiles = JSONArray()
                 files.sortedBy { it.path }.forEach { file ->
                     manifestFiles.put(
@@ -946,7 +921,7 @@ class MainActivity : Activity() {
      * example Download/Red Alert 2/Red Alert 2/ with the mix files). If all
      * core archives are in one nested directory, move that directory's
      * contents to the imported root so the web VFS sees the same layout as the
-     * desktop game. Other directories, such as MapsMO, remain untouched.
+     * desktop game. Other directories remain untouched.
      */
     private fun normalizeGameRoot(destinationRoot: File, files: MutableList<ImportedFile>) {
         val requiredNames = requiredGameFiles()

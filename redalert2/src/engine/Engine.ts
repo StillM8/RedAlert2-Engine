@@ -237,7 +237,7 @@ export class Engine {
     }
     static async initVfs(rfsInstance: RealFileSystem | undefined, logger: VfsLogger, profile: GameProfileDescriptor = GAME_PROFILES.ra2): Promise<VirtualFileSystem> {
         this.activeProfile = profile;
-        this.vfs = new VirtualFileSystem(rfsInstance, logger, profile);
+        this.vfs = new VirtualFileSystem(rfsInstance, logger);
         this.iniFiles.setVfs(this.vfs);
         this.palettes.setVfs(this.vfs);
         this.images.setVfs(this.vfs);
@@ -467,8 +467,8 @@ export class Engine {
         if (this.rfs) {
             // RFS can contain the base game, an active mod directory, and a
             // user map directory. Scan every registered directory so maps
-            // shipped by mods (including Mental Omega's loose maps) appear in
-            // the lobby alongside the bundled map manifests.
+            // shipped by mods appear in the lobby alongside the bundled map
+            // manifests.
             for await (const entryName of this.rfs.getEntriesRecursive()) {
                 const lowerEntryName = entryName.toLowerCase();
                 try {

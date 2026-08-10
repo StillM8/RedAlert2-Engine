@@ -4,8 +4,7 @@ const sideMap = new Map<string, SideType>()
     .set("Nod", SideType.Nod)
     .set("Civilian", SideType.Civilian)
     .set("Mutant", SideType.Mutant)
-    .set("ThirdSide", SideType.Yuri)
-    .set("FourthSide", SideType.FourthSide);
+    .set("ThirdSide", SideType.Yuri);
 const tooltipMap = new Map<string, string>([
     ["Americans", "STT:PlayerSideAmerica"],
     ["Alliance", "STT:PlayerSideKorea"],

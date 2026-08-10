@@ -1,31 +1,25 @@
 import { describe, expect, test } from 'bun:test';
-import { detectGameProfile, hasMentalOmegaSignature } from '@/engine/GameProfile';
+import { detectGameProfile } from '@/engine/GameProfile';
 import { gamePathKey, normalizeGamePath } from '@/engine/GamePath';
 
 describe('GameProfile detection', () => {
-    test('does not identify a plain Yuri installation as Mental Omega', () => {
+    test('detects Red Alert 2 when Yuri archives are absent', () => {
+        expect(detectGameProfile([
+            'language.mix', 'multi.mix', 'ra2.mix',
+        ])).toBe('ra2');
+    });
+
+    test('detects Yuri\'s Revenge from its three expansion archives', () => {
         expect(detectGameProfile([
             'language.mix', 'multi.mix', 'ra2.mix',
             'langmd.mix', 'multimd.mix', 'ra2md.mix',
         ])).toBe('yr');
     });
-
-    test('recognizes MO regardless of expand archive number and path case', () => {
-        expect(hasMentalOmegaSignature([
-            'EXPANDMO94.MIX',
-            'MapsMO/Standard/ZeroPressure.map',
-        ])).toBe(true);
-        expect(detectGameProfile([
-            'expandmo99.mix',
-            'mapsmo/challenge/test.map',
-            'ra2.mix', 'ra2md.mix', 'langmd.mix', 'multimd.mix',
-        ])).toBe('mental-omega');
-    });
 });
 
 describe('GamePath', () => {
     test('normalizes Windows separators and casefolds lookups', () => {
-        expect(normalizeGamePath('./MapsMO\\Standard\\test.map')).toBe('MapsMO/Standard/test.map');
+        expect(normalizeGamePath('./Maps/Standard/test.map')).toBe('Maps/Standard/test.map');
         expect(gamePathKey('RULESMD.INI')).toBe('rulesmd.ini');
     });
 

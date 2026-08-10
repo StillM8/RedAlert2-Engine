@@ -32,7 +32,6 @@ import { attachPerformanceOptions, installPerformanceDebugApi } from './performa
 import { inGameViewportActive } from './gui/inGameViewport';
 import { getNativeShellEngine, getNativeShellProfile, isNativeShell } from './shell/nativeShell';
 import type { GameProfileId } from './engine/GameProfile';
-import { CompatibilityScanner } from './compatibility/CompatibilityScanner';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -623,27 +622,12 @@ export class Application {
         const requestedModName = urlParams.get('mod');
         const nativeShellProfile = isNativeShell() ? getNativeShellProfile() : undefined;
         const profile: GameProfileId = nativeShellProfile ?? (this.config.engine === 'yr' ? 'yr' : 'ra2');
-        // The Android Mental Omega APK accepts the complete MO installation as
-        // its game-resource profile. Do not reinterpret that same directory as
-        // an OPFS `mods/mentalomega` overlay.
-        const modName = profile === 'mental-omega' ? undefined : requestedModName;
-        if (requestedModName && profile === 'mental-omega') {
-            console.info('[Application] Ignoring legacy MO mod query; the selected full MO folder is the game profile.');
-        }
+        const modName = requestedModName;
         let gameResConfig = this.loadGameResConfig(this.localPrefs);
         try {
             const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry, profile);
             const { configToPersist, cdnResLoader } = await gameRes.init(gameResConfig, (error, strings) => this.handleGameResLoadError(error, strings), (error, strings) => this.handleGameResImportError(error, strings));
             this.loadGameStringsFromVfs();
-            if (profile === 'mental-omega' && Engine.vfs) {
-                const compatibility = await CompatibilityScanner.scan(Engine.vfs);
-                console.info(
-                    `[Compatibility] Mental Omega scan: ${compatibility.filesScanned} INI files, ` +
-                    `${compatibility.mapFilesScanned} map/archive files, ` +
-                    `${compatibility.extensionKeys} Ares/Phobos extension keys; ` +
-                    `${compatibility.diagnostics.filter((entry) => entry.status === 'unknown').length} unknown.`,
-                );
-            }
             try {
                 const vfsAny: any = (Engine as any).vfs;
                 if (vfsAny?.debugListFileOwners) {

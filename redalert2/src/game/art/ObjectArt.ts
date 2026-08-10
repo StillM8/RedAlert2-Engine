@@ -423,7 +423,7 @@ export class ObjectArt {
     }
     get foundation(): Foundation {
         const foundationStr = this.art.getString("Foundation", "1x1")!;
-        // Ares/ Mental Omega buildings can describe irregular foundations as
+        // Ares-compatible buildings can describe irregular foundations as
         // `Foundation=Custom` with their bounding dimensions in Foundation.X
         // and Foundation.Y.  The engine currently uses the bounding rectangle
         // for placement/rendering, but must still understand those dimensions;

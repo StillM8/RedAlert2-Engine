@@ -3,7 +3,6 @@
 #
 #   ./scripts/build-android.sh                 # Red Alert 2 debug APK
 #   ./scripts/build-android.sh --variant yr    # Yuri's Revenge debug APK
-#   ./scripts/build-android.sh --variant mo    # Mental Omega Client debug APK
 #   ./scripts/build-android.sh --device        # debug APK + adb install
 #   ./scripts/build-android.sh --no-web         # reuse redalert2/dist
 #   ./scripts/build-android.sh --no-gameres     # compile shell without game files
@@ -24,7 +23,7 @@ while [[ $# -gt 0 ]]; do
     --no-gameres) SKIP_GAMERES=1 ;;
     --device) INSTALL=1 ;;
     --variant)
-      [[ $# -ge 2 ]] || { echo "error: --variant requires ra2, yr, or mo" >&2; exit 2; }
+      [[ $# -ge 2 ]] || { echo "error: --variant requires ra2 or yr" >&2; exit 2; }
       VARIANT="$2"
       shift
       ;;
@@ -46,12 +45,7 @@ case "$VARIANT" in
     APK_NAME=app-yr-debug.apk
     PACKAGE_NAME=com.ammaar.yurirevengeandroid.debug
     ;;
-  mo)
-    GRADLE_VARIANT=moDebug
-    APK_NAME=app-mo-debug.apk
-    PACKAGE_NAME=com.ammaar.mentalomegaandroid.debug
-    ;;
-  *) die "unsupported Android variant '$VARIANT' (expected ra2, yr, or mo)" ;;
+  *) die "unsupported Android variant '$VARIANT' (expected ra2 or yr)" ;;
 esac
 
 if [[ $SKIP_WEB -eq 0 ]]; then

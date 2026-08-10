@@ -35,18 +35,6 @@ android {
             buildConfigField("String", "GAME_ENGINE", "\"yr\"")
             buildConfigField("String", "GAME_PROFILE", "\"yr\"")
         }
-        create("mo") {
-            dimension = "game"
-            applicationId = "com.ammaar.mentalomegaandroid"
-            // Mental Omega is a Yuri's Revenge profile, not a third
-            // simulation engine. The APK remains separate, but the shared
-            // runtime only needs to select YR plus this profile.
-            buildConfigField("String", "GAME_ENGINE", "\"yr\"")
-            buildConfigField("String", "GAME_PROFILE", "\"mental-omega\"")
-            // The APK is a standalone client, while the selected resources are
-            // a complete MO + Yuri's Revenge installation. This is a profile,
-            // not a second OPFS mod directory layered on top of the folder.
-        }
     }
 
     buildTypes {

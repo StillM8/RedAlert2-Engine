@@ -22,7 +22,7 @@ import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
 import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib/async/cancellation";
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
 import type { ArchiveSource } from "@/data/ArchiveSource";
-import { canImportModFromShell, downloadModFromShell, getNativeShellProfile, importModFromShell } from "@/shell/nativeShell";
+import { canImportModFromShell, downloadModFromShell, importModFromShell } from "@/shell/nativeShell";
 interface ModManager {
     listLocal(): Promise<any[]>;
     listRemote(): Promise<any[]>;
@@ -250,9 +250,6 @@ export class ModSelScreen extends MainMenuScreen {
                             this.messageBoxApi.destroy();
                             if (imported) {
                                 await this.refreshImportedMod(imported);
-                                if (getNativeShellProfile() === 'mental-omega') {
-                                    this.modManager.loadMod(imported.id);
-                                }
                             }
                         }
                         catch (error) {
