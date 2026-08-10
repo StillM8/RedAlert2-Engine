@@ -135,6 +135,8 @@ export interface AresSuperWeaponDefinition {
     swAffectsHouse?: string;
     swAffectsTarget?: string;
     swRequiresTarget?: string;
+    /** Whether manual/AI activation may target the player's unexplored shroud. */
+    swFireIntoShroud?: boolean;
     swAIRequiresTarget?: string;
     swAIRequiresHouse?: string;
     swRangeMinimum?: number;
@@ -256,6 +258,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAffectsHouse: getString(section, "SW.AffectsHouse"),
         swAffectsTarget: getString(section, "SW.AffectsTarget"),
         swRequiresTarget: getString(section, "SW.RequiresTarget"),
+        swFireIntoShroud: getBool(section, "SW.FireIntoShroud"),
         swAIRequiresTarget: getString(section, "SW.AIRequiresTarget"),
         swAIRequiresHouse: getString(section, "SW.AIRequiresHouse"),
         swRangeMinimum: getNumber(section, "SW.RangeMinimum"),

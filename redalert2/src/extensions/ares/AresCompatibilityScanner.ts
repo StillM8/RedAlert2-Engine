@@ -102,6 +102,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.(?:requirestarget|requireshouse)$/i.test(key)) {
         return "ares.superweapon-target-requirements";
     }
+    if (/^sw\.fireintoshroud$/i.test(key)) {
+        return "ares.superweapon-shroud-targeting";
+    }
     if (/^sw\.(?:initialready|virtualcharge)$/i.test(key)) {
         return "ares.superweapon-charge-state";
     }

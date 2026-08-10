@@ -105,6 +105,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Manual cell/content and house-relation validation follows Antares IsCellEligible/IsTechnoEligible semantics; AI target selection and cursor presentation remain separate.",
     },
     {
+        id: "ares.superweapon-shroud-targeting",
+        description: "Ares SW.FireIntoShroud visibility gate for superweapon activation",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponTargeting.test.ts", "AresSuperWeapons.test.ts"],
+        notes: "The documented default is permissive; when explicitly disabled, manual activation rejects only unexplored cells using the owner's MapShroud, while temporary reveals remain valid. AI actions pass through the same final activation gate.",
+    },
+    {
         id: "ares.superweapon-charge-state",
         description: "Ares SW.InitialReady and SW.VirtualCharge timer semantics",
         implemented: false,

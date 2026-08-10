@@ -4,7 +4,10 @@ import { ActionType } from '@/game/action/ActionType';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { SuperWeaponsTrait } from '@/game/trait/SuperWeaponsTrait';
 import { Game } from '@/game/Game';
-import { isAresSuperWeaponActivationAllowed } from '@/extensions/ares/AresSuperWeaponFilters';
+import {
+    isAresSuperWeaponActivationAllowed,
+    isAresSuperWeaponFireIntoShroudAllowed,
+} from '@/extensions/ares/AresSuperWeaponFilters';
 export class ActivateSuperWeaponAction extends Action {
     private game: Game;
     private superWeaponType: number;
@@ -84,6 +87,15 @@ export class ActivateSuperWeaponAction extends Action {
             this.game as any,
         )) {
             console.warn(`Superweapon ${rules.name} target does not satisfy Ares SW.RequiresTarget/SW.RequiresHouse; ignored`);
+            return;
+        }
+        if (rules.ares && !isAresSuperWeaponFireIntoShroudAllowed(
+            rules.ares.swFireIntoShroud,
+            this.player,
+            tile,
+            this.game as any,
+        )) {
+            console.warn(`Superweapon ${rules.name} cannot fire into unexplored shroud; ignored`);
             return;
         }
         this.game.traits

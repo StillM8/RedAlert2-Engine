@@ -114,6 +114,25 @@ SW.RequiresHouse=Team
         expect(usage?.support?.runtimeImplemented).toBe(true);
     });
 
+    test("classifies SW.FireIntoShroud as a common visibility gate", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[MOReveal]
+Type=GenericWarhead
+SW.FireIntoShroud=no
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-shroud-targeting");
+        expect(usage?.occurrences).toBe(1);
+        expect(usage?.definitionCount).toBe(1);
+        expect(usage?.support?.runtimeImplemented).toBe(true);
+        expect(report.unknownExtensionKeys).toBe(0);
+    });
+
     test("classifies EMPulse fields and launch-site flags as one capability", () => {
         const report = scanMentalOmegaIniSources([
             {

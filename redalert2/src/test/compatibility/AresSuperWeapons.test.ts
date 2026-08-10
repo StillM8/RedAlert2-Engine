@@ -16,6 +16,7 @@ SW.AffectsHouse=Enemies
 SW.RequiresTarget=Land
 SW.AITargeting=Offensive
 SW.Range=3.5,4
+SW.FireIntoShroud=no
 SW.InitialReady=yes
 SW.VirtualCharge=true
 SW.Group=2
@@ -29,6 +30,7 @@ SW.Group=2
         expect(definition?.swWarhead).toBe("MOBlastWH");
         expect(definition?.swAffectsTarget).toBe("Land,Units");
         expect(definition?.swRange).toEqual([3.5, 4]);
+        expect(definition?.swFireIntoShroud).toBe(false);
         expect(definition?.swInitialReady).toBe(true);
         expect(definition?.swVirtualCharge).toBe(true);
         expect(definition?.swGroup).toBe(2);
