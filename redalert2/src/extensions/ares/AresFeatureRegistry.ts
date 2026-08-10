@@ -82,9 +82,9 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         description: "EMP.Threshold parsing and destruction thresholds for airborne Technos",
         implemented: false,
         parserImplemented: true,
-        runtimeImplemented: false,
+        runtimeImplemented: true,
         tests: ["AresEMP.test.ts"],
-        notes: "Threshold values are normalized at rule load; destruction/runtime threshold checks are intentionally tracked separately.",
+        notes: "Positive thresholds and negative in-air thresholds are evaluated after EMP counter updates; parachuting and non-air targets follow the documented distinction. Full aircraft/hover crash integration and persistence remain separate.",
     },
     {
         id: "ares.custom-superweapons",

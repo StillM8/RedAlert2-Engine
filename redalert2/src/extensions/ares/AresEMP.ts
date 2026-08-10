@@ -72,6 +72,21 @@ export function parseAresEmpThreshold(raw: string | undefined): number {
     return Number.isFinite(parsed) ? Math.trunc(parsed) : -1;
 }
 
+/** Returns whether the current EMP counter crosses a Techno threshold. */
+export function aresEmpThresholdExceeded(
+    threshold: number,
+    remainingFrames: number,
+    isInAir: boolean,
+    isParachuting = false,
+): boolean {
+    const normalizedThreshold = Math.trunc(threshold);
+    const remaining = Math.max(0, Math.trunc(remainingFrames));
+    if (normalizedThreshold === 0 || remaining <= Math.abs(normalizedThreshold)) {
+        return false;
+    }
+    return normalizedThreshold > 0 || (isInAir && !isParachuting);
+}
+
 /**
  * Applies Ares' EMP.Duration/EMP.Cap counter rules.
  *

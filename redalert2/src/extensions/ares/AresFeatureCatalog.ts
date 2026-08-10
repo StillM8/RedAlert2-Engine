@@ -312,11 +312,11 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
     },
     "new/destroyunitsbyemp.rst": {
         capabilityId: "ares.emp-threshold",
-        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "missing",
-        aiStatus: "missing", presentationStatus: "missing", saveLoadStatus: "missing", multiplayerStatus: "missing",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        aiStatus: "partial", presentationStatus: "missing", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresEMP.test.ts"],
         dependencies: ["ares.emp"], targetModUsage: "unknown",
-        notes: "EMP.Threshold is parsed and normalized as yes/no/inair/integer; the destruction check is still a separate runtime capability.",
+        notes: "EMP.Threshold is normalized as yes/no/inair/integer and positive/in-air counter crossings destroy non-aircraft Technos through the normal world destruction path. Aircraft crash handling, parachute traits, and persistence remain open.",
     },
 };
 
