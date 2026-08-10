@@ -234,45 +234,22 @@ export class ExpansionMission extends Mission {
 function findDeployableLocations(playerName: string, gameApi: GameApi, rectangle: Rectangle, rules: string) {
     const tiles = gameApi.map.getTilesInRect(rectangle);
     const { foundation, foundationCenter } = gameApi.getBuildingPlacementData(rules);
+    const cells = foundation.cells?.length
+        ? foundation.cells
+        : Array.from({ length: foundation.width * foundation.height }, (_, index) => ({
+            x: Math.floor(index / foundation.height),
+            y: index % foundation.height,
+        }));
 
-    if (foundation.width !== foundation.height) {
-        throw new Error("only implemented for square foundations");
-    }
-
-    const grid: number[][] = new Array(rectangle.width).fill(() => 0).map(() => new Array(rectangle.height).fill(0));
-
-    // fill tiles that are not buildable
-    for (const tile of tiles) {
-        const gridX = tile.rx - rectangle.x;
-        const gridY = tile.ry - rectangle.y;
-        if (canBuildOnTile(tile, gameApi)) {
-            grid[gridX][gridY] = 1;
-        }
-    }
-
-    // we have to start from the bottom-right and calculate backwards
-    for (let x = rectangle.width - 2; x >= 0; --x) {
-        for (let y = rectangle.height - 2; y >= 0; --y) {
-            if (grid[x][y] === 0) {
-                continue;
-            }
-            const right = x < rectangle.width - 1 ? grid[x + 1][y] : 0;
-            const bottom = y < rectangle.height - 1 ? grid[y][y + 1] : 0;
-            grid[x][y] = Math.min(right + 1, bottom + 1);
-        }
-    }
-
-    const locations: Vector2[] = [];
-
-    for (const tile of tiles) {
-        const gridX = tile.rx - rectangle.x;
-        const gridY = tile.ry - rectangle.y;
-        if (grid[gridX][gridY] >= foundation.width && grid[gridX][gridY] >= foundation.height) {
-            locations.push(toVector2(tile).add(foundationCenter));
-        }
-    }
-
-    return locations;
+    // Test the actual occupied cells instead of looking for a rectangular
+    // block. This keeps MCV deployment valid for Ares custom foundations with
+    // holes or irregular silhouettes while preserving the vanilla behavior.
+    return tiles
+        .filter((origin) => cells.every((cell) => {
+            const tile = gameApi.mapApi.getTile(origin.rx + cell.x, origin.ry + cell.y);
+            return !!tile && canBuildOnTile(tile, gameApi);
+        }))
+        .map((origin) => toVector2(origin).add(foundationCenter));
 }
 
 export class PackConyardMission extends Mission {

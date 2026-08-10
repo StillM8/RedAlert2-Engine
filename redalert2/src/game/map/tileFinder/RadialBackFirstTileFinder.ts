@@ -1,5 +1,6 @@
 import type { Tile } from "@/game/map/TileCollection";
 import type { MapBounds } from "@/game/map/MapBounds";
+import { getFoundationBounds } from "@/game/art/Foundation";
 interface TileCollection {
     getByMapCoords(x: number, y: number): Tile | undefined;
 }
@@ -41,10 +42,11 @@ export class RadialBackFirstTileFinder {
             }
         };
         do {
-            const left = this.startTile.rx - this.distance;
-            const top = this.startTile.ry - this.distance;
-            const right = this.startTile.rx + this.foundation.width - 1 + this.distance;
-            const bottom = this.startTile.ry + this.foundation.height - 1 + this.distance;
+            const bounds = getFoundationBounds(this.foundation as any, true);
+            const left = this.startTile.rx + bounds.x - this.distance;
+            const top = this.startTile.ry + bounds.y - this.distance;
+            const right = this.startTile.rx + bounds.x + bounds.width - 1 + this.distance;
+            const bottom = this.startTile.ry + bounds.y + bounds.height - 1 + this.distance;
             if (this.distance > 0) {
                 for (let y = top + 1; y < bottom; y++) {
                     const tile = getTile(left, y);

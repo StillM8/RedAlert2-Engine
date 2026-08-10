@@ -9,6 +9,7 @@ import { LandType, getLandType } from "@/game/type/LandType";
 import { OccupationBits } from "@/game/rules/TerrainRules";
 import { MapBounds } from "@/game/map/MapBounds";
 import { Rules } from "@/game/rules/Rules";
+import { getFoundationBlockingCells } from "@/game/art/Foundation";
 interface GameObject {
     tile: Tile;
     onBridge?: boolean;
@@ -446,20 +447,15 @@ export class Terrain {
             if (obj.rules.gate)
                 return false;
             const foundation = obj.art.foundation;
-            let impassableRows = obj.rules.numberImpassableRows;
+            let impassableColumns = obj.rules.numberImpassableRows;
             if (isInfantry) {
-                impassableRows = foundation.width;
+                impassableColumns = foundation.width;
             }
-            else if (obj.rules.weaponsFactory && !impassableRows) {
-                impassableRows = foundation.width - 1;
+            else if (obj.rules.weaponsFactory && !impassableColumns) {
+                impassableColumns = foundation.width - 1;
             }
-            const rect = {
-                x: obj.tile.rx,
-                y: obj.tile.ry,
-                width: (impassableRows || foundation.width) - 1,
-                height: foundation.height - 1
-            };
-            return rectContainsPoint(rect, { x: tile.rx, y: tile.ry });
+            return getFoundationBlockingCells(foundation, impassableColumns || foundation.width)
+                .some((cell) => obj.tile.rx + cell.x === tile.rx && obj.tile.ry + cell.y === tile.ry);
         }
         if (obj.isAircraft() || obj.isInfantry() || obj.isVehicle() || obj.isSmudge()) {
             return false;

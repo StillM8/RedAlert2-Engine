@@ -10,6 +10,7 @@ import {
     Vector2,
 } from "../../../game-api";
 import { getAdjacencyTiles } from "../building/buildingRules";
+import { getFoundationBounds } from "@/game/art/Foundation";
 
 const FLAT_RAMP_TYPE = 0;
 
@@ -60,11 +61,13 @@ export function canBuildOnTile(tile: Tile, gameApi: GameApi) {
  * @returns
  */
 export function computeAdjacentRect(point: Vector2, t: Size, adjacent: number, newBuildingSize?: Size): Rectangle {
+    const bounds = getFoundationBounds(t as any, true);
+    const newBounds = newBuildingSize ? getFoundationBounds(newBuildingSize as any, true) : undefined;
     return {
-        x: point.x - adjacent - (newBuildingSize?.width || 0),
-        y: point.y - adjacent - (newBuildingSize?.height || 0),
-        width: t.width + 2 * adjacent + (newBuildingSize?.width || 0),
-        height: t.height + 2 * adjacent + (newBuildingSize?.height || 0),
+        x: point.x + bounds.x - adjacent - (newBounds?.width || 0),
+        y: point.y + bounds.y - adjacent - (newBounds?.height || 0),
+        width: bounds.width + 2 * adjacent + (newBounds?.width || 0),
+        height: bounds.height + 2 * adjacent + (newBounds?.height || 0),
     };
 }
 
