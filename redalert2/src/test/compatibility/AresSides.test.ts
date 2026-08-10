@@ -21,6 +21,7 @@ describe("Ares side presentation", () => {
             sections.set(name, section);
         };
         add("Sides", { "0": "Alpha", "1": "Beta", "2": "Gamma", "3": "Delta" });
+        add("Alpha", { ToolTipColor: "1,2,3" });
         add("Countries", {
             "0": "AlphaCountry",
             "1": "BetaCountry",
@@ -37,6 +38,7 @@ describe("Ares side presentation", () => {
 
         expect(sides.list().map((side) => side.id)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
         expect(sides.list().map((side) => side.order)).toEqual([0, 1, 2, 3]);
+        expect(sides.resolve("Alpha")?.tooltipColor).toBe("1,2,3");
         expect(sides.resolveByIndex(3)?.id).toBe("Delta");
         expect(countries.definitionOrder().map((country) => country.sideId)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
         expect(countries.multiplayerCountries().map((country) => country.id)).toEqual([
@@ -95,6 +97,7 @@ describe("Ares side presentation", () => {
             presentationId: "Foehn",
             sidebarMixFileIndex: 4,
             evaTag: "Foehn",
+            tooltipColor: "12,34,56",
         }, SideType.Civilian);
 
         expect(presentation).toEqual({
@@ -102,6 +105,7 @@ describe("Ares side presentation", () => {
             hudLayout: "soviet",
             sidebarMixFileIndex: 4,
             useYuriFileNames: false,
+            tooltipColor: "rgb(12,34,56)",
             evaTag: "Foehn",
             loadingTheme: undefined,
         });
