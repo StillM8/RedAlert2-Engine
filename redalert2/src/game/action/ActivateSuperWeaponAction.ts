@@ -48,7 +48,9 @@ export class ActivateSuperWeaponAction extends Action {
         return stream.toUint8Array();
     }
     print(): string {
-        return `Activate SuperW ${SuperWeaponType[this.superWeaponType]} at tile (${this.tile.x}, ${this.tile.y})` +
+        const rules = this.game.rules.getSuperWeaponByIndex(this.superWeaponType);
+        const typeName = rules?.typeId ?? (rules?.type !== undefined ? SuperWeaponType[rules.type] : `index ${this.superWeaponType}`);
+        return `Activate SuperW ${typeName} at tile (${this.tile.x}, ${this.tile.y})` +
             (this.tile2 ? `, (${this.tile2.x}, ${this.tile2.y})` : '');
     }
     process(): void {
@@ -64,7 +66,12 @@ export class ActivateSuperWeaponAction extends Action {
         // ChronoSphere requires a destination: a stale/off-map tile2 would
         // throw inside deterministic tick processing (crash/desync) — drop
         // the malformed action instead.
-        if (this.superWeaponType === SuperWeaponType.ChronoSphere && !tile2) {
+        const rules = this.game.rules.getSuperWeaponByIndex(this.superWeaponType);
+        if (!rules) {
+            console.warn(`Superweapon index ${this.superWeaponType} doesn't exist; ignored`);
+            return;
+        }
+        if (rules.type === SuperWeaponType.ChronoSphere && !tile2) {
             console.warn(`ChronoSphere activation without a valid destination tile; ignored`);
             return;
         }

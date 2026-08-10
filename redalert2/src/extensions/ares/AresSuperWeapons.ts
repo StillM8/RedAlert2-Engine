@@ -171,6 +171,33 @@ export interface AresSuperWeaponDefinition {
     extensionEntries: ReadonlyMap<string, string | string[]>;
 }
 
+export interface SuperWeaponIdentity {
+    index: number;
+    type?: SuperWeaponType;
+    typeId?: string;
+    name?: string;
+}
+
+/**
+ * Resolve the action/network identity for a superweapon.  Vanilla callers
+ * historically supplied the numeric Type= enum; UI and serialized actions
+ * use the authored list index so custom Ares types do not collide with a
+ * vanilla enum value.
+ */
+export function resolveSuperWeaponActivationId(
+    rules: Iterable<SuperWeaponIdentity>,
+    selector: SuperWeaponType | string | number,
+): number | undefined {
+    if (selector === undefined || selector === null) return undefined;
+    const entries = [...rules];
+    if (typeof selector === "string") {
+        const normalized = normalize(selector);
+        return entries.find(rule => normalize(rule.name ?? "") === normalized || normalize(rule.typeId ?? "") === normalized)?.index;
+    }
+    const byVanillaType = entries.find(rule => rule.type === selector);
+    return byVanillaType?.index ?? entries.find(rule => rule.index === selector)?.index;
+}
+
 function isMeaningful(definition: AresSuperWeaponDefinition): boolean {
     return !!definition.extensionType || definition.extensionEntries.size > 0;
 }

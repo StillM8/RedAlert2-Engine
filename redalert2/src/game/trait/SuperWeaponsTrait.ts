@@ -81,10 +81,10 @@ export class SuperWeaponsTrait {
     private addEffect(e: SuperWeaponEffect) {
         this.effects.push(e);
     }
-    activateSuperWeapon(t: SuperWeaponType, e: any, i: any, r: any, s: any) {
+    activateSuperWeapon(t: number, e: any, i: any, r: any, s: any) {
         const a = e.superWeaponsTrait
             ?.getAll()
-            .find((e: any) => e.rules.type === t);
+            .find((e: any) => e.rules.index === t);
         if (a && a.status === SuperWeaponStatus.Ready) {
             if (a.oneTimeOnly) {
                 e.superWeaponsTrait.remove(a.name);

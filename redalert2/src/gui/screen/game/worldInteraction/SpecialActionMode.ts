@@ -26,7 +26,7 @@ export class SpecialActionMode {
         return this._onExecute.asEvent();
     }
     get superWeaponType() {
-        return this.superWeaponRules.type;
+        return this.superWeaponRules.index;
     }
     static factory(allSuperWeaponRules: any, superWeaponRules: any, superWeaponFxHandler: any, pointer: any, eva: any): SpecialActionMode {
         return new SpecialActionMode(allSuperWeaponRules, superWeaponRules, superWeaponFxHandler, pointer, eva);
