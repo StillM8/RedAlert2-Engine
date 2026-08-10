@@ -10,13 +10,19 @@ import type { Player } from "@/game/Player";
 
 export type AresDeliveryOwner = "invoker" | "civilian" | "special" | "neutral";
 
-interface UnitDeliveryRules {
+export interface UnitDeliveryRules {
     hasObject?(name: string, type: ObjectType): boolean;
     getObject(name: string, type: ObjectType): any;
-    general?: { flightLevel?: number };
+    general?: {
+        flightLevel?: number;
+        dropPodTypes?: readonly string[];
+        dropPodMinimum?: number;
+        dropPodMaximum?: number;
+        veteran?: { veteranCap?: number };
+    };
 }
 
-interface UnitDeliveryGame {
+export interface UnitDeliveryGame {
     rules: UnitDeliveryRules;
     map: any;
     createObject(type: ObjectType, name: string): any;
@@ -155,7 +161,8 @@ function objectFitsAt(game: UnitDeliveryGame, object: any, tile: any): boolean {
     return true;
 }
 
-function findDeliveryTile(game: UnitDeliveryGame, object: any, target: any): any | undefined {
+/** Find the first deterministic free placement cell around a target. */
+export function findDeliveryTile(game: UnitDeliveryGame, object: any, target: any): any | undefined {
     const map = game.map as any;
     const start = normalizedStartTile(game, target, object);
     const foundation = foundationFor(object);
@@ -199,7 +206,8 @@ function setDeliveryState(object: any, owner: Player, game: UnitDeliveryGame, ta
     }
 }
 
-function discardUnspawnedObject(object: any): void {
+/** Release an object that was created/owned but could not be placed. */
+export function discardUnspawnedObject(object: any): void {
     object.owner?.removeOwnedObject?.(object);
     object.dispose?.();
 }

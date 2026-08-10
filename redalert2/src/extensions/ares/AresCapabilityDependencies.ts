@@ -26,6 +26,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.superweapon-unit-delivery", dependsOn: ["ares.superweapons", "ares.custom-foundations"], reason: "UnitDelivery places arbitrary TechnoTypes, including irregular buildings." },
     { capabilityId: "ares.superweapon-sonar-pulse", dependsOn: ["ares.superweapons"], reason: "SonarPulse is a ranged superweapon with generic cloak suppression." },
     { capabilityId: "ares.superweapon-empulse", dependsOn: ["ares.superweapons", "ares.emp"], reason: "EMPulse selects launch buildings and delivers their configured EMP warhead through the native EMP runtime." },
+    { capabilityId: "ares.superweapon-drop-pod", dependsOn: ["ares.superweapons"], reason: "DropPod creates data-defined TechnoTypes at deterministic valid landing cells and applies configured owner/veterancy semantics." },
     { capabilityId: "ares.staged-weapons", dependsOn: ["ares.additional-armor-types", "ares.warhead-effects"], reason: "Weapon stages eventually select normalized weapons and warhead effects." },
     { capabilityId: "ares.projectile-extensions", dependsOn: ["ares.warhead-effects"], reason: "Projectile extensions deliver normalized warhead effects deterministically." },
     { capabilityId: "ares.presentation", dependsOn: ["ares.dynamic-sides-countries"], reason: "Presentation resolves the side/country identity without becoming simulation identity." },

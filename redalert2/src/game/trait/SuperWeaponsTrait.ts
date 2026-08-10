@@ -20,6 +20,7 @@ import { GenericWarheadEffect } from "@/game/superweapon/GenericWarheadEffect";
 import { UnitDeliveryEffect } from "@/game/superweapon/UnitDeliveryEffect";
 import { SonarPulseEffect } from "@/game/superweapon/SonarPulseEffect";
 import { EMPulseEffect } from "@/game/superweapon/EMPulseEffect";
+import { DropPodEffect } from "@/game/superweapon/DropPodEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
@@ -169,6 +170,14 @@ export class SuperWeaponsTrait {
                     s,
                     e.ares,
                     i.superWeaponsTrait?.get?.(e.name),
+                ));
+            }
+            if (extensionType === "DropPod") {
+                t.push(new DropPodEffect(
+                    eventType,
+                    i,
+                    s,
+                    e.ares,
                 ));
             }
             switch (o) {
