@@ -114,6 +114,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Initial grants and deterministic elapsed charging while a VirtualCharge superweapon is unavailable are wired; per-house shot-history re-grant semantics and save/load of unavailable intervals remain open.",
     },
     {
+        id: "ares.superweapon-deferment",
+        description: "Ares SW.Deferment delay for supported superweapon state machines",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponDeferment.test.ts"],
+        notes: "Per-superweapon deferment overrides the Lightning Storm and Psychic Dominator pre-effect delays; UnitDelivery already uses the same field with its documented default. Other types intentionally do not consume SW.Deferment because Antares does not apply it to them.",
+    },
+    {
         id: "ares.superweapon-post-dependent",
         description: "Ares SW.PostDependent second-stage superweapon selection",
         implemented: true,

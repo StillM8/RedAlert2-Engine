@@ -105,6 +105,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.(?:initialready|virtualcharge)$/i.test(key)) {
         return "ares.superweapon-charge-state";
     }
+    if (/^sw\.deferment$/i.test(key)) {
+        return "ares.superweapon-deferment";
+    }
     if (/^sw\.postdependent$/i.test(key)) {
         return "ares.superweapon-post-dependent";
     }
