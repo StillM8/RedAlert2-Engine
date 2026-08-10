@@ -13,6 +13,7 @@ import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 import { VhpScan } from "@/game/type/VhpScan";
 import { Vector3 } from "@/game/math/Vector3";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
+import type { AresSideRegistry, SideId } from "@/extensions/ares/AresSides";
 import { parseAresPrerequisiteRules } from "@/extensions/ares/AresPrerequisites";
 interface House {
     name: string;
@@ -37,7 +38,10 @@ export enum FactoryType {
 export class TechnoRules extends ObjectRules {
     static readonly MAX_SIGHT = 11;
     declare owner: string[];
+    /** Legacy numeric adapter retained for vanilla UI/AI ordering. */
     declare aiBasePlanningSide?: number;
+    /** Stable content-defined side identity used by extension-aware runtime paths. */
+    declare aiBasePlanningSideId?: SideId;
     declare requiredHouses: string[];
     declare forbiddenHouses: string[];
     declare requiresStolenAlliedTech: boolean;
@@ -314,14 +318,31 @@ export class TechnoRules extends ObjectRules {
     declare chronoOutSound?: string;
     declare enterTransportSound?: string;
     declare leaveTransportSound?: string;
-    constructor(e: any, t: any, i: any, r: any, armorRegistry?: ArmorRegistry) {
+    constructor(e: any, t: any, i: any, r: any, armorRegistry?: ArmorRegistry, sideRegistry?: AresSideRegistry) {
         super(e, t, i, r, armorRegistry);
+        this.sideRegistry = sideRegistry;
     }
+    private sideRegistry?: AresSideRegistry;
     parse(): void {
         super.parse();
         this.owner = this.ini.getArray("Owner");
-        const aiBasePlanningValue = this.ini.getNumber("AIBasePlanningSide");
-        this.aiBasePlanningSide = (-1 !== aiBasePlanningValue && void 0 !== SideType[aiBasePlanningValue]) ? aiBasePlanningValue : void 0;
+        const aiBasePlanningValue = this.ini.getNumber("AIBasePlanningSide", -1);
+        const planningSide = this.sideRegistry?.resolveByIndex(aiBasePlanningValue);
+        if (planningSide) {
+            this.aiBasePlanningSideId = planningSide.id;
+            // Keep the authored index for legacy sort/order consumers. The
+            // stable ID is the authoritative value for extension runtime.
+            this.aiBasePlanningSide = planningSide.index ?? planningSide.order;
+        }
+        else if (!this.sideRegistry && aiBasePlanningValue >= 0 && void 0 !== SideType[aiBasePlanningValue]) {
+            // Standalone/unit tests that construct TechnoRules without the
+            // Rules-owned registry retain the historical vanilla behavior.
+            this.aiBasePlanningSide = aiBasePlanningValue;
+        }
+        else {
+            this.aiBasePlanningSide = undefined;
+            this.aiBasePlanningSideId = undefined;
+        }
         this.requiredHouses = this.ini.getArray("RequiredHouses");
         this.forbiddenHouses = this.ini.getArray("ForbiddenHouses");
         this.requiresStolenAlliedTech = this.ini.getBool("RequiresStolenAlliedTech");

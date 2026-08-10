@@ -378,7 +378,7 @@ export class Rules {
         if (!section) {
             throw new Error("Missing [General] section");
         }
-        this.general.readIni(section as any);
+        this.general.readIni(section as any, this.sideRegistry);
     }
     private readAi(): void {
         const section = this.ini.getSection("AI");
@@ -448,7 +448,7 @@ export class Rules {
         typeMap.forEach((typeName, id) => {
             const section = this.ini.getSection(typeName);
             if (section) {
-                const rules = new ObjectRulesFactory().create(objectType, section, this.general, id as any, this.armorRegistry);
+                const rules = new ObjectRulesFactory().create(objectType, section, this.general, id as any, this.armorRegistry, this.sideRegistry);
                 rulesMap.set(typeName, rules as any);
             }
             else {
@@ -485,7 +485,7 @@ export class Rules {
         if (!section.has("Insignificant")) {
             section.set("Insignificant", "yes");
         }
-        const rules = new ObjectRulesFactory().create(type, section, this.general, entry[0] as any, this.armorRegistry);
+        const rules = new ObjectRulesFactory().create(type, section, this.general, entry[0] as any, this.armorRegistry, this.sideRegistry);
         this.allObjectRules.get(type)?.set(name, rules as any);
         return true;
     }

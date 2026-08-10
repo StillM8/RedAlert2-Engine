@@ -6,14 +6,15 @@ import { TerrainRules } from './TerrainRules';
 import { SmudgeRules } from './SmudgeRules';
 import { DebrisRules } from './DebrisRules';
 import { ArmorRegistry } from '@/extensions/ares/AresArmor';
+import type { AresSideRegistry } from '@/extensions/ares/AresSides';
 export class ObjectRulesFactory {
-    create(type: ObjectType, ini: any, generalRules: any, index: number = -1, armorRegistry?: ArmorRegistry) {
+    create(type: ObjectType, ini: any, generalRules: any, index: number = -1, armorRegistry?: ArmorRegistry, sideRegistry?: AresSideRegistry) {
         switch (type) {
             case ObjectType.Aircraft:
             case ObjectType.Building:
             case ObjectType.Infantry:
             case ObjectType.Vehicle:
-                return new TechnoRules(type, ini, index, generalRules, armorRegistry);
+                return new TechnoRules(type, ini, index, generalRules, armorRegistry, sideRegistry);
             case ObjectType.Overlay:
                 return new OverlayRules(type, ini, index, generalRules, armorRegistry);
             case ObjectType.Terrain:

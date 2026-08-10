@@ -3,7 +3,7 @@ import { ApiEventType, Bot, GameApi, ApiEvent, ObjectType, FactoryType, QueueTyp
 import { MissionController } from "./logic/mission/missionController";
 import { QueueController } from "./logic/building/queueController";
 import { MatchAwareness, MatchAwarenessImpl } from "./logic/awareness";
-import { Countries, formatTimeDuration } from "./logic/common/utils";
+import { formatTimeDuration } from "./logic/common/utils";
 import { IncrementalGridCache } from "./logic/map/incrementalGridCache";
 import { SupabotContext } from "./logic/common/context";
 import { Strategy } from "./strategy/strategy";
@@ -50,7 +50,8 @@ export class BuiltInBot extends Bot {
 
     constructor(
         name: string,
-        country: Countries,
+        /** Content-defined country ID; vanilla enum values remain accepted as strings. */
+        country: string,
         private tryAllyWith: string[] = [],
         private enableLogging = true,
         private profile: BotProfile = NORMAL_BOT_PROFILE,

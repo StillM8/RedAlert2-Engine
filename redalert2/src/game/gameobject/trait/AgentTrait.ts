@@ -20,9 +20,16 @@ export class AgentTrait {
             agent.owner.credits += stolenAmount;
         }
         if (game.rules.ai.buildTech.includes(target.name)) {
-            const side = target.rules.aiBasePlanningSide;
-            if (side !== undefined) {
-                agent.owner.production.addStolenTech(side);
+            const sideId = target.rules.aiBasePlanningSideId;
+            const legacySide = target.rules.aiBasePlanningSide;
+            if (sideId !== undefined) {
+                agent.owner.production.addStolenTech(sideId);
+            }
+            if (legacySide !== undefined) {
+                // Keep the numeric value for vanilla Prerequisite.StolenTechs
+                // and old RequiresStolen* checks. Dynamic content uses the
+                // stable ID above and never needs a SideType enum mapping.
+                agent.owner.production.addStolenTech(legacySide);
             }
         }
         if (target.factoryTrait &&

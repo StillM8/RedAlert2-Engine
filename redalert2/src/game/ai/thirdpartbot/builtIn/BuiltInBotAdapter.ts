@@ -2,7 +2,6 @@ import { Bot } from '../../../bot/Bot';
 import { BuiltInBot } from './bot/bot';
 import { BotProfile, NORMAL_BOT_PROFILE } from './botProfiles';
 import { BotRegistry } from '../BotRegistry';
-import { Countries } from './bot/logic/common/utils';
 import { ObjectType } from '@/engine/type/ObjectType';
 import { QueueType, QueueStatus } from '@/game/player/production/ProductionQueue';
 import { OrderType } from '@/game/order/OrderType';
@@ -33,7 +32,10 @@ export class BuiltInBotAdapter extends Bot {
 
     constructor(name: string, country: string, profile: BotProfile = NORMAL_BOT_PROFILE) {
         super(name, country);
-        this.innerBot = new BuiltInBot(name, country as Countries, [], true, profile);
+        // The ruleset owns the country namespace. The built-in bot keeps its
+        // vanilla country heuristics, but must accept any data-defined MO ID
+        // without a closed enum cast or a silent country remap.
+        this.innerBot = new BuiltInBot(name, country, [], true, profile);
     }
 
     override setGameApi(api: any): void {

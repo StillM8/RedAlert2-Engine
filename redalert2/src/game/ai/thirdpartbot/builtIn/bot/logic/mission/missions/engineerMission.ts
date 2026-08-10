@@ -48,7 +48,9 @@ export class EngineerMission extends Mission {
         const { game } = context;
         const actionsApi = context.player.actions;
         const playerData = game.getPlayerData(context.player.name);
-        const engineers = this.getUnitsOfTypes(game, ...["SENGINEER", "ENGINEER", "YENGINEER"]);
+        const configuredEngineer = playerData.country?.sideDefinition?.engineer || game.getGeneralRules().engineer;
+        const engineerNames = [...new Set(["SENGINEER", "ENGINEER", "YENGINEER", configuredEngineer].filter(Boolean))];
+        const engineers = this.getUnitsOfTypes(game, ...engineerNames);
 
         const target = game.getGameObjectData(this.captureTargetId);
         if (!target || !target.tile || target.owner === playerData.name) {
@@ -79,6 +81,14 @@ export class EngineerMission extends Mission {
                     composition["INIT"] = Math.max(0, this.escortLevel - 1); // 0, 1, 2
                     composition["LTNK"] = Math.max(0, this.escortLevel - 2); // 0, 0, 1
                     break;
+                default: {
+                    // A custom Ares side has no safe Allied/Soviet/Yuri
+                    // escort template. Use its declared engineer and let the
+                    // generic mission proceed with an engineer-only capture
+                    // group rather than silently treating the side as Soviet.
+                    composition[configuredEngineer] = 1;
+                    break;
+                }
             }
             const missingUnits = this.getMissingUnits(game, composition);
             if (missingUnits.length > 0) {

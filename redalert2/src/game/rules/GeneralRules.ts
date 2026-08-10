@@ -11,6 +11,7 @@ import { DMislRules } from './general/DMislRules';
 import { HoverRules } from './general/HoverRules';
 import { normalizePrerequisiteId } from '@/extensions/ares/AresPrerequisites';
 import { clamp } from '@/util/math';
+import type { AresSideRegistry } from '@/extensions/ares/AresSides';
 export enum PrereqCategory {
     Power = 0,
     Factory = 1,
@@ -108,7 +109,7 @@ export class GeneralRules {
     public threat!: ThreatRules;
     public v3Rocket!: V3RocketRules;
     public veteran!: VeteranRules;
-    public readIni(ini: IniReader): void {
+    public readIni(ini: IniReader, sideRegistry?: AresSideRegistry): void {
         this.aircraftFogReveal = ini.getNumber('AircraftFogReveal');
         this.alliedDisguise = ini.getString('AlliedDisguise');
         this.thirdDisguise = ini.getString('ThirdDisguise');
@@ -150,7 +151,7 @@ export class GeneralRules {
         this.normalTargetingDelay = ini.getNumber('NormalTargetingDelay');
         this.padAircraft = ini.getArray('PadAircraft');
         this.parachuteMaxFallRate = ini.getNumber('ParachuteMaxFallRate');
-        this.paradrop = new ParadropRules().readIni(ini);
+        this.paradrop = new ParadropRules().readIni(ini, sideRegistry);
         this.prism = new PrismRules().readIni(ini);
         this.purifierBonus = ini.getNumber('PurifierBonus');
         this.radar = new RadarRules().readIni(ini);

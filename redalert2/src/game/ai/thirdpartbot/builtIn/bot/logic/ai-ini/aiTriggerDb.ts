@@ -164,13 +164,29 @@ function compare(actual: number, op: number, expected: number): boolean {
     }
 }
 
-/** Map an engine SideType to the trigger Side field (0=all 1=Allied 2=Soviet 3=Yuri). */
-export function sideTypeToTriggerSide(side: SideType): number {
+/**
+ * Map a vanilla side adapter to the trigger Side field. A custom Ares side
+ * has no safe legacy trigger mapping, so return undefined instead of making
+ * it behave as Soviet/Yuri or as the wildcard side.
+ */
+export function sideTypeToTriggerSide(side: SideType | {
+    side?: SideType;
+    legacySideFallback?: boolean;
+    sideDefinition?: { legacySide?: SideType };
+}): number | undefined {
+    if (typeof side !== "number") {
+        if (side.legacySideFallback) return undefined;
+        side = side.sideDefinition?.legacySide ?? side.side;
+        if (side === undefined) return undefined;
+    }
     switch (side) {
         case SideType.GDI: return 1;
         case SideType.Nod: return 2;
         case SideType.Yuri: return 3;
-        default: return 0;
+        case SideType.Civilian:
+        case SideType.Mutant:
+            return 0;
+        default: return undefined;
     }
 }
 
@@ -392,7 +408,14 @@ export class AiTriggerDatabase {
         difficulty: "easy" | "medium" | "hard",
         buildableUnits: Set<string>,
     ): AiTriggerEntry[] {
-        const mySide = sideTypeToTriggerSide(playerData.country!.side);
+        const mySide = sideTypeToTriggerSide(playerData.country!);
+        if (mySide === undefined) {
+            // The built-in retail trigger database has no semantics for a
+            // data-defined Ares side. Do not run its side-filtered teams under
+            // a guessed vanilla side; a profile-specific AI can consume the
+            // stable country/side IDs instead.
+            return [];
+        }
         // Precompute the world census ONCE: per-trigger conditions used to
         // issue a full-world scan each (a burst of 40-120 scans per pass).
         const enemyCounts = new Map<string, number>();
