@@ -17,8 +17,9 @@ export class Production {
     private factoryCounts: Map<any, number>;
     private veteranTypes: Set<any>;
     private stolenTech: Set<SideType>;
-    static factory(player: any, rules: any, gameOpts: any, availableObjects: any[]): Production {
-        const production = new Production(player, rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects);
+    private theater?: string;
+    static factory(player: any, rules: any, gameOpts: any, availableObjects: any[], theater?: string): Production {
+        const production = new Production(player, rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects, theater);
         const maxQueueSize = rules.general.maximumQueuedObjects + 1;
         production.addQueue(QueueType.Structures, new ProductionQueue(QueueType.Structures, 1, 1));
         production.addQueue(QueueType.Armory, new ProductionQueue(QueueType.Armory, 1, 1));
@@ -28,7 +29,7 @@ export class Production {
         production.addQueue(QueueType.Aircrafts, new ProductionQueue(QueueType.Aircrafts, 0, maxQueueSize));
         return production;
     }
-    constructor(player: any, techLevel: number, gameOpts: any, rules: any, availableObjects: any[]) {
+    constructor(player: any, techLevel: number, gameOpts: any, rules: any, availableObjects: any[], theater?: string) {
         this.player = player;
         this.maxTechLevel = techLevel;
         this.gameOpts = gameOpts;
@@ -41,6 +42,7 @@ export class Production {
         this.factoryCounts = new Map();
         this.veteranTypes = new Set();
         this.stolenTech = new Set();
+        this.theater = theater;
     }
     get onQueueUpdate() {
         return this._onQueueUpdate.asEvent();
@@ -166,6 +168,7 @@ export class Production {
             genericGroups: this.rules.general.genericPrerequisites,
             genericAlternates: this.rules.general.genericPrerequisiteAlternates,
             stolenTechs: this.stolenTech,
+            theater: this.theater,
         });
     }
     getPrimaryFactory(type: FactoryType): any {

@@ -10,10 +10,12 @@ export class PlayerFactory {
     private rules: any;
     private gameOpts: any;
     private allAvailableObjects: any;
-    constructor(rules: any, gameOpts: any, allAvailableObjects: any) {
+    private theater?: string;
+    constructor(rules: any, gameOpts: any, allAvailableObjects: any, theater?: string) {
         this.rules = rules;
         this.gameOpts = gameOpts;
         this.allAvailableObjects = allAvailableObjects;
+        this.theater = theater;
     }
     createCombatant(id: any, country: any, team: any, color: any, isAi: boolean, aiDifficulty: any, customBotId?: string): Player {
         let player = new Player(id, country, team, color);
@@ -26,7 +28,7 @@ export class PlayerFactory {
         player.traits.add(player.radarTrait);
         player.superWeaponsTrait = new SuperWeaponsTrait();
         player.traits.add(player.superWeaponsTrait);
-        player.production = Production.factory(player, this.rules, this.gameOpts, this.allAvailableObjects);
+        player.production = Production.factory(player, this.rules, this.gameOpts, this.allAvailableObjects, this.theater);
         player.sharedDetectDisguiseTrait = new SharedDetectDisguiseTrait();
         return player;
     }

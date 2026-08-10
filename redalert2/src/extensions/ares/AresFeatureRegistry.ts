@@ -17,11 +17,11 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     {
         id: "ares.additional-armor-types",
         description: "Additional ArmorTypes and per-armor Versus values",
-        implemented: false,
+        implemented: true,
         parserImplemented: true,
-        runtimeImplemented: false,
-        tests: [],
-        notes: "Additional armor IDs and dynamic Versus values are normalized; force-fire/retaliation/passive-acquire integration is still pending.",
+        runtimeImplemented: true,
+        tests: ["AresCompatibilityScanner.test.ts", "AresArmor.test.ts"],
+        notes: "Additional armor IDs, dynamic Versus values, and separate force-fire/retaliation/passive-acquire target gates are wired into weapon selection.",
     },
     {
         id: "ares.custom-sides",

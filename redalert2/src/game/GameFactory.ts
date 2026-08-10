@@ -35,6 +35,7 @@ import { Ai } from './ai/Ai';
 import { BotFactory } from './bot/BotFactory';
 import { BotManager } from './BotManager';
 import { isHumanPlayerInfo } from './gameopts/GameOpts';
+import { TheaterType } from '@/engine/TheaterType';
 interface GameMode {
     type: string;
 }
@@ -95,7 +96,13 @@ export class GameFactory {
         new ActionFactoryReg().register(actionFactory, game, undefined);
         this.setupGameTraits(game, rules, gameMap, alliances, gameOpts, skipStalemate, speedCheat);
         const productionTrait: ProductionTrait = game.traits.get(ProductionTrait) as ProductionTrait;
-        const playerFactory: PlayerFactory = new PlayerFactory(rules, gameOpts, productionTrait.getAvailableObjects());
+        const theaterName = gameMap.theaterType !== undefined
+            ? TheaterType[gameMap.theaterType]
+            : undefined;
+        const theater = theaterName && theaterName !== "None"
+            ? theaterName
+            : undefined;
+        const playerFactory: PlayerFactory = new PlayerFactory(rules, gameOpts, productionTrait.getAvailableObjects(), theater);
         const randomGen: GameOptRandomGen = GameOptRandomGen.factory(randomSeed1, randomSeed2);
         const generatedColors: Map<PlayerInfo, string> = randomGen.generateColors(gameOpts) as any;
         const generatedCountries: Map<PlayerInfo, string> = randomGen.generateCountries(gameOpts, baseMultiplayerRules) as any;

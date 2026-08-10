@@ -18,6 +18,7 @@ import { VhpScan } from "@/game/type/VhpScan";
 import { LosHelper } from "@/game/gameobject/unit/LosHelper";
 import { Vector2 } from "@/game/math/Vector2";
 import { Box2 } from "@/game/math/Box2";
+import { canUseArmorVersus } from "@/extensions/ares/AresArmor";
 export enum AttackState {
     Idle = 0,
     CheckRange = 1,
@@ -96,13 +97,13 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
         }
         return i;
     }
-    selectWeaponVersus(e: any, t: any, i: any, r: boolean = false, s: boolean = false): any {
+    selectWeaponVersus(e: any, t: any, i: any, r: boolean = false, s: boolean = false, retaliate: boolean = false): any {
         const a = t.tile;
         const n = t instanceof Target ? t.obj : t;
         const o = this.getAvailableWeapons(e, s, n?.isOverlay() || (r && !n));
-        return this.selectWeaponFromList(e, n, a, o, i, r, s, false);
+        return this.selectWeaponFromList(e, n, a, o, i, r, s, false, retaliate);
     }
-    selectWeaponFromList(e: any, t: any, i: any, r: any[], s: any, a: boolean, n: boolean, o: boolean): any {
+    selectWeaponFromList(e: any, t: any, i: any, r: any[], s: any, a: boolean, n: boolean, o: boolean, retaliate: boolean = false): any {
         if ((!t?.isInfantry() && !t?.isVehicle()) ||
             !t.disguiseTrait ||
             this.canAttackThroughDisguise(e, t, t.disguiseTrait, s, a, n, o)) {
@@ -125,7 +126,11 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
                 const l = t?.isTechno() ? t.rules.armor : undefined;
                 for (const c of r) {
                     if (c.targeting.canTarget(t, i, s, a, n) &&
-                        (l === undefined || this.checkArmor(c.warhead.rules, l, n))) {
+                        (l === undefined || this.checkArmor(c.warhead.rules, l, {
+                            forceFire: a,
+                            passiveAcquire: n,
+                            retaliate,
+                        }))) {
                         return c;
                     }
                 }
@@ -200,15 +205,15 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
         }
         return true;
     }
-    checkArmor(e: any, t: ArmorType, i: boolean): boolean {
-        const r = e.ivanBomb || e.bombDisarm || e.nukeMaker
-            ? 1
-            : e.verses.get(t);
-        if (r === undefined) {
-            console.warn(`Unhandled ArmorType ${ArmorType[t]} in warhead ${e.name} verses`);
+    checkArmor(e: any, t: ArmorType, mode: { forceFire?: boolean; passiveAcquire?: boolean; retaliate?: boolean } = {}): boolean {
+        if (e.ivanBomb || e.bombDisarm || e.nukeMaker) {
+            return true;
+        }
+        if (e.verses.get(t) === undefined) {
+            console.warn(`Unhandled ArmorType ${t} in warhead ${e.name} verses`);
             return false;
         }
-        return !(100 * r <= (i ? 1 : 0));
+        return canUseArmorVersus(e.verses, e.armorVersusBehavior ?? new Map(), t, mode);
     }
     createAttackTask(e: any, t: any, i: any, r: any, s: any): AttackTask {
         return new AttackTask(e, e.createTarget(t, i), r, s);
@@ -373,7 +378,7 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
             e.mindControllerTrait?.isAtCapacity()) {
             return false;
         }
-        const a = this.selectWeaponVersus(e, r, t, false);
+        const a = this.selectWeaponVersus(e, r, t, false, false, true);
         if (!a) {
             return false;
         }

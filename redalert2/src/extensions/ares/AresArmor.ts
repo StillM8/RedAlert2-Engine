@@ -16,6 +16,12 @@ export interface ArmorVersusBehavior {
     passiveAcquire: boolean;
 }
 
+export interface ArmorTargetingMode {
+    forceFire?: boolean;
+    retaliate?: boolean;
+    passiveAcquire?: boolean;
+}
+
 export interface ParsedWarheadVerses {
     verses: Map<ArmorId, number>;
     behavior: Map<ArmorId, ArmorVersusBehavior>;
@@ -139,6 +145,36 @@ function defaultBehavior(multiplier: number): ArmorVersusBehavior {
         retaliate: multiplier > 0.01,
         passiveAcquire: multiplier > 0.02,
     };
+}
+
+/**
+ * Applies Ares' separate target-acquisition gates without making callers
+ * understand the encoded 0%/1%/2% Verses values. A zero-damage matchup is
+ * still targetable when the content explicitly enables the relevant flag;
+ * this is how a warhead can be used for an area effect against an immune
+ * object while preserving the targetability controls.
+ */
+export function canUseArmorVersus(
+    verses: ReadonlyMap<ArmorId, number>,
+    behavior: ReadonlyMap<ArmorId, ArmorVersusBehavior>,
+    armor: ArmorId,
+    mode: ArmorTargetingMode = {},
+): boolean {
+    const multiplier = verses.get(armor);
+    if (multiplier === undefined) {
+        return false;
+    }
+    const armorBehavior = behavior.get(armor) ?? defaultBehavior(multiplier);
+    if (mode.forceFire && !armorBehavior.forceFire) {
+        return false;
+    }
+    if (mode.retaliate && !armorBehavior.retaliate) {
+        return false;
+    }
+    if (mode.passiveAcquire && !armorBehavior.passiveAcquire) {
+        return false;
+    }
+    return multiplier > 0 || armorBehavior.forceFire;
 }
 
 export function parseAresWarheadVerses(section: IniSection, registry: ArmorRegistry): ParsedWarheadVerses {
