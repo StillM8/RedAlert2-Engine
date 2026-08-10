@@ -27,6 +27,12 @@ export class RulesApi {
     get countryRules() {
         return this.rules.countryRules;
     }
+    get sideRegistry() {
+        return this.rules.sideRegistry;
+    }
+    get countryRegistry() {
+        return this.rules.countryRegistry;
+    }
     get general() {
         return this.rules.general;
     }
@@ -74,6 +80,12 @@ export class RulesApi {
     }
     getMultiplayerCountries(): any[] {
         return this.rules.getMultiplayerCountries();
+    }
+    getCountryByMultiplayerIndex(index: number): any {
+        return this.rules.getCountryByMultiplayerIndex(index);
+    }
+    getNeutralCountry(): any {
+        return this.rules.getNeutralCountry();
     }
     getIni(): any {
         return this.rules.getIni();

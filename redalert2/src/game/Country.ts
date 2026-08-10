@@ -1,9 +1,11 @@
 import { ObjectType } from '@/engine/type/ObjectType';
 import { SideType } from '@/game/SideType';
+import type { CountryId, SideId, SideDescriptor } from '@/extensions/ares/AresSides';
 interface CountryRules {
-    id: string;
+    id: CountryId;
     side: SideType;
-    sideId: string;
+    sideId: SideId;
+    sideDefinition: SideDescriptor;
     name: string;
     uiName: string;
     uiTooltip?: string;
@@ -13,14 +15,19 @@ interface CountryRules {
     loadScreenPalette?: string;
     multiplay: boolean;
     isMultiplayerPassive: boolean;
+    legacySideFallback: boolean;
+    order: number;
+    networkIndex: number;
     veteranAircraft: string[];
     veteranInfantry: string[];
     veteranUnits: string[];
+}
+interface CountryRulesLookup {
     getCountry(id: string): CountryRules;
 }
 export class Country {
     private rules: CountryRules;
-    static factory(id: string, rules: CountryRules): Country {
+    static factory(id: string, rules: CountryRulesLookup): Country {
         return new this(rules.getCountry(id));
     }
     constructor(rules: CountryRules) {
@@ -34,6 +41,20 @@ export class Country {
     }
     get sideId(): string {
         return this.rules.sideId;
+    }
+    get sideDefinition(): SideDescriptor {
+        return this.rules.sideDefinition
+            ? { ...this.rules.sideDefinition }
+            : { id: this.rules.sideId, legacySide: this.rules.side, order: 0 };
+    }
+    get legacySideFallback(): boolean {
+        return this.rules.legacySideFallback;
+    }
+    get order(): number {
+        return this.rules.order;
+    }
+    get networkIndex(): number {
+        return this.rules.networkIndex;
     }
     get uiName(): string {
         return this.rules.uiName;

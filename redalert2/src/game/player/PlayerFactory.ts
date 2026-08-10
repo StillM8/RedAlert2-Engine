@@ -3,7 +3,6 @@ import { Country } from '@/game/Country';
 import { PowerTrait } from './trait/PowerTrait';
 import { RadarTrait } from './trait/RadarTrait';
 import { Production } from './production/Production';
-import { SideType } from '../SideType';
 import { SuperWeaponsTrait } from './trait/SuperWeaponsTrait';
 import { SharedDetectDisguiseTrait } from './trait/SharedDetectDisguiseTrait';
 export class PlayerFactory {
@@ -40,10 +39,7 @@ export class PlayerFactory {
         return player;
     }
     createNeutral(rules: any, id: any): Player {
-        let neutralCountryRule = [...rules.countryRules.values()].find((country) => country.side === SideType.Civilian);
-        if (!neutralCountryRule) {
-            throw new Error("Missing neutral country. No country found in rules with Civilian side");
-        }
+        const neutralCountryRule = rules.getNeutralCountry();
         let country = new Country(neutralCountryRule);
         let player = new Player(id, country, undefined, rules.colors.get("LightGrey"));
         player.powerTrait = new PowerTrait(player);

@@ -1,5 +1,8 @@
 import { SideType } from "@/game/SideType";
 
+export type SideId = string;
+export type CountryId = string;
+
 interface IniSectionLike {
     entries: Map<string, any>;
 }
@@ -9,8 +12,13 @@ interface IniReader {
 }
 
 export interface SideDescriptor {
-    id: string;
-    index: number;
+    id: SideId;
+    /** Authored order in the [Sides] list. */
+    order?: number;
+    /** Legacy name retained for callers that still use the old adapter. */
+    index?: number;
+    /** Optional vanilla adapter; extension sides deliberately leave this unset. */
+    legacySide?: SideType;
     uiName?: string;
     defaultCountry?: string;
     presentationId?: string;
@@ -18,6 +26,13 @@ export interface SideDescriptor {
     sidebarYuriFileNames?: boolean;
     evaTag?: string;
     loadingTheme?: string;
+    crew?: string;
+    engineer?: string;
+    technician?: string;
+    survivorDivisor?: number;
+    defaultDisguise?: string;
+    /** Preserve unmodeled side fields for diagnostics and later capability parsing. */
+    properties?: Readonly<Record<string, string>>;
 }
 
 export type HudLayout = "allied" | "soviet" | "yuri";
@@ -37,8 +52,10 @@ export interface SidePresentation {
 }
 
 export interface CountryDescriptor {
-    id: string;
-    sideId: string;
+    id: CountryId;
+    sideId: SideId;
+    /** Authored order in the [Countries] list. */
+    order?: number;
     uiName?: string;
     uiTooltip?: string;
     presentationId?: string;
@@ -49,6 +66,8 @@ export interface CountryDescriptor {
     listIndex: number;
     loadScreen?: string;
     loadScreenPalette?: string;
+    /** Preserve unmodeled country fields without losing extension data. */
+    properties?: Readonly<Record<string, string>>;
 }
 
 export interface SideMixSelection {
@@ -127,12 +146,40 @@ function sectionNumber(section: IniSectionLike | undefined, name: string, fallba
     return Number.isFinite(value) ? value : fallback;
 }
 
-function indexedNames(section: IniSectionLike | undefined): string[] {
+function sectionProperties(section: IniSectionLike | undefined): Record<string, string> {
+    if (!section) return {};
+    return Object.fromEntries([...section.entries].map(([key, value]) => [
+        key,
+        Array.isArray(value) ? value.map((item) => String(item)).join(",") : String(value),
+    ]));
+}
+
+function indexedEntries(section: IniSectionLike | undefined): Array<{ index: number; name: string }> {
     if (!section) return [];
     return [...section.entries]
         .filter(([key, value]) => /^\d+$/.test(key) && typeof value === "string" && value.trim())
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([, value]) => String(value).trim());
+        .map(([key, value]) => ({ index: Number(key), name: String(value).trim() }))
+        .sort((a, b) => a.index - b.index);
+}
+
+function inferLegacySide(id: string): SideType | undefined {
+    switch (normalize(id)) {
+        case "gdi":
+        case "allied":
+            return SideType.GDI;
+        case "nod":
+        case "soviet":
+            return SideType.Nod;
+        case "civilian":
+            return SideType.Civilian;
+        case "mutant":
+            return SideType.Mutant;
+        case "thirdside":
+        case "yuri":
+            return SideType.Yuri;
+        default:
+            return undefined;
+    }
 }
 
 export class AresSideRegistry {
@@ -140,13 +187,17 @@ export class AresSideRegistry {
 
     static fromIni(ini: IniReader): AresSideRegistry {
         const registry = new AresSideRegistry();
-        const list = indexedNames(ini.getSection("Sides"));
-        const names = list.length ? list : ["GDI", "Nod", "Civilian", "ThirdSide"];
-        names.forEach((id, index) => {
+        const list = indexedEntries(ini.getSection("Sides"));
+        const names = list.length
+            ? list
+            : ["GDI", "Nod", "Civilian", "ThirdSide"].map((name, index) => ({ index, name }));
+        names.forEach(({ index, name: id }) => {
             const section = ini.getSection(id);
             registry.register({
                 id,
+                order: index,
                 index,
+                legacySide: inferLegacySide(id),
                 uiName: sectionValue(section, "UIName"),
                 defaultCountry: sectionValue(section, "DefaultCountry"),
                 presentationId: sectionValue(section, "Presentation") ?? id,
@@ -158,46 +209,85 @@ export class AresSideRegistry {
                     : sectionBool(section, "Sidebar.YuriFileNames"),
                 evaTag: sectionValue(section, "EVA.Tag"),
                 loadingTheme: sectionValue(section, "LoadingTheme"),
+                crew: sectionValue(section, "Crew"),
+                engineer: sectionValue(section, "Engineer"),
+                technician: sectionValue(section, "Technician"),
+                survivorDivisor: sectionValue(section, "SurvivorDivisor") === undefined
+                    ? undefined
+                    : sectionNumber(section, "SurvivorDivisor", 0),
+                defaultDisguise: sectionValue(section, "DefaultDisguise"),
+                properties: sectionProperties(section),
             });
         });
         return registry;
     }
 
     register(side: SideDescriptor): void {
-        this.sides.set(normalize(side.id), { ...side });
+        const order = Number.isInteger(side.order) ? side.order! : side.index ?? this.sides.size;
+        this.sides.set(normalize(side.id), {
+            ...side,
+            order,
+            index: side.index ?? order,
+        });
     }
 
     resolve(id: string | undefined): SideDescriptor | undefined {
         return id ? this.sides.get(normalize(id)) : undefined;
     }
 
-    list(): SideDescriptor[] {
-        return [...this.sides.values()].sort((a, b) => a.index - b.index).map((side) => ({ ...side }));
+    has(id: string): boolean {
+        return this.sides.has(normalize(id));
     }
 
-    /** Preserve old UI/simulation aliases while retaining the data-defined ID. */
-    toLegacySide(id: string): SideType {
-        const normalized = normalize(id);
-        if (normalized === "gdi") return SideType.GDI;
-        if (normalized === "nod") return SideType.Nod;
-        if (normalized === "civilian") return SideType.Civilian;
-        if (normalized === "mutant") return SideType.Mutant;
-        if (normalized === "thirdside" || normalized === "yuri") return SideType.Yuri;
-        return this.resolve(id)?.index as SideType ?? SideType.Civilian;
+    get(id: string): SideDescriptor {
+        const side = this.resolve(id);
+        if (!side) throw new Error(`Unknown side "${id}"`);
+        return { ...side };
+    }
+
+    list(): SideDescriptor[] {
+        return [...this.sides.values()]
+            .sort((a, b) => (a.order ?? a.index ?? 0) - (b.order ?? b.index ?? 0))
+            .map((side) => ({ ...side }));
+    }
+
+    /** Returns a legacy value only when the side has an explicit vanilla mapping. */
+    resolveLegacySide(id: string | undefined): SideType | undefined {
+        const side = this.resolve(id);
+        return side?.legacySide ?? (id ? inferLegacySide(id) : undefined);
+    }
+
+    /**
+     * Legacy adapter for old renderer/simulation call sites. Dynamic code must
+     * use SideId directly. The fallback is explicit and diagnosable instead of
+     * interpreting an arbitrary authored index as Yuri/Soviet/etc.
+     */
+    toLegacySide(id: string, strict = false): SideType {
+        const legacySide = this.resolveLegacySide(id);
+        if (legacySide !== undefined) return legacySide;
+        if (strict) {
+            throw new Error(`Side "${id}" has no legacy SideType mapping`);
+        }
+        return SideType.Civilian;
     }
 }
 
 export class AresCountryRegistry {
     private readonly countries = new Map<string, CountryDescriptor>();
+    private readonly unknownSideReferences = new Map<CountryId, SideId>();
 
     static fromIni(ini: IniReader, sides: AresSideRegistry): AresCountryRegistry {
         const registry = new AresCountryRegistry();
-        for (const id of indexedNames(ini.getSection("Countries"))) {
+        for (const { index, name: id } of indexedEntries(ini.getSection("Countries"))) {
             const section = ini.getSection(id);
             const sideId = sectionValue(section, "Side") ?? "Civilian";
+            if (!sides.has(sideId)) {
+                registry.unknownSideReferences.set(id, sideId);
+            }
             registry.register({
                 id,
                 sideId: sides.resolve(sideId)?.id ?? sideId,
+                order: index,
                 uiName: sectionValue(section, "UIName"),
                 uiTooltip: sectionValue(section, "UITooltip"),
                 presentationId: sectionValue(section, "Presentation"),
@@ -208,6 +298,7 @@ export class AresCountryRegistry {
                 listIndex: sectionNumber(section, "ListIndex", 100),
                 loadScreen: sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),
                 loadScreenPalette: sectionValue(section, "LoadingScreenPalette") ?? sectionValue(section, "LoadScreenPalette"),
+                properties: sectionProperties(section),
             });
         }
         return registry;
@@ -221,7 +312,37 @@ export class AresCountryRegistry {
         return id ? this.countries.get(normalize(id)) : undefined;
     }
 
+    has(id: string): boolean {
+        return this.countries.has(normalize(id));
+    }
+
+    get(id: string): CountryDescriptor {
+        const country = this.resolve(id);
+        if (!country) throw new Error(`Unknown country "${id}"`);
+        return { ...country };
+    }
+
+    unknownSideRefs(): Array<{ countryId: CountryId; sideId: SideId }> {
+        return [...this.unknownSideReferences.entries()].map(([countryId, sideId]) => ({ countryId, sideId }));
+    }
+
     list(): CountryDescriptor[] {
-        return [...this.countries.values()].sort((a, b) => a.listIndex - b.listIndex).map((country) => ({ ...country }));
+        return [...this.countries.values()]
+            .sort((a, b) => (a.listIndex - b.listIndex) || ((a.order ?? 0) - (b.order ?? 0)))
+            .map((country) => ({ ...country }));
+    }
+
+    /** The authored definition order, independent of lobby ListIndex ordering. */
+    definitionOrder(): CountryDescriptor[] {
+        return [...this.countries.values()]
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map((country) => ({ ...country }));
+    }
+
+    multiplayerCountries(): CountryDescriptor[] {
+        return this.list().filter((country) => country.multiplayerSelectable && !country.multiplayerPassive);
     }
 }
+
+/** Extension-facing names; the Ares prefix remains as a source-compatibility alias. */
+export { AresSideRegistry as SideRegistry, AresCountryRegistry as CountryRegistry };
