@@ -17,6 +17,8 @@ export interface GameProfileDescriptor {
     fileNameOverrides?: Readonly<Record<string, string>>;
     /** Optional profile files selected only when present in the mounted VFS. */
     optionalFileNameOverrides?: Readonly<Record<string, string>>;
+    /** Additional CSF names loaded as profile-local string overrides. */
+    stringFileCandidates?: readonly string[];
 }
 
 export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
@@ -52,6 +54,15 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
             "ui.ini": "uimo.ini",
             "missions.pkt": "missionsmo.pkt",
         },
+        // MO 3.3 language resources keep the YR base table in ra2md.csf and
+        // add profile-local tables in the expandmo archives.  These names are
+        // looked up through VFS hash lookup, so MIX enumeration is not needed.
+        stringFileCandidates: [
+            "ra2mo.csf",
+            "stringtable09.csf",
+            "stringtable10.csf",
+            "stringtable11.csf",
+        ],
     },
 };
 

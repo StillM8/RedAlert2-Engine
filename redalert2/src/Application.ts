@@ -7,7 +7,7 @@ import { IniSection } from './data/IniSection';
 import SplashScreenComponent from './gui/component/SplashScreen';
 import type { ComponentProps } from 'react';
 import { CsfFile, CsfLanguage, csfLocaleMap } from './data/CsfFile';
-import { Strings } from './data/Strings';
+import { Strings, type StringLayerId } from './data/Strings';
 import { VirtualFile } from './data/vfs/VirtualFile';
 import { DataStream } from './data/DataStream';
 import { version as appVersion } from './version';
@@ -212,7 +212,8 @@ export class Application {
             dataStream.dynamicSize = false;
             const virtualFile = new VirtualFile(dataStream, csfFileName);
             const csfFileInstance = new CsfFile(virtualFile);
-            this.strings = new Strings(csfFileInstance);
+            this.strings = new Strings();
+            this.strings.fromCsf(csfFileInstance, 'application-fallback', { file: csfFileName });
             this.currentLocale = csfFileInstance.getIsoLocale() || currentConfig.defaultLocale;
             console.log(`[Application] CSF file "${csfFileName}" loaded. Detected/Set Locale: ${this.currentLocale}. Loaded ${Object.keys(this.strings.getKeys()).length} keys from CSF.`);
         }
@@ -231,7 +232,7 @@ export class Application {
             }
             const jsonData = await jsonResponse.json();
             if (jsonData) {
-                this.strings.fromJson(jsonData);
+                this.strings.fromJson(jsonData, 'application-fallback', { file: jsonLocaleFile });
                 console.log(`[Application] JSON locale file "${jsonLocaleFile}" loaded and merged. Total keys now: ${Object.keys(this.strings.getKeys()).length}.`);
             }
             else {
@@ -259,25 +260,37 @@ export class Application {
         if (!vfs || !this.strings) {
             return;
         }
+        const profile = Engine.getActiveProfile();
         const isYuri = Engine.getActiveEngine() === EngineType.YurisRevenge;
-        const candidates = isYuri
-            ? ['ra2md.csf', 'generalmd.csf', 'stringtable00.csf', 'stringtable01.csf', 'ra2.csf']
-            : ['ra2.csf', 'general.csf'];
+        const candidates: Array<{ fileName: string; layer: StringLayerId }> = [
+            { fileName: 'ra2.csf', layer: 'retail-base' },
+            { fileName: 'general.csf', layer: 'retail-base' },
+            ...(isYuri ? [
+                { fileName: 'ra2md.csf', layer: 'retail-expansion' as StringLayerId },
+                { fileName: 'generalmd.csf', layer: 'retail-expansion' as StringLayerId },
+                { fileName: 'stringtable00.csf', layer: 'retail-expansion' as StringLayerId },
+                { fileName: 'stringtable01.csf', layer: 'retail-expansion' as StringLayerId },
+            ] : []),
+            ...(profile.stringFileCandidates ?? []).map((fileName) => ({
+                fileName,
+                layer: 'profile' as StringLayerId,
+            })),
+        ];
         let loadedCsf = false;
-        for (const fileName of candidates) {
+        for (const { fileName, layer } of candidates) {
             if (!vfs.fileExists(fileName)) {
                 continue;
             }
             try {
                 const csf = new CsfFile(vfs.openFile(fileName));
-                let added = 0;
-                for (const [key, value] of Object.entries(csf.data)) {
-                    if (!this.strings.has(key)) {
-                        this.strings.setValue(key, value);
-                        added++;
-                    }
-                }
-                console.log(`[Application] Merged ${added} missing strings from VFS CSF "${fileName}" (${Object.keys(csf.data).length} labels).`);
+                const resolution = vfs.explain(fileName);
+                const before = this.strings.getKeys().length;
+                this.strings.fromCsf(csf, layer, {
+                    file: fileName,
+                    archive: resolution.winner?.archive,
+                });
+                const added = this.strings.getKeys().length - before;
+                console.log(`[Application] Merged ${Object.keys(csf.data).length} ${layer} strings from VFS CSF "${fileName}" (${added} new keys).`);
                 loadedCsf = true;
             }
             catch (error) {
@@ -294,7 +307,7 @@ export class Application {
             'TXT_PRIMARY': 'Primary',
         })) {
             if (!this.strings.has(key)) {
-                this.strings.setValue(key, value);
+                this.strings.setLayerValue(key, value, 'application-fallback', { file: 'built-in-fallbacks' });
             }
         }
         if (!loadedCsf) {
@@ -642,6 +655,12 @@ export class Application {
                 debugRoot.ini = {
                     graph: (fileName: string) => iniSourceLoader?.graph?.(fileName),
                     explain: (fileName: string, section: string, key: string) => iniSourceLoader?.explain?.(fileName, section, key),
+                };
+                debugRoot.strings = {
+                    get: (key: string, ...args: any[]) => this.strings.get(key, ...args),
+                    has: (key: string) => this.strings.has(key),
+                    keys: () => this.strings.getKeys(),
+                    explain: (key: string) => this.strings.explain(key),
                 };
                 if (vfsAny?.debugListFileOwners) {
                     vfsAny.debugListFileOwners('rules.ini');
