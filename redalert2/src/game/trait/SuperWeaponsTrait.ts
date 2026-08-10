@@ -18,6 +18,7 @@ import { ForceShieldEffect } from "@/game/superweapon/ForceShieldEffect";
 import { SpyPlaneEffect } from "@/game/superweapon/SpyPlaneEffect";
 import { GenericWarheadEffect } from "@/game/superweapon/GenericWarheadEffect";
 import { UnitDeliveryEffect } from "@/game/superweapon/UnitDeliveryEffect";
+import { SonarPulseEffect } from "@/game/superweapon/SonarPulseEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 export class SuperWeaponsTrait {
@@ -142,6 +143,18 @@ export class SuperWeaponsTrait {
                         e.ares?.deliverBaseNormal ?? true,
                     ));
                 }
+            }
+            if (extensionType === "SonarPulse") {
+                t.push(new SonarPulseEffect(
+                    eventType,
+                    i,
+                    s,
+                    e.ares?.swRange,
+                    e.ares?.swAffectsHouse ?? "Enemies",
+                    e.ares?.swAffectsTarget ?? "Water",
+                    e.ares?.sonarPulseDelay ?? 60,
+                    e.ares?.swCreateRadarEvent ?? false,
+                ));
             }
             switch (o) {
                 case SuperWeaponType.AmerParaDrop:

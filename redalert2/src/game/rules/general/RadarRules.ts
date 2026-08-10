@@ -4,7 +4,8 @@ export enum RadarEventType {
     DropZone = 2,
     BaseUnderAttack = 3,
     HarvesterUnderAttack = 4,
-    EnemyObjectSensed = 5
+    EnemyObjectSensed = 5,
+    SuperweaponActivated = 6
 }
 export class RadarRules {
     private eventSuppressionDistances: number[] = [];
