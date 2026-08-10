@@ -18,9 +18,15 @@ interface WeaponData {
 }
 interface SuperWeaponData {
     playerName: string;
-    type: string;
-    status: string;
+    /** Numeric authored action identity; custom Ares Type= values may not have a vanilla enum. */
+    index: number;
+    name: string;
+    type: any;
+    typeId?: string;
+    ares?: any;
+    status: any;
     timerSeconds: number;
+    chargeProgress?: number;
 }
 interface BuildingPlacementData {
     foundation: any;
@@ -262,6 +268,7 @@ export class GameApi {
                 harvestedGems: unit.isVehicle() ? unit.harvesterTrait?.gems : undefined,
                 ammo: unit.isAircraft() ? unit.ammo : undefined,
                 isWarpedOut: unit.warpedOutTrait.isActive(),
+                isCloaked: unit.cloakableTrait?.isCloaked?.() ?? false,
                 mindControlledBy: unit.mindControllableTrait?.getController()?.id,
                 tntTimer: unit.tntChargeTrait?.getTicksLeft(),
             };
@@ -272,7 +279,11 @@ export class GameApi {
             .getCombatants()
             .map((player: any) => player.superWeaponsTrait.getAll().map((weapon: any) => ({
             playerName: player.name,
+            index: weapon.rules.index,
+            name: weapon.rules.name,
             type: weapon.rules.type,
+            typeId: weapon.rules.typeId,
+            ares: weapon.rules.ares,
             status: weapon.status,
             timerSeconds: weapon.getTimerSeconds(),
             chargeProgress: weapon.getChargeProgress?.() ?? 0,

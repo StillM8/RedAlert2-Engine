@@ -132,6 +132,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Explicit CreateRadarEvent launches notify every combatant through RadarTrait, preserving host suppression/duration rules; full-map SonarPulse remains exempt from its local radar event path.",
     },
     {
+        id: "ares.superweapon-ai-targeting",
+        description: "Ares SW.AITargeting modes and AI-required target defaults",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponAITargeting.test.ts"],
+        notes: "Documented modes and Antares 3.0p1 target/house defaults are normalized and consumed by the built-in AI; native YR AI constraints and every specialized target selector remain open.",
+    },
+    {
         id: "ares.superweapon-unit-delivery",
         description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
         implemented: true,

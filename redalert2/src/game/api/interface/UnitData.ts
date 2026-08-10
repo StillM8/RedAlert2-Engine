@@ -35,6 +35,7 @@ export interface UnitData extends GameObjectData {
     harvestedGems?: number;
     ammo?: number;
     isWarpedOut: boolean;
+    isCloaked?: boolean;
     mindControlledBy?: string;
     tntTimer?: number;
 }
