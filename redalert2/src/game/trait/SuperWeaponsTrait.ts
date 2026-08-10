@@ -16,6 +16,7 @@ import { GeneticConverterEffect } from "@/game/superweapon/GeneticConverterEffec
 import { PsychicRevealEffect } from "@/game/superweapon/PsychicRevealEffect";
 import { ForceShieldEffect } from "@/game/superweapon/ForceShieldEffect";
 import { SpyPlaneEffect } from "@/game/superweapon/SpyPlaneEffect";
+import { GenericWarheadEffect } from "@/game/superweapon/GenericWarheadEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 export class SuperWeaponsTrait {
@@ -102,8 +103,20 @@ export class SuperWeaponsTrait {
     }
     private activateEffect(e: any, i: any, r: any, s: any, a: any, n: boolean = false) {
         const o = e.type;
-        if (o !== undefined) {
+        const extensionType = e.ares?.extensionType;
+        const eventType = o ?? e.typeId;
+        if (o !== undefined || extensionType !== undefined) {
             const t: SuperWeaponEffect[] = [];
+            if (extensionType === "GenericWarhead") {
+                const damage = e.ares?.swDamage;
+                const warhead = e.ares?.swWarhead;
+                if (!Number.isFinite(damage) || !warhead) {
+                    console.warn(`GenericWarhead superweapon "${e.name}" needs SW.Damage and SW.Warhead; skipped.`);
+                }
+                else {
+                    t.push(new GenericWarheadEffect(eventType, i, s, damage, warhead));
+                }
+            }
             switch (o) {
                 case SuperWeaponType.AmerParaDrop:
                     for (const [l, c] of r.rules.general.paradrop.amerParaDrop.entries()) {
@@ -165,9 +178,9 @@ export class SuperWeaponsTrait {
                 this.addEffect(d);
             }
             r.traits.filter(NotifySuperWeaponActivate).forEach((e) => {
-                e[NotifySuperWeaponActivate.onActivate](o, i, r, s, a);
+                e[NotifySuperWeaponActivate.onActivate](eventType, i, r, s, a);
             });
-            r.events.dispatch(new SuperWeaponActivateEvent(o, i, s, a, n));
+            r.events.dispatch(new SuperWeaponActivateEvent(eventType, i, s, a, n));
         }
     }
 }
