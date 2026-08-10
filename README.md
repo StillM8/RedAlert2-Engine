@@ -287,6 +287,12 @@ and select the directory containing the retail files; selecting individual files
 is not sufficient. The Yuri variant requires `langmd.mix`, `multimd.mix`, and
 `ra2md.mix` in addition to the Red Alert 2 files.
 
+The [v0.0.1 Android release](https://github.com/StillM8/RedAlert2-Android/releases/tag/v0.0.1)
+includes separate release APKs for Red Alert 2 and Yuri's Revenge. Retail game
+files are not bundled; import your legally-owned installation on first launch.
+During the first import, the Android client converts the retail Bink menu movie
+to WebM and stores it with the imported files. Later launches reuse that file.
+
 Returning to any app from Home or Android Back preserves the existing WebView
 and game session instead of booting a new session.
 
