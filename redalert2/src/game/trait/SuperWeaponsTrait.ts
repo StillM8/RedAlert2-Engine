@@ -251,7 +251,7 @@ export class SuperWeaponsTrait {
                     t.push(new GeneticConverterEffect(o, i, s, e.range, e.ares?.swRange));
                     break;
                 case SuperWeaponType.PsychicReveal:
-                    t.push(new PsychicRevealEffect(o, i, s));
+                    t.push(new PsychicRevealEffect(o, i, s, e.ares?.swRange));
                     break;
                 case SuperWeaponType.ForceShield:
                     t.push(new ForceShieldEffect(o, i, s, e.ares?.swRange));
