@@ -491,6 +491,8 @@ export class Hud extends UiObject {
                 height: actionBarY,
             },
             images: this.images,
+            palettes: this.palettes,
+            useYuriArt: this.useYuriArt,
             ref: (ref: any) => (this.menuContentContainer = ref.getUiObject()),
             innerRef: (ref: any) => (this.menuContentContainerInner = ref),
         }))));

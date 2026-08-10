@@ -26,7 +26,10 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ width, height, parentElemen
             div.style.boxSizing = 'border-box';
             div.style.backgroundRepeat = 'no-repeat';
             div.style.backgroundPosition = '50% 50%';
-            div.style.backgroundSize = 'cover';
+            // Keep the profile artwork's aspect ratio on ultrawide Android
+            // screens. `cover` crops the RA2 splash and can hide the faction
+            // emblems; contain leaves only the intentional black letterbox.
+            div.style.backgroundSize = 'contain';
             div.style.textShadow = '1px 1px black';
             div.style.position = 'relative';
             const backgroundImg = document.createElement('img');
@@ -37,7 +40,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ width, height, parentElemen
             backgroundImg.style.inset = '0';
             backgroundImg.style.width = '100%';
             backgroundImg.style.height = '100%';
-            backgroundImg.style.objectFit = 'cover';
+            backgroundImg.style.objectFit = 'contain';
             backgroundImg.style.pointerEvents = 'none';
             backgroundImg.style.zIndex = '0';
             div.appendChild(backgroundImg);
@@ -75,14 +78,24 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ width, height, parentElemen
     useEffect(() => {
         if (elRef.current) {
             if (backgroundImage === "") {
-                elRef.current.style.backgroundImage = 'none';
-                backgroundElRef.current?.removeAttribute('src');
+                // Keep the branded fallback visible when a resource loader
+                // has no replacement image.  Clearing it here recreates the
+                // black startup screen on installations without glsl.png.
+                return;
             }
             else if (backgroundImage) {
-                elRef.current.style.backgroundImage = `url(${backgroundImage})`;
-                if (backgroundElRef.current) {
-                    backgroundElRef.current.src = new URL(backgroundImage, window.location.href).href;
-                }
+                const requestedUrl = new URL(backgroundImage, window.location.href).href;
+                const probe = new Image();
+                probe.onload = () => {
+                    if (backgroundElRef.current) {
+                        backgroundElRef.current.src = requestedUrl;
+                    }
+                    elRef.current!.style.backgroundImage = `url(${requestedUrl})`;
+                };
+                probe.onerror = () => {
+                    console.warn('[SplashScreen] Replacement background failed to load; keeping current image', requestedUrl);
+                };
+                probe.src = requestedUrl;
             }
         }
     }, [backgroundImage]);
