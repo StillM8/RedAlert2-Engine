@@ -140,6 +140,8 @@ export interface AresSuperWeaponDefinition {
     swCursor?: string;
     swNoCursor?: string;
     swChargeToDrainRatio?: number;
+    /** Explicit second-stage superweapon selected after the source click. */
+    swPostDependent?: string;
     swRequiresHouse?: string;
     swInitialReady?: boolean;
     swVirtualCharge?: boolean;
@@ -248,6 +250,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swCursor: getString(section, "Cursor") ?? getString(section, "SW.Cursor"),
         swNoCursor: getString(section, "NoCursor") ?? getString(section, "SW.NoCursor"),
         swChargeToDrainRatio: getNumber(section, "SW.ChargeToDrainRatio"),
+        swPostDependent: getString(section, "SW.PostDependent"),
         swRequiresHouse: getString(section, "SW.RequiresHouse"),
         swInitialReady: getBool(section, "SW.InitialReady"),
         swVirtualCharge: getBool(section, "SW.VirtualCharge"),
@@ -284,6 +287,43 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         extensionEntries: collectExtensionEntries(section),
     };
     return isMeaningful(definition) ? definition : undefined;
+}
+
+function isChronoWarpRule(rule: any): boolean {
+    return rule?.type === SuperWeaponType.ChronoWarp ||
+        normalize(rule?.typeId ?? "") === "chronowarp" ||
+        normalize(rule?.ares?.typeId ?? "") === "chronowarp" ||
+        normalize(rule?.ares?.extensionType ?? "") === "chronowarp";
+}
+
+/**
+ * Resolves Ares' SW.PostDependent reference without relying on the legacy
+ * PreClick/PostClick/PreDependent flags. Antares uses the explicitly named
+ * ChronoWarp when it exists, and otherwise falls back to the first
+ * ChronoWarp definition in authored SuperWeaponTypes order.
+ */
+export function resolveAresPostDependentSuperWeapon(
+    rules: Iterable<any>,
+    source: any,
+): any | undefined {
+    const entries = [...rules];
+    const reference = source?.ares?.swPostDependent?.trim();
+    if (reference) {
+        const expected = normalize(reference);
+        const named = entries.find((rule) =>
+            normalize(rule?.name ?? "") === expected ||
+            normalize(rule?.typeId ?? "") === expected ||
+            normalize(rule?.ares?.typeId ?? "") === expected);
+        if (named) return named;
+    }
+
+    // Ares' ChronoSphere handler defaults to the first ChronoWarp type when
+    // SW.PostDependent is omitted or points at a missing/non-warp section.
+    if (source?.type === SuperWeaponType.ChronoSphere ||
+        normalize(source?.typeId ?? "") === "chronosphere") {
+        return entries.find(isChronoWarpRule);
+    }
+    return undefined;
 }
 
 /** Parse either the vanilla enum value or retain the raw Ares Type= string. */
