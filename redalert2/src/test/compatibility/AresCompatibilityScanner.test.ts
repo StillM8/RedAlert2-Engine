@@ -70,6 +70,30 @@ Ares.PassengerDelete=yes
         ]));
     });
 
+    test("classifies documented Ares superweapon extensions", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[SuperWeaponTypes]
+0=MOGeneric
+
+[MOGeneric]
+Type=GenericWarhead
+SW.Damage=500
+SW.Warhead=MOBlast
+SW.AffectsTarget=land,units
+Deliver.Types=MOUnit
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.custom-superweapons");
+        expect(usage?.occurrences).toBe(5);
+        expect(usage?.definitionCount).toBe(1);
+        expect(usage?.support?.implemented).toBe(false);
+    });
+
     test("classifies documented prerequisite extensions and factory-owner country edges", () => {
         const report = scanMentalOmegaIniSources([
             {
