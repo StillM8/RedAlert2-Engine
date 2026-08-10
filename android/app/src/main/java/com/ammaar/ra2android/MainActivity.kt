@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.Base64
 import android.util.Log
 import android.view.View
@@ -26,12 +27,15 @@ import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.BufferedInputStream
 import java.io.FileOutputStream
+import java.io.FileInputStream
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import java.util.zip.ZipInputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
@@ -46,8 +50,10 @@ class MainActivity : Activity() {
         private const val RECOVERY_WINDOW_MS = 5 * 60 * 1000L
         private const val FILE_CHOOSER_REQUEST = 4102
         private const val GAME_DIRECTORY_REQUEST = 4103
+        private const val MOD_ARCHIVE_REQUEST = 4104
         private const val NATIVE_DOWNLOAD_MAX_BYTES = 1024L * 1024L * 1024L
         private const val NATIVE_DOWNLOAD_DIR = "ra2-mod-downloads"
+        private const val NATIVE_MOD_IMPORT_DIR = "ra2-mod-imports"
         private val REQUIRED_RA2_GAME_FILES = listOf(
             "language.mix",
             "multi.mix",
@@ -65,6 +71,7 @@ class MainActivity : Activity() {
     private var lastRendererCrashAt = 0L
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    @Volatile private var modArchivePickerActive = false
     private val importExecutor = Executors.newSingleThreadExecutor()
     private val downloadExecutor = Executors.newCachedThreadPool()
     private val nativeDownloads = ConcurrentHashMap<String, NativeDownloadJob>()
@@ -169,6 +176,24 @@ class MainActivity : Activity() {
         fun pickGameDirectory(): Boolean {
             runOnUiThread { launchGameDirectoryPicker() }
             return true
+        }
+
+        /**
+         * Opens Android's archive picker. Multiple selections are supported so
+         * a full mod package and its patch can be overlaid in one import.
+         */
+        @JavascriptInterface
+        fun pickModArchives(): Boolean {
+            if (modArchivePickerActive) return false
+            modArchivePickerActive = true
+            runOnUiThread { launchModArchivePicker() }
+            return true
+        }
+
+        @JavascriptInterface
+        fun deleteNativeModImport(token: String): Boolean {
+            if (!isSafeDownloadToken(token)) return false
+            return File(filesDir, "$NATIVE_MOD_IMPORT_DIR/$token").deleteRecursively()
         }
 
         /**
@@ -406,7 +431,138 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun launchModArchivePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/zip", "application/octet-stream"))
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                putExtra(
+                    DocumentsContract.EXTRA_INITIAL_URI,
+                    Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload"),
+                )
+            }
+        }
+        try {
+            startActivityForResult(intent, MOD_ARCHIVE_REQUEST)
+        }
+        catch (error: Exception) {
+            modArchivePickerActive = false
+            Log.e(TAG, "Unable to launch mod archive picker", error)
+            notifyNativeModImport(false, error.message ?: "Archive picker unavailable")
+        }
+    }
+
     private data class ImportedFile(val path: String, val size: Long)
+
+    private fun importModArchives(uris: List<Uri>) {
+        importExecutor.execute {
+            val token = UUID.randomUUID().toString().replace("-", "")
+            val staging = File(filesDir, ".mod-importing-$token")
+            try {
+                if (!staging.mkdirs() && !staging.isDirectory) {
+                    throw IOException("Could not create the mod import directory")
+                }
+                val orderedUris = uris.sortedBy { queryDisplayName(it).lowercase() }
+                for (uri in orderedUris) {
+                    val displayName = queryDisplayName(uri)
+                    Log.i(TAG, "Extracting mod archive $displayName")
+                    val input = contentResolver.openInputStream(uri)
+                        ?: throw IOException("Could not open selected archive $displayName")
+                    input.use { source ->
+                        ZipInputStream(BufferedInputStream(source, 1024 * 1024)).use { archive ->
+                            val buffer = ByteArray(1024 * 1024)
+                            while (true) {
+                                val entry = archive.nextEntry ?: break
+                                val outputName = modArchiveEntryName(entry.name) ?: continue
+                                val destination = File(staging, outputName).canonicalFile
+                                val root = staging.canonicalFile
+                                if (!destination.path.startsWith(root.path + File.separator)) {
+                                    throw IOException("Unsafe mod archive path: ${entry.name}")
+                                }
+                                destination.parentFile?.mkdirs()
+                                FileOutputStream(destination).use { output ->
+                                    while (true) {
+                                        val count = archive.read(buffer)
+                                        if (count < 0) break
+                                        if (count > 0) output.write(buffer, 0, count)
+                                    }
+                                }
+                                archive.closeEntry()
+                            }
+                        }
+                    }
+                }
+                val files = staging.listFiles()
+                    ?.filter { it.isFile && it.name != "manifest.json" }
+                    ?.sortedBy { it.name.lowercase() }
+                    ?: emptyList()
+                if (files.isEmpty()) {
+                    throw IOException("The selected archives contain no root game files")
+                }
+                val manifestFiles = JSONArray()
+                files.forEach { file ->
+                    manifestFiles.put(
+                        JSONObject()
+                            .put("path", file.name)
+                            .put("size", file.length()),
+                    )
+                }
+                File(staging, "manifest.json").writeText(
+                    JSONObject().put("files", manifestFiles).toString(),
+                    Charsets.UTF_8,
+                )
+                val destination = File(filesDir, "$NATIVE_MOD_IMPORT_DIR/$token")
+                destination.parentFile?.mkdirs()
+                if (destination.exists() && !destination.deleteRecursively()) {
+                    throw IOException("Could not replace the previous native mod import")
+                }
+                if (!staging.renameTo(destination)) {
+                    throw IOException("Could not commit the native mod import")
+                }
+                notifyNativeModImport(true, token = token)
+            }
+            catch (error: Exception) {
+                staging.deleteRecursively()
+                Log.e(TAG, "Mod archive import failed", error)
+                notifyNativeModImport(false, error.message ?: "Could not import the selected mod archives")
+            }
+            finally {
+                modArchivePickerActive = false
+            }
+        }
+    }
+
+    /**
+     * The web VFS consumes root game files. Mental Omega's playable maps are
+     * shipped below MapsMO/..., while its client/editor payload is not used by
+     * the web engine. Keep root files plus loose map/pkt files, flattening the
+     * latter to the filenames the map loader expects at the game root.
+     */
+    private fun modArchiveEntryName(rawName: String): String? {
+        val normalized = rawName.replace('\\', '/').removePrefix("./")
+        if (normalized.isEmpty() || normalized.endsWith('/')) return null
+        val safeName = File(normalized).name
+        if (safeName.isEmpty() || safeName == "." || safeName == ".." ||
+            normalized.split('/').any { it.isEmpty() || it == "." || it == ".." }) return null
+        if (normalized.contains('/') &&
+            !safeName.substringAfterLast('.', "").lowercase().let { it == "map" || it == "mpr" || it == "pkt" }) {
+            return null
+        }
+        return safeName
+    }
+
+    private fun queryDisplayName(uri: Uri): String {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) return cursor.getString(index) ?: uri.toString()
+            }
+        }
+        return uri.toString()
+    }
 
     private fun importGameDirectory(treeUri: Uri) {
         importExecutor.execute {
@@ -591,6 +747,16 @@ class MainActivity : Activity() {
         webView.post { webView.evaluateJavascript(script, null) }
     }
 
+    private fun notifyNativeModImport(success: Boolean, error: String? = null, token: String? = null) {
+        if (!::webView.isInitialized) return
+        val result = JSONObject().put("success", success)
+        if (error != null) result.put("error", error)
+        if (token != null) result.put("token", token)
+        val script = "window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__ && " +
+            "window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__($result);"
+        webView.post { webView.evaluateJavascript(script, null) }
+    }
+
     @Deprecated("Use Activity Result APIs when this shell grows more activities")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -609,6 +775,37 @@ class MainActivity : Activity() {
                 Log.w(TAG, "Could not persist folder permission; copying while the picker grant is live", error)
             }
             importGameDirectory(treeUri)
+            return
+        }
+        if (requestCode == MOD_ARCHIVE_REQUEST) {
+            modArchivePickerActive = false
+            val uris = mutableListOf<Uri>()
+            if (resultCode == RESULT_OK && data != null) {
+                data.clipData?.let { clipData ->
+                    for (index in 0 until clipData.itemCount) {
+                        clipData.getItemAt(index).uri?.let(uris::add)
+                    }
+                }
+                if (uris.isEmpty()) data.data?.let(uris::add)
+            }
+            if (uris.isEmpty()) {
+                notifyNativeModImport(false)
+            }
+            else {
+                try {
+                    uris.forEach { uri ->
+                        contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        )
+                    }
+                }
+                catch (error: Exception) {
+                    Log.w(TAG, "Could not persist archive permission; importing while picker grant is live", error)
+                }
+                modArchivePickerActive = true
+                importModArchives(uris)
+            }
             return
         }
         if (requestCode != FILE_CHOOSER_REQUEST) return

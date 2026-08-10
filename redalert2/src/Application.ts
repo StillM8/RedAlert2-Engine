@@ -258,7 +258,7 @@ export class Application {
         }
         const isYuri = Engine.getActiveEngine() === EngineType.YurisRevenge;
         const candidates = isYuri
-            ? ['ra2md.csf', 'generalmd.csf', 'ra2.csf']
+            ? ['ra2md.csf', 'generalmd.csf', 'stringtable00.csf', 'stringtable01.csf', 'ra2.csf']
             : ['ra2.csf', 'general.csf'];
         let loadedCsf = false;
         for (const fileName of candidates) {

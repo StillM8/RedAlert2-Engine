@@ -11,6 +11,8 @@ declare global {
         };
         Ra2Android?: {
             pickGameDirectory: () => boolean;
+            pickModArchives?: () => boolean;
+            deleteNativeModImport?: (token: string) => boolean;
             startModDownload?: (url: string, requestId: string) => boolean;
             cancelModDownload?: (requestId: string) => boolean;
             deleteModDownload?: (token: string) => boolean;
@@ -18,6 +20,11 @@ declare global {
         };
         __RA2_NATIVE_GAME_RES_CALLBACK__?: (result: {
             success: boolean;
+            error?: string;
+        }) => void;
+        __RA2_NATIVE_MOD_IMPORT_CALLBACK__?: (result: {
+            success: boolean;
+            token?: string;
             error?: string;
         }) => void;
         __RA2_NATIVE_MOD_DOWNLOAD_CALLBACK__?: (requestId: string, result: {
@@ -227,6 +234,126 @@ export function pickGameDirectoryFromShell(): Promise<boolean> {
             finish({ success: false, error: String(error) });
         }
     });
+}
+
+interface NativeModImportFile {
+    path: string;
+    size: number;
+}
+
+interface NativeModImportResult {
+    id: string;
+    name: string;
+    version: string;
+}
+
+export function canImportModFromShell(): boolean {
+    ensureShellMarker();
+    return window.__RA2_SHELL__?.platform === 'android'
+        && typeof window.Ra2Android?.pickModArchives === 'function';
+}
+
+/**
+ * Imports one or more ZIP archives selected by Android's Storage Access
+ * Framework. The native side extracts the root files and applies later
+ * archives over earlier ones (which is how the Mental Omega full package and
+ * patch are normally installed). The resulting files are streamed into the
+ * same OPFS mod directory used by the desktop importer.
+ */
+export async function importModFromShell(
+    modId: string,
+    onProgress?: (text: string) => void,
+): Promise<NativeModImportResult | undefined> {
+    if (!canImportModFromShell())
+        return undefined;
+    const nativeApi = window.Ra2Android!;
+    const result = await new Promise<{ success: boolean; token?: string; error?: string }>((resolve) => {
+        let settled = false;
+        const finish = (value: { success: boolean; token?: string; error?: string }) => {
+            if (settled)
+                return;
+            settled = true;
+            window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__ = undefined;
+            resolve(value);
+        };
+        window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__ = finish;
+        try {
+            if (!nativeApi.pickModArchives!())
+                finish({ success: false });
+        }
+        catch (error: any) {
+            finish({ success: false, error: String(error) });
+        }
+    });
+    if (!result.success || !result.token) {
+        if (result.error)
+            throw new Error(result.error);
+        return undefined;
+    }
+
+    const token = result.token;
+    try {
+        const manifestResponse = await fetch(`/native-mod-imports/${encodeURIComponent(token)}/manifest.json`, {
+            cache: 'no-store',
+        });
+        if (!manifestResponse.ok)
+            throw new Error(`Native mod manifest could not be read (${manifestResponse.status})`);
+        const manifest = await manifestResponse.json() as { files?: NativeModImportFile[] };
+        const files = Array.isArray(manifest.files) ? manifest.files : [];
+        if (!files.length)
+            throw new Error('The selected mod archive contains no root game files');
+
+        if (typeof navigator.storage?.getDirectory !== 'function')
+            throw new Error('Android OPFS storage is unavailable');
+        const root = await navigator.storage.getDirectory();
+        const modsDir = await root.getDirectoryHandle('mods', { create: true });
+        const modDir = await modsDir.getDirectoryHandle(modId, { create: true });
+        for await (const entry of modDir.keys()) {
+            await modDir.removeEntry(entry, { recursive: true });
+        }
+
+        const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+        let copiedBytes = 0;
+        for (const file of files) {
+            const response = await fetch(
+                `/native-mod-imports/${encodeURIComponent(token)}/${encodeURIComponent(file.path)}`,
+                { cache: 'no-store' },
+            );
+            if (!response.ok || !response.body)
+                throw new Error(`Native mod file could not be read (${file.path})`);
+            const fileHandle = await modDir.getFileHandle(file.path, { create: true });
+            const writable = await fileHandle.createWritable();
+            try {
+                await response.body.pipeTo(writable);
+            }
+            catch (error) {
+                await writable.abort();
+                throw error;
+            }
+            copiedBytes += file.size;
+            onProgress?.(`Preparing Mental Omega... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`);
+        }
+
+        const metadata = [
+            '[General]',
+            `ID=${modId}`,
+            'Name=Mental Omega 3.3.6',
+            'Version=3.3.6',
+            'Author=Mental Omega team',
+            'Website=https://mentalomega.com/',
+            '',
+        ].join('\n');
+        const metaHandle = await modDir.getFileHandle('modcd.ini', { create: true });
+        const metaWritable = await metaHandle.createWritable();
+        await metaWritable.write(metadata);
+        await metaWritable.close();
+        nativeApi.deleteNativeModImport?.(token);
+        return { id: modId, name: 'Mental Omega 3.3.6', version: '3.3.6' };
+    }
+    catch (error) {
+        nativeApi.deleteNativeModImport?.(token);
+        throw error;
+    }
 }
 
 interface NativeModDownloadResult {

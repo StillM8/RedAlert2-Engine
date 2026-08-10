@@ -25,6 +25,7 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
         private const val WEB_ROOT = "WebDist"
         private const val GAME_RES_ROOT = "GameRes"
         private const val NATIVE_DOWNLOADS_ROOT = "ra2-mod-downloads"
+        private const val NATIVE_MOD_IMPORT_ROOT = "ra2-mod-imports"
     }
 
     override fun shouldInterceptRequest(
@@ -49,6 +50,7 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
 
         val isGameResource = path == "gameres" || path.startsWith("gameres/")
         val isNativeDownload = path == "native-downloads" || path.startsWith("native-downloads/")
+        val isNativeModImport = path == "native-mod-imports" || path.startsWith("native-mod-imports/")
         if (isNativeDownload) {
             val relativeDownloadPath = path.removePrefix("native-downloads/")
             val segments = relativeDownloadPath.split('/')
@@ -72,6 +74,33 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
                     "Cross-Origin-Resource-Policy" to "same-origin",
                 ),
                 FileInputStream(downloadFile),
+            )
+        }
+        if (isNativeModImport) {
+            val relativeImportPath = path.removePrefix("native-mod-imports/")
+            val segments = relativeImportPath.split('/')
+            if (segments.size != 2 ||
+                !segments[0].matches(Regex("[A-Za-z0-9_-]{8,80}")) ||
+                segments[1].isBlank() || segments[1] == "." || segments[1] == ".." || segments[1].contains('\\')) {
+                return errorResponse(403, "Forbidden")
+            }
+            val importRoot = File(context.filesDir, NATIVE_MOD_IMPORT_ROOT).canonicalFile
+            val importFile = File(importRoot, "${segments[0]}/${segments[1]}").canonicalFile
+            if (!importFile.path.startsWith(importRoot.path + File.separator) || !importFile.isFile) {
+                return errorResponse(404, "Native mod file not found")
+            }
+            return WebResourceResponse(
+                mimeType(segments[1]),
+                if (isText(segments[1])) "UTF-8" else null,
+                200,
+                "OK",
+                mapOf(
+                    "Cache-Control" to "no-store",
+                    "Cross-Origin-Embedder-Policy" to "require-corp",
+                    "Cross-Origin-Opener-Policy" to "same-origin",
+                    "Cross-Origin-Resource-Policy" to "same-origin",
+                ),
+                FileInputStream(importFile),
             )
         }
         val relativePath = if (isGameResource) {

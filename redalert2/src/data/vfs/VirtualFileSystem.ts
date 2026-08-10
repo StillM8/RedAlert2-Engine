@@ -21,13 +21,35 @@ export class VirtualFileSystem {
     private logger: VfsLogger;
     private allArchives: Map<string, Archive>;
     private archivesByPriority: Archive[];
+    /** Mental Omega uses its own names for the control INIs. */
+    private static readonly mentalOmegaAliases = new Map<string, string>([
+        ["rulesmd.ini", "rulesmo.ini"],
+        ["artmd.ini", "artmo.ini"],
+        ["aimd.ini", "aimo.ini"],
+        ["battlemd.ini", "battlemo.ini"],
+        ["desertmd.ini", "desertmo.ini"],
+        ["evamd.ini", "evamo.ini"],
+        ["lunarmd.ini", "lunarmo.ini"],
+        ["mapselmd.ini", "mapselmo.ini"],
+        ["missionmd.ini", "missionmo.ini"],
+        ["snowmd.ini", "snowmo.ini"],
+        ["soundmd.ini", "soundmo.ini"],
+        ["thememd.ini", "thememo.ini"],
+        ["temperatmd.ini", "temperatmo.ini"],
+        ["urbanmd.ini", "urbanmo.ini"],
+        ["urbannmd.ini", "urbannmo.ini"],
+    ]);
     constructor(rfs: RealFileSystem, logger: VfsLogger) {
         this.rfs = rfs;
         this.logger = logger;
         this.allArchives = new Map<string, Archive>();
         this.archivesByPriority = [];
     }
-    fileExists(filename: string): boolean {
+    private hasMentalOmegaArchives(): boolean {
+        return ["expandmo95.mix", "expandmo96.mix", "expandmo97.mix", "expandmo99.mix"]
+            .some((name) => this.allArchives.has(name));
+    }
+    private containsFileDirect(filename: string): boolean {
         for (const archive of this.archivesByPriority) {
             if (archive.containsFile(filename)) {
                 return true;
@@ -35,10 +57,21 @@ export class VirtualFileSystem {
         }
         return false;
     }
+    private resolveFilename(filename: string): string {
+        if (!this.hasMentalOmegaArchives()) {
+            return filename;
+        }
+        const alias = VirtualFileSystem.mentalOmegaAliases.get(filename.toLowerCase());
+        return alias && this.containsFileDirect(alias) ? alias : filename;
+    }
+    fileExists(filename: string): boolean {
+        return this.containsFileDirect(this.resolveFilename(filename));
+    }
     openFile(filename: string): VirtualFile {
+        const resolvedFilename = this.resolveFilename(filename);
         for (const archive of this.archivesByPriority) {
-            if (archive.containsFile(filename)) {
-                return archive.openFile(filename);
+            if (archive.containsFile(resolvedFilename)) {
+                return archive.openFile(resolvedFilename);
             }
         }
         throw new FileNotFoundError(`File "${filename}" not found in VFS`);
@@ -203,14 +236,18 @@ export class VirtualFileSystem {
         for await (const entry of this.rfs.getEntries()) {
             rfsEntries.add(entry.toLowerCase());
         }
-        const prefixes = ["ecache", "expand", "elocal"];
+        // Mental Omega keeps its Ares payload in expandmo##.mix files rather
+        // than the stock expand##/expandmd## naming convention. These files
+        // must be loaded before the implicit base mixes below so their rules,
+        // art and strings take priority when a mod is active.
+        const prefixes = ["ecache", "expandmo", "expand", "elocal"];
         for (const prefix of prefixes) {
             for (let i = 99; i >= 0; i--) {
                 const numStr = pad(i, "00");
                 const baseFilename = `${prefix}${numStr}.mix`;
                 const mdFilename = `${prefix}md${numStr}.mix`;
                 const filesToTry: string[] = [];
-                if (engineType === EngineType.YurisRevenge) {
+                if (prefix !== "expandmo" && engineType === EngineType.YurisRevenge) {
                     filesToTry.push(mdFilename);
                 }
                 filesToTry.push(baseFilename);
@@ -220,6 +257,16 @@ export class VirtualFileSystem {
                             await this.addMixFile(fileToTry);
                         }
                     }
+                }
+            }
+        }
+        if (this.hasMentalOmegaArchives()) {
+            // These are the other client-side MO archives.  The expandmo
+            // archives contain the rules, but mapsmo/multimo/movmo contain
+            // the map, UI and art assets referenced by those rules.
+            for (const filename of ["mapsmo03.mix", "multimo.mix", "movmo03.mix"]) {
+                if (rfsEntries.has(filename) && !this.hasArchive(filename)) {
+                    await this.addMixFile(filename);
                 }
             }
         }

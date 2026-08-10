@@ -14,6 +14,8 @@ interface TechnoRule {
 }
 export class MapSupport {
     static check(map: MapFile, translator: Strings): string | undefined {
+        const hasReference = (value: string | undefined): value is string =>
+            !!value && value.toLowerCase() !== "none";
         if (map.iniFormat < 4) {
             return translator.get("TS:MapUnsupportedGame");
         }
@@ -52,12 +54,12 @@ export class MapSupport {
         }
         const general = rules.general;
         for (const unit of [...general.baseUnit, ...general.harvesterUnit]) {
-            if (unit && !rules.hasObject(unit, ObjectType.Vehicle)) {
+            if (hasReference(unit) && !rules.hasObject(unit, ObjectType.Vehicle)) {
                 return translator.get("TS:MapUnsupportedTechno", unit);
             }
         }
         for (const disguise of general.defaultMirageDisguises) {
-            if (disguise && !rules.terrainRules.has(disguise)) {
+            if (hasReference(disguise) && !rules.terrainRules.has(disguise)) {
                 return translator.get("TS:MapUnsupportedTerrain", disguise);
             }
         }
@@ -69,7 +71,7 @@ export class MapSupport {
             general.sovietDisguise,
         ];
         for (const unit of crewAndDisguiseUnits) {
-            if (unit && !rules.infantryRules.has(unit)) {
+            if (hasReference(unit) && !rules.infantryRules.has(unit)) {
                 return translator.get("TS:MapUnsupportedTechno", unit);
             }
         }
@@ -80,7 +82,7 @@ export class MapSupport {
             }
         }
         for (const building of rules.buildingRules.values() as IterableIterator<BuildingRule>) {
-            if (building.undeploysInto &&
+            if (hasReference(building.undeploysInto) &&
                 !rules.hasObject(building.undeploysInto, ObjectType.Vehicle)) {
                 return translator.get("TS:MapUnsupportedTechno", building.undeploysInto);
             }
@@ -91,10 +93,10 @@ export class MapSupport {
             ...rules.aircraftRules.values(),
         ] as TechnoRule[];
         for (const techno of allTechnoRules) {
-            if (techno.spawns && !rules.hasObject(techno.spawns, ObjectType.Aircraft)) {
+            if (hasReference(techno.spawns) && !rules.hasObject(techno.spawns, ObjectType.Aircraft)) {
                 return translator.get("TS:MapUnsupportedTechno", techno.spawns);
             }
-            if (techno.deploysInto &&
+            if (hasReference(techno.deploysInto) &&
                 !rules.hasObject(techno.deploysInto, ObjectType.Building)) {
                 return translator.get("TS:MapUnsupportedTechno", techno.deploysInto);
             }

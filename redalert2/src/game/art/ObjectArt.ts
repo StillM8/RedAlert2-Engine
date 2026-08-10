@@ -423,11 +423,26 @@ export class ObjectArt {
     }
     get foundation(): Foundation {
         const foundationStr = this.art.getString("Foundation", "1x1")!;
+        // Ares/ Mental Omega buildings can describe irregular foundations as
+        // `Foundation=Custom` with their bounding dimensions in Foundation.X
+        // and Foundation.Y.  The engine currently uses the bounding rectangle
+        // for placement/rendering, but must still understand those dimensions;
+        // parsing "Custom" as a number produces NaN and later creates an empty
+        // health-bar geometry.
+        if (foundationStr.trim().toLowerCase() === "custom") {
+            return {
+                width: this.validFoundationDimension(this.art.getNumber("Foundation.X", 1)),
+                height: this.validFoundationDimension(this.art.getNumber("Foundation.Y", 1)),
+            };
+        }
         const [widthStr, heightStr] = foundationStr.split("x");
         return {
-            width: parseInt(widthStr, 10),
-            height: parseInt(heightStr, 10)
+            width: this.validFoundationDimension(parseInt(widthStr, 10)),
+            height: this.validFoundationDimension(parseInt(heightStr, 10)),
         };
+    }
+    private validFoundationDimension(value: number): number {
+        return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
     }
     get foundationCenter(): Vector2 {
         return new Vector2(Math.floor(this.foundation.width / 2 - 0.5), Math.floor(this.foundation.height / 2 - 0.5));

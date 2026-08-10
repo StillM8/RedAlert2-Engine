@@ -462,28 +462,28 @@ export class Engine {
         }
         const localMapList = new MapList(gameModes);
         if (this.rfs) {
-            const rootDir = this.rfs.getRootDirectory();
-            if (rootDir) {
-                const entries = await rootDir.listEntries();
-                for (const entryName of entries) {
-                    const lowerEntryName = entryName.toLowerCase();
-                    try {
-                        if (lowerEntryName.endsWith(".pkt")) {
-                            const fileData = await this.rfs.openFile(entryName, true);
-                            if (fileData) {
-                                localMapList.addFromIni(new IniFile(fileData));
-                            }
-                        }
-                        else if (this.supportedMapTypes.some((type) => lowerEntryName.endsWith("." + type))) {
-                            const fileData = await this.rfs.openFile(entryName, true);
-                            if (fileData) {
-                                localMapList.addFromMapFile(fileData);
-                            }
+            // RFS can contain the base game, an active mod directory, and a
+            // user map directory. Scan every registered directory so maps
+            // shipped by mods (including Mental Omega's loose maps) appear in
+            // the lobby alongside the bundled map manifests.
+            for await (const entryName of this.rfs.getEntries()) {
+                const lowerEntryName = entryName.toLowerCase();
+                try {
+                    if (lowerEntryName.endsWith(".pkt")) {
+                        const fileData = await this.rfs.openFile(entryName, true);
+                        if (fileData) {
+                            localMapList.addFromIni(new IniFile(fileData));
                         }
                     }
-                    catch (e) {
-                        console.warn(`Couldn't read file "${entryName}" from RFS`, e);
+                    else if (this.supportedMapTypes.some((type) => lowerEntryName.endsWith("." + type))) {
+                        const fileData = await this.rfs.openFile(entryName, true);
+                        if (fileData) {
+                            localMapList.addFromMapFile(fileData);
+                        }
                     }
+                }
+                catch (e) {
+                    console.warn(`Couldn't read file "${entryName}" from RFS`, e);
                 }
             }
         }

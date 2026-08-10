@@ -52,8 +52,14 @@ export class MapManifest {
         }
         this.maxSlots = maxPlayersFromWaypoints;
         this.official = basicSection.getBool("Official");
-        const supportedModeFilters = basicSection.getArray("GameMode", /,\s*/, ["standard"]);
-        this.gameModes = availableGameModes.filter((gm) => supportedModeFilters.includes(gm.mapFilter));
+        // Map authors commonly write "Standard" while the engine's mode
+        // catalog stores the filter as "standard". Treat this metadata as
+        // case-insensitive so mod maps (notably Mental Omega's) are usable in
+        // the skirmish and LAN map pickers.
+        const supportedModeFilters = basicSection
+            .getArray("GameMode", /,\s*/, ["standard"])
+            .map((filter) => filter.toLowerCase());
+        this.gameModes = availableGameModes.filter((gm) => supportedModeFilters.includes(gm.mapFilter.toLowerCase()));
         return this;
     }
     private extractIniSection(sectionName: string, content: string): string | undefined {

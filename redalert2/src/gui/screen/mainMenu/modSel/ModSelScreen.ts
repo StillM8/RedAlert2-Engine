@@ -17,10 +17,11 @@ import { ArchiveExtractionError } from "@/engine/gameRes/importError/ArchiveExtr
 import { BadModArchiveError } from "@/gui/screen/mainMenu/modSel/BadModArchiveError";
 import { DuplicateModError } from "@/gui/screen/mainMenu/modSel/DuplicateModError";
 import { Mod } from "@/gui/screen/mainMenu/modSel/Mod";
+import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
 import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib/async/cancellation";
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
-import { downloadModFromShell } from "@/shell/nativeShell";
+import { canImportModFromShell, downloadModFromShell, importModFromShell } from "@/shell/nativeShell";
 interface ModManager {
     listLocal(): Promise<any[]>;
     listRemote(): Promise<any[]>;
@@ -239,6 +240,23 @@ export class ModSelScreen extends MainMenuScreen {
                 label: this.strings.get("GUI:ImportMod"),
                 tooltip: this.strings.get("STT:ImportMod"),
                 onClick: async () => {
+                    if (canImportModFromShell()) {
+                        try {
+                            this.messageBoxApi.show(this.strings.get("ts:import_preparing_for_import"));
+                            const imported = await importModFromShell("mentalomega", (progress) => {
+                                this.messageBoxApi.updateText(progress);
+                            });
+                            this.messageBoxApi.destroy();
+                            if (imported) {
+                                await this.refreshImportedMod(imported);
+                            }
+                        }
+                        catch (error) {
+                            this.messageBoxApi.destroy();
+                            this.handleModImportError(error);
+                        }
+                        return;
+                    }
                     try {
                         let file: File;
                         try {
@@ -400,6 +418,25 @@ export class ModSelScreen extends MainMenuScreen {
                 this.updateSidebarButtons();
             }
         }
+    }
+    private async refreshImportedMod(modMeta: any): Promise<void> {
+        const localMeta = new ModMeta();
+        Object.assign(localMeta, modMeta);
+        localMeta.supported = true;
+        const mod = new Mod(localMeta, undefined);
+        const existingIndex = this.availableMods.findIndex((m) => m.id === mod.id);
+        if (existingIndex !== -1) {
+            this.availableMods.splice(existingIndex, 1, mod);
+        }
+        else {
+            this.availableMods.unshift(mod);
+        }
+        this.selectedMod = mod;
+        this.form?.applyOptions((options: any) => {
+            options.mods = this.availableMods;
+            options.selectedMod = mod;
+        });
+        this.updateSidebarButtons();
     }
     private handleModImportError(error: any): void {
         const strings = this.strings;
