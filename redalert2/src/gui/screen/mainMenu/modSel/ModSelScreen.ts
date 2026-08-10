@@ -21,7 +21,8 @@ import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
 import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib/async/cancellation";
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
-import { canImportModFromShell, downloadModFromShell, getNativeShellEngine, importModFromShell } from "@/shell/nativeShell";
+import type { ArchiveSource } from "@/data/ArchiveSource";
+import { canImportModFromShell, downloadModFromShell, getNativeShellProfile, importModFromShell } from "@/shell/nativeShell";
 interface ModManager {
     listLocal(): Promise<any[]>;
     listRemote(): Promise<any[]>;
@@ -210,7 +211,7 @@ export class ModSelScreen extends MainMenuScreen {
                                 !(await this.messageBoxApi.confirm(this.strings.get("GUI:InstallModDownloadPrompt", sizeMb), this.strings.get("GUI:Continue"), this.strings.get("GUI:Cancel")))) {
                                 return;
                             }
-                            let downloadedFile: File;
+                            let downloadedFile: ArchiveSource;
                             try {
                                 downloadedFile = await this.downloadMod(mod);
                             }
@@ -243,13 +244,13 @@ export class ModSelScreen extends MainMenuScreen {
                     if (canImportModFromShell()) {
                         try {
                             this.messageBoxApi.show(this.strings.get("ts:import_preparing_for_import"));
-                            const imported = await importModFromShell("mentalomega", (progress) => {
+                            const imported = await importModFromShell("android-imported-mod", (progress) => {
                                 this.messageBoxApi.updateText(progress);
                             });
                             this.messageBoxApi.destroy();
                             if (imported) {
                                 await this.refreshImportedMod(imported);
-                                if (getNativeShellEngine() === 'mo') {
+                                if (getNativeShellProfile() === 'mental-omega') {
                                     this.modManager.loadMod(imported.id);
                                 }
                             }
@@ -350,7 +351,7 @@ export class ModSelScreen extends MainMenuScreen {
         await this.controller?.hideSidebarButtons();
         this.modManager.loadMod(mod !== this.activeMod ? mod.id : undefined);
     }
-    private async downloadMod(mod: Mod): Promise<File> {
+    private async downloadMod(mod: Mod): Promise<ArchiveSource> {
         const downloadUrl = mod.meta.download;
         if (!downloadUrl) {
             throw new Error("Mod meta is missing download");
@@ -385,7 +386,7 @@ export class ModSelScreen extends MainMenuScreen {
         const archiveData = resources.pop("archive");
         return new File([archiveData], this.modResourceLoader.getResourceFileName(resource));
     }
-    private async importModFromFile(file: File, overwrite: boolean): Promise<void> {
+    private async importModFromFile(file: ArchiveSource, overwrite: boolean): Promise<void> {
         this.messageBoxApi.show(this.strings.get("ts:import_preparing_for_import"));
         const onProgress = (message: string) => {
             this.messageBoxApi.updateText(message);

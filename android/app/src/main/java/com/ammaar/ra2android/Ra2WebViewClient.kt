@@ -79,19 +79,23 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
         if (isNativeModImport) {
             val relativeImportPath = path.removePrefix("native-mod-imports/")
             val segments = relativeImportPath.split('/')
-            if (segments.size != 2 ||
-                !segments[0].matches(Regex("[A-Za-z0-9_-]{8,80}")) ||
-                segments[1].isBlank() || segments[1] == "." || segments[1] == ".." || segments[1].contains('\\')) {
+            val token = segments.firstOrNull()
+            val fileSegments = if (segments.size > 1) segments.drop(1) else emptyList()
+            if (token == null ||
+                !token.matches(Regex("[A-Za-z0-9_-]{8,80}")) ||
+                fileSegments.isEmpty() ||
+                fileSegments.any { !isSafeRelativeSegment(it) }) {
                 return errorResponse(403, "Forbidden")
             }
             val importRoot = File(context.filesDir, NATIVE_MOD_IMPORT_ROOT).canonicalFile
-            val importFile = File(importRoot, "${segments[0]}/${segments[1]}").canonicalFile
+            val relativeFilePath = fileSegments.joinToString(File.separator)
+            val importFile = File(importRoot, "$token/$relativeFilePath").canonicalFile
             if (!importFile.path.startsWith(importRoot.path + File.separator) || !importFile.isFile) {
                 return errorResponse(404, "Native mod file not found")
             }
             return WebResourceResponse(
-                mimeType(segments[1]),
-                if (isText(segments[1])) "UTF-8" else null,
+                mimeType(relativeFilePath),
+                if (isText(relativeFilePath)) "UTF-8" else null,
                 200,
                 "OK",
                 mapOf(
@@ -171,6 +175,14 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
         "css", "html", "ini", "js", "json", "map", "svg", "txt", "xml" -> true
         else -> false
     }
+
+    private fun isSafeRelativeSegment(segment: String): Boolean =
+        segment.isNotEmpty() &&
+            segment != "." &&
+            segment != ".." &&
+            !segment.contains('\\') &&
+            !segment.contains('\u0000') &&
+            !segment.contains(':')
 
     private fun mimeType(path: String): String = when (path.substringAfterLast('.', "").lowercase()) {
         "css" -> "text/css"

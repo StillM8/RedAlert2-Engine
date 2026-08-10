@@ -67,7 +67,7 @@ export class Config {
     get serversUrl(): string {
         return this.generalData.getString("serversUrl", "servers.ini");
     }
-    /** "ra2", "yr", or "mo" — which native client flavor is booting. */
+    /** "ra2" or "yr" — which simulation engine is booting. */
     get engine(): string {
         return this.generalData.getString("engine") || "ra2";
     }

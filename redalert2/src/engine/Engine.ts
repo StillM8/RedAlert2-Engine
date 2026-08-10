@@ -21,6 +21,7 @@ import { MapList } from './MapList';
 import { HvaFile } from '../data/HvaFile';
 import { MixinRulesType } from '../game/ini/MixinRulesType';
 import { AppLogger } from '../util/logger';
+import { GAME_PROFILES, type GameProfileDescriptor } from './GameProfile';
 type AppLoggerType = typeof AppLogger;
 interface TheaterSettings {
     type: TheaterType;
@@ -201,6 +202,7 @@ export class Engine {
     public static shroudFileName = "shroud.shp";
     public static mixinRulesFileNames = new Map<MixinRulesType, string>().set(MixinRulesType.NoDogEngiKills, "nodogengikills.ini");
     private static activeMod?: string;
+    private static activeProfile: GameProfileDescriptor = GAME_PROFILES.ra2;
     private static modHash?: number;
     private static gameResSource?: GameResSource;
     public static rfs?: RealFileSystem;
@@ -233,8 +235,9 @@ export class Engine {
         rfsInstance.addRootDirectoryHandle(rootHandle);
         return rfsInstance;
     }
-    static async initVfs(rfsInstance: RealFileSystem | undefined, logger: VfsLogger): Promise<VirtualFileSystem> {
-        this.vfs = new VirtualFileSystem(rfsInstance, logger);
+    static async initVfs(rfsInstance: RealFileSystem | undefined, logger: VfsLogger, profile: GameProfileDescriptor = GAME_PROFILES.ra2): Promise<VirtualFileSystem> {
+        this.activeProfile = profile;
+        this.vfs = new VirtualFileSystem(rfsInstance, logger, profile);
         this.iniFiles.setVfs(this.vfs);
         this.palettes.setVfs(this.vfs);
         this.images.setVfs(this.vfs);
@@ -526,6 +529,9 @@ export class Engine {
     }
     static getActiveEngine(): EngineType {
         return this.activeEngine;
+    }
+    static getActiveProfile(): GameProfileDescriptor {
+        return this.activeProfile;
     }
     static getLastTheaterType(): TheaterType | undefined {
         return this.activeTheater?.type;

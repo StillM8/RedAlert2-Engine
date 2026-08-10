@@ -31,7 +31,7 @@ export class RealFileSystem {
         }
     }
     async getDirectory(path: string): Promise<RealFileSystemDir> {
-        for (const dir of this.directories) {
+        for (const dir of [...this.directories].reverse()) {
             if (dir.name === path)
                 return dir;
             try {
@@ -45,7 +45,7 @@ export class RealFileSystem {
         throw new Error(`Directory "${path}" not found in real file system`);
     }
     async findDirectory(directoryName: string): Promise<RealFileSystemDir | undefined> {
-        for (const dir of this.directories) {
+        for (const dir of [...this.directories].reverse()) {
             if (await dir.containsEntry(directoryName)) {
                 try {
                     return await dir.getDirectory(directoryName);
@@ -61,7 +61,7 @@ export class RealFileSystem {
         return this.rootDirectory;
     }
     async containsEntry(entryName: string): Promise<boolean> {
-        for (const dir of this.directories) {
+        for (const dir of [...this.directories].reverse()) {
             if (await dir.containsEntry(entryName)) {
                 return true;
             }
@@ -69,7 +69,9 @@ export class RealFileSystem {
         return false;
     }
     async openFile(filename: string, skipCaseFix: boolean = false): Promise<VirtualFile> {
-        for (const dir of this.directories) {
+        // Later directories are overlays (mod, map, compatibility layers) and
+        // therefore must win over the base game directory.
+        for (const dir of [...this.directories].reverse()) {
             try {
                 return await dir.openFile(filename, skipCaseFix);
             }
@@ -82,7 +84,7 @@ export class RealFileSystem {
         throw new FileNotFoundError(`File "${filename}" not found in any registered real file system directories.`);
     }
     async getRawFile(filename: string): Promise<File> {
-        for (const dir of this.directories) {
+        for (const dir of [...this.directories].reverse()) {
             try {
                 return await dir.getRawFile(filename);
             }

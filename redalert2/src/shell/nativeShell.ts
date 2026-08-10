@@ -9,6 +9,7 @@ export {
  canPickGameDirectoryFromShell,
  canImportModFromShell,
  downloadModFromShell,
+ getNativeShellProfile,
  getNativeShellEngine,
  importModFromShell,
  installShellDebugLog,

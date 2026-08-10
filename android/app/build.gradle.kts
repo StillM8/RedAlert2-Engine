@@ -27,22 +27,25 @@ android {
             dimension = "game"
             applicationId = "com.ammaar.ra2android"
             buildConfigField("String", "GAME_ENGINE", "\"ra2\"")
-            buildConfigField("String", "GAME_MOD", "\"\"")
+            buildConfigField("String", "GAME_PROFILE", "\"ra2\"")
         }
         create("yr") {
             dimension = "game"
             applicationId = "com.ammaar.yurirevengeandroid"
             buildConfigField("String", "GAME_ENGINE", "\"yr\"")
-            buildConfigField("String", "GAME_MOD", "\"\"")
+            buildConfigField("String", "GAME_PROFILE", "\"yr\"")
         }
         create("mo") {
             dimension = "game"
             applicationId = "com.ammaar.mentalomegaandroid"
-            buildConfigField("String", "GAME_ENGINE", "\"mo\"")
-            // Mental Omega is distributed to the Android client as a complete
-            // standalone game directory. It is the selected game profile, not
-            // a second OPFS mod directory layered on top of that same folder.
-            buildConfigField("String", "GAME_MOD", "\"\"")
+            // Mental Omega is a Yuri's Revenge profile, not a third
+            // simulation engine. The APK remains separate, but the shared
+            // runtime only needs to select YR plus this profile.
+            buildConfigField("String", "GAME_ENGINE", "\"yr\"")
+            buildConfigField("String", "GAME_PROFILE", "\"mental-omega\"")
+            // The APK is a standalone client, while the selected resources are
+            // a complete MO + Yuri's Revenge installation. This is a profile,
+            // not a second OPFS mod directory layered on top of the folder.
         }
     }
 

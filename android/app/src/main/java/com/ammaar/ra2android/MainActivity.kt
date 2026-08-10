@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
-import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.view.Window
@@ -31,9 +30,10 @@ import java.io.BufferedInputStream
 import java.io.FileOutputStream
 import java.io.FileInputStream
 import java.io.IOException
-import java.io.RandomAccessFile
 import java.net.HttpURLConnection
+import java.net.InetAddress
 import java.net.URL
+import java.util.Locale
 import java.util.UUID
 import java.util.zip.ZipInputStream
 import java.util.concurrent.ConcurrentHashMap
@@ -51,10 +51,8 @@ class MainActivity : Activity() {
                 append(APP_URL_BASE)
                 append("&engine=")
                 append(Uri.encode(BuildConfig.GAME_ENGINE))
-                if (BuildConfig.GAME_MOD.isNotEmpty()) {
-                    append("&mod=")
-                    append(Uri.encode(BuildConfig.GAME_MOD))
-                }
+                append("&profile=")
+                append(Uri.encode(BuildConfig.GAME_PROFILE))
             }
         private const val WEBVIEW_STATE_KEY = "ra2.webview.state"
         private const val MAX_RENDERER_RECOVERIES = 3
@@ -64,8 +62,15 @@ class MainActivity : Activity() {
         private const val MOD_DIRECTORY_REQUEST = 4104
         private const val MOD_ARCHIVE_REQUEST = 4105
         private const val NATIVE_DOWNLOAD_MAX_BYTES = 1024L * 1024L * 1024L
+        private const val MAX_IMPORTED_FILE_COUNT = 100_000
+        private const val MAX_IMPORTED_BYTES = 8L * 1024L * 1024L * 1024L
+        private const val MAX_IMPORTED_FILE_BYTES = 2L * 1024L * 1024L * 1024L
+        private const val MAX_IMPORTED_PATH_DEPTH = 64
+        private const val MAX_IMPORTED_SEGMENT_LENGTH = 255
         private const val NATIVE_DOWNLOAD_DIR = "ra2-mod-downloads"
         private const val NATIVE_MOD_IMPORT_DIR = "ra2-mod-imports"
+        private const val GAME_RES_DIR = "gameres"
+        private const val GAME_RES_BACKUP_PREFIX = ".gameres-previous-"
         private val REQUIRED_RA2_GAME_FILES = listOf(
             "language.mix",
             "multi.mix",
@@ -78,15 +83,15 @@ class MainActivity : Activity() {
         )
 
         private fun requiredGameFiles(): List<String> =
-            REQUIRED_RA2_GAME_FILES + if (BuildConfig.GAME_ENGINE == "yr" || BuildConfig.GAME_ENGINE == "mo") {
+            REQUIRED_RA2_GAME_FILES + if (BuildConfig.GAME_ENGINE == "yr") {
                 OPTIONAL_YR_GAME_FILES
             } else {
                 emptyList()
             }
 
-        private fun gameDisplayName(): String = when (BuildConfig.GAME_ENGINE) {
+        private fun gameDisplayName(): String = when (BuildConfig.GAME_PROFILE) {
             "yr" -> "Yuri's Revenge"
-            "mo" -> "Mental Omega"
+            "mental-omega" -> "Mental Omega"
             else -> "Red Alert 2"
         }
     }
@@ -105,6 +110,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        recoverGameResourceImport()
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         registerPowerState()
         loadApp(restoredState = savedInstanceState?.getBundle(WEBVIEW_STATE_KEY))
@@ -320,29 +326,6 @@ class MainActivity : Activity() {
             return downloadDirectory(token).deleteRecursively()
         }
 
-        @JavascriptInterface
-        fun readModDownloadChunk(token: String, offset: Long, length: Int): String {
-            if (!isSafeDownloadToken(token) || offset < 0L || length <= 0 || length > 1024 * 1024) {
-                return ""
-            }
-            val file = File(downloadDirectory(token), "archive").canonicalFile
-            val root = downloadRoot().canonicalFile
-            if (!file.path.startsWith(root.path + File.separator) || !file.isFile) {
-                return ""
-            }
-            return try {
-                RandomAccessFile(file, "r").use { input ->
-                    if (offset >= input.length()) return ""
-                    input.seek(offset)
-                    val bytes = ByteArray(minOf(length.toLong(), input.length() - offset).toInt())
-                    input.readFully(bytes)
-                    Base64.encodeToString(bytes, Base64.NO_WRAP)
-                }
-            } catch (error: Exception) {
-                Log.e(TAG, "Could not read native mod download chunk", error)
-                ""
-            }
-        }
     }
 
     private class NativeDownloadJob(val requestId: String) {
@@ -356,10 +339,32 @@ class MainActivity : Activity() {
     private fun isAllowedDownloadUrl(urlString: String): Boolean {
         return try {
             val uri = Uri.parse(urlString)
-            (uri.scheme.equals("https", ignoreCase = true) ||
-                uri.scheme.equals("http", ignoreCase = true)) &&
-                !uri.host.isNullOrBlank()
+            uri.scheme.equals("https", ignoreCase = true) &&
+                !uri.host.isNullOrBlank() &&
+                !isPrivateDownloadHost(uri.host!!)
         } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun isPrivateDownloadHost(rawHost: String): Boolean {
+        val host = rawHost.trim().trimEnd('.').lowercase()
+        if (host == "localhost" || host.endsWith(".localhost") || host == "broadcasthost") {
+            return true
+        }
+        return try {
+            InetAddress.getAllByName(host).any { address ->
+                val firstByte = address.address.firstOrNull()?.toInt()?.and(0xff)
+                address.isAnyLocalAddress ||
+                    address.isLoopbackAddress ||
+                    address.isLinkLocalAddress ||
+                    address.isSiteLocalAddress ||
+                    address.isMulticastAddress ||
+                    firstByte == 252 || firstByte == 253
+            }
+        } catch (_: Exception) {
+            // An unresolved public hostname can still be fetched; the HTTPS
+            // connection will fail normally if DNS or TLS cannot resolve it.
             false
         }
     }
@@ -427,7 +432,11 @@ class MainActivity : Activity() {
                 if (responseCode in 300..399) {
                     val location = connection!!.getHeaderField("Location")
                         ?: throw IOException("Download redirect did not include a Location header")
-                    currentUrl = URL(currentUrl, location)
+                    val redirectUrl = URL(currentUrl, location)
+                    if (!isAllowedDownloadUrl(redirectUrl.toString())) {
+                        throw IOException("Download redirect was not an allowed HTTPS public URL")
+                    }
+                    currentUrl = redirectUrl
                     connection?.disconnect()
                     connection = null
                     if (redirectAttempt == 5) throw IOException("Too many download redirects")
@@ -572,9 +581,13 @@ class MainActivity : Activity() {
                     throw IOException("Could not create the mod import directory")
                 }
                 val orderedUris = uris.sortedBy { queryDisplayName(it).lowercase() }
+                val importedPaths = mutableMapOf<String, String>()
+                var extractedBytes = 0L
+                var entryCount = 0
                 for (uri in orderedUris) {
                     val displayName = queryDisplayName(uri)
                     Log.i(TAG, "Extracting mod archive $displayName")
+                    val archivePaths = mutableMapOf<String, String>()
                     val input = contentResolver.openInputStream(uri)
                         ?: throw IOException("Could not open selected archive $displayName")
                     input.use { source ->
@@ -582,38 +595,69 @@ class MainActivity : Activity() {
                             val buffer = ByteArray(1024 * 1024)
                             while (true) {
                                 val entry = archive.nextEntry ?: break
-                                val outputName = modArchiveEntryName(entry.name) ?: continue
+                                entryCount++
+                                if (entryCount > MAX_IMPORTED_FILE_COUNT) {
+                                    throw IOException("The selected archives contain too many entries")
+                                }
+                                val outputName = normalizeArchivePath(entry.name) ?: continue
+                                if (entry.size > MAX_IMPORTED_FILE_BYTES) {
+                                    throw IOException("Mod archive entry is too large: ${entry.name}")
+                                }
                                 val destination = File(staging, outputName).canonicalFile
                                 val root = staging.canonicalFile
                                 if (!destination.path.startsWith(root.path + File.separator)) {
                                     throw IOException("Unsafe mod archive path: ${entry.name}")
                                 }
+                                val pathKey = outputName.lowercase(Locale.ROOT)
+                                if (archivePaths.putIfAbsent(pathKey, outputName) != null) {
+                                    throw IOException("Duplicate case-insensitive path in archive: $outputName")
+                                }
+                                importedPaths[pathKey]?.let { previousPath ->
+                                    // Multiple selected archives are an
+                                    // intentional overlay. Replace the prior
+                                    // file at the same Windows-style path,
+                                    // including case-only name differences.
+                                    File(staging, previousPath).delete()
+                                }
+                                importedPaths[pathKey] = outputName
                                 destination.parentFile?.mkdirs()
+                                var entryBytes = 0L
                                 FileOutputStream(destination).use { output ->
                                     while (true) {
                                         val count = archive.read(buffer)
                                         if (count < 0) break
-                                        if (count > 0) output.write(buffer, 0, count)
+                                        if (count > 0) {
+                                            entryBytes += count
+                                            extractedBytes += count
+                                            if (entryBytes > MAX_IMPORTED_FILE_BYTES || extractedBytes > MAX_IMPORTED_BYTES) {
+                                                throw IOException("The selected archives exceed the safe extraction limit")
+                                            }
+                                            output.write(buffer, 0, count)
+                                        }
                                     }
+                                }
+                                if (entry.size >= 0 && entryBytes != entry.size) {
+                                    throw IOException("Truncated mod archive entry: ${entry.name}")
                                 }
                                 archive.closeEntry()
                             }
                         }
                     }
                 }
-                val files = staging.listFiles()
-                    ?.filter { it.isFile && it.name != "manifest.json" }
-                    ?.sortedBy { it.name.lowercase() }
-                    ?: emptyList()
+                val files = collectImportedFiles(staging)
+                    .filter { !it.path.equals("manifest.json", ignoreCase = true) }
+                    .sortedBy { it.path.lowercase() }
                 if (files.isEmpty()) {
-                    throw IOException("The selected archives contain no root game files")
+                    throw IOException("The selected archives contain no usable game files")
                 }
+                validateImportedPaths(files)
+                validateImportedFileLimits(files)
                 val manifestFiles = JSONArray()
                 files.forEach { file ->
                     manifestFiles.put(
                         JSONObject()
-                            .put("path", file.name)
-                            .put("size", file.length()),
+                            .put("path", file.path)
+                            .put("size", file.size),
                     )
                 }
                 File(staging, "manifest.json").writeText(
@@ -641,12 +685,8 @@ class MainActivity : Activity() {
         }
     }
 
-    /**
-     * Copies an extracted Mental Omega folder into the native staging area.
-     * The web mod filesystem is intentionally flat, like the original game
-     * root, so nested map/assets folders are flattened before the manifest is
-     * exposed to JavaScript.
-     */
+    /** Copies an extracted mod folder into the native staging area while
+     * preserving its complete relative path tree. */
     private fun importModDirectory(treeUri: Uri) {
         importExecutor.execute {
             val token = UUID.randomUUID().toString().replace("-", "")
@@ -661,10 +701,8 @@ class MainActivity : Activity() {
                 if (files.isEmpty()) {
                     throw IOException("The selected mod folder contains no readable files")
                 }
-                normalizeModRoot(staging, files)
-                if (files.isEmpty()) {
-                    throw IOException("The selected mod folder contains no usable game files")
-                }
+                validateImportedPaths(files)
+                validateImportedFileLimits(files)
                 val manifestFiles = JSONArray()
                 files.sortedBy { it.path.lowercase() }.forEach { file ->
                     manifestFiles.put(
@@ -698,48 +736,96 @@ class MainActivity : Activity() {
         }
     }
 
-    /**
-     * The web VFS consumes root game files. Mental Omega's playable maps are
-     * shipped below MapsMO/..., while its client/editor payload is not used by
-     * the web engine. Keep root files plus loose map/pkt files, flattening all
-     * selected files to the filenames the web VFS expects at the game root.
-     */
-    private fun modArchiveEntryName(rawName: String): String? {
-        val normalized = rawName.replace('\\', '/').removePrefix("./")
-        if (normalized.isEmpty() || normalized.endsWith('/')) return null
-        val safeName = File(normalized).name
-        if (safeName.isEmpty() || safeName == "." || safeName == ".." ||
-            normalized.split('/').any { it.isEmpty() || it == "." || it == ".." }) return null
-        return safeName
-    }
-
-    private fun normalizeModRoot(destinationRoot: File, files: MutableList<ImportedFile>) {
-        val nestedFiles = files.filter { it.path.contains('/') }
-        for (imported in nestedFiles) {
-            val flattenedName = modArchiveEntryName(imported.path) ?: continue
-            val source = File(destinationRoot, imported.path).canonicalFile
-            val target = File(destinationRoot, flattenedName).canonicalFile
-            val root = destinationRoot.canonicalFile
-            if (!source.path.startsWith(root.path + File.separator) ||
-                !target.path.startsWith(root.path + File.separator)) {
-                throw IOException("Unsafe mod folder path: ${imported.path}")
-            }
-            if (target.exists()) {
-                throw IOException("Duplicate file while flattening imported mod folder: $flattenedName")
-            }
-            target.parentFile?.mkdirs()
-            if (!source.renameTo(target)) {
-                source.copyTo(target, overwrite = false)
-                if (!source.delete()) {
-                    throw IOException("Could not flatten imported mod file: ${imported.path}")
-                }
+    /** Normalize an archive path without ever allowing it to escape staging. */
+    private fun normalizeArchivePath(rawName: String): String? {
+        val replaced = rawName.replace('\\', '/')
+        if (replaced.isEmpty() || replaced.endsWith('/')) return null
+        if (replaced.startsWith('/') || Regex("^[A-Za-z]:([/]|$)").containsMatchIn(replaced)) {
+            throw IOException("Unsafe mod archive path: $rawName")
+        }
+        val segments = replaced.split('/')
+        val normalized = mutableListOf<String>()
+        for (segment in segments) {
+            when {
+                segment.isEmpty() || segment == "." -> continue
+                segment == ".." || segment.contains('\u0000') || segment.contains(':') ||
+                    segment.length > MAX_IMPORTED_SEGMENT_LENGTH ->
+                    throw IOException("Unsafe mod archive path: $rawName")
+                else -> normalized += segment
             }
         }
-        files.removeAll { it.path.contains('/') }
-        files.addAll(nestedFiles.mapNotNull { imported ->
-            modArchiveEntryName(imported.path)?.let { imported.copy(path = it) }
-        })
-        destinationRoot.listFiles()?.filter { it.isDirectory }?.forEach { it.deleteRecursively() }
+        return normalized.takeIf { it.isNotEmpty() }?.joinToString("/")
+    }
+
+    private fun safePathSegment(rawName: String): String {
+        if (rawName.isEmpty() || rawName == "." || rawName == ".." ||
+            rawName.contains('/') || rawName.contains('\\') || rawName.contains('\u0000') ||
+            rawName.contains(':') || rawName.length > MAX_IMPORTED_SEGMENT_LENGTH) {
+            throw IOException("Unsafe imported filename: $rawName")
+        }
+        return rawName
+    }
+
+    private fun collectImportedFiles(root: File, relativeDirectory: String = ""): List<ImportedFile> {
+        val result = mutableListOf<ImportedFile>()
+        root.listFiles()?.sortedBy { it.name.lowercase() }?.forEach { child ->
+            val relativePath = if (relativeDirectory.isEmpty()) child.name else "$relativeDirectory/${child.name}"
+            if (child.isDirectory) {
+                result += collectImportedFiles(child, relativePath)
+            } else if (child.isFile) {
+                result += ImportedFile(relativePath, child.length())
+            }
+        }
+        return result
+    }
+
+    private fun validateImportedPaths(files: Collection<ImportedFile>) {
+        val paths = mutableMapOf<String, String>()
+        for (file in files) {
+            val normalized = normalizeArchivePath(file.path)
+                ?: throw IOException("Imported file has an empty path")
+            if (normalized.count { it == '/' } + 1 > MAX_IMPORTED_PATH_DEPTH) {
+                throw IOException("Imported path is too deeply nested: ${file.path}")
+            }
+            val key = normalized.lowercase(Locale.ROOT)
+            val previous = paths.putIfAbsent(key, normalized)
+            if (previous != null && previous != normalized) {
+                throw IOException("Case-insensitive filename collision: $previous and $normalized")
+            }
+        }
+    }
+
+    private fun validateImportedFileLimits(files: Collection<ImportedFile>) {
+        if (files.size > MAX_IMPORTED_FILE_COUNT) {
+            throw IOException("The selected mod contains too many files")
+        }
+        var totalBytes = 0L
+        for (file in files) {
+            if (file.size > MAX_IMPORTED_FILE_BYTES) {
+                throw IOException("Imported file is too large: ${file.path}")
+            }
+            totalBytes += file.size
+            if (totalBytes > MAX_IMPORTED_BYTES) {
+                throw IOException("The selected mod exceeds the safe storage limit")
+            }
+        }
+    }
+
+    private fun hasMentalOmegaSignature(files: Collection<ImportedFile>): Boolean {
+        var hasExpandArchive = false
+        var hasMoContent = false
+        files.forEach { file ->
+            val path = file.path.replace('\\', '/').lowercase()
+            val leaf = path.substringAfterLast('/')
+            if (Regex("^expandmo\\d{2}\\.mix$").matches(leaf)) {
+                hasExpandArchive = true
+            }
+            if (path.startsWith("mapsmo/") ||
+                Regex("^(mapsmo\\d+|multimo|movmo\\d+)\\.mix$").matches(leaf)) {
+                hasMoContent = true
+            }
+        }
+        return hasExpandArchive && hasMoContent
     }
 
     private fun queryDisplayName(uri: Uri): String {
@@ -769,12 +855,19 @@ class MainActivity : Activity() {
                     throw IOException("The selected folder does not contain any readable files")
                 }
                 normalizeGameRoot(staging, files)
+                validateImportedPaths(files)
                 val requiredFiles = requiredGameFiles()
                 val missing = requiredFiles.filterNot { required ->
                     files.any { it.path.equals(required, ignoreCase = true) }
                 }
                 if (missing.isNotEmpty()) {
                     throw IOException("This is not a complete ${gameDisplayName()} folder. Missing: ${missing.joinToString()}")
+                }
+                if (BuildConfig.GAME_PROFILE == "mental-omega" && !hasMentalOmegaSignature(files)) {
+                    throw IOException(
+                        "This is a Yuri's Revenge folder, not a complete Mental Omega installation. " +
+                            "Select the full MO folder containing an expandmo##.mix archive and MapsMO/ content.",
+                    )
                 }
 
                 val manifestFiles = JSONArray()
@@ -790,13 +883,7 @@ class MainActivity : Activity() {
                     Charsets.UTF_8,
                 )
 
-                val destination = File(filesDir, "gameres")
-                if (destination.exists() && !destination.deleteRecursively()) {
-                    throw IOException("Could not replace the previous game-resource import")
-                }
-                if (!staging.renameTo(destination)) {
-                    throw IOException("Could not commit the game-resource import")
-                }
+                commitGameResourceImport(staging)
                 notifyGameDirectoryResult(true)
             }
             catch (error: Exception) {
@@ -808,10 +895,58 @@ class MainActivity : Activity() {
     }
 
     /**
+     * Commit a complete game import without deleting the active installation
+     * first. Both directories live under filesDir, so these renames are the
+     * closest available atomic commit on Android's private filesystem.
+     */
+    private fun commitGameResourceImport(staging: File) {
+        val destination = File(filesDir, GAME_RES_DIR)
+        val backup = File(filesDir, "$GAME_RES_BACKUP_PREFIX${UUID.randomUUID()}")
+        if (destination.exists() && !destination.renameTo(backup)) {
+            throw IOException("Could not stage the previous game-resource import")
+        }
+        if (!staging.renameTo(destination)) {
+            if (backup.exists() && !backup.renameTo(destination)) {
+                Log.e(TAG, "Could not restore the previous game-resource import after commit failure")
+            }
+            throw IOException("Could not commit the game-resource import")
+        }
+        if (backup.exists() && !backup.deleteRecursively()) {
+            Log.w(TAG, "Could not remove the previous game-resource backup")
+        }
+    }
+
+    /** Recover a commit interrupted after the old directory was renamed. */
+    private fun recoverGameResourceImport() {
+        val destination = File(filesDir, GAME_RES_DIR)
+        val backups = filesDir.listFiles()
+            ?.filter { it.name.startsWith(GAME_RES_BACKUP_PREFIX) && it.isDirectory }
+            ?.sortedByDescending { it.lastModified() }
+            ?: return
+        if (!destination.exists() && backups.isNotEmpty()) {
+            if (backups.first().renameTo(destination)) {
+                Log.w(TAG, "Recovered the previous game-resource import after an interrupted commit")
+            }
+            backups.drop(1).forEach { backup ->
+                if (backup.exists() && !backup.deleteRecursively()) {
+                    Log.w(TAG, "Could not remove stale game-resource backup ${backup.name}")
+                }
+            }
+            return
+        }
+        backups.forEach { backup ->
+            if (backup.exists() && !backup.deleteRecursively()) {
+                Log.w(TAG, "Could not remove stale game-resource backup ${backup.name}")
+            }
+        }
+    }
+
+    /**
      * Windows game folders are sometimes copied one level too deep (for
-     * example Download/Red Alert 2/Red Alert 2/ with the mix files). If all core archives
-     * are in one nested directory, move that directory's contents to the
-     * imported root so the web VFS sees the same layout as the desktop game.
+     * example Download/Red Alert 2/Red Alert 2/ with the mix files). If all
+     * core archives are in one nested directory, move that directory's
+     * contents to the imported root so the web VFS sees the same layout as the
+     * desktop game. Other directories, such as MapsMO, remain untouched.
      */
     private fun normalizeGameRoot(destinationRoot: File, files: MutableList<ImportedFile>) {
         val requiredNames = requiredGameFiles()
@@ -882,8 +1017,11 @@ class MainActivity : Activity() {
             while (cursor.moveToNext()) {
                 val documentIdValue = cursor.getString(idColumn)
                 val displayName = cursor.getString(nameColumn) ?: continue
-                val safeName = File(displayName).name
-                if (safeName.isEmpty() || safeName == "." || safeName == "..") continue
+                val safeName = try {
+                    safePathSegment(displayName)
+                } catch (_: IOException) {
+                    throw IOException("Unsafe imported filename: $displayName")
+                }
                 val relativePath = if (relativeDirectory.isEmpty()) {
                     safeName
                 } else {

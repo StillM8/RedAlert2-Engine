@@ -1,9 +1,13 @@
 import { StorageQuotaError } from "./StorageQuotaError";
-import { equalsIgnoreCase } from "../../util/string";
+import { gamePathKey, normalizeGamePath } from "../../engine/GamePath";
 import { FileNotFoundError } from "./FileNotFoundError";
 import { IOError } from "./IOError";
 import { NameNotAllowedError } from "./NameNotAllowedError";
 import { VirtualFile } from "./VirtualFile";
+
+type DirectoryIndex = Map<string, { name: string; kind: "file" | "directory" }>;
+const directoryIndexes = new WeakMap<FileSystemDirectoryHandle, Promise<DirectoryIndex>>();
+
 export class RealFileSystemDir {
     private handle: FileSystemDirectoryHandle;
     public caseSensitive: boolean;
@@ -110,31 +114,21 @@ export class RealFileSystemDir {
             }
         }
         else {
-            for await (const key of this.getEntries()) {
-                if (equalsIgnoreCase(key, entryName)) {
-                    return key;
-                }
-            }
+            return (await this.getDirectoryIndex()).get(gamePathKey(entryName))?.name;
         }
         return undefined;
     }
     async fixEntryCase(entryName: string): Promise<string> {
         if (!this.caseSensitive) {
-            for await (const key of this.getEntries()) {
-                if (equalsIgnoreCase(key, entryName)) {
-                    return key;
-                }
-            }
+            return (await this.getDirectoryIndex()).get(gamePathKey(entryName))?.name ?? entryName;
         }
         return entryName;
     }
     async getRawFile(filename: string, skipCaseFix: boolean = false, type?: string): Promise<File> {
         let fileHandle: FileSystemFileHandle;
         try {
-            const segments = filename.split('/');
-            if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
-                throw new FileNotFoundError(`Invalid relative file path \"${filename}\"`);
-            }
+            const normalizedFilename = normalizeGamePath(filename);
+            const segments = normalizedFilename.split('/');
             const fileName = segments.pop()!;
             let directoryHandle = this.handle;
             for (const directoryName of segments) {
@@ -173,8 +167,9 @@ export class RealFileSystemDir {
         return file;
     }
     async openFile(filename: string, skipCaseFix: boolean = false): Promise<VirtualFile> {
-        const rawFile = await this.getRawFile(filename, skipCaseFix);
-        return VirtualFile.fromRealFile(rawFile, filename);
+        const normalizedFilename = normalizeGamePath(filename);
+        const rawFile = await this.getRawFile(normalizedFilename, skipCaseFix);
+        return VirtualFile.fromRealFile(rawFile, normalizedFilename);
     }
 
     private async resolveChildName(
@@ -193,25 +188,35 @@ export class RealFileSystemDir {
                 return undefined;
             }
         }
-        for await (const [key, entryHandle] of directoryHandle.entries()) {
-            if (entryHandle.kind === kind && equalsIgnoreCase(key, entryName)) {
-                return key;
-            }
-        }
-        return undefined;
+        const entry = (await this.getDirectoryIndex(directoryHandle)).get(gamePathKey(entryName));
+        return entry?.kind === kind ? entry.name : undefined;
     }
     async writeFile(virtualFile: VirtualFile, filenameOverride?: string): Promise<void> {
-        const resolvedFilename = filenameOverride ?? virtualFile.filename;
+        const resolvedFilename = normalizeGamePath(filenameOverride ?? virtualFile.filename);
         try {
-            const finalFilename = await this.fixEntryCase(resolvedFilename);
-            try {
-                await this.deleteFile(finalFilename, true);
-            }
-            catch (delError: any) {
-                if (!(delError instanceof FileNotFoundError)) {
+            const segments = resolvedFilename.split('/');
+            const filename = segments.pop()!;
+            let directoryHandle = this.handle;
+            for (const directoryName of segments) {
+                const existingName = this.caseSensitive
+                    ? directoryName
+                    : await this.resolveChildName(directoryHandle, directoryName, "directory");
+                if (existingName) {
+                    directoryHandle = await directoryHandle.getDirectoryHandle(existingName);
+                }
+                else {
+                    this.invalidateDirectoryIndex(directoryHandle);
+                    directoryHandle = await directoryHandle.getDirectoryHandle(directoryName, { create: true });
                 }
             }
-            const fileHandle = await this.handle.getFileHandle(finalFilename, { create: true });
+            const existingFileName = this.caseSensitive
+                ? filename
+                : await this.resolveChildName(directoryHandle, filename, "file");
+            if (existingFileName) {
+                await directoryHandle.removeEntry(existingFileName);
+            }
+            this.invalidateDirectoryIndex(directoryHandle);
+            const fileHandle = await directoryHandle.getFileHandle(filename, { create: true });
             const writable = await fileHandle.createWritable();
             try {
                 await writable.write(virtualFile.getBytes() as any);
@@ -239,10 +244,24 @@ export class RealFileSystemDir {
         }
     }
     async deleteFile(filename: string, skipCaseFix: boolean = false): Promise<void> {
-        const resolvedName = skipCaseFix ? filename : await this.resolveEntryName(filename);
+        const normalizedFilename = normalizeGamePath(filename);
+        const segments = normalizedFilename.split('/');
+        const finalFilename = segments.pop()!;
+        let directoryHandle = this.handle;
+        for (const directoryName of segments) {
+            const resolvedDirectoryName = skipCaseFix
+                ? directoryName
+                : await this.resolveChildName(directoryHandle, directoryName, "directory");
+            if (!resolvedDirectoryName) return;
+            directoryHandle = await directoryHandle.getDirectoryHandle(resolvedDirectoryName);
+        }
+        const resolvedName = skipCaseFix
+            ? finalFilename
+            : await this.resolveChildName(directoryHandle, finalFilename, "file");
         if (resolvedName) {
             try {
-                await this.handle.removeEntry(resolvedName);
+                await directoryHandle.removeEntry(resolvedName);
+                this.invalidateDirectoryIndex(directoryHandle);
             }
             catch (e: any) {
                 if (skipCaseFix && e.name === "NotFoundError") {
@@ -262,7 +281,8 @@ export class RealFileSystemDir {
         }
     }
     async getDirectory(dirName: string, forceCaseSensitive: boolean = this.caseSensitive): Promise<RealFileSystemDir> {
-        const resolvedName = forceCaseSensitive ? dirName : await this.fixEntryCase(dirName);
+        const normalizedName = normalizeGamePath(dirName);
+        const resolvedName = forceCaseSensitive ? normalizedName : await this.fixEntryCase(normalizedName);
         let dirHandle: FileSystemDirectoryHandle;
         try {
             dirHandle = await this.handle.getDirectoryHandle(resolvedName);
@@ -282,8 +302,10 @@ export class RealFileSystemDir {
         return new RealFileSystemDir(dirHandle, forceCaseSensitive);
     }
     async getOrCreateDirectory(dirName: string, forceCaseSensitive: boolean = this.caseSensitive): Promise<RealFileSystemDir> {
-        const resolvedName = forceCaseSensitive ? dirName : await this.fixEntryCase(dirName);
+        const normalizedName = normalizeGamePath(dirName);
+        const resolvedName = forceCaseSensitive ? normalizedName : await this.fixEntryCase(normalizedName);
         try {
+            this.invalidateDirectoryIndex(this.handle);
             const dirHandle = await this.handle.getDirectoryHandle(resolvedName, { create: true });
             return new RealFileSystemDir(dirHandle, forceCaseSensitive);
         }
@@ -308,10 +330,12 @@ export class RealFileSystemDir {
         return rfsDir.getNativeHandle();
     }
     async deleteDirectory(dirName: string, recursive: boolean = false): Promise<void> {
-        const resolvedName = await this.fixEntryCase(dirName);
+        const normalizedName = normalizeGamePath(dirName);
+        const resolvedName = await this.fixEntryCase(normalizedName);
         if (resolvedName) {
             try {
                 await this.handle.removeEntry(resolvedName, { recursive });
+                this.invalidateDirectoryIndex(this.handle);
             }
             catch (e: any) {
                 if (e.name === "QuotaExceededError" || (e instanceof DOMException && e.message.toLowerCase().includes("quota"))) {
@@ -335,5 +359,26 @@ export class RealFileSystemDir {
         else {
             throw new FileNotFoundError(`Directory \"${dirName}\" not found for deletion (case-insensitive check failed).`);
         }
+    }
+
+    private async getDirectoryIndex(directoryHandle: FileSystemDirectoryHandle = this.handle): Promise<DirectoryIndex> {
+        const cached = directoryIndexes.get(directoryHandle);
+        if (cached) return cached;
+        const loading = (async () => {
+            const index: DirectoryIndex = new Map();
+            for await (const [name, entryHandle] of directoryHandle.entries()) {
+                const key = gamePathKey(name);
+                if (!index.has(key)) {
+                    index.set(key, { name, kind: entryHandle.kind });
+                }
+            }
+            return index;
+        })();
+        directoryIndexes.set(directoryHandle, loading);
+        return loading;
+    }
+
+    private invalidateDirectoryIndex(directoryHandle: FileSystemDirectoryHandle = this.handle): void {
+        directoryIndexes.delete(directoryHandle);
     }
 }

@@ -1,8 +1,12 @@
 import { StorageKey } from '../LocalPrefs';
 import { GameResSource } from '../engine/gameRes/GameResSource';
 import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/async/cancellation';
+import { getGameProfile, hasMentalOmegaSignature, isGameProfileId, type GameProfileId } from '../engine/GameProfile';
+import { gamePathKey, normalizeGamePath } from '../engine/GamePath';
+import type { ArchiveSource } from '../data/ArchiveSource';
 
-export type NativeShellEngine = 'ra2' | 'yr' | 'mo';
+export type NativeShellEngine = 'ra2' | 'yr';
+export type NativeShellProfile = GameProfileId;
 
 declare global {
     interface Window {
@@ -10,6 +14,7 @@ declare global {
             platform: string;
             version: string;
             engine?: NativeShellEngine;
+            profile?: NativeShellProfile;
             thermalState?: string;
         };
         Ra2Android?: {
@@ -21,7 +26,6 @@ declare global {
             startModDownload?: (url: string, requestId: string) => boolean;
             cancelModDownload?: (requestId: string) => boolean;
             deleteModDownload?: (token: string) => boolean;
-            readModDownloadChunk?: (token: string, offset: number, length: number) => string;
         };
         __RA2_NATIVE_GAME_RES_CALLBACK__?: (result: {
             success: boolean;
@@ -64,6 +68,7 @@ const OPTIONAL_YR_GAME_FILES = [
     'ra2md.mix',
 ];
 const NATIVE_ENGINE_STORAGE_KEY = '_ra2_native_engine';
+const NATIVE_PROFILE_STORAGE_KEY = '_ra2_native_profile';
 
 /**
  * Both debug channels below talk to a hardcoded dev host over plain HTTP: the
@@ -195,12 +200,25 @@ function ensureShellMarker(): void {
     const params = new URLSearchParams(window.location.search);
     if (!params.has('shell'))
         return;
+    const rawEngine = params.get('engine');
+    // Older debug/release APKs used engine=mo. Accept that URL once, but
+    // normalize it immediately so the runtime never has a third engine type.
+    const engine: NativeShellEngine | undefined = rawEngine === 'ra2'
+        ? 'ra2'
+        : rawEngine === 'yr' || rawEngine === 'mo'
+            ? 'yr'
+            : undefined;
+    const rawProfile = params.get('profile');
+    const profile: NativeShellProfile | undefined = isGameProfileId(rawProfile)
+        ? rawProfile
+        : rawEngine === 'mo'
+            ? 'mental-omega'
+            : engine;
     window.__RA2_SHELL__ = {
         platform: params.get('platform') || 'native',
         version: params.get('shellVersion') || '0.1.0',
-        ...(params.get('engine') === 'ra2' || params.get('engine') === 'yr' || params.get('engine') === 'mo'
-            ? { engine: params.get('engine') as NativeShellEngine }
-            : {}),
+        ...(engine ? { engine } : {}),
+        ...(profile ? { profile } : {}),
     };
 }
 
@@ -213,6 +231,12 @@ export function isNativeShell(): boolean {
 export function getNativeShellEngine(): NativeShellEngine | undefined {
     ensureShellMarker();
     return window.__RA2_SHELL__?.engine;
+}
+
+export function getNativeShellProfile(): NativeShellProfile | undefined {
+    ensureShellMarker();
+    return window.__RA2_SHELL__?.profile
+        ?? window.__RA2_SHELL__?.engine;
 }
 
 export function canPickGameDirectoryFromShell(): boolean {
@@ -263,7 +287,7 @@ interface NativeModImportResult {
 export function canImportModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
-        && (getNativeShellEngine() === 'yr' || getNativeShellEngine() === 'mo')
+        && (getNativeShellEngine() === 'ra2' || getNativeShellEngine() === 'yr')
         && (typeof window.Ra2Android?.pickModDirectory === 'function'
             || typeof window.Ra2Android?.pickModArchives === 'function');
 }
@@ -316,7 +340,7 @@ export async function importModFromShell(
         const manifest = await manifestResponse.json() as { files?: NativeModImportFile[] };
         const files = Array.isArray(manifest.files) ? manifest.files : [];
         if (!files.length)
-            throw new Error('The selected mod folder contains no root game files');
+            throw new Error('The selected mod folder contains no readable files');
 
         if (typeof navigator.storage?.getDirectory !== 'function')
             throw new Error('Android OPFS storage is unavailable');
@@ -330,13 +354,28 @@ export async function importModFromShell(
         const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
         let copiedBytes = 0;
         for (const file of files) {
+            let normalizedPath: string;
+            try {
+                normalizedPath = normalizeGamePath(file.path);
+            }
+            catch {
+                throw new Error(`Unsafe native mod path: ${file.path}`);
+            }
+            const pathSegments = normalizedPath.split('/');
+            const fileName = pathSegments.pop();
+            if (!fileName)
+                throw new Error(`Unsafe native mod path: ${file.path}`);
             const response = await fetch(
-                `/native-mod-imports/${encodeURIComponent(token)}/${encodeURIComponent(file.path)}`,
+                `/native-mod-imports/${encodeURIComponent(token)}/${pathSegments.concat(fileName).map(encodeURIComponent).join('/')}`,
                 { cache: 'no-store' },
             );
             if (!response.ok || !response.body)
                 throw new Error(`Native mod file could not be read (${file.path})`);
-            const fileHandle = await modDir.getFileHandle(file.path, { create: true });
+            let targetDir = modDir;
+            for (const segment of pathSegments) {
+                targetDir = await targetDir.getDirectoryHandle(segment, { create: true });
+            }
+            const fileHandle = await targetDir.getFileHandle(fileName, { create: true });
             const writable = await fileHandle.createWritable();
             try {
                 await response.body.pipeTo(writable);
@@ -346,16 +385,15 @@ export async function importModFromShell(
                 throw error;
             }
             copiedBytes += file.size;
-            onProgress?.(`Preparing Mental Omega... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`);
+            onProgress?.(`Preparing mod files... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`);
         }
 
         const metadata = [
             '[General]',
             `ID=${modId}`,
-            'Name=Mental Omega',
+            `Name=${modId}`,
             'Version=folder',
-            'Author=Mental Omega team',
-            'Website=https://mentalomega.com/',
+            'Author=Imported Android folder',
             '',
         ].join('\n');
         const metaHandle = await modDir.getFileHandle('modcd.ini', { create: true });
@@ -363,7 +401,7 @@ export async function importModFromShell(
         await metaWritable.write(metadata);
         await metaWritable.close();
         nativeApi.deleteNativeModImport?.(token);
-        return { id: modId, name: 'Mental Omega', version: 'folder' };
+        return { id: modId, name: modId, version: 'folder' };
     }
     catch (error) {
         nativeApi.deleteNativeModImport?.(token);
@@ -422,8 +460,9 @@ export function canDownloadModFromShell(): boolean {
 /**
  * Android's WebView cannot read many community mod hosts because their
  * archives omit CORS headers. Ask the shell to download the archive natively,
- * then read it back in bounded chunks so the existing JS importer and 7-Zip
- * path remain shared with desktop/iOS.
+ * then expose its same-origin response stream to the shared 7-Zip importer.
+ * Archive bytes never cross the bridge as base64 or as a retained JS chunk
+ * array.
  *
  * Returns undefined when the current shell has no native downloader, allowing
  * callers to use their normal browser fetch path.
@@ -433,7 +472,7 @@ export function downloadModFromShell(
     fileName: string,
     cancellationToken?: CancellationToken,
     onProgress?: (progress: number) => void,
-): Promise<File> | undefined {
+): Promise<ArchiveSource> | undefined {
     if (!canDownloadModFromShell())
         return undefined;
     installNativeModDownloadDispatcher();
@@ -441,7 +480,7 @@ export function downloadModFromShell(
     const nativeApi = window.Ra2Android!;
     let started = false;
     let cancelPromise: ((error: Error) => void) | undefined;
-    const promise = new Promise<File>((resolve, reject) => {
+    const promise = new Promise<ArchiveSource>((resolve, reject) => {
         cancelPromise = reject;
         const handler: NativeModDownloadHandler = {
             onProgress,
@@ -454,33 +493,30 @@ export function downloadModFromShell(
                 }
                 void (async () => {
                     try {
-                        const totalSize = result.size ?? 0;
-                        if (!totalSize || typeof nativeApi.readModDownloadChunk !== 'function') {
-                            throw new Error('Native mod download returned no readable archive');
+                        if (!result.url || !result.size) {
+                            throw new Error('Native mod download returned no readable archive URL');
                         }
-                        const chunkSize = 256 * 1024;
-                        const chunks: Uint8Array[] = [];
-                        let offset = 0;
-                        while (offset < totalSize) {
-                            cancellationToken?.throwIfCancelled();
-                            const encoded = nativeApi.readModDownloadChunk(result.token!, offset, chunkSize);
-                            if (!encoded)
-                                throw new Error('Native mod download ended before all bytes were read');
-                            const binary = atob(encoded);
-                            const chunk = new Uint8Array(binary.length);
-                            for (let i = 0; i < binary.length; i++)
-                                chunk[i] = binary.charCodeAt(i);
-                            chunks.push(chunk);
-                            offset += chunk.length;
-                            onProgress?.(Math.floor(Math.min(1, offset / totalSize) * 100));
-                            // Give the WebView event loop a turn between Binder
-                            // reads so cancellation and rendering remain live.
-                            await Promise.resolve();
+                        cancellationToken?.throwIfCancelled();
+                        const response = await fetch(result.url, { cache: 'no-store' });
+                        if (!response.ok || !response.body) {
+                            throw new Error(`Native mod download stream failed (${response.status})`);
                         }
-                        nativeApi.deleteModDownload?.(result.token!);
-                        resolve(new File(chunks as unknown as BlobPart[], fileName || 'mod-archive', {
-                            type: 'application/octet-stream',
-                        }));
+                        let disposed = false;
+                        const dispose = () => {
+                            if (!disposed) {
+                                disposed = true;
+                                nativeApi.deleteModDownload?.(result.token!);
+                            }
+                        };
+                        resolve({
+                            name: fileName || 'mod-archive',
+                            size: result.size,
+                            // The response body is consumed directly by the
+                            // 7-Zip importer. No base64, chunk array, or
+                            // duplicate File/Blob is created in the WebView.
+                            stream: () => response.body!,
+                            dispose,
+                        });
                     }
                     catch (error: any) {
                         nativeApi.deleteModDownload?.(result.token!);
@@ -580,25 +616,36 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
         throw new Error(`Shell seed manifest missing (${manifestResponse.status})`);
     }
     const manifest: SeedManifest = await manifestResponse.json();
-    const manifestPaths = new Set(manifest.files.map((file) => file.path.toLowerCase()));
-    const missingRequiredFiles = REQUIRED_RA2_GAME_FILES.filter((file) => !manifestPaths.has(file));
-    const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(file));
-    const requestedEngine = getNativeShellEngine();
-    const requiresYuriFiles = requestedEngine === 'yr' || requestedEngine === 'mo';
-    const engineFilesAvailable = !requiresYuriFiles || hasYuriFiles;
-    if (missingRequiredFiles.length > 0 || !engineFilesAvailable) {
+    const manifestPaths = new Set(manifest.files.map((file) => {
+        try {
+            return gamePathKey(file.path);
+        }
+        catch {
+            return '';
+        }
+    }));
+    const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(gamePathKey(file)));
+    const hasMoSignature = hasMentalOmegaSignature(manifest.files.map((file) => file.path));
+    const requestedProfile = getNativeShellProfile();
+    const selectedProfile = requestedProfile ?? (hasMoSignature ? 'mental-omega' : hasYuriFiles ? 'yr' : 'ra2');
+    const profile = getGameProfile(selectedProfile);
+    const missingRequiredFiles = profile.requiredFiles.filter((file) => !manifestPaths.has(gamePathKey(file)));
+    const profileFilesAvailable = selectedProfile !== 'mental-omega' || hasMoSignature;
+    if (missingRequiredFiles.length > 0 || !profileFilesAvailable) {
         console.warn(
-            `[nativeShell] Resource import is incomplete for ${requestedEngine ?? 'the detected'} engine; ` +
-            `missing ${missingRequiredFiles.concat(!hasYuriFiles && requiresYuriFiles ? OPTIONAL_YR_GAME_FILES : []).join(', ')}. ` +
+            `[nativeShell] Resource import is incomplete for ${selectedProfile}; ` +
+            `missing ${missingRequiredFiles.join(', ') || 'Mental Omega signature'}. ` +
             'The game-resource chooser will remain available.',
         );
         localStorage.removeItem(StorageKey.GameRes);
         localStorage.removeItem(NATIVE_ENGINE_STORAGE_KEY);
+        localStorage.removeItem(NATIVE_PROFILE_STORAGE_KEY);
     }
     else {
-        const selectedEngine = requestedEngine ?? (hasYuriFiles ? 'yr' : 'ra2');
+        const selectedEngine = selectedProfile === 'ra2' ? 'ra2' : 'yr';
         localStorage.setItem(NATIVE_ENGINE_STORAGE_KEY, selectedEngine);
-        console.info(`[nativeShell] Selected ${selectedEngine === 'mo' ? 'Mental Omega' : selectedEngine === 'yr' ? "Yuri's Revenge" : "Red Alert 2"} resources`);
+        localStorage.setItem(NATIVE_PROFILE_STORAGE_KEY, selectedProfile);
+        console.info(`[nativeShell] Selected ${profile.displayName} resources using the ${selectedEngine} engine`);
     }
     const totalBytes = manifest.files.reduce((sum, f) => sum + f.size, 0);
     let copiedBytes = 0;
@@ -608,7 +655,14 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
     }
     const root = await navigator.storage.getDirectory();
     for (const file of manifest.files) {
-        const segments = file.path.split('/');
+        let normalizedPath: string;
+        try {
+            normalizedPath = normalizeGamePath(file.path);
+        }
+        catch {
+            throw new Error(`Unsafe bundled game-resource path: ${file.path}`);
+        }
+        const segments = normalizedPath.split('/');
         const fileName = segments.pop()!;
         let dir = root;
         for (const segment of segments) {
@@ -622,9 +676,9 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             copiedBytes += file.size;
             continue;
         }
-        const response = await fetch(`/gameres/${file.path}`);
+        const response = await fetch(`/gameres/${normalizedPath}`);
         if (!response.ok) {
-            throw new Error(`Failed to fetch bundled resource "${file.path}" (${response.status})`);
+            throw new Error(`Failed to fetch bundled resource "${normalizedPath}" (${response.status})`);
         }
         const handle = await dir.getFileHandle(fileName, { create: true });
         const writable = await handle.createWritable();
@@ -635,7 +689,7 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             `Preparing game files... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`,
         );
     }
-    if (missingRequiredFiles.length === 0 && engineFilesAvailable) {
+    if (missingRequiredFiles.length === 0 && profileFilesAvailable) {
         const config = String(GameResSource.Local);
         localStorage.setItem(StorageKey.GameRes, config);
     }

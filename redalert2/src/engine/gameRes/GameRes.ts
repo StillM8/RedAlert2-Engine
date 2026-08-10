@@ -34,6 +34,7 @@ import SplashScreen from '../../gui/component/SplashScreen';
 import type { Viewport } from '../../gui/Viewport';
 import type { Config } from '../../Config';
 import { RealFileSystemDir } from '../../data/vfs/RealFileSystemDir';
+import { GAME_PROFILES, type GameProfileId } from '../GameProfile';
 interface FsAccessLibrary {
     support: {
         adapter: {
@@ -67,7 +68,8 @@ export class GameRes {
     private appConfig: Config;
     private appResPath: string;
     private sentry?: any;
-    constructor(appVersion: string, modName: string | undefined, fsAccessLib: FsAccessLibrary, localPrefs: LocalPrefs, strings: Strings, rootEl: HTMLElement, splashScreen: any, viewport: Viewport, appConfig: Config, appResPath: string, sentry?: any) {
+    private profile: GameProfileId;
+    constructor(appVersion: string, modName: string | undefined, fsAccessLib: FsAccessLibrary, localPrefs: LocalPrefs, strings: Strings, rootEl: HTMLElement, splashScreen: any, viewport: Viewport, appConfig: Config, appResPath: string, sentry?: any, profile: GameProfileId = "ra2") {
         this.appVersion = appVersion;
         this.modName = modName;
         this.fsAccessLib = fsAccessLib;
@@ -79,6 +81,7 @@ export class GameRes {
         this.appConfig = appConfig;
         this.appResPath = appResPath;
         this.sentry = sentry;
+        this.profile = profile;
     }
     async init(persistedConfig: GameResConfig | undefined, onFatalError: FatalErrorCallback, onImportError: ImportErrorCallback): Promise<InitResult> {
         let resourcesLoadedSuccessfully = false;
@@ -325,9 +328,7 @@ export class GameRes {
         return hasAllFiles;
     }
     private getRequiredGameFiles(): string[] {
-        return Engine.getActiveEngine() === EngineType.YurisRevenge
-            ? ["language.mix", "multi.mix", "ra2.mix", "langmd.mix", "multimd.mix", "ra2md.mix"]
-            : ["language.mix", "multi.mix", "ra2.mix"];
+        return GAME_PROFILES[this.profile].requiredFiles;
     }
     private async getMissingGameFiles(rfsDir: RealFileSystemDir, knownEntries?: string[]): Promise<string[]> {
         const entries = knownEntries ?? await rfsDir.listEntries();
@@ -495,7 +496,7 @@ export class GameRes {
         }
         const logger = AppLogger.get("vfs");
         logger.info("Initializing virtual filesystem...");
-        const vfs = await Engine.initVfs(rfs, logger);
+        const vfs = await Engine.initVfs(rfs, logger, GAME_PROFILES[this.profile]);
         await vfs.loadStandaloneFiles({
             exclude: ["keyboard.ini", "theme.ini"].map((fileName) => Engine.getFileNameVariant(fileName)),
         });

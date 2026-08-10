@@ -7,6 +7,8 @@ import { FileNotFoundError } from "./FileNotFoundError";
 import { MemArchive } from "./MemArchive";
 import type { VirtualFile } from "./VirtualFile";
 import type { RealFileSystem } from "./RealFileSystem";
+import { gamePathKey, normalizeGamePath } from "../../engine/GamePath";
+import { GAME_PROFILES, type GameProfileDescriptor } from "../../engine/GameProfile";
 interface VfsLogger {
     info(message: string, ...args: unknown[]): void;
     warn(message: string, ...args: unknown[]): void;
@@ -15,33 +17,18 @@ interface VfsLogger {
 interface Archive {
     containsFile(filename: string): boolean;
     openFile(filename: string): VirtualFile;
+    listFiles?: () => string[];
 }
 export class VirtualFileSystem {
     private rfs: RealFileSystem;
     private logger: VfsLogger;
     private allArchives: Map<string, Archive>;
     private archivesByPriority: Archive[];
-    /** Mental Omega uses its own names for the control INIs. */
-    private static readonly mentalOmegaAliases = new Map<string, string>([
-        ["rulesmd.ini", "rulesmo.ini"],
-        ["artmd.ini", "artmo.ini"],
-        ["aimd.ini", "aimo.ini"],
-        ["battlemd.ini", "battlemo.ini"],
-        ["desertmd.ini", "desertmo.ini"],
-        ["evamd.ini", "evamo.ini"],
-        ["lunarmd.ini", "lunarmo.ini"],
-        ["mapselmd.ini", "mapselmo.ini"],
-        ["missionmd.ini", "missionmo.ini"],
-        ["snowmd.ini", "snowmo.ini"],
-        ["soundmd.ini", "soundmo.ini"],
-        ["thememd.ini", "thememo.ini"],
-        ["temperatmd.ini", "temperatmo.ini"],
-        ["urbanmd.ini", "urbanmo.ini"],
-        ["urbannmd.ini", "urbannmo.ini"],
-    ]);
-    constructor(rfs: RealFileSystem, logger: VfsLogger) {
+    private profile: GameProfileDescriptor;
+    constructor(rfs: RealFileSystem, logger: VfsLogger, profile: GameProfileDescriptor = GAME_PROFILES.ra2) {
         this.rfs = rfs;
         this.logger = logger;
+        this.profile = profile;
         this.allArchives = new Map<string, Archive>();
         this.archivesByPriority = [];
     }
@@ -50,22 +37,25 @@ export class VirtualFileSystem {
         // particular, extracted client folders may contain expandmo94.mix,
         // while newer packages use expandmo95/96/97/99. Any expandmo## file
         // is enough to activate the MO filename aliases and companion mixes.
-        return [...this.allArchives.keys()].some((name) => /^expandmo\d{2}\.mix$/i.test(name));
+        return this.profile.id === "mental-omega" &&
+            [...this.allArchives.keys()].some((name) => /^expandmo\d{2}\.mix$/i.test(name));
     }
     private containsFileDirect(filename: string): boolean {
+        const normalized = normalizeGamePath(filename);
         for (const archive of this.archivesByPriority) {
-            if (archive.containsFile(filename)) {
+            if (archive.containsFile(normalized)) {
                 return true;
             }
         }
         return false;
     }
     private resolveFilename(filename: string): string {
+        const normalized = normalizeGamePath(filename);
         if (!this.hasMentalOmegaArchives()) {
-            return filename;
+            return normalized;
         }
-        const alias = VirtualFileSystem.mentalOmegaAliases.get(filename.toLowerCase());
-        return alias && this.containsFileDirect(alias) ? alias : filename;
+        const alias = this.profile.filenameAliases?.get(gamePathKey(normalized));
+        return alias && this.containsFileDirect(alias) ? alias : normalized;
     }
     fileExists(filename: string): boolean {
         return this.containsFileDirect(this.resolveFilename(filename));
@@ -106,11 +96,21 @@ export class VirtualFileSystem {
     listArchives(): string[] {
         return [...this.allArchives.keys()];
     }
+    listFiles(): string[] {
+        const files = new Set<string>();
+        for (const archive of this.archivesByPriority) {
+            for (const filename of archive.listFiles?.() ?? []) {
+                files.add(filename);
+            }
+        }
+        return [...files];
+    }
     debugListFileOwners(filename: string): string[] {
         const owners: string[] = [];
+        const normalized = normalizeGamePath(filename);
         this.allArchives.forEach((archive, name) => {
             try {
-                if (archive.containsFile(filename))
+                if (archive.containsFile(normalized))
                     owners.push(name);
             }
             catch {
@@ -243,7 +243,7 @@ export class VirtualFileSystem {
         // than the stock expand##/expandmd## naming convention. These files
         // must be loaded before the implicit base mixes below so their rules,
         // art and strings take priority when a mod is active.
-        const prefixes = ["ecache", "expandmo", "expand", "elocal"];
+        const prefixes = this.profile.extraMixPrefixes ?? ["ecache", "expand", "elocal"];
         for (const prefix of prefixes) {
             for (let i = 99; i >= 0; i--) {
                 const numStr = pad(i, "00");
@@ -267,7 +267,7 @@ export class VirtualFileSystem {
             // These are the other client-side MO archives.  The expandmo
             // archives contain the rules, but mapsmo/multimo/movmo contain
             // the map, UI and art assets referenced by those rules.
-            for (const filename of ["mapsmo03.mix", "multimo.mix", "movmo03.mix"]) {
+            for (const filename of this.profile.companionMixFiles ?? []) {
                 if (rfsEntries.has(filename) && !this.hasArchive(filename)) {
                     await this.addMixFile(filename);
                 }

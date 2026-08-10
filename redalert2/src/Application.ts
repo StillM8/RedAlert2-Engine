@@ -30,7 +30,9 @@ import { browserFileSystemAccess } from './engine/gameRes/browserFileSystemAcces
 import type { TestToolRuntimeContext } from './tools/TestToolSupport';
 import { attachPerformanceOptions, installPerformanceDebugApi } from './performance/PerformanceRuntime';
 import { inGameViewportActive } from './gui/inGameViewport';
-import { getNativeShellEngine, isNativeShell } from './shell/nativeShell';
+import { getNativeShellEngine, getNativeShellProfile, isNativeShell } from './shell/nativeShell';
+import type { GameProfileId } from './engine/GameProfile';
+import { CompatibilityScanner } from './compatibility/CompatibilityScanner';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -171,13 +173,9 @@ export class Application {
             this.config.load(iniFileInstance);
             const shellEngine = isNativeShell() ? getNativeShellEngine() : undefined;
             const persistedEngine = isNativeShell() ? localStorage.getItem('_ra2_native_engine') : null;
-            const nativeEngine = shellEngine ?? persistedEngine;
-            if (nativeEngine === 'ra2' || nativeEngine === 'yr' || nativeEngine === 'mo') {
-                // Mental Omega uses the YR rules/runtime as its base engine;
-                // the MO flavor is still kept distinct at the shell/client
-                // level while its complete installation remains the selected
-                // game-resource profile.
-                this.config.getGeneralData().set('engine', nativeEngine === 'mo' ? 'yr' : nativeEngine);
+            const nativeEngine = shellEngine ?? (persistedEngine === 'yr' ? 'yr' : persistedEngine === 'ra2' ? 'ra2' : undefined);
+            if (nativeEngine === 'ra2' || nativeEngine === 'yr') {
+                this.config.getGeneralData().set('engine', nativeEngine);
                 console.log(`[Application] Native shell selected ${nativeEngine} engine${shellEngine ? ' from the Android app variant' : ' from imported archives'}.`);
             }
             console.log('[Application] config.ini loaded and parsed successfully.');
@@ -555,7 +553,7 @@ export class Application {
         }
         try {
             await this.loadConfig();
-            Engine.setActiveEngine(this.config.engine === "yr" || this.config.engine === "mo" ? EngineType.YurisRevenge : EngineType.RedAlert2);
+            Engine.setActiveEngine(this.config.engine === "yr" ? EngineType.YurisRevenge : EngineType.RedAlert2);
             this.initializePreferredViewportSize();
             this.updateViewportSize();
         }
@@ -623,20 +621,29 @@ export class Application {
         this.fsAccessLib = browserFileSystemAccess;
         const urlParams = new URLSearchParams(window.location.search);
         const requestedModName = urlParams.get('mod');
-        const nativeShellEngine = isNativeShell() ? getNativeShellEngine() : undefined;
-        // The Android Mental Omega flavor accepts the complete MO installation
-        // as its game resources. Do not reinterpret that same directory as an
-        // OPFS `mods/mentalomega` overlay (older APK URLs included that query
-        // parameter and produced a misleading "mod not found" message).
-        const modName = nativeShellEngine === 'mo' ? undefined : requestedModName;
-        if (requestedModName && nativeShellEngine === 'mo') {
+        const nativeShellProfile = isNativeShell() ? getNativeShellProfile() : undefined;
+        const profile: GameProfileId = nativeShellProfile ?? (this.config.engine === 'yr' ? 'yr' : 'ra2');
+        // The Android Mental Omega APK accepts the complete MO installation as
+        // its game-resource profile. Do not reinterpret that same directory as
+        // an OPFS `mods/mentalomega` overlay.
+        const modName = profile === 'mental-omega' ? undefined : requestedModName;
+        if (requestedModName && profile === 'mental-omega') {
             console.info('[Application] Ignoring legacy MO mod query; the selected full MO folder is the game profile.');
         }
         let gameResConfig = this.loadGameResConfig(this.localPrefs);
         try {
-            const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry);
+            const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry, profile);
             const { configToPersist, cdnResLoader } = await gameRes.init(gameResConfig, (error, strings) => this.handleGameResLoadError(error, strings), (error, strings) => this.handleGameResImportError(error, strings));
             this.loadGameStringsFromVfs();
+            if (profile === 'mental-omega' && Engine.vfs) {
+                const compatibility = await CompatibilityScanner.scan(Engine.vfs);
+                console.info(
+                    `[Compatibility] Mental Omega scan: ${compatibility.filesScanned} INI files, ` +
+                    `${compatibility.mapFilesScanned} map/archive files, ` +
+                    `${compatibility.extensionKeys} Ares/Phobos extension keys; ` +
+                    `${compatibility.diagnostics.filter((entry) => entry.status === 'unknown').length} unknown.`,
+                );
+            }
             try {
                 const vfsAny: any = (Engine as any).vfs;
                 if (vfsAny?.debugListFileOwners) {
