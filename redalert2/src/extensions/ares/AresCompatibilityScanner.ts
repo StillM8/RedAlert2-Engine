@@ -94,6 +94,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^empulse\./i.test(key) || /^empulsecannon$/i.test(key)) {
         return "ares.superweapon-empulse";
     }
+    if (/^sw\.(?:requirestarget|requireshouse)$/i.test(key)) {
+        return "ares.superweapon-target-requirements";
+    }
     if (/^superweapons$/i.test(key) ||
         /^(?:SW|Deliver|DropPod|Battery|HunterSeeker|Firestorm|GenericWarhead|ChronoWarp|SonarPulse)\./i.test(key) ||
         (/^type$/i.test(key) && /^(?:GenericWarhead|UnitDelivery|Firestorm|HunterSeeker|DropPod|EMPulse|Battery|SonarPulse|ChronoWarp)$/i.test(value))) {

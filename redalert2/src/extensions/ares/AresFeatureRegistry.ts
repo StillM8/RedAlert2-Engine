@@ -96,6 +96,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "GenericWarhead cell detonation and UnitDelivery placement with deterministic house/target filters are wired; the remaining custom handlers are still unsupported.",
     },
     {
+        id: "ares.superweapon-target-requirements",
+        description: "Manual Ares superweapon SW.RequiresTarget and SW.RequiresHouse gates",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponTargeting.test.ts"],
+        notes: "Manual cell/content and house-relation validation follows Antares IsCellEligible/IsTechnoEligible semantics; AI target selection and cursor presentation remain separate.",
+    },
+    {
         id: "ares.superweapon-unit-delivery",
         description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
         implemented: true,
