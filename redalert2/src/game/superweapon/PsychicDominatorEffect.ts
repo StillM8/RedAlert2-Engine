@@ -4,7 +4,11 @@ import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
 import { Warhead } from "@/game/Warhead";
 import { SuperWeaponEffect } from "@/game/superweapon/SuperWeaponEffect";
-import { Game } from "@/game/Game";
+import type { Game } from "@/game/Game";
+import {
+    isAresSuperWeaponInRange,
+    resolveAresSuperWeaponRange,
+} from "@/game/superweapon/AresSuperWeaponRange";
 
 // The psychic storm builds above the target for a moment before the blast
 // lands (~3s at the base 15 ticks/s).
@@ -24,15 +28,18 @@ function normalizeDeferment(value: number | undefined): number {
 export class PsychicDominatorEffect extends SuperWeaponEffect {
     private ticksLeft = DEFERMENT_TICKS;
     private initialDeferment: number;
+    private readonly superWeaponRange?: readonly number[];
 
     constructor(
         type: any,
         owner: any,
         tile: any,
         superWeaponDeferment?: number,
+        superWeaponRange?: readonly number[],
     ) {
         super(type, owner, tile);
         this.initialDeferment = normalizeDeferment(superWeaponDeferment);
+        this.superWeaponRange = superWeaponRange?.slice();
     }
 
     onStart(game: Game): void {
@@ -90,6 +97,31 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
         const general = (game.rules as any).ini.getSection("General");
         const captureRange = general?.getNumber("DominatorCaptureRange", 1) ?? 1;
         const captured: any[] = [];
+
+        // Ares SW.Range selects a rectangle when two values are supplied and
+        // a radius when only one is supplied. Keep the retail radial finder
+        // below for definitions without the extension so vanilla behavior is
+        // unchanged.
+        if (this.superWeaponRange !== undefined) {
+            const range = resolveAresSuperWeaponRange(this.superWeaponRange, {
+                widthOrRange: captureRange,
+                height: -1,
+            });
+            for (const object of (game as any).getWorld().getAllObjects()) {
+                if (!object.isUnit() ||
+                    object.isDestroyed ||
+                    object.owner === this.owner ||
+                    object.rules.immuneToPsionics ||
+                    object.rules.slaved ||
+                    object.rules.missileSpawn ||
+                    !isAresSuperWeaponInRange(this.tile, object, range, (game as any).map.tileOccupation)) {
+                    continue;
+                }
+                this.captureUnit(game, object, captured);
+            }
+            return captured;
+        }
+
         const tileFinder = new RadialTileFinder(game.map.tiles, game.map.mapBounds, this.tile, { width: 1, height: 1 }, 0, Math.max(0, Math.ceil(captureRange)), () => true);
         let tile;
         while ((tile = tileFinder.getNextTile())) {
@@ -103,15 +135,19 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
                     object.rules.missileSpawn) {
                     continue;
                 }
-                const controllable = object.mindControllableTrait;
-                if (controllable?.isActive()) {
-                    controllable.getController()?.mindControllerTrait?.cleanTarget(object);
-                }
-                controllable?.makePermanent();
-                game.changeObjectOwner(object, this.owner);
-                captured.push(object);
+                this.captureUnit(game, object, captured);
             }
         }
         return captured;
+    }
+
+    private captureUnit(game: Game, object: any, captured: any[]): void {
+        const controllable = object.mindControllableTrait;
+        if (controllable?.isActive()) {
+            controllable.getController()?.mindControllerTrait?.cleanTarget(object);
+        }
+        controllable?.makePermanent();
+        game.changeObjectOwner(object, this.owner);
+        captured.push(object);
     }
 }

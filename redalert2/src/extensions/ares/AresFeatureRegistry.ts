@@ -159,6 +159,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Money.Amount is validated before charge consumption and applied once after launch acceptance; Money.DrainAmount/DrainDelay remain parsed diagnostics until the Firewall charge-drain state machine is implemented.",
     },
     {
+        id: "ares.superweapon-range",
+        description: "Ares SW.Range circle, rectangle, and full-map area selection",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponRange.test.ts"],
+        notes: "A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range is consumed by Psychic Dominator and Genetic Mutator; Lightning Storm, Force Shield, ChronoSphere, Psychic Reveal, and complete all-type coverage remain open.",
+    },
+    {
         id: "ares.superweapon-unit-delivery",
         description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
         implemented: true,

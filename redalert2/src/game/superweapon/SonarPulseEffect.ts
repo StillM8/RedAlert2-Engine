@@ -3,42 +3,22 @@ import { RadarEvent } from "@/game/event/RadarEvent";
 import { RadarEventType } from "@/game/rules/general/RadarRules";
 import { RadarTrait } from "@/game/trait/RadarTrait";
 import { SuperWeaponEffect, type TileCoord } from "@/game/superweapon/SuperWeaponEffect";
+import {
+    isAresSuperWeaponInRange,
+    resolveAresSuperWeaponRange,
+    type AresSuperWeaponRange,
+} from "@/game/superweapon/AresSuperWeaponRange";
 import type { Game } from "@/game/Game";
 import type { Player } from "@/game/Player";
 
-export interface SonarPulseRange {
-    widthOrRange: number;
-    height: number;
-}
+export type SonarPulseRange = AresSuperWeaponRange;
 
 /**
  * Antares defaults SonarPulse to a radius of ten cells.  The second value is
  * a rectangle height; an omitted/zero value selects the CellRange path.
  */
 export function resolveSonarPulseRange(range?: readonly number[]): SonarPulseRange {
-    const configuredWidth = range?.[0];
-    const configuredHeight = range?.[1];
-    const widthOrRange = typeof configuredWidth === "number" && Number.isFinite(configuredWidth)
-        ? configuredWidth
-        : 10;
-    const height = typeof configuredHeight === "number" && Number.isFinite(configuredHeight)
-        ? configuredHeight
-        : -1;
-    return { widthOrRange, height };
-}
-
-function objectTiles(object: any, tileOccupation?: any): any[] {
-    if (object?.tile && tileOccupation?.calculateTilesForGameObject) {
-        try {
-            const tiles = tileOccupation.calculateTilesForGameObject(object.tile, object);
-            if (Array.isArray(tiles) && tiles.length) return tiles;
-        }
-        catch {
-            // A diagnostic/test double may not implement full foundation data.
-        }
-    }
-    const tile = object?.centerTile ?? object?.tile;
-    return tile ? [tile] : [];
+    return resolveAresSuperWeaponRange(range, { widthOrRange: 10, height: -1 });
 }
 
 /**
@@ -52,29 +32,7 @@ export function isSonarPulseInRange(
     range: SonarPulseRange,
     tileOccupation?: any,
 ): boolean {
-    if (range.widthOrRange < 0) return true;
-    if (!center) return false;
-
-    const tiles = objectTiles(object, tileOccupation);
-    if (!tiles.length) return false;
-
-    if (range.height > 0) {
-        const width = Math.max(0, Math.trunc(range.widthOrRange));
-        const height = Math.max(0, Math.trunc(range.height));
-        if (width <= 0 || height <= 0) return false;
-        const left = center.rx - Math.trunc(width / 2);
-        const top = center.ry - Math.trunc(height / 2);
-        const right = left + width;
-        const bottom = top + height;
-        return tiles.some(tile => tile.rx >= left && tile.rx < right && tile.ry >= top && tile.ry < bottom);
-    }
-
-    const radiusSquared = range.widthOrRange * range.widthOrRange;
-    return tiles.some(tile => {
-        const dx = tile.rx - center.rx;
-        const dy = tile.ry - center.ry;
-        return dx * dx + dy * dy <= radiusSquared;
-    });
+    return isAresSuperWeaponInRange(center, object, range, tileOccupation);
 }
 
 interface SonarPulseGame {

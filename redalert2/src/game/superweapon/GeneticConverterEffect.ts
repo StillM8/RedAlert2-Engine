@@ -3,6 +3,10 @@ import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { SuperWeaponEffect, TileCoord } from "@/game/superweapon/SuperWeaponEffect";
 import { Game } from "@/game/Game";
 import { Player } from "@/game/Player";
+import {
+    isAresSuperWeaponInRange,
+    resolveAresSuperWeaponRange,
+} from "@/game/superweapon/AresSuperWeaponRange";
 
 // Retail hardcodes the mutation product in the exe: every infantry in the
 // area becomes a Brute owned by the player who fired.
@@ -11,11 +15,19 @@ const DEFAULT_RANGE = 4;
 
 /** Yuri's Genetic Mutator. */
 export class GeneticConverterEffect extends SuperWeaponEffect {
-    private range: number;
+    private readonly range: number;
+    private readonly superWeaponRange?: readonly number[];
 
-    constructor(type: any, owner: Player, tile: TileCoord, range?: number) {
+    constructor(
+        type: any,
+        owner: Player,
+        tile: TileCoord,
+        range?: number,
+        superWeaponRange?: readonly number[],
+    ) {
         super(type, owner, tile);
         this.range = range && range > 0 ? range : DEFAULT_RANGE;
+        this.superWeaponRange = superWeaponRange?.slice();
     }
 
     onStart(game: Game): void {
@@ -25,16 +37,33 @@ export class GeneticConverterEffect extends SuperWeaponEffect {
         }
         const bruteRules = game.rules.getObject(MUTATION_PRODUCT, ObjectType.Infantry);
         const victims: any[] = [];
-        const tileFinder = new RadialTileFinder(game.map.tiles, game.map.mapBounds, this.tile, { width: 1, height: 1 }, 0, Math.max(0, Math.ceil(this.range)), () => true);
-        let tile;
-        while ((tile = tileFinder.getNextTile())) {
-            for (const object of game.map.getGroundObjectsOnTile(tile)) {
+        if (this.superWeaponRange !== undefined) {
+            const range = resolveAresSuperWeaponRange(this.superWeaponRange, {
+                widthOrRange: 3,
+                height: 3,
+            });
+            for (const object of (game as any).getWorld().getAllObjects()) {
                 if (object.isInfantry() &&
-                    object.tile === tile &&
                     !object.isDestroyed &&
                     !object.rules.missileSpawn &&
-                    object.name !== MUTATION_PRODUCT) {
+                    object.name !== MUTATION_PRODUCT &&
+                    isAresSuperWeaponInRange(this.tile, object, range, (game as any).map.tileOccupation)) {
                     victims.push(object);
+                }
+            }
+        }
+        else {
+            const tileFinder = new RadialTileFinder(game.map.tiles, game.map.mapBounds, this.tile, { width: 1, height: 1 }, 0, Math.max(0, Math.ceil(this.range)), () => true);
+            let tile;
+            while ((tile = tileFinder.getNextTile())) {
+                for (const object of game.map.getGroundObjectsOnTile(tile)) {
+                    if (object.isInfantry() &&
+                        object.tile === tile &&
+                        !object.isDestroyed &&
+                        !object.rules.missileSpawn &&
+                        object.name !== MUTATION_PRODUCT) {
+                        victims.push(object);
+                    }
                 }
             }
         }

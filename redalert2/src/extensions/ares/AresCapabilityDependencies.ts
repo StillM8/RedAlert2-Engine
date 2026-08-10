@@ -29,6 +29,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.superweapon-radar-event", dependsOn: ["ares.superweapons"], reason: "CreateRadarEvent uses the common RadarTrait launch-event path after a superweapon activates." },
     { capabilityId: "ares.superweapon-ai-targeting", dependsOn: ["ares.superweapons", "ares.target-filters"], reason: "Ares AI modes derive deterministic target/house requirements before the host AI chooses a launch cell." },
     { capabilityId: "ares.superweapon-money", dependsOn: ["ares.superweapons"], reason: "Money.Amount is checked and applied by the common superweapon activation path." },
+    { capabilityId: "ares.superweapon-range", dependsOn: ["ares.superweapons"], reason: "SW.Range is normalized once and consumed by ranged superweapon effect handlers." },
     { capabilityId: "ares.superweapon-unit-delivery", dependsOn: ["ares.superweapons", "ares.custom-foundations"], reason: "UnitDelivery places arbitrary TechnoTypes, including irregular buildings." },
     { capabilityId: "ares.superweapon-sonar-pulse", dependsOn: ["ares.superweapons"], reason: "SonarPulse is a ranged superweapon with generic cloak suppression." },
     { capabilityId: "ares.superweapon-empulse", dependsOn: ["ares.superweapons", "ares.emp"], reason: "EMPulse selects launch buildings and delivers their configured EMP warhead through the native EMP runtime." },

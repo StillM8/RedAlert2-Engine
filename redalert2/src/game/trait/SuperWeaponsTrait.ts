@@ -245,10 +245,10 @@ export class SuperWeaponsTrait {
                     t.push(new ChronoSphereEffect(o, i, s, a));
                     break;
                 case SuperWeaponType.PsychicDominator:
-                    t.push(new PsychicDominatorEffect(o, i, s, e.ares?.swDeferment));
+                    t.push(new PsychicDominatorEffect(o, i, s, e.ares?.swDeferment, e.ares?.swRange));
                     break;
                 case SuperWeaponType.GeneticConverter:
-                    t.push(new GeneticConverterEffect(o, i, s, e.range));
+                    t.push(new GeneticConverterEffect(o, i, s, e.range, e.ares?.swRange));
                     break;
                 case SuperWeaponType.PsychicReveal:
                     t.push(new PsychicRevealEffect(o, i, s));
