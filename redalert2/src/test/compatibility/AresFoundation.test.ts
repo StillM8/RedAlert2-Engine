@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { IniSection } from "@/data/IniSection";
-import { getFoundationCells, parseFoundation } from "@/game/art/Foundation";
+import {
+    getFoundationBlockingCells,
+    getFoundationBounds,
+    getFoundationCells,
+    getFoundationRallyCell,
+    getNearestFoundationCell,
+    parseFoundation,
+} from "@/game/art/Foundation";
 import { TileOccupation } from "@/game/map/TileOccupation";
+import { TerrainType } from "@/engine/type/TerrainType";
+import { LandType } from "@/game/type/LandType";
 
 describe("Ares custom foundations", () => {
     test("parses occupied cells and an outline outside the bounding box", () => {
@@ -34,6 +43,11 @@ describe("Ares custom foundations", () => {
             { x: 3, y: 1 },
             { x: 3, y: 3 },
         ]);
+        expect(getFoundationBounds(foundation)).toEqual({ x: 0, y: 0, width: 3, height: 3 });
+        expect(getFoundationBounds(foundation, true)).toEqual({ x: -1, y: -1, width: 5, height: 5 });
+        expect(getFoundationBlockingCells(foundation).map(({ x, y }) => `${x},${y}`)).not.toContain("2,1");
+        expect(getNearestFoundationCell(foundation, { x: 2, y: 1 })).toEqual({ x: 2, y: 0 });
+        expect(getFoundationRallyCell(foundation)).toEqual({ x: 3, y: 1 });
     });
 
     test("keeps vanilla rectangular foundations unchanged", () => {
@@ -73,6 +87,8 @@ describe("Ares custom foundations", () => {
         const tiles = Array.from({ length: 4 }, (_, index) => ({
             rx: 10 + index % 2,
             ry: 20 + Math.floor(index / 2),
+            terrainType: TerrainType.Clear,
+            landType: LandType.Clear,
         }));
         const tileCollection = {
             getAll: () => tiles,
@@ -89,5 +105,17 @@ describe("Ares custom foundations", () => {
             "11,20",
             "10,21",
         ]);
+
+        const building = {
+            getFoundation: () => foundation,
+            isOverlay: () => false,
+            isBuilding: () => true,
+            rules: { wall: false },
+        };
+        occupation.occupyTileRange({ rx: 10, ry: 20 }, building);
+        expect(occupation.getObjectsOnTile(tiles[0])).toHaveLength(1);
+        expect(occupation.getObjectsOnTile(tiles[3])).toHaveLength(0);
+        occupation.unoccupyTileRange({ rx: 10, ry: 20 }, building);
+        expect(occupation.getObjectsOnTile(tiles[0])).toHaveLength(0);
     });
 });

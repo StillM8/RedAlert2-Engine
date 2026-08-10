@@ -23,6 +23,7 @@ import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { WaitMinutesTask } from "@/game/gameobject/task/system/WaitMinutesTask";
 import { CallbackTask } from "@/game/gameobject/task/system/CallbackTask";
 import { TaskGroup } from "@/game/gameobject/task/system/TaskGroup";
+import { getFoundationBounds, getFoundationRallyCell, getNearestFoundationCell } from "@/game/art/Foundation";
 export enum FactoryStatus {
     Idle = 0,
     Delivering = 1
@@ -336,7 +337,8 @@ export class FactoryTrait {
             x = 0;
             y = foundation.height - 1;
         }
-        return { rx: building.tile.rx + x, ry: building.tile.ry + y };
+        const cell = getNearestFoundationCell(foundation, { x, y });
+        return { rx: building.tile.rx + cell.x, ry: building.tile.ry + cell.y };
     }
     computeBarracksInternalRallyCoords(building: any): {
         rx: number;
@@ -358,9 +360,13 @@ export class FactoryTrait {
         ry: number;
     } {
         const foundation = building.getFoundation();
+        const cell = getNearestFoundationCell(foundation, {
+            x: Math.floor(foundation.width / 2),
+            y: Math.floor(foundation.height / 2),
+        });
         return {
-            rx: building.tile.rx + Math.floor(foundation.width / 2),
-            ry: building.tile.ry + Math.floor(foundation.height / 2)
+            rx: building.tile.rx + cell.x,
+            ry: building.tile.ry + cell.y,
         };
     }
     computeWarFactoryInternalRallyCoords(building: any): {
@@ -368,9 +374,13 @@ export class FactoryTrait {
         ry: number;
     } {
         const foundation = building.getFoundation();
+        const cell = getNearestFoundationCell(foundation, {
+            x: foundation.width - 1,
+            y: Math.floor(foundation.height / 2),
+        });
         return {
-            rx: building.tile.rx + foundation.width - 1,
-            ry: building.tile.ry + Math.floor(foundation.height / 2)
+            rx: building.tile.rx + cell.x,
+            ry: building.tile.ry + cell.y,
         };
     }
     computeWarFactoryDefaultRallyCoords(building: any): {
@@ -378,16 +388,18 @@ export class FactoryTrait {
         ry: number;
     } {
         const foundation = building.getFoundation();
+        const rallyCell = getFoundationRallyCell(foundation);
         return {
-            rx: building.tile.rx + foundation.width,
-            ry: building.tile.ry + Math.floor(foundation.height / 2)
+            rx: building.tile.rx + rallyCell.x,
+            ry: building.tile.ry + rallyCell.y,
         };
     }
     computeNavalDefaultRallyPoint(building: any, map: any): any {
         const finder = new CardinalTileFinder(map.tiles, map.mapBounds, building.centerTile, 5, 5, (tile: any) => tile.terrainType === TerrainType.Water &&
             !map.getObjectsOnTile(tile).find((obj: any) => obj.isBuilding() || (obj.isOverlay() && obj.isBridge())));
         finder.diagonal = false;
-        return finder.getNextTile() ?? map.tiles.getByMapCoords(building.tile.rx + building.getFoundation().width, building.tile.ry + building.getFoundation().height);
+        const bounds = getFoundationBounds(building.getFoundation(), true);
+        return finder.getNextTile() ?? map.tiles.getByMapCoords(building.tile.rx + bounds.x + bounds.width, building.tile.ry + bounds.y + bounds.height);
     }
     computeNavalInternalRallyPoint(building: any, rallyPoint: any, map: any): any {
         const direction = new Vector2(rallyPoint.rx, rallyPoint.ry).sub(new Vector2(building.centerTile.rx, building.centerTile.ry));

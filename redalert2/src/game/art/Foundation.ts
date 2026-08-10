@@ -12,6 +12,13 @@ export interface Foundation {
     outline?: readonly FoundationCell[];
 }
 
+export interface FoundationBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
 interface FoundationReader {
     getString(key: string, defaultValue?: string): string | undefined;
     getNumber(key: string, defaultValue?: number): number;
@@ -75,6 +82,68 @@ export function getFoundationCells(foundation: Foundation): readonly FoundationC
 
 export function getFoundationOutline(foundation: Foundation): readonly FoundationCell[] {
     return foundation.outline ?? [];
+}
+
+/**
+ * Returns a coarse local-space rectangle for a foundation. Logical callers
+ * should use getFoundationCells(); this is for adjacency, culling and other
+ * broad searches where a rectangle is intentional. Explicit Ares outlines
+ * are included so cells outside the occupied bounding box are not discarded.
+ */
+export function getFoundationBounds(foundation: Foundation, includeOutline = false): FoundationBounds {
+    const cells = includeOutline && foundation.outline?.length
+        ? [...getFoundationCells(foundation), ...foundation.outline]
+        : getFoundationCells(foundation);
+    const minX = Math.min(0, ...cells.map((cell) => cell.x));
+    const minY = Math.min(0, ...cells.map((cell) => cell.y));
+    const maxX = Math.max(foundation.width - 1, ...cells.map((cell) => cell.x));
+    const maxY = Math.max(foundation.height - 1, ...cells.map((cell) => cell.y));
+    return {
+        x: minX,
+        y: minY,
+        width: maxX - minX + 1,
+        height: maxY - minY + 1,
+    };
+}
+
+/**
+ * Returns the occupied cells that should block movement for a building. The
+ * retail NumberImpassableRows/WeaponsFactory rules trim the blocking region;
+ * custom foundations still retain their holes.
+ */
+export function getFoundationBlockingCells(foundation: Foundation, impassableColumns = foundation.width): readonly FoundationCell[] {
+    if (impassableColumns <= 0) {
+        return [];
+    }
+    return getFoundationCells(foundation).filter((cell) => cell.x < impassableColumns);
+}
+
+/** Selects an occupied cell nearest to a preferred local coordinate. */
+export function getNearestFoundationCell(foundation: Foundation, preferred: FoundationCell): FoundationCell {
+    const cells = getFoundationCells(foundation);
+    return cells.reduce((best, cell) => {
+        const distance = (cell.x - preferred.x) ** 2 + (cell.y - preferred.y) ** 2;
+        const bestDistance = (best.x - preferred.x) ** 2 + (best.y - preferred.y) ** 2;
+        return distance < bestDistance ? cell : best;
+    });
+}
+
+/**
+ * Chooses an explicit outline cell outside the occupied footprint when one is
+ * available, otherwise returns the conventional cell immediately beyond the
+ * foundation's right edge. This is useful for generic factory rally logic.
+ */
+export function getFoundationRallyCell(foundation: Foundation, preferredY = Math.floor(foundation.height / 2)): FoundationCell {
+    const occupied = new Set(getFoundationCells(foundation).map((cell) => `${cell.x},${cell.y}`));
+    const outsideOutline = getFoundationOutline(foundation).filter((cell) => !occupied.has(`${cell.x},${cell.y}`));
+    if (outsideOutline.length) {
+        return outsideOutline.reduce((best, cell) => {
+            const distance = Math.abs(cell.x - foundation.width) + Math.abs(cell.y - preferredY);
+            const bestDistance = Math.abs(best.x - foundation.width) + Math.abs(best.y - preferredY);
+            return distance < bestDistance || (distance === bestDistance && cell.x > best.x) ? cell : best;
+        });
+    }
+    return { x: foundation.width, y: preferredY };
 }
 
 /**

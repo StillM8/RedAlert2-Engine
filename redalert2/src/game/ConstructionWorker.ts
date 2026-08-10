@@ -7,7 +7,7 @@ import { TaskGroup } from '@/game/gameobject/task/system/TaskGroup';
 import { CompositeDisposable } from '@/util/disposable/CompositeDisposable';
 import { EventType } from '@/game/event/EventType';
 import { NotifyTick } from '@/game/gameobject/trait/interface/NotifyTick';
-import { getFoundationCells } from '@/game/art/Foundation';
+import { getFoundationCells, getFoundationBounds, type Foundation } from '@/game/art/Foundation';
 interface PlacementOptions {
     normalizedTile?: boolean;
     ignoreObjects?: any[];
@@ -136,12 +136,13 @@ export class ConstructionWorker {
             }
         }));
     }
-    private getAdjacentRect(tile: Tile, foundation: any, adjacentRange: number): Rect {
+    private getAdjacentRect(tile: Tile, foundation: Foundation, adjacentRange: number): Rect {
+        const bounds = getFoundationBounds(foundation, true);
         return {
-            x: tile.rx - adjacentRange,
-            y: tile.ry - adjacentRange,
-            width: foundation.width + 2 * adjacentRange,
-            height: foundation.height + 2 * adjacentRange,
+            x: tile.rx + bounds.x - adjacentRange,
+            y: tile.ry + bounds.y - adjacentRange,
+            width: bounds.width + 2 * adjacentRange,
+            height: bounds.height + 2 * adjacentRange,
         };
     }
     private getAdjacencyMap(adjacentRange: number): Rect[] {
@@ -185,11 +186,12 @@ export class ConstructionWorker {
             ? targetTile
             : this.normalizePlacementTileCoords(buildingArt, targetTile);
         let canPlace = true;
+        const foundationBounds = getFoundationBounds(foundation, true);
         const buildingRect = {
-            x: placementTile.rx,
-            y: placementTile.ry,
-            width: foundation.width,
-            height: foundation.height,
+            x: placementTile.rx + foundationBounds.x,
+            y: placementTile.ry + foundationBounds.y,
+            width: foundationBounds.width,
+            height: foundationBounds.height,
         };
         if (!buildingRules.constructionYard &&
             !ignoreAdjacent &&
@@ -223,11 +225,12 @@ export class ConstructionWorker {
         const placementTile = normalizedTile
             ? targetTile
             : this.normalizePlacementTileCoords(buildingArt, targetTile);
+        const foundationBounds = getFoundationBounds(foundation, true);
         const buildingRect = {
-            x: placementTile.rx,
-            y: placementTile.ry,
-            width: foundation.width,
-            height: foundation.height,
+            x: placementTile.rx + foundationBounds.x,
+            y: placementTile.ry + foundationBounds.y,
+            width: foundationBounds.width,
+            height: foundationBounds.height,
         };
         if (!buildingRules.constructionYard &&
             !ignoreAdjacent &&
