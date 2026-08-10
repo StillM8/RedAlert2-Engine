@@ -170,4 +170,42 @@ FactoryOwners.Forbidden=BetaCountry
             factoryOwnersForbidden: ["AlphaCountry"],
         })).toBe(false);
     });
+
+    test("uses active HasAllPlans buildings for every factory type", () => {
+        const production = Object.create(Production.prototype) as any;
+        production.permanentFactoryOwnerPlans = new Set();
+        production.player = {
+            buildings: new Set([{
+                factoryTrait: undefined,
+                rules: { factoryOwnersHasAllPlans: true, owner: ["AlphaCountry"] },
+                initialFactoryOwnerId: "AlphaCountry",
+                owner: { country: { id: "AlphaCountry" } },
+            }]),
+        };
+        const object = {
+            type: ObjectType.Aircraft,
+            owner: ["AlphaCountry"],
+            factoryOwners: ["AlphaCountry"],
+            factoryOwnersForbidden: [],
+        };
+
+        expect(production.hasFactoryFor(object)).toBe(true);
+        expect(production.hasFactoryFor({ ...object, factoryOwners: ["BetaCountry"] })).toBe(false);
+    });
+
+    test("keeps Permanent factory plans after the source building is lost", () => {
+        const production = Object.create(Production.prototype) as any;
+        production.permanentFactoryOwnerPlans = new Set(["AlphaCountry"]);
+        production.player = { buildings: new Set() };
+        const object = {
+            type: ObjectType.Vehicle,
+            naval: false,
+            owner: ["AlphaCountry"],
+            factoryOwners: ["AlphaCountry"],
+            factoryOwnersForbidden: [],
+        };
+
+        expect(production.hasFactoryFor(object)).toBe(true);
+        expect(production.hasFactoryFor({ ...object, factoryOwners: ["BetaCountry"] })).toBe(false);
+    });
 });

@@ -18,6 +18,8 @@ export class Production {
     private factoryCounts: Map<any, number>;
     private veteranTypes: Set<any>;
     private stolenTech: Set<number | SideId>;
+    /** Stable country IDs whose complete factory plans were permanently captured. */
+    private permanentFactoryOwnerPlans: Set<string>;
     private theater?: string;
     static factory(player: any, rules: any, gameOpts: any, availableObjects: any[], theater?: string): Production {
         const production = new Production(player, rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects, theater);
@@ -43,6 +45,7 @@ export class Production {
         this.factoryCounts = new Map();
         this.veteranTypes = new Set();
         this.stolenTech = new Set();
+        this.permanentFactoryOwnerPlans = new Set();
         this.theater = theater;
     }
     get onQueueUpdate() {
@@ -131,16 +134,35 @@ export class Production {
         const factoryOwnersForbidden = object.factoryOwnersForbidden ?? [];
         if (objectOwners.length || factoryOwners.length || factoryOwnersForbidden.length) {
             const factoryType = this.getFactoryTypeFor(object);
-            return !!Array.from(this.player.buildings).find((building: any) => building.factoryTrait?.type === factoryType &&
-                (factoryType !== FactoryType.UnitType || building.rules.naval === object.naval) &&
-                (objectOwners.length === 0 ||
-                    !!(building.rules.owner ?? []).find((owner: string) =>
-                        objectOwners.some((objectOwner: string) => owner.toLowerCase() === objectOwner.toLowerCase()))) &&
-                isFactoryOwnerAllowed(
-                    building.initialFactoryOwnerId ?? building.owner?.country?.id ?? building.owner?.country?.name,
-                    factoryOwners,
-                    factoryOwnersForbidden,
-                ));
+            const ownedBuildings = Array.from(this.player.buildings);
+            const canUseObjectOwner = (ownerId: string | undefined): boolean =>
+                objectOwners.length === 0 || (!!ownerId && objectOwners.some((objectOwner: string) =>
+                    ownerId.trim().toLocaleLowerCase("en-US") === objectOwner.trim().toLocaleLowerCase("en-US")));
+            const factoryOwnerId = (building: any): string | undefined =>
+                building.initialFactoryOwnerId ?? building.owner?.country?.id ?? building.owner?.country?.name;
+            const hasFactory = ownedBuildings.some((building: any) => {
+                const ownerId = factoryOwnerId(building);
+                return building.factoryTrait?.type === factoryType &&
+                    (factoryType !== FactoryType.UnitType || building.rules.naval === object.naval) &&
+                    (objectOwners.length === 0 ||
+                        !!(building.rules.owner ?? []).find((owner: string) =>
+                            objectOwners.some((objectOwner: string) => owner.toLowerCase() === objectOwner.toLowerCase()))) &&
+                    isFactoryOwnerAllowed(ownerId, factoryOwners, factoryOwnersForbidden);
+            });
+            if (hasFactory) return true;
+
+            // Ares allows a BuildingType with HasAllPlans to satisfy the
+            // FactoryOwners requirement for every factory type while it is
+            // held. Permanent plans are retained separately after capture.
+            const allPlanOwners = new Set<string>(this.permanentFactoryOwnerPlans ?? []);
+            ownedBuildings
+                .filter((building: any) => building.rules.factoryOwnersHasAllPlans)
+                .map(factoryOwnerId)
+                .filter((ownerId): ownerId is string => !!ownerId)
+                .forEach((ownerId) => allPlanOwners.add(ownerId));
+            return [...allPlanOwners].some((ownerId) =>
+                canUseObjectOwner(ownerId) &&
+                isFactoryOwnerAllowed(ownerId, factoryOwners, factoryOwnersForbidden));
         }
         return true;
     }
@@ -236,6 +258,11 @@ export class Production {
     }
     addStolenTech(type: number | SideId) {
         this.stolenTech.add(type);
+    }
+    addPermanentFactoryOwnerPlans(countryId: string | undefined): void {
+        if (countryId?.trim()) {
+            this.permanentFactoryOwnerPlans.add(countryId.trim());
+        }
     }
     dispose() {
         this.queues.clear();

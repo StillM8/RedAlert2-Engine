@@ -32,6 +32,9 @@ export class CaptureBuildingTask extends EnterBuildingTask {
         }
         t.owner.buildingsCaptured++;
         this.game.changeObjectOwner(this.target, t.owner);
+        if (this.target.rules.factoryOwnersPermanent) {
+            t.owner.production?.addPermanentFactoryOwnerPlans(this.target.initialFactoryOwnerId);
+        }
         this.game.events.dispatch(new BuildingCaptureEvent(this.target));
     }
 }
