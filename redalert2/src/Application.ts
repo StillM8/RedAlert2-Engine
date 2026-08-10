@@ -638,6 +638,11 @@ export class Application {
                     listArchives: () => vfsAny?.listArchives?.() ?? [],
                     listFiles: () => vfsAny?.listFiles?.() ?? [],
                 };
+                const iniSourceLoader = (Engine as any).getIniSourceLoader?.();
+                debugRoot.ini = {
+                    graph: (fileName: string) => iniSourceLoader?.graph?.(fileName),
+                    explain: (fileName: string, section: string, key: string) => iniSourceLoader?.explain?.(fileName, section, key),
+                };
                 if (vfsAny?.debugListFileOwners) {
                     vfsAny.debugListFileOwners('rules.ini');
                     vfsAny.debugListFileOwners('art.ini');

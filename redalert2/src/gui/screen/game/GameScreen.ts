@@ -235,7 +235,7 @@ export class GameScreen extends RootScreen {
         if (cancellationToken.isCancelled()) {
             return;
         }
-        const { game, theater, hudSide, cameoFilenames } = gameLoadResult;
+        const { game, theater, hudSide, useYuriArt: loadedUseYuriArt, cameoFilenames } = gameLoadResult;
         this.game = game;
         this.disposables.add(game, () => this.game = undefined, () => Engine.unloadTheater(theater.type));
         let localPlayer: any;
@@ -254,7 +254,7 @@ export class GameScreen extends RootScreen {
         }
         let uiInitResult: any;
         try {
-            uiInitResult = this.loadUi(game, theater, localPlayer, hudSide, cameoFilenames);
+            uiInitResult = this.loadUi(game, theater, localPlayer, hudSide, cameoFilenames, loadedUseYuriArt);
         }
         catch (error) {
             const errorMessage = error.message?.match(/memory|allocation/i)
@@ -633,7 +633,7 @@ export class GameScreen extends RootScreen {
         }
         return mapFileData;
     }
-    private loadUi(game: any, theater: any, localPlayer: any, hudSide: any, cameoFilenames: any): any {
+    private loadUi(game: any, theater: any, localPlayer: any, hudSide: any, cameoFilenames: any, loadedUseYuriArt = false): any {
         const sidebarModel = localPlayer.isObserver
             ? new SidebarModel(game, this.replay)
             : new CombatantSidebarModel(localPlayer, game);
@@ -649,7 +649,7 @@ export class GameScreen extends RootScreen {
         if (this.config.discordUrl) {
             commandBarButtonList.buttons.push(CommandBarButtonType.BugReport);
         }
-        const useYuriArt = !localPlayer.isObserver && isYuriCountry(localPlayer.country);
+        const useYuriArt = !localPlayer.isObserver && (loadedUseYuriArt || isYuriCountry(localPlayer.country));
         console.info('[GameScreen] Faction presentation', {
             country: localPlayer.country?.name,
             side: localPlayer.country?.side,

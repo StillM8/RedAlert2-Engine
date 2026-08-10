@@ -13,6 +13,10 @@ export interface GameProfileDescriptor {
     extensionRuntime?: ExtensionRuntimeId;
     resourceProfile?: string;
     presentationProfile?: string;
+    /** Profile-specific replacements for the engine's canonical INI names. */
+    fileNameOverrides?: Readonly<Record<string, string>>;
+    /** Optional profile files selected only when present in the mounted VFS. */
+    optionalFileNameOverrides?: Readonly<Record<string, string>>;
 }
 
 export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
@@ -39,6 +43,15 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
         extensionRuntime: "ares",
         resourceProfile: "mental-omega",
         presentationProfile: "mental-omega",
+        fileNameOverrides: {
+            "rules.ini": "rulesmo.ini",
+            "art.ini": "artmo.ini",
+            "ai.ini": "aimo.ini",
+        },
+        optionalFileNameOverrides: {
+            "ui.ini": "uimo.ini",
+            "missions.pkt": "missionsmo.pkt",
+        },
     },
 };
 

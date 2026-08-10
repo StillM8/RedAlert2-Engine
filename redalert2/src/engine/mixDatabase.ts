@@ -48,7 +48,7 @@ export const mixDatabase = new Map<string, string[]>()
     "jank.wav", "motorize.wav", "power.wav", "ra2-opt.wav", "ra2-sco.wav",
     "tension.wav",
 ]);
-const sideBarFiles = [
+export const sideBarFiles = [
     "addon.shp", "bkgdlg.shp", "bkgdmd.shp", "bkgdsm.shp", "bttnbkgd.shp",
     "button00.shp", "button01.shp", "button02.shp", "button03.shp", "button04.shp",
     "button05.shp", "button06.shp", "button07.shp", "button08.shp", "button09.shp",
@@ -63,6 +63,6 @@ const sideBarFiles = [
 ];
 mixDatabase.set("sidec01.mix", sideBarFiles);
 mixDatabase.set("sidec02.mix", sideBarFiles);
-const sideBarCdFiles = ["reportbug.shp"];
+export const sideBarCdFiles = ["reportbug.shp"];
 mixDatabase.set("sidec01cd.mix", sideBarCdFiles);
 mixDatabase.set("sidec02cd.mix", sideBarCdFiles);

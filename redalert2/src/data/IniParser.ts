@@ -21,7 +21,14 @@ export class IniParser {
             const match = processedLine.match(this.lineRegex);
             if (match) {
                 if (match[1] !== undefined) {
-                    currentSectionName = this.stripQuotesAndComments(match[1]);
+                    // Ares reserves the literal [#include] section. The
+                    // generic value/comment stripper treats '#' as an inline
+                    // comment marker, so preserve this section name before
+                    // applying normal INI cleanup.
+                    const rawSectionName = match[1].trim();
+                    currentSectionName = rawSectionName.toLocaleLowerCase("en-US") === "#include"
+                        ? "#include"
+                        : this.stripQuotesAndComments(rawSectionName);
                     if (!sections[currentSectionName]) {
                         sections[currentSectionName] = new IniSection(currentSectionName);
                     }
