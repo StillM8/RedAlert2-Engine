@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { IniFile } from "@/data/IniFile";
-import { parseAresSuperWeaponDefinition } from "@/extensions/ares/AresSuperWeapons";
+import { parseAresSuperWeaponDefinition, resolveSuperWeaponActivationId } from "@/extensions/ares/AresSuperWeapons";
 import { SuperWeaponRules } from "@/game/rules/SuperWeaponRules";
 import { SuperWeaponType } from "@/game/type/SuperWeaponType";
 
@@ -104,5 +104,17 @@ GenericWarhead.CustomFutureFlag=yes
         expect(definition?.extensionType).toBe("GenericWarhead");
         expect(definition?.swDamage).toBe(0.25);
         expect(definition?.extensionEntries.get("GenericWarhead.CustomFutureFlag")).toBe("yes");
+    });
+
+    test("uses authored indices for custom action identity without breaking vanilla enum callers", () => {
+        const rules = [
+            { index: 0, type: SuperWeaponType.MultiMissile, typeId: "MultiMissile", name: "Nuke" },
+            { index: 12, typeId: "GenericWarhead", name: "MOBlast" },
+        ];
+
+        expect(resolveSuperWeaponActivationId(rules, SuperWeaponType.MultiMissile)).toBe(0);
+        expect(resolveSuperWeaponActivationId(rules, "GenericWarhead")).toBe(12);
+        expect(resolveSuperWeaponActivationId(rules, "MOBlast")).toBe(12);
+        expect(resolveSuperWeaponActivationId(rules, 12)).toBe(12);
     });
 });

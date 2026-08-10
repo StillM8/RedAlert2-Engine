@@ -17,6 +17,8 @@ import { AiRules } from "@/game/rules/AiRules";
 import { ElevationModelRules } from "@/game/rules/ElevationModelRules";
 import { RadiationRules } from "@/game/rules/RadiationRules";
 import { SuperWeaponRules } from "@/game/rules/SuperWeaponRules";
+import { resolveSuperWeaponActivationId } from "@/extensions/ares/AresSuperWeapons";
+import { SuperWeaponType } from "@/game/type/SuperWeaponType";
 import { CrateRules } from "@/game/rules/CrateRules";
 import { PowerupsRules } from "@/game/rules/PowerupsRules";
 import { mpAllowedColors } from "@/game/rules/mpAllowedColors";
@@ -293,6 +295,12 @@ export class Rules {
             throw new Error(`Unknown superweapon type "${name}"`);
         }
         return this.superWeaponRules.get(name)!;
+    }
+    getSuperWeaponByIndex(index: number): SuperWeaponRules | undefined {
+        return [...this.superWeaponRules.values()].find(rule => rule.index === index);
+    }
+    getSuperWeaponActivationId(selector: SuperWeaponType | string | number): number | undefined {
+        return resolveSuperWeaponActivationId(this.superWeaponRules.values(), selector);
     }
     getIni(): IniFile {
         return this.ini;

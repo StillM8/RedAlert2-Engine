@@ -26,6 +26,8 @@ interface Game {
     rules: {
         getBuilding(type: any): BuildingRules;
         getObject(type: any, subType: any): ObjectRules;
+        getSuperWeaponActivationId(selector: any): number | undefined;
+        getSuperWeaponByIndex(index: number): { type?: SuperWeaponType } | undefined;
     };
     getPlayerByName(name: string): Player;
     map: {
@@ -157,12 +159,20 @@ export class ActionsApi {
         // ChronoSphere REQUIRES a destination tile; without it the effect
         // throws inside deterministic tick processing (crash/desync), so
         // reject the malformed request here instead.
-        if (superWeaponType === SuperWeaponType.ChronoSphere && !secondaryTile) {
+        const activationId = this.game.rules.getSuperWeaponActivationId(superWeaponType);
+        const superWeaponRules = activationId === undefined
+            ? undefined
+            : this.game.rules.getSuperWeaponByIndex(activationId);
+        if (activationId === undefined || !superWeaponRules) {
+            console.warn(`[ActionsApi] Unknown superweapon selector "${String(superWeaponType)}"; ignored`);
+            return;
+        }
+        if (superWeaponRules.type === SuperWeaponType.ChronoSphere && !secondaryTile) {
             console.warn('[ActionsApi] ChronoSphere activation requires a secondaryTile; ignored');
             return;
         }
         this.createAndPushAction(ActionType.ActivateSuperWeapon, (action) => {
-            action.superWeaponType = superWeaponType;
+            action.superWeaponType = activationId;
             action.tile = { x: targetTile.rx, y: targetTile.ry };
             action.tile2 = secondaryTile ? { x: secondaryTile.rx, y: secondaryTile.ry } : undefined;
         });

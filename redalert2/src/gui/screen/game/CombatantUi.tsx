@@ -172,12 +172,12 @@ export class CombatantUi {
             this.soundHandler.handleProductionQueueUpdate?.(queue);
         });
         const updateSuperWeapons = (): void => {
-            this.sidebarModel.updateSuperWeapons();
+                this.sidebarModel.updateSuperWeapons();
             if (this.specialMode &&
                 this.worldInteraction?.getMode() === this.specialMode &&
                 !this.player.superWeaponsTrait
                     ?.getAll()
-                    .find((superWeapon: any) => superWeapon.rules.type === this.specialMode?.superWeaponType)) {
+                    .find((superWeapon: any) => superWeapon.rules.index === this.specialMode?.superWeaponType)) {
                 this.worldInteraction?.setMode(undefined);
                 this.specialMode.dispose();
                 this.specialMode = undefined;
@@ -459,7 +459,7 @@ export class CombatantUi {
         this.specialMode = specialMode;
         specialMode.onExecute.subscribe(({ tile, tile2 }) => {
             this.pushAction(ActionType.ActivateSuperWeapon, (action: any) => {
-                action.superWeaponType = superWeaponRules.type;
+                action.superWeaponType = superWeaponRules.index;
                 action.tile = { x: tile.rx, y: tile.ry };
                 if (tile2) {
                     action.tile2 = { x: tile2.rx, y: tile2.ry };
