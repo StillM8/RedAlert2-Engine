@@ -5,6 +5,10 @@ import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { MovementZone } from "@/game/type/MovementZone";
 import { SpeedType } from "@/game/type/SpeedType";
 import { SuperWeaponEffect } from "@/game/superweapon/SuperWeaponEffect";
+import {
+    isAresSuperWeaponInRange,
+    resolveAresSuperWeaponRange,
+} from "@/game/superweapon/AresSuperWeaponRange";
 export class ChronoSphereEffect extends SuperWeaponEffect {
     private tile2: any;
     private objectsToTeleport: Array<{
@@ -12,42 +16,80 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         destTile: any;
     }> = [];
     private delayTicks: number = 0;
-    constructor(e: any, t: any, i: any, r: any) {
+    constructor(e: any, t: any, i: any, r: any, superWeaponRange?: readonly number[]) {
         super(e, t, i);
         this.tile2 = r;
         this.objectsToTeleport = [];
+        this.superWeaponRange = superWeaponRange?.slice();
     }
+    private readonly superWeaponRange?: readonly number[];
+
     onStart(t: any): void {
         this.delayTicks = t.rules.general.chronoDelay;
         let i = t.map.tiles;
-        for (let o = -1; o <= 1; o++) {
-            for (let e = -1; e <= 1; e++) {
-                var r = i.getByMapCoords(this.tile.rx + o, this.tile.ry + e);
-                if (r) {
-                    var s: any, a = !!r.onBridgeLandType, n = i.getByMapCoords(this.tile2.rx + o, this.tile2.ry + e);
-                    for (s of t.map.getGroundObjectsOnTile(r)) {
-                        if (!s.isUnit() ||
-                            s.tile !== r ||
-                            s.onBridge !== a ||
-                            (s.isInfantry() &&
-                                s.stance === StanceType.Paradrop &&
-                                2 < s.tileElevation) ||
-                            s.isDisposed ||
-                            s.invulnerableTrait.isActive()) {
+        const candidates: Array<{ object: any; sourceTile: any; destTile?: any }> = [];
+
+        if (this.superWeaponRange !== undefined) {
+            // Antares collects each techno once from the configured area. The
+            // destination keeps the object's anchor-tile offset from the
+            // source center, even when SW.Range is a larger rectangle/circle.
+            const range = resolveAresSuperWeaponRange(this.superWeaponRange, {
+                widthOrRange: 3,
+                height: 3,
+            });
+            for (const object of t.getWorld().getAllObjects()) {
+                const sourceTile = object.tile;
+                if (!object.isUnit?.() || !sourceTile || object.isDisposed ||
+                    object.onBridge !== !!sourceTile.onBridgeLandType ||
+                    (object.isInfantry?.() && object.stance === StanceType.Paradrop && 2 < object.tileElevation) ||
+                    object.invulnerableTrait?.isActive?.() ||
+                    !isAresSuperWeaponInRange(this.tile, object, range, t.map.tileOccupation)) {
+                    continue;
+                }
+                candidates.push({
+                    object,
+                    sourceTile,
+                    destTile: i.getByMapCoords(
+                        this.tile2.rx + sourceTile.rx - this.tile.rx,
+                        this.tile2.ry + sourceTile.ry - this.tile.ry,
+                    ),
+                });
+            }
+        }
+        else {
+            for (let o = -1; o <= 1; o++) {
+                for (let e = -1; e <= 1; e++) {
+                    const sourceTile = i.getByMapCoords(this.tile.rx + o, this.tile.ry + e);
+                    if (!sourceTile) continue;
+                    const onBridge = !!sourceTile.onBridgeLandType;
+                    const destTile = i.getByMapCoords(this.tile2.rx + o, this.tile2.ry + e);
+                    for (const object of t.map.getGroundObjectsOnTile(sourceTile)) {
+                        if (!object.isUnit() ||
+                            object.tile !== sourceTile ||
+                            object.onBridge !== onBridge ||
+                            (object.isInfantry() &&
+                                object.stance === StanceType.Paradrop &&
+                                2 < object.tileElevation) ||
+                            object.isDisposed ||
+                            object.invulnerableTrait.isActive()) {
                             continue;
                         }
-                        if ((s.rules.organic && !s.rules.teleporter) || !n) {
-                            t.destroyObject(s, { player: this.owner });
-                        }
-                        else if (!s.warpedOutTrait.isActive()) {
-                            s.warpedOutTrait.setActive(true, true, t);
-                            this.objectsToTeleport.push({
-                                obj: s,
-                                destTile: n,
-                            });
-                        }
+                        candidates.push({ object, sourceTile, destTile });
                     }
                 }
+            }
+        }
+
+        for (const { object, destTile } of candidates) {
+            if ((object.rules.organic && !object.rules.teleporter) || !destTile) {
+                t.destroyObject(object, { player: this.owner });
+            }
+            else if (!object.warpedOutTrait.isActive()) {
+                object.warpedOutTrait.setActive(true, true, t);
+                this.objectsToTeleport.push({
+                    obj: object,
+                    destTile,
+                });
             }
         }
     }
