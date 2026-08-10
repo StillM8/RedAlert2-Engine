@@ -13,6 +13,13 @@ export class MorphIntoTask extends Task {
         super();
         this.game = game;
     }
+    /**
+     * Ares treats an active deploy/undeploy morph like an unloading mission:
+     * EMP is recorded, but the transformation finishes before deactivation.
+     */
+    isAresEmpUnloading(): boolean {
+        return true;
+    }
     onStart(unit: any): void {
         if (!this.morphInto)
             throw new Error("morphInto not set");

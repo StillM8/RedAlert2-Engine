@@ -11,6 +11,15 @@ import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { IniSection } from "@/data/IniSection";
 import { WarheadRules } from "@/game/rules/WarheadRules";
+import { HarvesterStatus } from "@/game/gameobject/trait/HarvesterTrait";
+import { Production } from "@/game/player/production/Production";
+import { FactoryType } from "@/game/rules/TechnoRules";
+import { SuperWeaponsTrait } from "@/game/trait/SuperWeaponsTrait";
+import { FactoryTrait } from "@/game/gameobject/trait/FactoryTrait";
+import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
+import { NotifyTick as TraitNotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
+import { AirSpawnTrait } from "@/game/gameobject/trait/AirSpawnTrait";
+import { PowerTrait as PlayerPowerTrait } from "@/game/player/trait/PowerTrait";
 
 function disableable(initial = false) {
     let disabled = initial;
@@ -200,5 +209,133 @@ describe("Ares EMP rules", () => {
             isAircraft: () => false,
         };
         expect(new EmpTrait(veteran).apply(10, -1)).toBe(false);
+    });
+
+    test("records EMP during unloading and deactivates after the unload boundary", () => {
+        const moveTrait = disableable();
+        const attackTrait = disableable();
+        const harvesterTrait: any = { status: HarvesterStatus.Unloading };
+        const obj: any = {
+            rules: { immuneToEMP: false },
+            moveTrait,
+            attackTrait,
+            harvesterTrait,
+            unitOrderTrait: { getTasks: () => [] },
+            isAircraft: () => false,
+        };
+        const emp = new EmpTrait(obj);
+
+        expect(emp.apply(3, -1)).toBe(true);
+        expect(emp.getRemainingFrames()).toBe(3);
+        expect(emp.isUnderEMP()).toBe(true);
+        expect(moveTrait.isDisabled()).toBe(false);
+
+        emp[NotifyTick.onTick](obj, undefined);
+        expect(emp.getRemainingFrames()).toBe(2);
+        expect(moveTrait.isDisabled()).toBe(false);
+
+        harvesterTrait.status = HarvesterStatus.Idle;
+        emp[NotifyTick.onTick](obj, undefined);
+        expect(moveTrait.isDisabled()).toBe(true);
+        expect(emp.getRemainingFrames()).toBe(1);
+        emp[NotifyTick.onTick](obj, undefined);
+        expect(moveTrait.isDisabled()).toBe(false);
+    });
+
+    test("uses one operational predicate for manager consumers", () => {
+        const building: any = {
+            empTrait: { isUnderEMP: () => true },
+            warpedOutTrait: { isActive: () => false },
+        };
+        expect(isAresEmpOperational(building)).toBe(false);
+        building.empTrait.isUnderEMP = () => false;
+        expect(isAresEmpOperational(building)).toBe(true);
+        building.warpedOutTrait.isActive = () => true;
+        expect(isAresEmpOperational(building)).toBe(false);
+    });
+
+    test("pauses production when every matching factory is EMP-disabled", () => {
+        const player: any = { buildings: new Set<any>() };
+        const production = new Production(player, 10, {}, {}, [], undefined);
+        const factory: any = {
+            factoryTrait: { type: FactoryType.InfantryType },
+            empTrait: { isUnderEMP: () => true },
+            warpedOutTrait: { isActive: () => false },
+        };
+        player.buildings.add(factory);
+        expect(production.hasOperationalFactory(FactoryType.InfantryType)).toBe(false);
+        factory.empTrait.isUnderEMP = () => false;
+        expect(production.hasOperationalFactory(FactoryType.InfantryType)).toBe(true);
+    });
+
+    test("does not produce from an EMP-disabled factory", () => {
+        const factoryTrait = new FactoryTrait(FactoryType.InfantryType);
+        const building: any = {
+            owner: { production: {} },
+            empTrait: { isUnderEMP: () => true },
+            warpedOutTrait: { isActive: () => false },
+        };
+        factoryTrait[TraitNotifyTick.onTick](building, {});
+        expect(factoryTrait.status).toBe(0);
+    });
+
+    test("excludes EMP-disabled powered superweapon buildings", () => {
+        const superWeaponsTrait = new SuperWeaponsTrait();
+        const superWeapon: any = {
+            rules: { isPowered: true },
+            owner: { buildings: new Set<any>() },
+        };
+        const building: any = {
+            superWeaponTrait: { getSuperWeapon: () => superWeapon },
+            empTrait: { isUnderEMP: () => true },
+            warpedOutTrait: { isActive: () => false },
+        };
+        superWeapon.owner.buildings.add(building);
+        expect((superWeaponsTrait as any).superWeaponHasValidBuilding(superWeapon)).toBeUndefined();
+        building.empTrait.isUnderEMP = () => false;
+        expect((superWeaponsTrait as any).superWeaponHasValidBuilding(superWeapon)).toBe(building);
+    });
+
+    test("crashes visible spawned aircraft when a spawner enters EMP", () => {
+        const spawner = {
+            isSpawned: true,
+            isDestroyed: false,
+            rules: { missileSpawn: false },
+        };
+        let crashSource: any;
+        const airSpawn = new AirSpawnTrait();
+        (airSpawn as any).spawns = [{
+            ...spawner,
+            crashableTrait: { crash: (source: any) => { crashSource = source; } },
+        }];
+        const source = { id: "spawner" };
+        airSpawn.onEmp(source);
+        expect(crashSource).toBe(source);
+    });
+
+    test("removes EMP-disabled power output while retaining the producer ledger", () => {
+        const player: any = {};
+        const powerTrait = new PlayerPowerTrait(player);
+        const events: any[] = [];
+        const world: any = {
+            traits: { filter: () => [] },
+            events: { dispatch: (event: any) => events.push(event) },
+        };
+        let underEMP = false;
+        const powerPlant: any = {
+            rules: { power: 100, occupantsPowerBonus: 0 },
+            healthTrait: { health: 100 },
+            empTrait: { isUnderEMP: () => underEMP },
+        };
+
+        powerTrait.updateFrom(powerPlant, "add", world);
+        expect(powerTrait.debugGetState().power).toBe(100);
+        underEMP = true;
+        powerTrait.refreshEmpState(world);
+        expect(powerTrait.debugGetState().power).toBe(0);
+        underEMP = false;
+        powerTrait.refreshEmpState(world);
+        expect(powerTrait.debugGetState().power).toBe(100);
+        expect(events.length).toBe(3);
     });
 });

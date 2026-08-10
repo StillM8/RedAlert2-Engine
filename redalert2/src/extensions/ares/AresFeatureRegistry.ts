@@ -75,7 +75,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresEMP.test.ts"],
-        notes: "EMP.Duration/Cap, EMP.Modifier, ImmuneToEMP, AffectsEnemies, veteran EMPIMMUNE, per-Techno counters, movement/attack paralysis, powered-building blackout and flying-aircraft crash entry are wired; specialized manager suspension and EMP.Threshold destruction remain separate slices.",
+        notes: "EMP.Duration/Cap, EMP.Modifier, ImmuneToEMP, AffectsEnemies, veteran EMPIMMUNE, per-Techno counters, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and flying-aircraft crash entry are wired; sparkle presentation and full subsystem notifications remain separate.",
     },
     {
         id: "ares.emp-threshold",
@@ -84,7 +84,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresEMP.test.ts"],
-        notes: "Positive thresholds and negative in-air thresholds are evaluated after EMP counter updates; parachuting and non-air targets follow the documented distinction. Full aircraft/hover crash integration and persistence remain separate.",
+        notes: "Positive thresholds and negative in-air thresholds are evaluated after EMP counter updates; parachuting and non-air targets follow the documented distinction. Full hover/aircraft edge coverage, persistence, and network certification remain separate.",
     },
     {
         id: "ares.custom-superweapons",

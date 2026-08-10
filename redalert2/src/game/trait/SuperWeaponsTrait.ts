@@ -21,11 +21,15 @@ import { UnitDeliveryEffect } from "@/game/superweapon/UnitDeliveryEffect";
 import { SonarPulseEffect } from "@/game/superweapon/SonarPulseEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
+import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
     [NotifyTick.onTick](t: any) {
         for (const e of t.getCombatants()) {
             for (const i of e.superWeaponsTrait.getAll()) {
+                if (i.rules.isPowered) {
+                    this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.());
+                }
                 i.update(t);
             }
         }
@@ -78,8 +82,9 @@ export class SuperWeaponsTrait {
         }
     }
     private superWeaponHasValidBuilding(t: any) {
-        return [...t.owner.buildings].find((e: any) => !(e.superWeaponTrait?.getSuperWeapon(e) !== t ||
-            (e.warpedOutTrait.isActive() && t.rules.isPowered)));
+        return [...t.owner.buildings].find((e: any) =>
+            e.superWeaponTrait?.getSuperWeapon(e) === t &&
+            (!t.rules.isPowered || isAresEmpOperational(e)));
     }
     private addEffect(e: SuperWeaponEffect) {
         this.effects.push(e);

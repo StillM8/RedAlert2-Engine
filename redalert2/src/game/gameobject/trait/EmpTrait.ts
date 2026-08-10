@@ -2,6 +2,7 @@ import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { resolveAresEmpCounter } from "@/extensions/ares/AresEMP";
+import { HarvesterStatus } from "@/game/gameobject/trait/HarvesterTrait";
 
 interface DisableableTrait {
     isDisabled(): boolean;
@@ -52,10 +53,15 @@ export class EmpTrait implements NotifyTick {
         const nextRemaining = resolveAresEmpCounter(oldRemaining, duration, cap, modifier);
         this.remainingFrames = nextRemaining;
 
-        if (nextRemaining > 0) {
+        // Ares records the counter immediately, but does not deactivate a
+        // Techno while it is unloading/transforming. The counter continues to
+        // tick; the object is deactivated as soon as that work is interruptible.
+        if (nextRemaining > 0 &&
+            !this.stateApplied &&
+            this.isDeactivationAdvisable()) {
             this.enableParalysis();
         }
-        else if (oldRemaining > 0) {
+        else if (oldRemaining > 0 && nextRemaining <= 0) {
             this.disableParalysis();
         }
 
@@ -65,6 +71,9 @@ export class EmpTrait implements NotifyTick {
     [NotifyTick.onTick](): void {
         if (this.remainingFrames <= 0) {
             return;
+        }
+        if (!this.stateApplied && this.isDeactivationAdvisable()) {
+            this.enableParalysis();
         }
         this.remainingFrames--;
         if (this.remainingFrames <= 0) {
@@ -93,7 +102,18 @@ export class EmpTrait implements NotifyTick {
         return !!this.gameObject?.veteranTrait?.hasVeteranAbility?.(VeteranAbility.EMPIMMUNE);
     }
 
+    private isDeactivationAdvisable(): boolean {
+        if (this.gameObject?.harvesterTrait?.status === HarvesterStatus.Unloading) {
+            return false;
+        }
+        const hasUnloadingTask = (task: any): boolean =>
+            !!task?.isAresEmpUnloading?.() ||
+            !!task?.children?.some((child: any) => hasUnloadingTask(child));
+        return !(this.gameObject?.unitOrderTrait?.getTasks?.() ?? []).some(hasUnloadingTask);
+    }
+
     private enableParalysis(): void {
+        const newlyApplied = !this.stateApplied;
         if (!this.stateApplied) {
             this.previousMoveDisabled = this.gameObject.moveTrait?.isDisabled?.();
             this.previousAttackDisabled = this.gameObject.attackTrait?.isDisabled?.();
@@ -108,6 +128,9 @@ export class EmpTrait implements NotifyTick {
             this.gameObject.zone === ZoneType.Air &&
             this.gameObject.crashableTrait?.crash) {
             this.gameObject.crashableTrait.crash();
+        }
+        if (newlyApplied) {
+            this.gameObject.airSpawnTrait?.onEmp?.(this.gameObject);
         }
     }
 

@@ -45,6 +45,7 @@ export class PowerTrait {
     }
     [NotifyTick.onTick](game: any): void {
         for (const combatant of game.getCombatants()) {
+            combatant.powerTrait.refreshEmpState(game);
             combatant.powerTrait.updateBlackout(game);
         }
     }

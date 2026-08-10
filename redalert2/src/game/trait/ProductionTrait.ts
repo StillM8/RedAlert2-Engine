@@ -149,6 +149,9 @@ export class ProductionTrait implements NotifyTick, NotifySpawn, NotifyUnspawn, 
         let hasProgress = false;
         const currentItem = queue.getFirst();
         const factoryType = player.production.getFactoryTypeForQueueType(queue.type);
+        if (!player.production.hasOperationalFactory(factoryType)) {
+            return;
+        }
         const factoryCount = player.production.getFactoryCount(factoryType);
         const buildSpeedModifier = player.production.buildSpeedModifier;
         const multipleFactoryPenalty = 1 / GameMath.pow(this.rules.general.multipleFactory, factoryCount - 1);

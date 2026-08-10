@@ -40,6 +40,21 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
     isLaunchingMissiles(): boolean {
         return this.missileLaunches.length > 0;
     }
+    /**
+     * Ares crashes visible spawned aircraft when their parent spawner is
+     * EMP-disabled. Stored/landed spawns remain in the manager and are
+     * reloaded after the EMP outage.
+     */
+    onEmp(source?: any): void {
+        for (const spawn of this.spawns) {
+            if (spawn.isSpawned &&
+                !spawn.isDestroyed &&
+                !spawn.rules.missileSpawn &&
+                spawn.crashableTrait?.crash) {
+                spawn.crashableTrait.crash(source);
+            }
+        }
+    }
     [NotifySpawn.onSpawn](gameObject: any, world: any): void {
         const aircraftType = world.rules.getObject(gameObject.rules.spawns, ObjectType.Aircraft);
         for (let i = 0; i < gameObject.rules.spawnsNumber; i++) {
@@ -88,6 +103,13 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
     [NotifyTick.onTick](gameObject: any, world: any): void {
         this.spawns = this.spawns.filter(spawn => !spawn.isDestroyed);
         this.missileLaunches = this.missileLaunches.filter(launch => !launch.missile.isDestroyed);
+        // Ares suspends spawn regeneration, reload and pending launch work
+        // while the parent Techno is EMP-disabled. Visible aircraft are
+        // handled when the EMP is applied; this prevents replacement work
+        // during the outage.
+        if (gameObject.empTrait?.isUnderEMP?.()) {
+            return;
+        }
         if (this.spawns.length < gameObject.rules.spawnsNumber) {
             const missingCount = gameObject.rules.spawnsNumber - this.spawns.length;
             const aircraftType = world.rules.getObject(gameObject.rules.spawns, ObjectType.Aircraft);

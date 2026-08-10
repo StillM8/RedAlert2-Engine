@@ -55,6 +55,12 @@ export class ReturnOreTask extends Task {
         if (this.isCancelling())
             return true;
         const harvesterTrait = unit.harvesterTrait;
+        // Let an already unloading slave finish its delivery; otherwise the
+        // EMP'd miner suspends the workforce until it recovers.
+        if (unit.slaveOwnerMiner?.empTrait?.isUnderEMP?.() &&
+            harvesterTrait.status !== HarvesterStatus.Unloading) {
+            return false;
+        }
         if (harvesterTrait.status === HarvesterStatus.LookingForRefinery)
             return true;
         if (harvesterTrait.status === HarvesterStatus.MovingToRefinery) {
@@ -178,7 +184,9 @@ export class ReturnOreTask extends Task {
     private isValidTargetRefinery(refinery: any, unit: any): boolean {
         return refinery.isSpawned &&
             this.game.areFriendly(refinery, unit) &&
-            !refinery.warpedOutTrait.isActive();
+            !refinery.warpedOutTrait.isActive() &&
+            (unit.harvesterTrait?.status === HarvesterStatus.Unloading ||
+                !refinery.empTrait?.isUnderEMP?.());
     }
     private findClosestReachableRefinery(unit: any): any {
         const rangeHelper = this.rangeHelper;

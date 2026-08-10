@@ -52,6 +52,11 @@ export class GatherOreTask extends Task {
     onTick(unit: any): boolean {
         if (this.isCancelling())
             return true;
+        // A slave workforce is suspended by an EMP'd miner; the slave's own
+        // EMP state remains independent.
+        if (unit.slaveOwnerMiner?.empTrait?.isUnderEMP?.()) {
+            return false;
+        }
         const harvester = unit.harvesterTrait;
         if (harvester.status === HarvesterStatus.MovingToOreSite) {
             const previousTarget = this.target;

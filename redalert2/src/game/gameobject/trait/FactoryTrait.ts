@@ -24,6 +24,7 @@ import { WaitMinutesTask } from "@/game/gameobject/task/system/WaitMinutesTask";
 import { CallbackTask } from "@/game/gameobject/task/system/CallbackTask";
 import { TaskGroup } from "@/game/gameobject/task/system/TaskGroup";
 import { getFoundationBounds, getFoundationRallyCell, getNearestFoundationCell } from "@/game/art/Foundation";
+import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
 export enum FactoryStatus {
     Idle = 0,
     Delivering = 1
@@ -115,7 +116,7 @@ export class FactoryTrait {
             this.deliveryRally = undefined;
             return;
         }
-        if (building.owner.production && !building.warpedOutTrait.isActive()) {
+        if (building.owner.production && isAresEmpOperational(building)) {
             const primaryFactory = building.owner.production.getPrimaryFactory(this.type);
             if ((primaryFactory?.warpedOutTrait.isActive() ||
                 primaryFactory === building ||

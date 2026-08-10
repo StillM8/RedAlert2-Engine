@@ -61,9 +61,9 @@ export class PowerTrait {
                 : 0;
             let powerDelta = 0;
             if (action === 'add') {
-                const powerValue = Math.ceil((power * object.healthTrait.health) / 100) + occupantBonus;
+                const powerValue = this.computePowerOutput(object, power, occupantBonus);
                 this.powerByObject.set(object, powerValue);
-                powerDelta = powerValue;
+                powerDelta = this.getEffectivePowerOutput(object, powerValue);
             }
             else if (action === 'update' || action === 'remove') {
                 const oldPowerValue = this.powerByObject.get(object);
@@ -71,17 +71,42 @@ export class PowerTrait {
                     throw new Error("Cannot update power before add.");
                 }
                 if (action === 'update') {
-                    const newPowerValue = Math.ceil((power * object.healthTrait.health) / 100) + occupantBonus;
+                    const newPowerValue = this.computePowerOutput(object, power, occupantBonus);
                     this.powerByObject.set(object, newPowerValue);
-                    powerDelta = newPowerValue - oldPowerValue;
+                    powerDelta = this.getEffectivePowerOutput(object, newPowerValue) -
+                        this.getEffectivePowerOutput(object, oldPowerValue);
                 }
                 else {
                     this.powerByObject.delete(object);
-                    powerDelta = -oldPowerValue;
+                    powerDelta = -this.getEffectivePowerOutput(object, oldPowerValue);
                 }
             }
             this.power += powerDelta;
         }
+        this.notifyPowerChanged(world);
+    }
+    /**
+     * Reconciles positive power output with the current EMP counters. Ares
+     * keeps power drain intact while an EMP-disabled power producer contributes
+     * no output, so this is intentionally separate from updateFrom's spawn,
+     * health and ownership events.
+     */
+    refreshEmpState(world: any): void {
+        const effectivePower = [...this.powerByObject.entries()]
+            .reduce((total, [object, nominal]) => total + this.getEffectivePowerOutput(object, nominal), 0);
+        if (effectivePower === this.power) {
+            return;
+        }
+        this.power = effectivePower;
+        this.notifyPowerChanged(world);
+    }
+    private computePowerOutput(object: any, power: number, occupantBonus: number): number {
+        return Math.ceil((power * object.healthTrait.health) / 100) + occupantBonus;
+    }
+    private getEffectivePowerOutput(object: any, nominalPower: number): number {
+        return object.empTrait?.isUnderEMP?.() ? 0 : nominalPower;
+    }
+    private notifyPowerChanged(world: any): void {
         this.updateLevel(world);
         world.traits.filter(NotifyPower).forEach((trait: any) => {
             trait[NotifyPower.onPowerChange](this.player, world);
