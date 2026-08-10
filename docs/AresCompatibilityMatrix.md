@@ -42,3 +42,36 @@ The table is not a claim of complete Mental Omega compatibility. The next
 authoritative step is to run the effective scanner against the selected local
 Mental Omega installation and update “MO uses?” and the impact ranking from
 actual occurrences.
+
+## Complete documentation inventory
+
+The official documentation tree contains 127 leaf capability documents. The
+machine-readable inventory is checked by
+[`AresFeatureCatalog.ts`](../redalert2/src/extensions/ares/AresFeatureCatalog.ts)
+and is deliberately broader than the currently implemented runtime registry:
+
+| Documentation group | Leaf documents | Catalog status |
+| --- | ---: | --- |
+| New & enhanced in-game logic | 40 | all inventoried; each has independent parser/runtime/verification status |
+| Restored Tiberian Sun logic | 10 | all inventoried; EMP is the next runtime slice |
+| Type 1 bug fixes | 16 | all inventoried as regression capabilities |
+| Type 2 bug fixes | 45 | all inventoried as regression capabilities |
+| Type 3 performance fixes | 1 | inventoried as a performance capability |
+| User-interface features | 15 | all inventoried as host/presentation capabilities |
+| **Total** | **127** | **the catalog is the source of truth** |
+
+The leaf-document count above excludes the four category index pages and the
+top-level explanatory pages. The catalog's checked-in list is authoritative;
+the category counts are retained here as a human-readable summary and are
+validated by the catalog tests.
+
+Each catalog entry records:
+
+- documented keys and sections where they are explicit in the reference;
+- parser, normalized-model, runtime, AI, presentation, save/load, and
+  multiplayer status independently;
+- deterministic-state expectations, tests, dependencies, and target-mod usage.
+
+The dependency graph in
+[`AresCapabilityDependencies.ts`](../redalert2/src/extensions/ares/AresCapabilityDependencies.ts)
+is semantic engine order, not a translation of Antares' C++ hook layout.
