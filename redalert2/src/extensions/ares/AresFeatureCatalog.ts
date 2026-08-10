@@ -298,9 +298,9 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         capabilityId: "ares.superweapons",
         parserStatus: "partial", normalizedModelStatus: "partial", runtimeStatus: "partial",
         aiStatus: "missing", presentationStatus: "partial", saveLoadStatus: "missing", multiplayerStatus: "partial",
-        verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresSuperWeaponCharge.test.ts", "AresSuperWeaponPostDependent.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts", "AresDropPod.test.ts"],
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresSuperWeaponCharge.test.ts", "AresSuperWeaponPostDependent.test.ts", "AresSuperWeaponRadar.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts", "AresDropPod.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters"], targetModUsage: "required",
-        notes: "Common fields, manual SW.RequiresTarget/SW.RequiresHouse gates, InitialReady/VirtualCharge timer state, PostDependent stage selection, target filters, GenericWarhead, UnitDelivery, SonarPulse, the EMPulse launch state, and the Antares DropPod core placement handler are present; animation/presentation, AI, persistence, and the remaining handlers are not complete.",
+        notes: "Common fields, manual SW.RequiresTarget/SW.RequiresHouse gates, InitialReady/VirtualCharge timer state, PostDependent stage selection, common radar-event delivery, target filters, GenericWarhead, UnitDelivery, SonarPulse, the EMPulse launch state, and the Antares DropPod core placement handler are present; animation/presentation, AI, persistence, and the remaining handlers are not complete.",
     },
     "restored/emp.rst": {
         capabilityId: "ares.emp",

@@ -123,6 +123,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "The authored dependent ID is resolved case-insensitively, with Antares' first ChronoWarp fallback for ChronoSphere; legacy PreClick/PostClick fields remain only as a vanilla adapter.",
     },
     {
+        id: "ares.superweapon-radar-event",
+        description: "Ares SW.CreateRadarEvent launch notifications",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponRadar.test.ts"],
+        notes: "Explicit CreateRadarEvent launches notify every combatant through RadarTrait, preserving host suppression/duration rules; full-map SonarPulse remains exempt from its local radar event path.",
+    },
+    {
         id: "ares.superweapon-unit-delivery",
         description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
         implemented: true,

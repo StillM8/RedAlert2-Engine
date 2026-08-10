@@ -24,6 +24,7 @@ import { DropPodEffect } from "@/game/superweapon/DropPodEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
+import { createAresSuperWeaponRadarEvent } from "@/extensions/ares/AresSuperWeaponRadar";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
     [NotifyTick.onTick](t: any) {
@@ -115,6 +116,9 @@ export class SuperWeaponsTrait {
         const extensionType = e.ares?.extensionType;
         const eventType = o ?? e.typeId;
         if (o !== undefined || extensionType !== undefined) {
+            if (e.ares?.swCreateRadarEvent === true) {
+                createAresSuperWeaponRadarEvent(s, r);
+            }
             const t: SuperWeaponEffect[] = [];
             if (extensionType === "GenericWarhead") {
                 const damage = e.ares?.swDamage;
