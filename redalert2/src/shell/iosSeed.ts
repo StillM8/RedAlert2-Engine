@@ -7,6 +7,7 @@ declare global {
         __RA2_SHELL__?: {
             platform: string;
             version: string;
+            engine?: 'ra2' | 'yr';
             thermalState?: string;
         };
         Ra2Android?: {
@@ -193,6 +194,9 @@ function ensureShellMarker(): void {
     window.__RA2_SHELL__ = {
         platform: params.get('platform') || 'native',
         version: params.get('shellVersion') || '0.1.0',
+        ...(params.get('engine') === 'ra2' || params.get('engine') === 'yr'
+            ? { engine: params.get('engine') as 'ra2' | 'yr' }
+            : {}),
     };
 }
 
@@ -200,6 +204,11 @@ export function isNativeShell(): boolean {
     ensureShellMarker();
     // The query flag also lets a desktop browser exercise the native code path.
     return !!window.__RA2_SHELL__;
+}
+
+export function getNativeShellEngine(): 'ra2' | 'yr' | undefined {
+    ensureShellMarker();
+    return window.__RA2_SHELL__?.engine;
 }
 
 export function canPickGameDirectoryFromShell(): boolean {
@@ -250,6 +259,7 @@ interface NativeModImportResult {
 export function canImportModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
+        && getNativeShellEngine() === 'yr'
         && typeof window.Ra2Android?.pickModArchives === 'function';
 }
 
@@ -567,18 +577,22 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
     const manifest: SeedManifest = await manifestResponse.json();
     const manifestPaths = new Set(manifest.files.map((file) => file.path.toLowerCase()));
     const missingRequiredFiles = REQUIRED_RA2_GAME_FILES.filter((file) => !manifestPaths.has(file));
-    if (missingRequiredFiles.length > 0) {
+    const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(file));
+    const requestedEngine = getNativeShellEngine();
+    const engineFilesAvailable = requestedEngine !== 'yr' || hasYuriFiles;
+    if (missingRequiredFiles.length > 0 || !engineFilesAvailable) {
         console.warn(
-            `[nativeShell] Resource import is incomplete; missing ${missingRequiredFiles.join(', ')}. ` +
+            `[nativeShell] Resource import is incomplete for ${requestedEngine ?? 'the detected'} engine; ` +
+            `missing ${missingRequiredFiles.concat(!hasYuriFiles && requestedEngine === 'yr' ? OPTIONAL_YR_GAME_FILES : []).join(', ')}. ` +
             'The game-resource chooser will remain available.',
         );
         localStorage.removeItem(StorageKey.GameRes);
         localStorage.removeItem(NATIVE_ENGINE_STORAGE_KEY);
     }
     else {
-        const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(file));
-        localStorage.setItem(NATIVE_ENGINE_STORAGE_KEY, hasYuriFiles ? 'yr' : 'ra2');
-        console.info(`[nativeShell] Detected ${hasYuriFiles ? "Red Alert 2 + Yuri's Revenge" : "Red Alert 2"} resources`);
+        const selectedEngine = requestedEngine ?? (hasYuriFiles ? 'yr' : 'ra2');
+        localStorage.setItem(NATIVE_ENGINE_STORAGE_KEY, selectedEngine);
+        console.info(`[nativeShell] Selected ${selectedEngine === 'yr' ? "Yuri's Revenge" : "Red Alert 2"} resources`);
     }
     const totalBytes = manifest.files.reduce((sum, f) => sum + f.size, 0);
     let copiedBytes = 0;
@@ -615,7 +629,7 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             `Preparing game files... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`,
         );
     }
-    if (missingRequiredFiles.length === 0) {
+    if (missingRequiredFiles.length === 0 && engineFilesAvailable) {
         const config = String(GameResSource.Local);
         localStorage.setItem(StorageKey.GameRes, config);
     }

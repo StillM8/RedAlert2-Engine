@@ -44,8 +44,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MainActivity : Activity() {
     companion object {
         private const val TAG = "RA2"
-        private const val APP_URL =
+        private const val APP_URL_BASE =
             "https://${Ra2WebViewClient.APP_ASSET_HOST}/index.html?shell=1&platform=android"
+        private val APP_URL: String
+            get() = "$APP_URL_BASE&engine=${BuildConfig.GAME_ENGINE}"
+        private const val WEBVIEW_STATE_KEY = "ra2.webview.state"
         private const val MAX_RENDERER_RECOVERIES = 3
         private const val RECOVERY_WINDOW_MS = 5 * 60 * 1000L
         private const val FILE_CHOOSER_REQUEST = 4102
@@ -82,15 +85,29 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         registerPowerState()
-        loadApp()
+        loadApp(restoredState = savedInstanceState?.getBundle(WEBVIEW_STATE_KEY))
     }
 
-    private fun loadApp(crashRecovery: Int? = null) {
+    private fun loadApp(crashRecovery: Int? = null, restoredState: Bundle? = null) {
         webView = createWebView()
         setContentView(webView)
         hideSystemUi()
         val url = if (crashRecovery == null) APP_URL else "$APP_URL&crashRecovery=$crashRecovery"
-        webView.loadUrl(url)
+        if (restoredState != null) {
+            val restoredHistory = try {
+                webView.restoreState(restoredState)
+            }
+            catch (error: Exception) {
+                Log.w(TAG, "Could not restore the WebView session; starting the shell URL", error)
+                null
+            }
+            if (restoredHistory == null) {
+                webView.loadUrl(url)
+            }
+        }
+        else {
+            webView.loadUrl(url)
+        }
     }
 
     private fun createWebView(): WebView {
@@ -918,6 +935,26 @@ class MainActivity : Activity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemUi()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::webView.isInitialized) {
+            try {
+                outState.putBundle(WEBVIEW_STATE_KEY, Bundle().also { webView.saveState(it) })
+            }
+            catch (error: Exception) {
+                Log.w(TAG, "Could not save the WebView session", error)
+            }
+        }
+        super.onSaveInstanceState(outState)
+    }
+
+    /** Keep the game Activity alive when Android back is used. The task can
+     * still be closed from recents, but returning to it resumes the same WebView
+     * instead of booting the engine again. */
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        moveTaskToBack(true)
     }
 
     override fun onResume() {

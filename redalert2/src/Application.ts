@@ -30,7 +30,7 @@ import { browserFileSystemAccess } from './engine/gameRes/browserFileSystemAcces
 import type { TestToolRuntimeContext } from './tools/TestToolSupport';
 import { attachPerformanceOptions, installPerformanceDebugApi } from './performance/PerformanceRuntime';
 import { inGameViewportActive } from './gui/inGameViewport';
-import { isNativeShell } from './shell/nativeShell';
+import { getNativeShellEngine, isNativeShell } from './shell/nativeShell';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -169,10 +169,12 @@ export class Application {
             const iniFileInstance = new IniFile(iniString);
             this.config = new Config();
             this.config.load(iniFileInstance);
-            const nativeEngine = isNativeShell() ? localStorage.getItem('_ra2_native_engine') : null;
+            const shellEngine = isNativeShell() ? getNativeShellEngine() : undefined;
+            const persistedEngine = isNativeShell() ? localStorage.getItem('_ra2_native_engine') : null;
+            const nativeEngine = shellEngine ?? persistedEngine;
             if (nativeEngine === 'ra2' || nativeEngine === 'yr') {
                 this.config.getGeneralData().set('engine', nativeEngine);
-                console.log(`[Application] Native shell selected ${nativeEngine} engine from imported archives.`);
+                console.log(`[Application] Native shell selected ${nativeEngine} engine${shellEngine ? ' from the Android app variant' : ' from imported archives'}.`);
             }
             console.log('[Application] config.ini loaded and parsed successfully.');
             console.log('[Application] Config object dump:', this.config);

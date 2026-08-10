@@ -21,6 +21,20 @@ android {
         manifestPlaceholders["allowCleartext"] = "false"
     }
 
+    flavorDimensions += "game"
+    productFlavors {
+        create("ra2") {
+            dimension = "game"
+            applicationId = "com.ammaar.ra2android"
+            buildConfigField("String", "GAME_ENGINE", "\"ra2\"")
+        }
+        create("yr") {
+            dimension = "game"
+            applicationId = "com.ammaar.yurirevengeandroid"
+            buildConfigField("String", "GAME_ENGINE", "\"yr\"")
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
