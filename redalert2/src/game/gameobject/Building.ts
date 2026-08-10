@@ -35,6 +35,8 @@ export enum BuildStatus {
     BuildDown = 2
 }
 export class Building extends Techno {
+    /** Ares FactoryOwners uses the factory's initial country after capture. */
+    public readonly initialFactoryOwnerId?: string;
     public showWeaponRange: boolean = false;
     public direction: number = 0;
     private _buildStatus: BuildStatus;
@@ -154,6 +156,7 @@ export class Building extends Techno {
     }
     constructor(owner: any, rules: TechnoRules, art: any) {
         super(ObjectType.Building as any, owner, rules, art);
+        this.initialFactoryOwnerId = owner?.country?.id ?? owner?.country?.name;
         this._buildStatus = BuildStatus.BuildUp;
         this.lastBuildStatus = this.buildStatus;
     }

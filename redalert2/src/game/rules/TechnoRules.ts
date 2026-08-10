@@ -53,6 +53,8 @@ export class TechnoRules extends ObjectRules {
     declare negativePrerequisite: string[];
     declare requiredTheaters: string[];
     declare stolenTechs: number[];
+    declare factoryOwners: string[];
+    declare factoryOwnersForbidden: string[];
     declare soylent: number;
     declare crateGoodie: boolean;
     declare buildCat: BuildCat;
@@ -336,6 +338,8 @@ export class TechnoRules extends ObjectRules {
         this.negativePrerequisite = prerequisiteRules.negative;
         this.requiredTheaters = prerequisiteRules.requiredTheaters;
         this.stolenTechs = prerequisiteRules.stolenTechs;
+        this.factoryOwners = prerequisiteRules.factoryOwners;
+        this.factoryOwnersForbidden = prerequisiteRules.factoryOwnersForbidden;
         this.soylent = this.ini.getNumber("Soylent");
         this.crateGoodie = this.ini.getBool("CrateGoodie");
         this.buildCat = this.ini.getEnum("BuildCat", BuildCat, BuildCat.Combat);

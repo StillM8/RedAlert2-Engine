@@ -3,7 +3,7 @@ import { BuildCat, FactoryType } from '../../rules/TechnoRules';
 import { ObjectType } from '@/engine/type/ObjectType';
 import { EventDispatcher } from '@/util/event';
 import { SideType } from '@/game/SideType';
-import { evaluateAresPrerequisiteRules } from '@/extensions/ares/AresPrerequisites';
+import { evaluateAresPrerequisiteRules, isFactoryOwnerAllowed } from '@/extensions/ares/AresPrerequisites';
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -125,11 +125,21 @@ export class Production {
         return this.allAvailableObjects.filter(obj => this.isAvailableForProduction(obj));
     }
     hasFactoryFor(object: any): boolean {
-        if (object.owner.length) {
+        const objectOwners = object.owner ?? [];
+        const factoryOwners = object.factoryOwners ?? [];
+        const factoryOwnersForbidden = object.factoryOwnersForbidden ?? [];
+        if (objectOwners.length || factoryOwners.length || factoryOwnersForbidden.length) {
             const factoryType = this.getFactoryTypeFor(object);
             return !!Array.from(this.player.buildings).find((building: any) => building.factoryTrait?.type === factoryType &&
                 (factoryType !== FactoryType.UnitType || building.rules.naval === object.naval) &&
-                !!building.rules.owner.find((owner: string) => object.owner.includes(owner)));
+                (objectOwners.length === 0 ||
+                    !!(building.rules.owner ?? []).find((owner: string) =>
+                        objectOwners.some((objectOwner: string) => owner.toLowerCase() === objectOwner.toLowerCase()))) &&
+                isFactoryOwnerAllowed(
+                    building.initialFactoryOwnerId ?? building.owner?.country?.id ?? building.owner?.country?.name,
+                    factoryOwners,
+                    factoryOwnersForbidden,
+                ));
         }
         return true;
     }
@@ -163,6 +173,8 @@ export class Production {
             negative: object.negativePrerequisite ?? [],
             requiredTheaters: object.requiredTheaters ?? [],
             stolenTechs: object.stolenTechs ?? [],
+            factoryOwners: object.factoryOwners ?? [],
+            factoryOwnersForbidden: object.factoryOwnersForbidden ?? [],
         }, {
             ownedObjectNames: ownedObjects.map((owned: any) => owned.name),
             genericGroups: this.rules.general.genericPrerequisites,

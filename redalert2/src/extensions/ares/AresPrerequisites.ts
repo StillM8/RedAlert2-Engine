@@ -13,6 +13,7 @@ export interface PrerequisiteSection {
     getArray(key: string): string[];
     getNumber(key: string, defaultValue?: number): number;
     getNumberArray(key: string): number[];
+    entries?: Map<string, unknown>;
 }
 
 export interface PrerequisiteRuleSet {
@@ -21,6 +22,10 @@ export interface PrerequisiteRuleSet {
     negative: string[];
     requiredTheaters: string[];
     stolenTechs: number[];
+    /** Countries whose factory plans may produce this object. */
+    factoryOwners: string[];
+    /** Countries whose factory plans may not produce this object. */
+    factoryOwnersForbidden: string[];
 }
 
 export interface PrerequisiteEvaluationContext {
@@ -33,6 +38,28 @@ export interface PrerequisiteEvaluationContext {
 
 export function normalizePrerequisiteId(value: string): string {
     return value.trim().toUpperCase();
+}
+
+/**
+ * Ares uses the factory's initial country, rather than the country that
+ * currently owns a captured factory, for FactoryOwners restrictions. The
+ * caller supplies that stable identity when it is available and may fall
+ * back to the current owner for legacy objects created before this metadata
+ * was introduced.
+ */
+export function isFactoryOwnerAllowed(
+    factoryOwnerId: string | undefined,
+    allowedOwners: Iterable<string> = [],
+    forbiddenOwners: Iterable<string> = [],
+): boolean {
+    const owner = factoryOwnerId ? normalizePrerequisiteId(factoryOwnerId) : "";
+    const forbidden = new Set([...forbiddenOwners].map(normalizePrerequisiteId));
+    if (owner && forbidden.has(owner)) return false;
+
+    const allowed = [...allowedOwners]
+        .map(normalizePrerequisiteId)
+        .filter(Boolean);
+    return allowed.length === 0 ? true : !!owner && allowed.includes(owner);
 }
 
 function normalizeList(values: Iterable<string>): string[] {
@@ -59,22 +86,27 @@ export function parseAresPrerequisiteRules(section: PrerequisiteSection): Prereq
 
     const declaredExtraLists = Math.max(0, section.getNumber("Prerequisite.Lists", 0));
     let highestList = declaredExtraLists;
-    for (let i = 1; i <= 32; i++) {
-        if (section.has(`Prerequisite.List${i}`)) {
-            highestList = Math.max(highestList, i);
-        }
+    for (const key of section.entries?.keys() ?? []) {
+        const match = /^Prerequisite\.List(\d+)$/i.exec(key);
+        if (match) highestList = Math.max(highestList, Number(match[1]));
     }
     for (let i = 1; i <= highestList; i++) {
         alternativeLists.push(normalizeList(section.getArray(`Prerequisite.List${i}`)));
     }
 
+    const stolenTechValues = section.getNumberArray("Prerequisite.StolenTechs")
+        .map(value => Math.trunc(value));
+    const stolenTechs = stolenTechValues.includes(-1)
+        ? []
+        : stolenTechValues.filter(value => Number.isFinite(value) && value >= 0);
+
     return {
         alternativeLists,
         negative: normalizeList(section.getArray("Prerequisite.Negative")),
         requiredTheaters: normalizeList(section.getArray("Prerequisite.RequiredTheaters")),
-        stolenTechs: section.getNumberArray("Prerequisite.StolenTechs")
-            .map(value => Math.trunc(value))
-            .filter(value => Number.isFinite(value)),
+        stolenTechs,
+        factoryOwners: normalizeList(section.getArray("FactoryOwners")),
+        factoryOwnersForbidden: normalizeList(section.getArray("FactoryOwners.Forbidden")),
     };
 }
 
@@ -110,11 +142,10 @@ export function evaluateAresPrerequisiteRules(
         return false;
     }
 
-    if (rules.requiredTheaters.length && context.theater !== undefined) {
+    if (rules.requiredTheaters.length) {
+        if (context.theater === undefined) return false;
         const theater = normalizePrerequisiteId(context.theater);
-        if (!rules.requiredTheaters.includes(theater)) {
-            return false;
-        }
+        if (!rules.requiredTheaters.includes(theater)) return false;
     }
 
     if (rules.stolenTechs.length) {
@@ -134,4 +165,3 @@ export function evaluateAresPrerequisiteRules(
         list.every(token => satisfiesToken(token, context, owned)),
     );
 }
-
