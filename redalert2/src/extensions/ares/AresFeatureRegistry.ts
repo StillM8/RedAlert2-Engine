@@ -72,9 +72,10 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         id: "ares.custom-superweapons",
         description: "Data-defined superweapon handlers and target filters",
         implemented: false,
-        parserImplemented: false,
+        parserImplemented: true,
         runtimeImplemented: false,
-        tests: [],
+        tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts"],
+        notes: "Documented Ares type names and common/type-specific fields are normalized and preserved; runtime handlers and stable custom activation identity remain to be implemented.",
     },
     {
         id: "ares.staged-weapons",
