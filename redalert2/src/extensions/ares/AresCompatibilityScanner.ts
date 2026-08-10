@@ -105,6 +105,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.fireintoshroud$/i.test(key)) {
         return "ares.superweapon-shroud-targeting";
     }
+    if (/^sw\.(?:autofire|manualfire)$/i.test(key)) {
+        return "ares.superweapon-fire-mode";
+    }
     if (/^sw\.(?:initialready|virtualcharge)$/i.test(key)) {
         return "ares.superweapon-charge-state";
     }

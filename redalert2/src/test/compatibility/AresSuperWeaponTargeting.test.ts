@@ -4,6 +4,7 @@ import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import {
     isAresSuperWeaponActivationAllowed,
     isAresSuperWeaponFireIntoShroudAllowed,
+    isAresSuperWeaponManualActivationAllowed,
     isAresSuperWeaponRequiredTargetAllowed,
 } from "@/extensions/ares/AresSuperWeaponFilters";
 import { ActivateSuperWeaponAction } from "@/game/action/ActivateSuperWeaponAction";
@@ -34,6 +35,16 @@ function gameFor(zone: ZoneType, objects: any[] = []): any {
 }
 
 describe("Ares superweapon target requirements", () => {
+    test("applies AutoFire/ManualFire only to human click actions", () => {
+        const human = { id: "human", isAi: false };
+        const ai = { id: "ai", isAi: true };
+
+        expect(isAresSuperWeaponManualActivationAllowed(true, false, human)).toBe(false);
+        expect(isAresSuperWeaponManualActivationAllowed(true, false, ai)).toBe(true);
+        expect(isAresSuperWeaponManualActivationAllowed(false, false, human)).toBe(true);
+        expect(isAresSuperWeaponManualActivationAllowed(undefined, false, human)).toBe(true);
+    });
+
     test("uses the documented permissive default and rejects only unexplored cells when disabled", () => {
         const owner = { id: "owner" };
         const tile = { rx: 4, ry: 4, z: 0 };
@@ -168,6 +179,37 @@ describe("Ares superweapon target requirements", () => {
         expect(activations).toBe(0);
 
         shroudType = ShroudType.Explored;
+        action.process();
+        expect(activations).toBe(1);
+    });
+
+    test("rejects an auto-fire-only human activation but keeps AI actions valid", () => {
+        const tile = { rx: 5, ry: 5, z: 0 };
+        let activations = 0;
+        const rules = {
+            name: "AutoOnlySW",
+            type: undefined,
+            ares: { swAutoFire: true, swManualFire: false },
+        };
+        const game: any = {
+            map: {
+                tiles: { getByMapCoords: () => tile },
+                getTileZone: () => ZoneType.Ground,
+                getGroundObjectsOnTile: () => [],
+            },
+            rules: { getSuperWeaponByIndex: () => rules },
+            traits: { get: () => ({ activateSuperWeapon: () => activations++ }) },
+            alliances: { areAllied: () => false },
+        };
+        const action = new ActivateSuperWeaponAction(game);
+        (action as any).superWeaponType = 0;
+        (action as any).tile = { x: 5, y: 5 };
+
+        (action as any).player = { id: "human", isAi: false };
+        action.process();
+        expect(activations).toBe(0);
+
+        (action as any).player = { id: "ai", isAi: true };
         action.process();
         expect(activations).toBe(1);
     });
