@@ -30,7 +30,7 @@ export class SuperWeaponsTrait {
         for (const e of t.getCombatants()) {
             for (const i of e.superWeaponsTrait.getAll()) {
                 if (i.rules.isPowered) {
-                    this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.());
+                    this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.(), t.currentTick);
                 }
                 i.update(t);
             }
@@ -74,13 +74,13 @@ export class SuperWeaponsTrait {
             this.updateTimer(i, !e.owner.powerTrait.isLowPower());
         }
     }
-    private updateTimer(e: any, t: boolean) {
+    private updateTimer(e: any, t: boolean, currentTick?: number) {
         const i = this.superWeaponHasValidBuilding(e);
         if (t && i) {
-            e.resumeTimer();
+            e.resumeTimer(currentTick);
         }
         else {
-            e.pauseTimer();
+            e.pauseTimer(currentTick);
         }
     }
     private superWeaponHasValidBuilding(t: any) {

@@ -105,6 +105,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Manual cell/content and house-relation validation follows Antares IsCellEligible/IsTechnoEligible semantics; AI target selection and cursor presentation remain separate.",
     },
     {
+        id: "ares.superweapon-charge-state",
+        description: "Ares SW.InitialReady and SW.VirtualCharge timer semantics",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponCharge.test.ts"],
+        notes: "Initial grants and deterministic elapsed charging while a VirtualCharge superweapon is unavailable are wired; per-house shot-history re-grant semantics and save/load of unavailable intervals remain open.",
+    },
+    {
         id: "ares.superweapon-unit-delivery",
         description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
         implemented: true,

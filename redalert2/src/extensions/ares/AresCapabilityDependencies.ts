@@ -23,6 +23,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.emp-threshold", dependsOn: ["ares.emp"], reason: "EMP thresholds extend the generic EMP counter." },
     { capabilityId: "ares.superweapons", dependsOn: ["ares.effective-ini", "ares.target-filters"], reason: "Custom handlers share common Ares superweapon targeting and charging data." },
     { capabilityId: "ares.superweapon-target-requirements", dependsOn: ["ares.superweapons"], reason: "Manual SW.RequiresTarget/SW.RequiresHouse validation runs before any custom or vanilla effect consumes the activation." },
+    { capabilityId: "ares.superweapon-charge-state", dependsOn: ["ares.superweapons"], reason: "InitialReady and VirtualCharge alter the shared superweapon acquisition and timer state before custom effects activate." },
     { capabilityId: "ares.superweapon-unit-delivery", dependsOn: ["ares.superweapons", "ares.custom-foundations"], reason: "UnitDelivery places arbitrary TechnoTypes, including irregular buildings." },
     { capabilityId: "ares.superweapon-sonar-pulse", dependsOn: ["ares.superweapons"], reason: "SonarPulse is a ranged superweapon with generic cloak suppression." },
     { capabilityId: "ares.superweapon-empulse", dependsOn: ["ares.superweapons", "ares.emp"], reason: "EMPulse selects launch buildings and delivers their configured EMP warhead through the native EMP runtime." },

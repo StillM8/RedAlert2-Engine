@@ -14,6 +14,8 @@ export class SuperWeapon {
     public isGift: boolean;
     public rechargeTicks: number;
     public chargeTicks: number;
+    /** First tick at which a VirtualCharge superweapon became unavailable. */
+    private virtualChargeSinceTick?: number;
     constructor(name: string, rules: any, owner: any, oneTimeOnly: boolean = false) {
         this.name = name;
         this.rules = rules;
@@ -23,7 +25,11 @@ export class SuperWeapon {
         this.isGift = false;
         this.rechargeTicks = 60 * rules.rechargeTime * GameSpeed.BASE_TICKS_PER_SECOND;
         this.chargeTicks = this.rechargeTicks;
-        if (oneTimeOnly) {
+        // Antares grants a newly acquired SW.InitialReady superweapon its
+        // first ready state without waiting through RechargeTime.  Re-grant
+        // shot-history/persistence is a separate player-state capability;
+        // this constructor covers the deterministic initial grant path.
+        if (oneTimeOnly || rules.ares?.swInitialReady === true) {
             this.status = SuperWeaponStatus.Ready;
             this.chargeTicks = 0;
         }
@@ -37,14 +43,27 @@ export class SuperWeapon {
             }
         }
     }
-    pauseTimer(): void {
+    pauseTimer(currentTick?: number): void {
+        if (this.rules.ares?.swVirtualCharge === true &&
+            currentTick !== undefined &&
+            this.virtualChargeSinceTick === undefined) {
+            this.virtualChargeSinceTick = currentTick;
+        }
         this.status = SuperWeaponStatus.Paused;
     }
-    resumeTimer(): void {
+    resumeTimer(currentTick?: number): void {
+        if (this.rules.ares?.swVirtualCharge === true &&
+            currentTick !== undefined &&
+            this.virtualChargeSinceTick !== undefined) {
+            const elapsed = Math.max(0, currentTick - this.virtualChargeSinceTick);
+            this.chargeTicks = Math.max(0, this.chargeTicks - elapsed);
+            this.virtualChargeSinceTick = undefined;
+        }
         this.status = this.chargeTicks > 0 ? SuperWeaponStatus.Charging : SuperWeaponStatus.Ready;
     }
     resetTimer(): void {
         this.chargeTicks = this.rechargeTicks;
+        this.virtualChargeSinceTick = undefined;
         if (this.status === SuperWeaponStatus.Ready) {
             this.status = SuperWeaponStatus.Charging;
         }
