@@ -24,6 +24,7 @@ export interface SideDescriptor {
     presentationId?: string;
     sidebarMixFileIndex?: number;
     sidebarYuriFileNames?: boolean;
+    tooltipColor?: string;
     evaTag?: string;
     loadingTheme?: string;
     multiplayerScoreBackground?: string;
@@ -52,6 +53,7 @@ export interface SidePresentation {
     hudLayout: HudLayout;
     sidebarMixFileIndex: number;
     useYuriFileNames: boolean;
+    tooltipColor?: string;
     evaTag?: string;
     loadingTheme?: string;
 }
@@ -95,6 +97,15 @@ function normalize(value: string): string {
     return value.trim().toLocaleLowerCase("en-US");
 }
 
+function parseTooltipColor(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    const channels = value.split(",").map((channel) => Number(channel.trim()));
+    if (channels.length !== 3 || channels.some((channel) => !Number.isInteger(channel) || channel < 0 || channel > 255)) {
+        return undefined;
+    }
+    return `rgb(${channels.join(",")})`;
+}
+
 export function resolveSideMixSelection(
     side: SideDescriptor | undefined,
     legacySide: SideType = SideType.GDI,
@@ -131,6 +142,7 @@ export function resolveSidePresentation(
         hudLayout: isYuri ? "yuri" : isAllied ? "allied" : "soviet",
         sidebarMixFileIndex: mixSelection.mixFileIndex,
         useYuriFileNames: mixSelection.useYuriFileNames,
+        tooltipColor: parseTooltipColor(side?.tooltipColor),
         evaTag: side?.evaTag,
         loadingTheme: side?.loadingTheme,
     };
@@ -243,6 +255,7 @@ export class AresSideRegistry {
                 sidebarYuriFileNames: sectionValue(section, "Sidebar.YuriFileNames") === undefined
                     ? undefined
                     : sectionBool(section, "Sidebar.YuriFileNames"),
+                tooltipColor: sectionValue(section, "ToolTipColor"),
                 evaTag: sectionValue(section, "EVA.Tag"),
                 loadingTheme: sectionValue(section, "LoadingTheme"),
                 multiplayerScoreBackground: sectionValue(section, "MultiplayerScore.Background"),

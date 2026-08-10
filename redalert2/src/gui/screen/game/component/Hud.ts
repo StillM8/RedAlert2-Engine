@@ -501,9 +501,9 @@ export class Hud extends UiObject {
         }))));
     }
     public getTextColor(): string {
-        return this.presentation.hudLayout === "allied"
+        return this.presentation.tooltipColor ?? (this.presentation.hudLayout === "allied"
             ? "rgb(165,211,255)"
-            : "yellow";
+            : "yellow");
     }
     createSidebarMenu(buttons: any[]): any {
         return this.jsxRenderer.render(jsx.jsx(SidebarMenu, {
