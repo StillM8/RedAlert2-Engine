@@ -1,10 +1,10 @@
-# Command & Conquer Red Alert 2 + Yuri's Revenge — iPhone & iPad
+# Command & Conquer Red Alert 2 + Yuri's Revenge — iPhone, iPad & Android
 
 <img width="800" height="450" alt="0808" src="https://github.com/user-attachments/assets/c8efcdb7-72c4-47b8-86a7-cecd25eb4ace" />
 
 
-**Red Alert 2 and Yuri's Revenge skirmish running natively on iPhone and
-iPad** — fully in English, with touch controls built for RTS (tap-select,
+**Red Alert 2 and Yuri's Revenge skirmish running natively on iPhone, iPad,
+and Android** — fully in English, with touch controls built for RTS (tap-select,
 drag-box, two-finger map grab, pinch zoom, long-press force-attack),
 mid-match save/load, retail-accurate lighting, and skirmish AI built out on top of Supalosa's
 Chrono Divide bot until you get a different opponent every match: per-match personalities ×
@@ -257,6 +257,42 @@ RA2_TEAM_ID=<your-team-id> ./scripts/build-ios.sh --device   # iPhone/iPad
 
 Find your team id in Xcode → Settings → Accounts. Install the device build
 with `xcrun devicectl device install app --device <id> <path to RA2.app>`.
+
+### Android builds
+
+The Android shell is split into two installable app variants:
+
+| Variant | App | Package ID (debug) |
+|---|---|---|
+| `ra2` | Red Alert 2 | `com.ammaar.ra2android.debug` |
+| `yr` | Yuri's Revenge | `com.ammaar.yurirevengeandroid.debug` |
+
+With the Android SDK and Gradle available, build either variant from the repo
+root:
+
+```sh
+./scripts/build-android.sh --variant ra2
+./scripts/build-android.sh --variant yr
+```
+
+Use `--device` to install and launch the selected variant through `adb`:
+
+```sh
+./scripts/build-android.sh --variant ra2 --device
+./scripts/build-android.sh --variant yr --device
+```
+
+The first launch opens the in-app game-resource setup. Choose the **folder**
+containing the retail Red Alert 2 files in Android's folder picker; selecting
+individual files is not sufficient. The Yuri variant requires the matching
+Yuri archives (`langmd.mix`, `multimd.mix`, and `ra2md.mix`) as well as the
+base Red Alert 2 archives.
+
+Mental Omega is supported by the Yuri variant. Open **Mods → Import Mod** and
+select the full Mental Omega archive and any patch archive together. The
+native importer overlays the selected archives, so the patch is applied over
+the full package. Returning to either app from Home or Android Back preserves
+the existing WebView/game session instead of booting a new session.
 
 Desktop development (no Xcode needed):
 
