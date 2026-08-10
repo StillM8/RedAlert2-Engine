@@ -25,6 +25,10 @@ import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperW
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
 import { createAresSuperWeaponRadarEvent } from "@/extensions/ares/AresSuperWeaponRadar";
+import {
+    applyAresSuperWeaponMoney,
+    canAresSuperWeaponTransactMoney,
+} from "@/extensions/ares/AresSuperWeaponMoney";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
     [NotifyTick.onTick](t: any) {
@@ -92,11 +96,24 @@ export class SuperWeaponsTrait {
     private addEffect(e: SuperWeaponEffect) {
         this.effects.push(e);
     }
-    activateSuperWeapon(t: number, e: any, i: any, r: any, s: any) {
+    activateSuperWeapon(t: number, e: any, i: any, r: any, s: any): boolean {
         const a = e.superWeaponsTrait
             ?.getAll()
             .find((e: any) => e.rules.index === t);
         if (a && a.status === SuperWeaponStatus.Ready) {
+            const moneyAmount = a.rules.ares?.moneyAmount;
+            if (!canAresSuperWeaponTransactMoney(e.credits, moneyAmount)) {
+                // Antares aborts before consuming the charge or dispatching
+                // the effect when a negative Money.Amount cannot be paid.
+                console.warn(`Superweapon "${a.name}" cannot launch: insufficient credits for Money.Amount=${moneyAmount}`);
+                return false;
+            }
+            if (!applyAresSuperWeaponMoney(e, moneyAmount)) {
+                // Keep the charge and one-shot removal untouched if a host
+                // owner changes its balance between validation and mutation.
+                console.warn(`Superweapon "${a.name}" launch transaction failed; effect skipped.`);
+                return false;
+            }
             if (a.oneTimeOnly) {
                 e.superWeaponsTrait.remove(a.name);
                 for (const n of e.buildings) {
@@ -109,7 +126,9 @@ export class SuperWeaponsTrait {
                 a.resetTimer();
             }
             this.activateEffect(a.rules, e, i, r, s);
+            return true;
         }
+        return false;
     }
     private activateEffect(e: any, i: any, r: any, s: any, a: any, n: boolean = false) {
         const o = e.type;

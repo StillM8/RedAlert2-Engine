@@ -105,6 +105,7 @@ const EXTENSION_PREFIXES = [
     "sonarpulse.",
     "eva.",
     "text.",
+    "money.",
 ] as const;
 
 function collectExtensionEntries(section: IniSectionLike): ReadonlyMap<string, string | string[]> {
@@ -157,6 +158,13 @@ export interface AresSuperWeaponDefinition {
     swAnimation?: string;
     swAnimationHeight?: number;
     swSound?: string;
+
+    /** Credits added to (positive) or removed from (negative) on launch. */
+    moneyAmount?: number;
+    /** Parsed for diagnostics; runtime charge-drain support is separate. */
+    moneyDrainAmount?: number;
+    /** Parsed for diagnostics; runtime charge-drain support is separate. */
+    moneyDrainDelay?: number;
 
     evaDetected?: string;
     evaReady?: string;
@@ -270,6 +278,9 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnimation: getString(section, "SW.Animation"),
         swAnimationHeight: getNumber(section, "SW.AnimationHeight"),
         swSound: getString(section, "SW.Sound"),
+        moneyAmount: getNumber(section, "Money.Amount"),
+        moneyDrainAmount: getNumber(section, "Money.DrainAmount"),
+        moneyDrainDelay: getNumber(section, "Money.DrainDelay"),
         evaDetected: getString(section, "EVA.Detected"),
         evaReady: getString(section, "EVA.Ready"),
         evaActivated: getString(section, "EVA.Activated"),

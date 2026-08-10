@@ -117,6 +117,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.(?:aitargeting|aitargeting\.constraints|aitargeting\.preference|airequirestarget|airequireshouse|useaitargeting)$/i.test(key)) {
         return "ares.superweapon-ai-targeting";
     }
+    if (/^money\.(?:amount|drainamount|draindelay)$/i.test(key)) {
+        return "ares.superweapon-money";
+    }
     if (/^superweapons$/i.test(key) ||
         /^(?:SW|Deliver|DropPod|Battery|HunterSeeker|Firestorm|GenericWarhead|ChronoWarp|SonarPulse)\./i.test(key) ||
         (/^type$/i.test(key) && /^(?:GenericWarhead|UnitDelivery|Firestorm|HunterSeeker|DropPod|EMPulse|Battery|SonarPulse|ChronoWarp)$/i.test(value))) {

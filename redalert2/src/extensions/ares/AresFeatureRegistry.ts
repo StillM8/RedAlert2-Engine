@@ -150,6 +150,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Documented modes and Antares 3.0p1 target/house defaults are normalized and consumed by the built-in AI; native YR AI constraints and every specialized target selector remain open.",
     },
     {
+        id: "ares.superweapon-money",
+        description: "Ares superweapon launch-time Money.Amount transactions",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponMoney.test.ts"],
+        notes: "Money.Amount is validated before charge consumption and applied once after launch acceptance; Money.DrainAmount/DrainDelay remain parsed diagnostics until the Firewall charge-drain state machine is implemented.",
+    },
+    {
         id: "ares.superweapon-unit-delivery",
         description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
         implemented: true,
