@@ -23,6 +23,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.emp-threshold", dependsOn: ["ares.emp"], reason: "EMP thresholds extend the generic EMP counter." },
     { capabilityId: "ares.superweapons", dependsOn: ["ares.effective-ini", "ares.target-filters"], reason: "Custom handlers share common Ares superweapon targeting and charging data." },
     { capabilityId: "ares.superweapon-target-requirements", dependsOn: ["ares.superweapons"], reason: "Manual SW.RequiresTarget/SW.RequiresHouse validation runs before any custom or vanilla effect consumes the activation." },
+    { capabilityId: "ares.superweapon-shroud-targeting", dependsOn: ["ares.superweapons"], reason: "SW.FireIntoShroud is a common launch gate evaluated against the owner's visibility before the superweapon consumes its charge." },
     { capabilityId: "ares.superweapon-charge-state", dependsOn: ["ares.superweapons"], reason: "InitialReady and VirtualCharge alter the shared superweapon acquisition and timer state before custom effects activate." },
     { capabilityId: "ares.superweapon-deferment", dependsOn: ["ares.superweapons"], reason: "SW.Deferment is consumed by supported superweapon state machines after their normalized definitions are loaded." },
     { capabilityId: "ares.superweapon-post-dependent", dependsOn: ["ares.superweapons"], reason: "PostDependent selects a second-stage superweapon through the common authored superweapon registry." },

@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
-import { isAresSuperWeaponActivationAllowed, isAresSuperWeaponRequiredTargetAllowed } from "@/extensions/ares/AresSuperWeaponFilters";
+import {
+    isAresSuperWeaponActivationAllowed,
+    isAresSuperWeaponFireIntoShroudAllowed,
+    isAresSuperWeaponRequiredTargetAllowed,
+} from "@/extensions/ares/AresSuperWeaponFilters";
 import { ActivateSuperWeaponAction } from "@/game/action/ActivateSuperWeaponAction";
+import { ShroudType } from "@/game/map/MapShroud";
 
 function techno(type: ObjectType, owner: any): any {
     return {
@@ -29,6 +34,26 @@ function gameFor(zone: ZoneType, objects: any[] = []): any {
 }
 
 describe("Ares superweapon target requirements", () => {
+    test("uses the documented permissive default and rejects only unexplored cells when disabled", () => {
+        const owner = { id: "owner" };
+        const tile = { rx: 4, ry: 4, z: 0 };
+        let shroudType = ShroudType.Unexplored;
+        const game: any = {
+            mapShroudTrait: {
+                getPlayerShroud: () => ({ getShroudType: () => shroudType }),
+            },
+        };
+
+        expect(isAresSuperWeaponFireIntoShroudAllowed(undefined, owner, tile, game)).toBe(true);
+        expect(isAresSuperWeaponFireIntoShroudAllowed(true, owner, tile, game)).toBe(true);
+        expect(isAresSuperWeaponFireIntoShroudAllowed(false, owner, tile, game)).toBe(false);
+
+        shroudType = ShroudType.TemporaryReveal;
+        expect(isAresSuperWeaponFireIntoShroudAllowed(false, owner, tile, game)).toBe(true);
+        shroudType = ShroudType.Explored;
+        expect(isAresSuperWeaponFireIntoShroudAllowed(false, owner, tile, game)).toBe(true);
+    });
+
     test("applies the inclusive land/water mask and content mask", () => {
         const owner = { id: "owner" };
         const enemy = { id: "enemy" };
@@ -107,6 +132,42 @@ describe("Ares superweapon target requirements", () => {
         expect(activations).toBe(0);
 
         game.map.getTileZone = () => ZoneType.Water;
+        action.process();
+        expect(activations).toBe(1);
+    });
+
+    test("rejects SW.FireIntoShroud=no before consuming a charge", () => {
+        const owner = { id: "owner" };
+        const tile = { rx: 5, ry: 5, z: 0 };
+        let activations = 0;
+        let shroudType = ShroudType.Unexplored;
+        const rules = {
+            name: "HiddenTargetSW",
+            type: undefined,
+            ares: { swFireIntoShroud: false },
+        };
+        const game: any = {
+            map: {
+                tiles: { getByMapCoords: () => tile },
+                getTileZone: () => ZoneType.Ground,
+                getGroundObjectsOnTile: () => [],
+            },
+            mapShroudTrait: {
+                getPlayerShroud: () => ({ getShroudType: () => shroudType }),
+            },
+            rules: { getSuperWeaponByIndex: () => rules },
+            traits: { get: () => ({ activateSuperWeapon: () => activations++ }) },
+            alliances: { areAllied: () => false },
+        };
+        const action = new ActivateSuperWeaponAction(game);
+        (action as any).player = owner;
+        (action as any).superWeaponType = 0;
+        (action as any).tile = { x: 5, y: 5 };
+
+        action.process();
+        expect(activations).toBe(0);
+
+        shroudType = ShroudType.Explored;
         action.process();
         expect(activations).toBe(1);
     });

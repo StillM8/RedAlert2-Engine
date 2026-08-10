@@ -1,5 +1,6 @@
 import { ObjectType } from "@/engine/type/ObjectType";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { ShroudType } from "@/game/map/MapShroud";
 
 export interface AresSuperWeaponFilterGame {
     alliances: {
@@ -9,6 +10,13 @@ export interface AresSuperWeaponFilterGame {
         getTileZone(tile: any): ZoneType;
         getGroundObjectsOnTile?(tile: any): any[];
         getObjectsOnTile?(tile: any): any[];
+    };
+    mapShroudTrait?: {
+        getPlayerShroud?(player: any): {
+            getShroudType?(tile: any): ShroudType;
+            getShroudTypeByTileCoords?(rx: number, ry: number, z: number): ShroudType;
+            isShrouded?(tile: any): boolean;
+        } | undefined;
     };
 }
 
@@ -101,6 +109,44 @@ function requiredHouseAllowed(object: any, owner: any, houses: Set<string>, game
     // intentionally different from AffectsHouse=None, which affects nothing.
     if (!houses.size || houses.has("none")) return true;
     return houseAllowed(object, owner, houses, game);
+}
+
+/**
+ * Implements Antares' common SW.FireIntoShroud gate.  The documented/default
+ * value is yes, so an omitted value is permissive.  Ares checks the current
+ * owner's map visibility at the selected cell before applying the type's
+ * target/content rules; TemporaryReveal is not unexplored in the standalone
+ * MapShroud model and therefore remains launchable.
+ *
+ * The shroud service is optional for headless actions/tests and observer-like
+ * hosts.  In that case there is no visibility state to reject against, so the
+ * default is to allow the action rather than silently inventing a shroud.
+ */
+export function isAresSuperWeaponFireIntoShroudAllowed(
+    fireIntoShroud: boolean | undefined,
+    owner: any,
+    tile: any,
+    game: AresSuperWeaponFilterGame,
+): boolean {
+    if (fireIntoShroud !== false) return true;
+
+    const shroud = game.mapShroudTrait?.getPlayerShroud?.(owner);
+    if (!shroud) return true;
+
+    let shroudType: ShroudType | undefined;
+    if (typeof shroud.getShroudType === "function") {
+        shroudType = shroud.getShroudType(tile);
+    }
+    else if (typeof shroud.getShroudTypeByTileCoords === "function" && tile) {
+        shroudType = shroud.getShroudTypeByTileCoords(tile.rx, tile.ry, tile.z ?? 0);
+    }
+    else if (typeof shroud.isShrouded === "function") {
+        return !shroud.isShrouded(tile);
+    }
+
+    // A missing/unsupported visibility API is treated like an observer host;
+    // the action path still retains its ordinary target validation.
+    return shroudType === undefined || shroudType !== ShroudType.Unexplored;
 }
 
 /**
