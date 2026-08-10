@@ -10,6 +10,7 @@ import {
 import { MapShroud, ShroudType } from "@/game/map/MapShroud";
 import { TerrainType } from "@/engine/type/TerrainType";
 import { ChronoSphereEffect } from "@/game/superweapon/ChronoSphereEffect";
+import { isLightningStormTileInRange } from "@/game/superweapon/LightningStormRange";
 
 describe("Ares superweapon range", () => {
     test("parses SW.Range and reports the documented capability", () => {
@@ -143,6 +144,14 @@ SW.Range=3,3
         expect(inRange.warped).toBe(true);
         expect(outOfRange.warped).toBe(false);
         expect((effect as any).objectsToTeleport[0].destTile).toMatchObject({ rx: 11, ry: 10 });
+    });
+
+    test("uses Lightning Storm SW.Range as a circular diameter or rectangle", () => {
+        const center = { rx: 10, ry: 10, z: 0 };
+        expect(isLightningStormTileInRange(center, { rx: 13, ry: 10, z: 0 }, { widthOrRange: 7, height: -1 })).toBe(true);
+        expect(isLightningStormTileInRange(center, { rx: 14, ry: 10, z: 0 }, { widthOrRange: 7, height: -1 })).toBe(false);
+        expect(isLightningStormTileInRange(center, { rx: 11, ry: 10, z: 0 }, { widthOrRange: 4, height: 2 })).toBe(true);
+        expect(isLightningStormTileInRange(center, { rx: 12, ry: 10, z: 0 }, { widthOrRange: 4, height: 2 })).toBe(false);
     });
 
 });

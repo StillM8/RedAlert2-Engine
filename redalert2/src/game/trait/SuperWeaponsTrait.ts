@@ -233,7 +233,7 @@ export class SuperWeaponsTrait {
                     t.push(new NukeEffect(o, i, s, e.weaponType));
                     break;
                 case SuperWeaponType.LightningStorm:
-                    t.push(new LightningStormEffect(o, i, s, e.ares?.swDeferment));
+                    t.push(new LightningStormEffect(o, i, s, e.ares?.swDeferment, e.ares?.swRange));
                     break;
                 case SuperWeaponType.IronCurtain:
                     t.push(new IronCurtainEffect(o, i, s));

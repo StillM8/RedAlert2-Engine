@@ -8,7 +8,8 @@ import { RandomTileFinder } from "@/game/map/tileFinder/RandomTileFinder";
 import { Warhead } from "@/game/Warhead";
 import { SuperWeaponEffect, TileCoord } from "@/game/superweapon/SuperWeaponEffect";
 import { Game } from "@/game/Game";
-import { Vector3 } from "@/game/math/Vector3";
+import { resolveAresSuperWeaponRange } from "@/game/superweapon/AresSuperWeaponRange";
+import { isLightningStormTileInRange } from "@/game/superweapon/LightningStormRange";
 enum LightningStormState {
     Approaching,
     Manifesting
@@ -35,9 +36,12 @@ export class LightningStormEffect extends SuperWeaponEffect {
         owner: any,
         tile: TileCoord,
         private readonly superWeaponDeferment?: number,
+        superWeaponRange?: readonly number[],
     ) {
         super(type, owner, tile);
+        this.superWeaponRange = superWeaponRange?.slice();
     }
+    private readonly superWeaponRange?: readonly number[];
     onStart(game: Game): void {
         const lightningStorm = game.rules.general.lightningStorm;
         // Antares resolves SW.Deferment per superweapon and falls back to
@@ -76,11 +80,36 @@ export class LightningStormEffect extends SuperWeaponEffect {
                 }
                 if (this.nextRandomHitTimer <= 0) {
                     this.nextRandomHitTimer = lightningStorm.scatterDelay;
-                    const radius = Math.floor(lightningStorm.cellSpread / 2);
                     const separation = lightningStorm.separation;
                     const rangeHelper = new RangeHelper(game.map.tileOccupation);
-                    const tileFinder = new RandomTileFinder(game.map.tiles, game.map.mapBounds, this.tile, radius, game, (tile) => !this.clouds.some(cloud => rangeHelper.tileDistance(tile, cloud.tile) < separation), false);
-                    const randomTile = tileFinder.getNextTile();
+                    let randomTile: TileCoord | undefined;
+                    if (this.superWeaponRange !== undefined) {
+                        const range = resolveAresSuperWeaponRange(this.superWeaponRange, {
+                            widthOrRange: lightningStorm.cellSpread,
+                            height: -1,
+                        });
+                        const maxDistance = range.height > 0
+                            ? Math.max(Math.ceil(Math.max(0, range.widthOrRange) / 2), Math.ceil(range.height / 2))
+                            : Math.ceil(Math.max(0, range.widthOrRange) / 2);
+                        if (range.widthOrRange >= 0 && maxDistance >= 0) {
+                            const tileFinder = new RandomTileFinder(
+                                game.map.tiles,
+                                game.map.mapBounds,
+                                this.tile,
+                                maxDistance,
+                                game,
+                                (tile) => isLightningStormTileInRange(this.tile, tile, range) &&
+                                    !this.clouds.some(cloud => rangeHelper.tileDistance(tile, cloud.tile) < separation),
+                                false,
+                            );
+                            randomTile = tileFinder.getNextTile();
+                        }
+                    }
+                    else {
+                        const radius = Math.floor(lightningStorm.cellSpread / 2);
+                        const tileFinder = new RandomTileFinder(game.map.tiles, game.map.mapBounds, this.tile, radius, game, (tile) => !this.clouds.some(cloud => rangeHelper.tileDistance(tile, cloud.tile) < separation), false);
+                        randomTile = tileFinder.getNextTile();
+                    }
                     if (randomTile) {
                         this.spawnCloudAt(randomTile, game);
                     }
