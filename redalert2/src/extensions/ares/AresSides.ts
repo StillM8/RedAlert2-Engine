@@ -75,12 +75,17 @@ export interface CountryDescriptor {
     uiTooltip?: string;
     presentationId?: string;
     flag?: string;
+    loadScreenTextName?: string;
+    loadScreenTextSpecialName?: string;
+    loadScreenTextBrief?: string;
+    loadScreenTextColor?: string;
     multiplayerSelectable: boolean;
     multiplayerPassive?: boolean;
     randomSelectionWeight: number;
     listIndex: number;
     loadScreen?: string;
     loadScreenPalette?: string;
+    loadingTheme?: string;
     /** Preserve unmodeled country fields without losing extension data. */
     properties?: Readonly<Record<string, string>>;
 }
@@ -353,15 +358,20 @@ export class AresCountryRegistry {
                 sideId: sides.resolve(sideId)?.id ?? sideId,
                 order: index,
                 uiName: sectionValue(section, "UIName"),
-                uiTooltip: sectionValue(section, "UITooltip"),
+                uiTooltip: sectionValue(section, "MenuText.Status") ?? sectionValue(section, "UITooltip"),
                 presentationId: sectionValue(section, "Presentation"),
-                flag: sectionValue(section, "Flag"),
+                flag: sectionValue(section, "File.Flag") ?? sectionValue(section, "Flag"),
+                loadScreenTextName: sectionValue(section, "LoadScreenText.Name"),
+                loadScreenTextSpecialName: sectionValue(section, "LoadScreenText.SpecialName"),
+                loadScreenTextBrief: sectionValue(section, "LoadScreenText.Brief"),
+                loadScreenTextColor: sectionValue(section, "LoadScreenText.Color"),
                 multiplayerSelectable: sectionBool(section, "Multiplay"),
                 multiplayerPassive: sectionBool(section, "MultiplayPassive"),
                 randomSelectionWeight: sectionNumber(section, "RandomSelectionWeight", 1),
                 listIndex: sectionNumber(section, "ListIndex", 100),
-                loadScreen: sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),
-                loadScreenPalette: sectionValue(section, "LoadingScreenPalette") ?? sectionValue(section, "LoadScreenPalette"),
+                loadScreen: sectionValue(section, "File.LoadScreen") ?? sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),
+                loadScreenPalette: sectionValue(section, "File.LoadScreenPAL") ?? sectionValue(section, "LoadingScreenPalette") ?? sectionValue(section, "LoadScreenPalette"),
+                loadingTheme: sectionValue(section, "LoadingTheme"),
                 properties: sectionProperties(section),
             });
         }
@@ -404,7 +414,7 @@ export class AresCountryRegistry {
     }
 
     multiplayerCountries(): CountryDescriptor[] {
-        return this.list().filter((country) => country.multiplayerSelectable && !country.multiplayerPassive);
+        return this.list().filter((country) => country.multiplayerSelectable && !country.multiplayerPassive && country.listIndex >= 0);
     }
 }
 
