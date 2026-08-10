@@ -662,6 +662,12 @@ export class Application {
                     keys: () => this.strings.getKeys(),
                     explain: (key: string) => this.strings.explain(key),
                 };
+                const getRuntimeRules = (): any => {
+                    const currentDebugRoot = (window as any).__ra2debug ?? {};
+                    return currentDebugRoot.game?.rules ?? currentDebugRoot.gameScreen?.game?.rules;
+                };
+                debugRoot.sides = () => getRuntimeRules()?.sideRegistry?.list?.() ?? [];
+                debugRoot.countries = () => getRuntimeRules()?.countryRegistry?.list?.() ?? [];
                 if (vfsAny?.debugListFileOwners) {
                     vfsAny.debugListFileOwners('rules.ini');
                     vfsAny.debugListFileOwners('art.ini');

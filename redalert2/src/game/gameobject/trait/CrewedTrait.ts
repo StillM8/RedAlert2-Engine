@@ -20,9 +20,14 @@ export class CrewedTrait {
     private spawnSurvivors(target: any, context: any): void {
         const crewRules = context.rules.general.crew;
         const side = target.owner.country.side;
+        const sideDefinition = target.owner.country.sideDefinition;
         let survivorDivisor: number;
         let crewType: string;
-        if (side === SideType.GDI) {
+        if (sideDefinition?.crew && sideDefinition.survivorDivisor && sideDefinition.survivorDivisor > 0) {
+            survivorDivisor = sideDefinition.survivorDivisor;
+            crewType = sideDefinition.crew;
+        }
+        else if (side === SideType.GDI) {
             survivorDivisor = crewRules.alliedSurvivorDivisor;
             crewType = crewRules.alliedCrew;
         }
@@ -42,7 +47,7 @@ export class CrewedTrait {
         }
         if (crewTypes.length > 0) {
             if (target.rules.constructionYard) {
-                crewTypes[crewTypes.length - 1] = context.rules.general.engineer;
+                crewTypes[crewTypes.length - 1] = sideDefinition?.engineer ?? context.rules.general.engineer;
             }
             const validTiles = context.map.tiles
                 .getInRectangle(target.tile, target.getFoundation())

@@ -1,5 +1,5 @@
 import { SideType } from "@/game/SideType";
-import { AresSideRegistry } from "@/extensions/ares/AresSides";
+import { AresSideRegistry, type CountryId, type SideId, type SideDescriptor } from "@/extensions/ares/AresSides";
 const tooltipMap = new Map<string, string>([
     ["Americans", "STT:PlayerSideAmerica"],
     ["Alliance", "STT:PlayerSideKorea"],
@@ -12,17 +12,25 @@ const tooltipMap = new Map<string, string>([
     ["Russians", "STT:PlayerSideRussia"],
 ]);
 export class CountryRules {
-    public readonly id: string;
+    /** Stable content-defined identity; never use the lobby array index here. */
+    public readonly id: CountryId;
     public name!: string;
     public uiName!: string;
     public uiTooltip?: string;
     public side!: SideType;
-    public sideId!: string;
+    public sideId!: SideId;
+    public sideDefinition!: SideDescriptor;
+    /** Compatibility adapter for legacy simulation/UI consumers. */
+    public legacySideFallback = false;
     public presentationId?: string;
     public flag?: string;
     public loadScreen?: string;
     public loadScreenPalette?: string;
     public listIndex = 100;
+    /** Authored [Countries] order, used as the deterministic fallback order. */
+    public order = 0;
+    /** Legacy/network country index retained as an adapter, not the identity. */
+    public networkIndex = -1;
     public randomSelectionWeight = 1;
     public multiplay: boolean;
     private multiplayPassive: boolean;
@@ -32,8 +40,12 @@ export class CountryRules {
     constructor(id: string) {
         this.id = id;
     }
-    readIni(ini: any, sideRegistry: AresSideRegistry = AresSideRegistry.fromIni({ getSection: () => undefined })): CountryRules {
-        this.name = ini.name;
+    readIni(
+        ini: any,
+        sideRegistry: AresSideRegistry = AresSideRegistry.fromIni({ getSection: () => undefined }),
+        metadata?: { order?: number; networkIndex?: number },
+    ): CountryRules {
+        this.name = ini.name || this.id;
         this.uiName = ini.getString("UIName");
         this.uiTooltip = ini.getString("UITooltip") || tooltipMap.get(this.name);
         const sideStr = ini.getString("Side");
@@ -45,13 +57,18 @@ export class CountryRules {
             throw new Error(`Unknown side "${sideStr}" for country "${this.name}"`);
         }
         this.sideId = sideDescriptor.id;
-        this.side = sideRegistry.toLegacySide(sideDescriptor.id);
+        this.sideDefinition = { ...sideDescriptor };
+        const legacySide = sideRegistry.resolveLegacySide(sideDescriptor.id);
+        this.legacySideFallback = legacySide === undefined;
+        this.side = legacySide ?? SideType.Civilian;
         this.presentationId = ini.getString("Presentation") || sideDescriptor.presentationId;
         this.flag = ini.getString("Flag") || undefined;
         this.loadScreen = ini.getString("LoadingScreen") || ini.getString("LoadScreen") || undefined;
         this.loadScreenPalette = ini.getString("LoadingScreenPalette") || ini.getString("LoadScreenPalette") || undefined;
         this.multiplay = ini.getBool("Multiplay");
         this.listIndex = ini.getNumber("ListIndex", 100);
+        this.order = metadata?.order ?? this.order;
+        this.networkIndex = metadata?.networkIndex ?? this.networkIndex;
         this.randomSelectionWeight = ini.getNumber("RandomSelectionWeight", 1);
         this.multiplayPassive = ini.getBool("MultiplayPassive");
         this.veteranAircraft = ini.getArray("VeteranAircraft");

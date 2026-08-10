@@ -67,6 +67,7 @@ export class Rules {
     private tiberiumTypes = new Map<number, string>();
     private superWeaponTypes = new Map<number, string>();
     private countryTypes = new Map<number, string>();
+    private countryNetworkIndices = new Map<string, number>();
     readonly weaponTypes = new Map<number, string>();
     private allObjectRules = new Map<ObjectType, Map<string, ObjectRules>>();
     readonly buildingRules = new Map<string, ObjectRules>();
@@ -230,18 +231,36 @@ export class Rules {
         return this.animationTypes.get(id);
     }
     getCountry(name: string): CountryRules {
-        const exact = this.countryRules.get(name);
-        const country = exact ?? [...this.countryRules.entries()]
-            .find(([countryName]) => countryName.toLocaleLowerCase("en-US") === name.toLocaleLowerCase("en-US"))?.[1];
+        const country = this.countryRules.get(name.toLocaleLowerCase("en-US"));
         if (!country) {
             throw new Error("Unknown country " + name);
         }
         return country;
     }
     getMultiplayerCountries(): CountryRules[] {
-        return [...this.countryRules.values()]
-            .filter(country => country.multiplay && !country.isMultiplayerPassive)
-            .sort((a, b) => a.listIndex - b.listIndex);
+        return this.countryRegistry.multiplayerCountries()
+            .map((country) => this.getCountry(country.id));
+    }
+    getCountryByMultiplayerIndex(index: number): CountryRules {
+        const country = this.getMultiplayerCountries()[index];
+        if (!country) {
+            throw new RangeError(`Multiplayer country index "${index}" is out of range`);
+        }
+        return country;
+    }
+    getCountryIdByMultiplayerIndex(index: number): string {
+        return this.getCountryByMultiplayerIndex(index).id;
+    }
+    getNeutralCountry(): CountryRules {
+        const neutral = [...this.countryRules.values()].find((country) =>
+            country.sideId.toLocaleLowerCase("en-US") === "civilian" ||
+            country.id.toLocaleLowerCase("en-US") === "civilian" ||
+            country.name.toLocaleLowerCase("en-US") === "civilian",
+        );
+        if (!neutral) {
+            throw new Error("Missing neutral country. No country found with Civilian side");
+        }
+        return neutral;
     }
     getMultiplayerColors(): Map<string, Color> {
         const colors = new Map<string, Color>();
@@ -305,7 +324,7 @@ export class Rules {
         this.readObjectTypes("OverlayTypes", this.overlayTypes);
         this.overlayTypes.forEach((name, id) => this.overlayIdsByType.set(name, id));
         this.readColors();
-        this.readObjectTypes("Countries", this.countryTypes);
+        this.readCountryTypes();
         this.readObjectTypes("Warheads", this.warheadTypes);
         this.readObjectTypes("Tiberiums", this.tiberiumTypes);
         this.readObjectTypes("SuperWeaponTypes", this.superWeaponTypes);
@@ -470,16 +489,37 @@ export class Rules {
         this.allObjectRules.get(type)?.set(name, rules as any);
         return true;
     }
+    private readCountryTypes(): void {
+        const section = this.ini.getSection("Countries");
+        if (!section) {
+            throw new Error("Missing [Countries] section");
+        }
+        const seen = new Set<string>();
+        section.entries.forEach((value, key) => {
+            if (typeof value !== "string" || !/^\d+$/.test(key)) return;
+            const name = value.trim();
+            const normalized = name.toLocaleLowerCase("en-US");
+            if (!name || seen.has(normalized)) return;
+            const networkIndex = Number(key);
+            this.countryTypes.set(networkIndex, name);
+            this.countryNetworkIndices.set(normalized, networkIndex);
+            seen.add(normalized);
+        });
+    }
     private readCountries(): void {
-        this.countryTypes.forEach((name, id) => {
+        for (const descriptor of this.countryRegistry.definitionOrder()) {
+            const name = descriptor.id;
             const section = this.ini.getSection(name);
             if (!section) {
                 throw new Error("Missing ini section for country " + name);
             }
-            const rules = new CountryRules(id as any);
-            rules.readIni(section as any, this.sideRegistry);
-            this.countryRules.set(name, rules);
-        });
+            const rules = new CountryRules(name);
+            rules.readIni(section as any, this.sideRegistry, {
+                order: descriptor.order,
+                networkIndex: this.countryNetworkIndices.get(name.toLocaleLowerCase("en-US")) ?? descriptor.order ?? -1,
+            });
+            this.countryRules.set(name.toLocaleLowerCase("en-US"), rules);
+        }
     }
     private readWarheads(): void {
         this.warheadTypes.forEach(name => {

@@ -62,6 +62,7 @@ interface StartingLocations {
     [key: number]: any;
 }
 interface MultiplayerCountry {
+    id: string;
     name: string;
 }
 export class GameFactory {
@@ -168,8 +169,14 @@ export class GameFactory {
             const resolvedColorId: string = generatedColors.get(playerInfo) ?? playerInfo.colorId;
             const resolvedStartPos: number = generatedStartLocations.get(playerInfo) ?? playerInfo.startPos;
             this.validateResolvedValues(resolvedCountryId, resolvedColorId, resolvedStartPos);
-            const countryName: string = multiplayerCountries[parseInt(resolvedCountryId)].name;
-            const country: Country = Country.factory(countryName, rules as any);
+            const countryEntry = multiplayerCountries[parseInt(resolvedCountryId)];
+            if (!countryEntry) {
+                throw new Error(`Unknown multiplayer country index "${resolvedCountryId}"`);
+            }
+            // The lobby/network still carries the deterministic multiplayer
+            // index. Resolve it to the stable content-defined country ID
+            // before constructing player state.
+            const country: Country = Country.factory(countryEntry.id, rules as any);
             const color: string = multiplayerColors[parseInt(resolvedColorId)];
             const player = playerFactory.createCombatant(playerName, country, resolvedStartPos, color, isAi, aiDifficulty, customBotId);
             game.addPlayer(player);

@@ -44,7 +44,8 @@ export class DisguiseTrait {
             gameObject.rules.permaDisguise &&
             gameObject.isInfantry() &&
             gameObject.owner.country) {
-            const defaultDisguise = this.getDefaultInfantryDisguise(gameObject.owner.country.side, context.rules.general);
+            const defaultDisguise = gameObject.owner.country.sideDefinition?.defaultDisguise ??
+                this.getDefaultInfantryDisguise(gameObject.owner.country.side, context.rules.general);
             if (defaultDisguise) {
                 const infantryRules = context.rules.getObject(defaultDisguise, ObjectType.Infantry);
                 this.disguisedAs = { rules: infantryRules, owner: gameObject.owner };

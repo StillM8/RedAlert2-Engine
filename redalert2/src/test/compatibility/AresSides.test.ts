@@ -5,8 +5,60 @@ import { IniSection } from "@/data/IniSection";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
 import { CountryRules } from "@/game/rules/CountryRules";
 import { Country } from "@/game/Country";
+import { Rules } from "@/game/rules/Rules";
 
 describe("Ares side presentation", () => {
+    test("keeps four authored sides and their countries data-defined", () => {
+        const sections = new Map<string, IniSection>();
+        const add = (name: string, values: Record<string, string>) => {
+            const section = new IniSection(name);
+            Object.entries(values).forEach(([key, value]) => section.set(key, value));
+            sections.set(name, section);
+        };
+        add("Sides", { "0": "Alpha", "1": "Beta", "2": "Gamma", "3": "Delta" });
+        add("Countries", {
+            "0": "AlphaCountry",
+            "1": "BetaCountry",
+            "2": "GammaCountry",
+            "3": "DeltaCountry",
+        });
+        add("AlphaCountry", { Side: "Alpha", Multiplay: "yes", ListIndex: "20" });
+        add("BetaCountry", { Side: "Beta", Multiplay: "no", ListIndex: "21" });
+        add("GammaCountry", { Side: "Gamma", Multiplay: "yes", ListIndex: "22" });
+        add("DeltaCountry", { Side: "Delta", Multiplay: "yes", ListIndex: "23" });
+        const reader = { getSection: (name: string) => sections.get(name) };
+        const sides = AresSideRegistry.fromIni(reader);
+        const countries = AresCountryRegistry.fromIni(reader, sides);
+
+        expect(sides.list().map((side) => side.id)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
+        expect(sides.list().map((side) => side.order)).toEqual([0, 1, 2, 3]);
+        expect(countries.definitionOrder().map((country) => country.sideId)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
+        expect(countries.multiplayerCountries().map((country) => country.id)).toEqual([
+            "AlphaCountry",
+            "GammaCountry",
+            "DeltaCountry",
+        ]);
+        expect(countries.resolve("deltacountry")?.sideId).toBe("Delta");
+        expect(sides.resolveLegacySide("Delta")).toBeUndefined();
+        expect(sides.toLegacySide("Delta")).toBe(SideType.Civilian);
+
+        const countryRules = countries.definitionOrder().map((descriptor) =>
+            new CountryRules(descriptor.id).readIni(sections.get(descriptor.id)!, sides, {
+                order: descriptor.order,
+                networkIndex: descriptor.order,
+            }));
+        const runtimeRules = Object.create(Rules.prototype) as any;
+        runtimeRules.countryRegistry = countries;
+        runtimeRules.countryRules = new Map(countryRules.map((rules) => [rules.id.toLowerCase(), rules]));
+        expect(runtimeRules.getMultiplayerCountries().map((country: CountryRules) => country.id)).toEqual([
+            "AlphaCountry",
+            "GammaCountry",
+            "DeltaCountry",
+        ]);
+        expect(runtimeRules.getCountryByMultiplayerIndex(2).id).toBe("DeltaCountry");
+        expect(Country.factory("DeltaCountry", runtimeRules).sideId).toBe("Delta");
+    });
+
     test("maps a data-defined side to its configured sidebar MIX family", () => {
         const selection = resolveSideMixSelection({
             id: "Foehn",
@@ -80,7 +132,7 @@ describe("Ares side presentation", () => {
         const ini = { getSection: (name: string) => sections.get(name) };
         const sides = AresSideRegistry.fromIni(ini);
         const countries = AresCountryRegistry.fromIni(ini, sides);
-        const rules = new CountryRules("EpsilonCountry").readIni(country, sides);
+        const rules = new CountryRules("EpsilonCountry").readIni(country, sides, { order: 7, networkIndex: 3 });
         const runtimeCountry = new Country(rules);
 
         expect(countries.resolve("epsiloncountry")?.flag).toBe("epsilon_flag");
@@ -90,5 +142,9 @@ describe("Ares side presentation", () => {
         expect(runtimeCountry.loadScreen).toBe("epsilon_load");
         expect(runtimeCountry.loadScreenPalette).toBe("epsilon_load.pal");
         expect(runtimeCountry.uiTooltip).toBe("STT_EPSILON_COUNTRY");
+        expect(runtimeCountry.id).toBe("EpsilonCountry");
+        expect(runtimeCountry.order).toBe(7);
+        expect(runtimeCountry.networkIndex).toBe(3);
+        expect(runtimeCountry.legacySideFallback).toBe(true);
     });
 });
