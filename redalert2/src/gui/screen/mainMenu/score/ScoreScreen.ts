@@ -1,7 +1,8 @@
 import { jsx } from "@/gui/jsx/jsx";
 import { HtmlView } from "@/gui/jsx/HtmlView";
 import { ScoreTable } from "@/gui/screen/mainMenu/score/ScoreTable";
-import { SideType } from "@/game/SideType";
+import { SideType, isYuriCountry } from "@/game/SideType";
+import { Engine } from "@/engine/Engine";
 import { MusicType } from "@/engine/sound/Music";
 import { MainMenuScreen } from "@/gui/screen/mainMenu/MainMenuScreen";
 import { Task } from "@puzzl/core/lib/async/Task";
@@ -75,13 +76,22 @@ export class ScoreScreen extends MainMenuScreen {
             },
         ]);
         this.controller.showSidebarButtons();
-        const side = localPlayer.country?.side ?? SideType.GDI;
+        const side = isYuriCountry(localPlayer.country)
+            ? SideType.Yuri
+            : localPlayer.country?.side ?? SideType.GDI;
         let assets = sideAssets.get(side);
         if (!assets) {
             // A wrong background beats a blank score screen.
             console.warn("No score screen assets for sideType " + side);
             assets = sideAssets.get(SideType.GDI)!;
         }
+        console.info('[ScoreScreen] Faction presentation', {
+            side,
+            image: assets.img,
+            palette: assets.pal,
+            imageAvailable: Engine.vfs?.fileExists(assets.img),
+            paletteAvailable: Engine.vfs?.fileExists(assets.pal),
+        });
         const [component] = this.jsxRenderer.render(jsx("container", { width: "100%", height: "100%" }, jsx("sprite", { image: assets.img, palette: assets.pal }), jsx(HtmlView, {
             width: "100%",
             height: "100%",

@@ -11,7 +11,7 @@ import { LanSetupScreen } from './gui/screen/mainMenu/lan/LanSetupScreen.js';
 import { StorageScreen } from './gui/screen/options/StorageScreen.js';
 import { Config } from './Config.js';
 import { Strings } from './data/Strings.js';
-import { Engine } from './engine/Engine.js';
+import { Engine, EngineType } from './engine/Engine.js';
 import { MusicType } from './engine/sound/Music.js';
 import { MessageBoxApi } from './gui/component/MessageBoxApi.js';
 import { ToastApi } from './gui/component/ToastApi';
@@ -187,7 +187,7 @@ export class Gui {
     }
     private async getMainMenuVideoUrl(): Promise<string | File | undefined> {
         console.log('[Gui] Getting main menu video URL');
-        const videoFileName = Engine.rfsSettings.menuVideoFileName;
+        const videoFileName = Engine.getMenuVideoFileName();
         console.log('[Gui] Video file name:', videoFileName);
         try {
             if (Engine.rfs) {
@@ -236,7 +236,9 @@ export class Gui {
             }
             else {
                 console.warn('[Gui] Video file not found in VFS:', videoFileName);
-                const alternativeNames = ['ra2ts_l.bik', 'ra2ts_l.mp4', 'menu.webm', 'menu.mp4', 'ra2ts_l.avi'];
+                const alternativeNames = Engine.getActiveEngine() === EngineType.YurisRevenge
+                    ? ['ra2ts_l_yr.mp4', 'menu.webm', 'menu.mp4']
+                    : ['ra2ts_l.bik', 'ra2ts_l.mp4', 'menu.webm', 'menu.mp4', 'ra2ts_l.avi'];
                 for (const altName of alternativeNames) {
                     console.log(`[Gui] Checking alternative video file: ${altName}`);
                     if (Engine.vfs.fileExists(altName)) {

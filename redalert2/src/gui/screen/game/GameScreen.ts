@@ -20,7 +20,7 @@ import { GameMenu } from '@/gui/screen/game/GameMenu';
 import { WorldView } from '@/gui/screen/game/WorldView';
 import { Eva } from '@/engine/sound/Eva';
 import { EvaSpecs } from '@/engine/sound/EvaSpecs';
-import { SideType } from '@/game/SideType';
+import { SideType, isYuriCountry } from '@/game/SideType';
 import { HudFactory } from '@/gui/screen/game/HudFactory';
 import { Minimap } from '@/gui/screen/game/component/Minimap';
 import { Replay } from '@/network/gamestate/Replay';
@@ -649,7 +649,13 @@ export class GameScreen extends RootScreen {
         if (this.config.discordUrl) {
             commandBarButtonList.buttons.push(CommandBarButtonType.BugReport);
         }
-        const useYuriArt = !localPlayer.isObserver && localPlayer.country?.side === SideType.Yuri;
+        const useYuriArt = !localPlayer.isObserver && isYuriCountry(localPlayer.country);
+        console.info('[GameScreen] Faction presentation', {
+            country: localPlayer.country?.name,
+            side: localPlayer.country?.side,
+            useYuriArt,
+            hudSide,
+        });
         this.hudFactory = new HudFactory(hudSide, this.viewport.value, sidebarModel, messageList, chatHistory, game.debugText, this.runtimeVars.debugText, localPlayer.isObserver ? undefined : localPlayer, game.getCombatants(), game.stalemateDetectTrait, game.countdownTimer, cameoFilenames, this.jsxRenderer, this.strings, commandBarButtonList.buttons, this.runtimeVars.persistentHoverTags, useYuriArt);
         this.disposables.add(() => this.hudFactory = undefined);
         const hud = this.hudFactory.create();

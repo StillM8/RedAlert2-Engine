@@ -19,6 +19,9 @@ interface CameraPan {
 interface Scene {
     viewport: Viewport;
     cameraPan: CameraPan;
+    camera?: {
+        zoom?: number;
+    };
 }
 interface MapTile {
     rx: number;
@@ -40,6 +43,26 @@ export class MapTileIntersectHelper {
     constructor(map: GameMap, scene: Scene) {
         this.map = map;
         this.scene = scene;
+    }
+    /**
+     * Convert a renderer screen point into the unzoomed isometric screen
+     * space used by the tile geometry. The camera zoom is applied around the
+     * world viewport's centre, so omitting it makes the centre appear correct
+     * while the error grows toward the edges of the display.
+     */
+    private getZoom(): number {
+        const zoom = this.scene.camera?.zoom;
+        return Number.isFinite(zoom) && zoom! > 0 ? zoom! : 1;
+    }
+    private screenToWorldScreen(screenPoint: Point, tileElevation: number = 0): Point {
+        const viewport = this.scene.viewport;
+        const origin = IsoCoords.worldToScreen(0, 0);
+        const pan = this.scene.cameraPan.getPan();
+        const zoom = this.getZoom();
+        return {
+            x: (screenPoint.x - viewport.x - viewport.width / 2) / zoom + origin.x + pan.x,
+            y: (screenPoint.y - viewport.y - viewport.height / 2) / zoom + origin.y + pan.y + IsoCoords.tileHeightToScreen(tileElevation),
+        };
     }
     private collectCandidateTiles(centerTile: MapTile, tileElevation: number): MapTile[] {
         const candidateTiles: MapTile[] = [];
@@ -87,10 +110,11 @@ export class MapTileIntersectHelper {
         const viewport = this.scene.viewport;
         const origin = IsoCoords.worldToScreen(0, 0);
         const pan = this.scene.cameraPan.getPan();
+        const zoom = this.getZoom();
         const screenPos = IsoCoords.tile3dToScreen(tile.rx + 0.5, tile.ry + 0.5, tile.z + tileElevation);
         return {
-            x: screenPos.x - origin.x - pan.x + viewport.x + viewport.width / 2,
-            y: screenPos.y - origin.y - pan.y + viewport.y + viewport.height / 2
+            x: zoom * (screenPos.x - origin.x - pan.x) + viewport.x + viewport.width / 2,
+            y: zoom * (screenPos.y - origin.y - pan.y) + viewport.y + viewport.height / 2,
         };
     }
     intersectTilesByScreenPos(screenPoint: Point, tileElevation: number = 0): MapTile[] {
@@ -99,13 +123,8 @@ export class MapTileIntersectHelper {
             : this.intersectTilesByScreenPosLegacy(screenPoint, tileElevation));
     }
     private intersectTilesByScreenPosLegacy(screenPoint: Point, tileElevation: number = 0): MapTile[] {
-        const origin = IsoCoords.worldToScreen(0, 0);
-        const pan = this.scene.cameraPan.getPan();
-        const worldScreenPos = {
-            x: screenPoint.x + origin.x + pan.x - this.scene.viewport.width / 2,
-            y: screenPoint.y + origin.y + pan.y - this.scene.viewport.height / 2
-        };
-        const projectedWorldScreenY = worldScreenPos.y + IsoCoords.tileHeightToScreen(tileElevation);
+        const worldScreenPos = this.screenToWorldScreen(screenPoint, tileElevation);
+        const projectedWorldScreenY = worldScreenPos.y;
         const worldPos = IsoCoords.screenToWorld(worldScreenPos.x, projectedWorldScreenY);
         const tileCoords = new THREE.Vector2(worldPos.x, worldPos.y)
             .multiplyScalar(1 / Coords.LEPTONS_PER_TILE)
@@ -149,16 +168,14 @@ export class MapTileIntersectHelper {
         const triangle = this.intersectTriangle ?? (this.intersectTriangle = new THREE.Triangle());
         const testPoint = this.intersectPoint ?? (this.intersectPoint = new THREE.Vector3());
         const intersectedTiles = this.intersectedTilesScratch;
-        const origin = IsoCoords.worldToScreen(0, 0);
-        const pan = this.scene.cameraPan.getPan();
         const fallbackOffsetY = IsoCoords.tileHeightToScreen(1);
         let currentY = screenPoint.y;
         for (let attempt = 0; attempt < 4; attempt += 1) {
             intersectedTiles.length = 0;
-            const worldScreenX = screenPoint.x + origin.x + pan.x - this.scene.viewport.width / 2;
-            const worldScreenY = currentY + origin.y + pan.y - this.scene.viewport.height / 2;
-            const projectedWorldScreenY = worldScreenY + IsoCoords.tileHeightToScreen(tileElevation);
-            const worldPos = IsoCoords.screenToWorld(worldScreenX, projectedWorldScreenY);
+            const worldScreenPos = this.screenToWorldScreen({ x: screenPoint.x, y: currentY }, tileElevation);
+            const worldScreenX = worldScreenPos.x;
+            const worldScreenY = worldScreenPos.y;
+            const worldPos = IsoCoords.screenToWorld(worldScreenX, worldScreenY);
             const tileX = Math.floor(worldPos.x / Coords.LEPTONS_PER_TILE);
             const tileY = Math.floor(worldPos.y / Coords.LEPTONS_PER_TILE);
             const centerTile = this.map.tiles.getByMapCoords(tileX, tileY);

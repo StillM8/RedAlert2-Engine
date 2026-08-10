@@ -15,6 +15,14 @@ function App() {
         }
         appInitialized.current = true;
         console.log('App.tsx: useEffect - Initializing Application');
+        // Android can report a landscape cutout safe-area inset on the left
+        // while still delivering touch coordinates in the full WebView
+        // viewport. The game surface must use that same full coordinate space;
+        // iOS keeps its own safe-area layout behavior.
+        const isAndroidShell = new URLSearchParams(window.location.search).get('platform') === 'android';
+        if (isAndroidShell) {
+            document.body.classList.add('ra2-android-shell');
+        }
         const handleSplashScreenUpdate: SplashScreenUpdateCallback = (props) => {
             console.log('App.tsx: SplashScreen update callback received', props);
             if (props === null) {
@@ -30,9 +38,24 @@ function App() {
         const app = new Application(handleSplashScreenUpdate);
         appRef.current = app;
         const startApp = async () => {
-            if (document.getElementById('ra2web-root')) {
+            const rootElement = document.getElementById('ra2web-root');
+            if (rootElement) {
                 console.log('App.tsx: #ra2web-root found, calling app.main()');
                 try {
+                    // Game files may not contain the generated glsl.png yet
+                    // (for example after a pre-existing Android import). Keep
+                    // the first frame branded and useful while the real game
+                    // resources are being seeded/loaded.
+                    const profile = new URLSearchParams(window.location.search).get('profile');
+                    handleSplashScreenUpdate({
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                        parentElement: rootElement,
+                        backgroundImage: profile === 'yr'
+                            ? '/res/img/yr-loading.png'
+                            : '/res/img/ra2-loading.png',
+                        loadingText: 'Initializing...',
+                    });
                     installShellDebugLog();
                     installShellRepl();
                     installPowerStateReceiver();

@@ -50,6 +50,7 @@ export class Engine {
     public static readonly UI_ANIM_SPEED = 2;
     public static rfsSettings = {
         menuVideoFileName: "ra2ts_l.webm",
+        menuVideoFileNameYr: "ra2ts_l_yr.webm",
         splashImgFileName: "glsl.png",
         mapDir: "maps",
         modDir: "mods",
@@ -322,17 +323,28 @@ export class Engine {
         }
     }
     static unloadSideMixData(): void {
-        for (const mixFileName of ["sidec01.mix", "sidec01cd.mix"]) {
+        for (const mixFileName of [
+            "sidec01.mix",
+            "sidec02.mix",
+            "sidec01md.mix",
+            "sidec02md.mix",
+            "sidec01cd.mix",
+            "sidec02cd.mix",
+        ]) {
             const mixInfo = mixDatabase.get(mixFileName);
             if (!mixInfo) {
                 console.warn(`Mix "${mixFileName}" not found in mix database`);
-                return;
+                continue;
             }
             for (const entryName of mixInfo) {
                 const extension = entryName.split('.').pop()?.toLowerCase();
                 (extension === "pal" ? this.palettes : this.images).clear(entryName);
             }
         }
+        // These Yuri resources are hash-only entries in sidec02md.mix and
+        // are loaded under aliases by GameLoader.
+        this.images.clear("radary.shp");
+        this.palettes.clear("radary.pal");
     }
     static getTheaterIni(engineType: EngineType, theaterType: TheaterType): IniFile {
         const iniFileName = this.getTheaterSettings(engineType, theaterType).theaterIni;
@@ -529,6 +541,11 @@ export class Engine {
     }
     static getActiveEngine(): EngineType {
         return this.activeEngine;
+    }
+    static getMenuVideoFileName(): string {
+        return this.activeEngine === EngineType.YurisRevenge
+            ? this.rfsSettings.menuVideoFileNameYr
+            : this.rfsSettings.menuVideoFileName;
     }
     static getActiveProfile(): GameProfileDescriptor {
         return this.activeProfile;

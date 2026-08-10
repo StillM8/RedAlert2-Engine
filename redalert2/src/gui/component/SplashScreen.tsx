@@ -12,6 +12,7 @@ export interface SplashScreenProps {
 const SplashScreen: React.FC<SplashScreenProps> = ({ width, height, parentElement, backgroundImage, loadingText, copyrightText, disclaimerText, onRender, }) => {
     const [rendered, setRendered] = useState(false);
     const elRef = useRef<HTMLDivElement | null>(null) as MutableRefObject<HTMLDivElement | null>;
+    const backgroundElRef = useRef<HTMLImageElement | null>(null) as MutableRefObject<HTMLImageElement | null>;
     const loadingElRef = useRef<HTMLDivElement | null>(null) as MutableRefObject<HTMLDivElement | null>;
     const copyrightElRef = useRef<HTMLDivElement | null>(null) as MutableRefObject<HTMLDivElement | null>;
     const disclaimerElRef = useRef<HTMLDivElement | null>(null) as MutableRefObject<HTMLDivElement | null>;
@@ -25,10 +26,25 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ width, height, parentElemen
             div.style.boxSizing = 'border-box';
             div.style.backgroundRepeat = 'no-repeat';
             div.style.backgroundPosition = '50% 50%';
+            div.style.backgroundSize = 'cover';
             div.style.textShadow = '1px 1px black';
             div.style.position = 'relative';
+            const backgroundImg = document.createElement('img');
+            backgroundElRef.current = backgroundImg;
+            backgroundImg.alt = '';
+            backgroundImg.draggable = false;
+            backgroundImg.style.position = 'absolute';
+            backgroundImg.style.inset = '0';
+            backgroundImg.style.width = '100%';
+            backgroundImg.style.height = '100%';
+            backgroundImg.style.objectFit = 'cover';
+            backgroundImg.style.pointerEvents = 'none';
+            backgroundImg.style.zIndex = '0';
+            div.appendChild(backgroundImg);
             const loadingDiv = document.createElement('div');
             loadingElRef.current = loadingDiv;
+            loadingDiv.style.position = 'relative';
+            loadingDiv.style.zIndex = '1';
             div.appendChild(loadingDiv);
             const copyrightDiv = document.createElement('div');
             copyrightDiv.style.position = 'absolute';
@@ -60,9 +76,13 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ width, height, parentElemen
         if (elRef.current) {
             if (backgroundImage === "") {
                 elRef.current.style.backgroundImage = 'none';
+                backgroundElRef.current?.removeAttribute('src');
             }
             else if (backgroundImage) {
                 elRef.current.style.backgroundImage = `url(${backgroundImage})`;
+                if (backgroundElRef.current) {
+                    backgroundElRef.current.src = new URL(backgroundImage, window.location.href).href;
+                }
             }
         }
     }, [backgroundImage]);

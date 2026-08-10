@@ -6,7 +6,7 @@ import { Engine } from '@/engine/Engine';
 import { TheaterType } from '@/engine/TheaterType';
 import { ObjectArt } from '@/game/art/ObjectArt';
 import { sleep } from '@/util/time';
-import { SideType } from '@/game/SideType';
+import { SideType, isYuriCountry } from '@/game/SideType';
 import { Coords } from '@/game/Coords';
 import { IsoCoords } from '@/engine/IsoCoords';
 import { ObjectType } from '@/engine/type/ObjectType';
@@ -78,11 +78,18 @@ export class GameLoader {
         if (playerName) {
             localPlayer = game.getPlayerByName(playerName);
             if (!localPlayer.isObserver) {
-                // The HUD art pipeline is binary (sidec01 = Allied shell,
-                // sidec02 = Soviet shell). Yuri wears the Soviet shell until
-                // the YR-style sidebar (all-new art names in sidec02md.mix)
-                // is implemented.
+                const yuri = isYuriCountry(localPlayer.country);
+                // Retail Yuri uses the Soviet shell archive plus its Yuri
+                // radar delta from sidec02md.mix. Keep that presentation flag
+                // separate from the broad side archive selected below.
                 hudSide = localPlayer.country.side === SideType.GDI ? SideType.GDI : SideType.Nod;
+                console.info('[GameLoader] Local presentation', {
+                    country: localPlayer.country?.name,
+                    side: localPlayer.country?.side,
+                    hudSide,
+                    yuri,
+                    engine: Engine.getActiveEngine(),
+                });
             }
         }
         let cdnResources: any;

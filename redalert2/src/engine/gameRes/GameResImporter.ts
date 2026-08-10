@@ -349,7 +349,7 @@ export class GameResImporter {
             const targetMusicDir = await targetRfsRootDir.getOrCreateDirectory(musicDirName, true);
             await this.importMusic(mixVirtualFile, targetMusicDir, (percent) => onProgress(S.get("ts:import_importing_pg", mixFileNameLower, percent.toFixed(0))));
         }
-        else if (mixFileNameLower.match(/language\.mix$/)) {
+        else if (mixFileNameLower.match(/^(?:language|langmd)\.mix$/)) {
             onProgress(S.get("ts:import_importing_long", mixFileNameLower));
             onProgress(S.get("ts:import_converting_video"));
             await this.importVideo(mixVirtualFile, targetRfsRootDir, (progress) => {
@@ -431,21 +431,32 @@ export class GameResImporter {
      * finish the conversion step.
      */
     async ensureMenuVideo(targetRfsRootDir: RealFileSystemDir, onProgress?: (text?: string) => void): Promise<boolean> {
-        const webmFileName = Engine.rfsSettings.menuVideoFileName;
+        const webmFileName = Engine.getMenuVideoFileName();
         if (await targetRfsRootDir.containsEntry(webmFileName)) {
             return true;
         }
-        let languageMixVirtualFile: VirtualFile;
-        try {
-            languageMixVirtualFile = await targetRfsRootDir.openFile("language.mix");
-        }
-        catch (e) {
-            if (e instanceof VfsFileNotFoundError) {
-                console.warn('[GameResImporter] language.mix is not available; cannot repair menu video');
-                return false;
+        let languageMixVirtualFile: VirtualFile | undefined;
+        const sourceMixes = Engine.getActiveEngine() === EngineType.YurisRevenge
+            ? ["langmd.mix", "language.mix"]
+            : ["language.mix"];
+        let sourceMixName: string | undefined;
+        for (const candidate of sourceMixes) {
+            try {
+                languageMixVirtualFile = await targetRfsRootDir.openFile(candidate);
+                sourceMixName = candidate;
+                break;
             }
-            throw e;
+            catch (e) {
+                if (!(e instanceof VfsFileNotFoundError)) {
+                    throw e;
+                }
+            }
         }
+        if (!sourceMixName || !languageMixVirtualFile) {
+            console.warn(`[GameResImporter] None of ${sourceMixes.join(', ')} is available; cannot repair menu video`);
+            return false;
+        }
+        console.info(`[GameResImporter] Preparing ${EngineType[Engine.getActiveEngine()]} menu video from ${sourceMixName}`);
         onProgress?.(this.strings.get("ts:import_converting_video"));
         await this.importVideo(languageMixVirtualFile, targetRfsRootDir, (progress) => {
             onProgress?.(this.strings.get("ts:import_converting_video_pg", (progress * 100).toFixed(0)));
@@ -490,7 +501,7 @@ export class GameResImporter {
             }
         }
         const binkFileName = "ra2ts_l.bik";
-        const webmFileName = Engine.rfsSettings.menuVideoFileName;
+        const webmFileName = Engine.getMenuVideoFileName();
         const videoFileVariants = [
             'ra2ts_l.bik', 'RA2TS_L.BIK', 'Ra2ts_l.bik', 'RA2TS_L.bik'
         ];

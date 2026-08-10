@@ -1,4 +1,5 @@
 import { EngineType } from "./EngineType";
+import { gamePathKey, gamePathLeaf, tryNormalizeGamePath } from "./GamePath";
 
 export type GameProfileId = "ra2" | "yr";
 
@@ -30,4 +31,32 @@ export function getGameProfile(id: GameProfileId | undefined): GameProfileDescri
 
 export function isGameProfileId(value: string | null | undefined): value is GameProfileId {
     return value === "ra2" || value === "yr";
+}
+
+/**
+ * Detect the vanilla game profile represented by a set of imported paths.
+ *
+ * The detector intentionally only knows about the two retail profiles on
+ * this branch.  Paths may contain an imported directory prefix, but unsafe
+ * entries are ignored so one malformed archive entry cannot make an
+ * otherwise valid installation appear broken.
+ */
+export function detectGameProfile(paths: Iterable<string>): GameProfileId {
+    const filenames = new Set<string>();
+
+    for (const path of paths) {
+        const normalized = tryNormalizeGamePath(path);
+        if (!normalized) {
+            continue;
+        }
+        filenames.add(gamePathKey(gamePathLeaf(normalized)));
+    }
+
+    const hasAll = (requiredFiles: readonly string[]) =>
+        requiredFiles.every((file) => filenames.has(gamePathKey(file)));
+
+    if (hasAll(GAME_PROFILES.yr.requiredFiles)) {
+        return "yr";
+    }
+    return "ra2";
 }

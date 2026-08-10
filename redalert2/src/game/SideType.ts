@@ -3,8 +3,18 @@ export enum SideType {
     Nod = 1,
     Civilian = 2,
     Mutant = 3,
-    // Yuri's Revenge third faction ("ThirdSide" in rulesmd.ini). Countries on
-    // this side load and can appear in-game, but the faction is not offered as
-    // a player choice until its core mechanics (slave miner etc.) land.
+    // Yuri's Revenge third faction ("ThirdSide" in rulesmd.ini).
     Yuri = 4
+}
+
+/** Keep Yuri presentation selection independent from the display name. */
+export function isYuriCountry(country?: { side?: SideType; name?: string }): boolean {
+    if (!country) {
+        return false;
+    }
+    if (country.side === SideType.Yuri) {
+        return true;
+    }
+    const normalizedName = country.name?.replace(/\s+/g, '').toLowerCase();
+    return normalizedName === 'yuricountry' || normalizedName === 'yuri';
 }

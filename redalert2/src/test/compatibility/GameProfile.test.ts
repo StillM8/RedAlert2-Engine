@@ -15,6 +15,40 @@ describe('GameProfile detection', () => {
             'langmd.mix', 'multimd.mix', 'ra2md.mix',
         ])).toBe('yr');
     });
+
+    test('detects profiles case-insensitively through an imported directory prefix', () => {
+        expect(detectGameProfile([
+            'Imported Game\\LANGUAGE.MIX',
+            'Imported Game/multi.mix',
+            'Imported Game/RA2.MIX',
+        ])).toBe('ra2');
+
+        expect(detectGameProfile([
+            'Imported Game\\LANGUAGE.MIX',
+            'Imported Game/multi.mix',
+            'Imported Game/RA2.MIX',
+            'Imported Game/LANGMD.MIX',
+            'Imported Game/MULTIMD.MIX',
+            'Imported Game/RA2MD.MIX',
+        ])).toBe('yr');
+    });
+
+    test('ignores unsafe paths while detecting valid retail files', () => {
+        expect(detectGameProfile([
+            '../ra2md.mix',
+            '/absolute/langmd.mix',
+            'language.mix',
+            'multi.mix',
+            'ra2.mix',
+        ])).toBe('ra2');
+    });
+
+    test('does not classify Yuri without all three expansion archives', () => {
+        expect(detectGameProfile([
+            'language.mix', 'multi.mix', 'ra2.mix',
+            'langmd.mix', 'multimd.mix',
+        ])).toBe('ra2');
+    });
 });
 
 describe('GamePath', () => {

@@ -6,7 +6,7 @@ import { HtmlView } from '@/gui/jsx/HtmlView';
 import { LoadingScreen } from './LoadingScreen';
 import { OBS_COUNTRY_NAME, OBS_COUNTRY_UI_NAME } from '@/game/gameopts/constants';
 import * as THREE from 'three';
-import { SideType } from '@/game/SideType';
+import { SideType, isYuriCountry } from '@/game/SideType';
 import { Engine } from '@/engine/Engine';
 interface Country {
     name: string;
@@ -86,7 +86,11 @@ export class LoadingScreenWrapper extends UiComponent<LoadingScreenWrapperProps>
         const player = playerName
             ? this.props.playerInfos.find(p => p.name === playerName)
             : undefined;
-        const countryName = player?.country ? player.country.name : OBS_COUNTRY_NAME;
+        const countryName = player?.country
+            ? isYuriCountry(player.country)
+                ? "YuriCountry"
+                : player.country.name
+            : OBS_COUNTRY_NAME;
         this.countryName = countryName;
         let color = player?.color ?? "#fff";
         if (player?.country) {

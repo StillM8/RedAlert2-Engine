@@ -11,6 +11,7 @@ import { MenuMpSlotText } from "./MenuMpSlotText";
 import { SidebarPreview } from "./SidebarPreview";
 import { MenuTooltip } from "./MenuTooltip";
 import { VersionString } from "./VersionString";
+import { Engine } from "../../../../engine/Engine";
 import * as THREE from 'three';
 export interface Viewport {
     x: number;
@@ -230,9 +231,16 @@ export class MainMenu extends UiObject {
         });
     }
     getImage(name: string): any {
-        const image = this.images.get(name);
+        // Yuri's Revenge uses md-suffixed shell assets for several menu
+        // components. Resolve those explicitly when the active profile has
+        // them, while retaining the RA2 asset as a safe vanilla fallback.
+        const variantName = Engine.getFileNameVariant(name);
+        const resolvedName = variantName !== name && Engine.vfs.fileExists(variantName)
+            ? variantName
+            : name;
+        const image = this.images.get(resolvedName);
         if (!image) {
-            throw new Error(`Missing image "${name}"`);
+            throw new Error(`Missing image "${resolvedName}"`);
         }
         return image;
     }

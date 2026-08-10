@@ -25,6 +25,13 @@ body {
     overscroll-behavior: none;
 }
 
+/* Android's WebView reports touch points in the full landscape viewport even
+   when the system exposes a side cutout inset. Keeping the game surface in
+   that same coordinate space prevents a dead/misaligned strip at the edge. */
+body.ra2-android-shell {
+    padding: 0;
+}
+
 html:-webkit-full-screen body {
     background: black;
 }
