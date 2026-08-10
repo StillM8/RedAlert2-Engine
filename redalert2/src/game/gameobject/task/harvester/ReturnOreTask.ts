@@ -13,6 +13,7 @@ import { MoveTrait, MoveResult } from "@/game/gameobject/trait/MoveTrait";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { Vector2 } from "@/game/math/Vector2";
 import { SpeedType } from "@/game/type/SpeedType";
+import { getNearestFoundationCell } from "@/game/art/Foundation";
 export class ReturnOreTask extends Task {
     private game: any;
     private forceTarget: any;
@@ -235,9 +236,14 @@ export class ReturnOreTask extends Task {
                 !tile.onBridgeLandType);
     }
     private findRefineryDockingTile(refinery: any): any {
+        const foundation = refinery.getFoundation();
+        const dockingCell = getNearestFoundationCell(foundation, {
+            x: foundation.width - 1,
+            y: Math.floor(foundation.height / 2),
+        });
         const dockingPos = {
-            x: refinery.tile.rx + refinery.getFoundation().width - 1,
-            y: refinery.tile.ry + Math.floor(refinery.getFoundation().height / 2),
+            x: refinery.tile.rx + dockingCell.x,
+            y: refinery.tile.ry + dockingCell.y,
         };
         const canonicalTile = this.game.map.tiles.getByMapCoords(dockingPos.x, dockingPos.y);
         // Classic refineries keep their docking pad passable, but Yuri's slave

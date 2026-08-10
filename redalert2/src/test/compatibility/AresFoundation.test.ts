@@ -9,6 +9,7 @@ import {
     parseFoundation,
 } from "@/game/art/Foundation";
 import { TileOccupation } from "@/game/map/TileOccupation";
+import { TileOcclusion } from "@/game/map/TileOcclusion";
 import { TerrainType } from "@/engine/type/TerrainType";
 import { LandType } from "@/game/type/LandType";
 
@@ -117,5 +118,33 @@ describe("Ares custom foundations", () => {
         expect(occupation.getObjectsOnTile(tiles[3])).toHaveLength(0);
         occupation.unoccupyTileRange({ rx: 10, ry: 20 }, building);
         expect(occupation.getObjectsOnTile(tiles[0])).toHaveLength(0);
+    });
+
+    test("uses custom occupied cells for building occlusion instead of the rectangle", () => {
+        const foundation = {
+            width: 3,
+            height: 3,
+            cells: [{ x: 0, y: 0 }],
+        };
+        const tiles = Array.from({ length: 8 * 8 }, (_, index) => ({
+            rx: index % 8,
+            ry: Math.floor(index / 8),
+        }));
+        const tileCollection = {
+            getAll: () => tiles,
+            getByMapCoords: (x: number, y: number) => tiles.find((tile) => tile.rx === x && tile.ry === y),
+        };
+        const occlusion = new TileOcclusion(tileCollection);
+        const shadowTiles = occlusion.calculateTilesForGameObject({
+            tile: { rx: 3, ry: 3 },
+            art: {
+                occupyHeight: 3,
+                addOccupy: [],
+                removeOccupy: [],
+            },
+            getFoundation: () => foundation,
+        });
+
+        expect(shadowTiles.map((tile: any) => `${tile.rx},${tile.ry}`)).toEqual(["2,2"]);
     });
 });

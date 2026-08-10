@@ -7,6 +7,7 @@ import { NotifyDestroy } from '@/game/gameobject/trait/interface/NotifyDestroy';
 import { NotifyTick } from '@/game/gameobject/trait/interface/NotifyTick';
 import { GameObject } from '@/game/gameobject/GameObject';
 import { World } from '@/game/World';
+import { getFoundationRallyCell } from '@/game/art/Foundation';
 export class HospitalTrait {
     private healQueue: GameObject[] = [];
     private unit?: GameObject;
@@ -59,9 +60,10 @@ export class HospitalTrait {
     }
     private evacuate(unit: GameObject, hospital: GameObject, world: World): void {
         let targetTile;
+        const rallyCell = getFoundationRallyCell(hospital.art.foundation);
         const exitPoint = {
-            x: hospital.tile.rx,
-            y: hospital.tile.ry + hospital.art.foundation.height
+            x: hospital.tile.rx + rallyCell.x,
+            y: hospital.tile.ry + rallyCell.y,
         };
         let tile = world.map.tiles.getByMapCoords(exitPoint.x, exitPoint.y);
         if (tile &&

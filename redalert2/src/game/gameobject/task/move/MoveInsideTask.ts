@@ -1,9 +1,15 @@
 import { MoveTask } from "@/game/gameobject/task/move/MoveTask";
+import { getNearestFoundationCell } from "@/game/art/Foundation";
 export class MoveInsideTask extends MoveTask {
     private target: any;
     static chooseTargetFoundationTile(target: any, game: any) {
         if (target.isBuilding()) {
-            let tile = target.centerTile;
+            const foundation = target.getFoundation();
+            const cell = getNearestFoundationCell(foundation, {
+                x: Math.floor(foundation.width / 2),
+                y: Math.floor(foundation.height / 2),
+            });
+            let tile = game.map.tiles.getByMapCoords(target.tile.rx + cell.x, target.tile.ry + cell.y) ?? target.centerTile;
             if (!game.map.mapBounds.isWithinBounds(tile)) {
                 tile = game.map.tileOccupation
                     .calculateTilesForGameObject(target.tile, target)

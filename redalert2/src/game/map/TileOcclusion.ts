@@ -1,4 +1,5 @@
 import * as m from "@/game/math/Vector2";
+import { getFoundationCells } from "@/game/art/Foundation";
 export class TileOcclusion {
     tiles: any;
     tileOcclusion: any[][];
@@ -21,12 +22,16 @@ export class TileOcclusion {
         var t = e.art.occupyHeight, i = Math.max(0, t - 2);
         let r = [];
         var s = e.getFoundation();
+        const cells = getFoundationCells(s);
+        const occupied = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
+        const topEdge = cells.filter((cell) => !occupied.has(`${cell.x},${cell.y - 1}`));
+        const leftEdge = cells.filter((cell) => !occupied.has(`${cell.x - 1},${cell.y}`) && !topEdge.includes(cell));
         for (let u = 1; u <= i; u++)
-            for (let e = 0; e < s.width; e++)
-                r.push(new m.Vector2(e - u, -u));
+            for (const cell of topEdge)
+                r.push(new m.Vector2(cell.x - u, cell.y - u));
         for (let d = 1; d <= i; d++)
-            for (let e = 1; e < s.height; e++)
-                r.push(new m.Vector2(-d, e - d));
+            for (const cell of leftEdge)
+                r.push(new m.Vector2(cell.x - d, cell.y - d));
         r.push(...e.art.addOccupy);
         for (let { x: g, y: p } of e.art.removeOccupy) {
             var a = r.findIndex((e: any) => e.x === g && e.y === p);

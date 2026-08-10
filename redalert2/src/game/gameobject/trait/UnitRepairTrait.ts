@@ -8,6 +8,7 @@ import { NotifySpawn } from './interface/NotifySpawn';
 import { NotifyTick } from './interface/NotifyTick';
 import { GameObject } from '@/game/gameobject/GameObject';
 import { World } from '@/game/World';
+import { getFoundationRallyCell } from '@/game/art/Foundation';
 export enum RepairStatus {
     Idle = 0,
     Repairing = 1
@@ -98,7 +99,8 @@ export class UnitRepairTrait {
     }
     private computeDefaultRallyPoint(gameObject: GameObject, map: any): any {
         const foundation = gameObject.getFoundation();
-        const rallyPos = new Vector2(gameObject.tile.rx, gameObject.tile.ry + foundation.height);
+        const rallyCell = getFoundationRallyCell(foundation);
+        const rallyPos = new Vector2(gameObject.tile.rx + rallyCell.x, gameObject.tile.ry + rallyCell.y);
         return map.tiles.getByMapCoords(rallyPos.x, rallyPos.y) ?? gameObject.tile;
     }
 }

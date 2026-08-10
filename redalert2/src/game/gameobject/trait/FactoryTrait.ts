@@ -345,6 +345,13 @@ export class FactoryTrait {
         ry: number;
     } {
         const foundation = building.getFoundation();
+        if (foundation.cells?.length || foundation.outline?.length) {
+            const rallyCell = getFoundationRallyCell(foundation);
+            return {
+                rx: building.tile.rx + rallyCell.x,
+                ry: building.tile.ry + rallyCell.y,
+            };
+        }
         let { rx, ry } = this.computeBarracksDefaultExitCoords(building);
         if (foundation.width <= 2 || foundation.height <= 2 || building.rules.gdiBarracks) {
             ry += 1;

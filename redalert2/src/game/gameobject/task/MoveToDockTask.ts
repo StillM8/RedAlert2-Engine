@@ -8,6 +8,7 @@ import { MovementZone } from "@/game/type/MovementZone";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { Coords } from "@/game/Coords";
 import { Vector2 } from "@/game/math/Vector2";
+import { getFoundationRallyCell } from "@/game/art/Foundation";
 enum DockingStatus {
     Idle = 0,
     MoveToQueueingTile = 1,
@@ -127,7 +128,8 @@ export class MoveToDockTask extends Task {
     }
     private findReachableQueueingTile(unit: any): any {
         const foundation = this.target.getFoundation();
-        const targetPosition = new Vector2(this.target.tile.rx + foundation.width, this.target.tile.ry + foundation.height);
+        const rallyCell = getFoundationRallyCell(foundation);
+        const targetPosition = new Vector2(this.target.tile.rx + rallyCell.x, this.target.tile.ry + rallyCell.y);
         const targetTile = this.game.map.tiles.getByMapCoords(targetPosition.x, targetPosition.y);
         if (targetTile && this.isValidQueueingTile(targetTile, unit)) {
             return targetTile;
