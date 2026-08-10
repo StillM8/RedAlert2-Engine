@@ -26,6 +26,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.superweapon-charge-state", dependsOn: ["ares.superweapons"], reason: "InitialReady and VirtualCharge alter the shared superweapon acquisition and timer state before custom effects activate." },
     { capabilityId: "ares.superweapon-post-dependent", dependsOn: ["ares.superweapons"], reason: "PostDependent selects a second-stage superweapon through the common authored superweapon registry." },
     { capabilityId: "ares.superweapon-radar-event", dependsOn: ["ares.superweapons"], reason: "CreateRadarEvent uses the common RadarTrait launch-event path after a superweapon activates." },
+    { capabilityId: "ares.superweapon-ai-targeting", dependsOn: ["ares.superweapons", "ares.target-filters"], reason: "Ares AI modes derive deterministic target/house requirements before the host AI chooses a launch cell." },
     { capabilityId: "ares.superweapon-unit-delivery", dependsOn: ["ares.superweapons", "ares.custom-foundations"], reason: "UnitDelivery places arbitrary TechnoTypes, including irregular buildings." },
     { capabilityId: "ares.superweapon-sonar-pulse", dependsOn: ["ares.superweapons"], reason: "SonarPulse is a ranged superweapon with generic cloak suppression." },
     { capabilityId: "ares.superweapon-empulse", dependsOn: ["ares.superweapons", "ares.emp"], reason: "EMPulse selects launch buildings and delivers their configured EMP warhead through the native EMP runtime." },

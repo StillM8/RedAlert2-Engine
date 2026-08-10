@@ -5,6 +5,8 @@ import { AttackMission, AttackMissionState } from "./mission/missions/attackMiss
 import { DefenceMission } from "./mission/missions/defenceMission";
 import { DebugLogger } from "./common/utils";
 import { EffectiveBotConfig } from "../../botProfiles";
+import { resolveAresSuperWeaponAITargeting } from "@/extensions/ares/AresSuperWeaponAI";
+import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 
 // How often the officer polls superweapon state.
 const SW_CHECK_INTERVAL_TICKS = 75;
@@ -68,6 +70,11 @@ interface Cluster {
     infantry: number;
 }
 
+function superWeaponIndex(superWeapon: { index?: unknown; type?: unknown }): number {
+    const index = Number(superWeapon.index);
+    return Number.isFinite(index) ? index : Number(superWeapon.type);
+}
+
 /**
  * Fires the bot's superweapons like a retail AI would: nukes and storms on
  * the enemy's most valuable cluster, iron curtain on our own armored push,
@@ -91,7 +98,7 @@ export class SuperweaponOfficer {
         }
         this.lastCheckAt = currentTick;
 
-        let allSw: { playerName: string; type: any; status: any; timerSeconds: number }[];
+        let allSw: any[];
         try {
             allSw = (game as any).getAllSuperWeaponData?.() ?? [];
         } catch (err) {
@@ -110,7 +117,7 @@ export class SuperweaponOfficer {
 
         // Prune deliberation timers for weapons we no longer own (sold or
         // destroyed while Ready) — else a rebuilt weapon skips its delay.
-        const ownedTypes = new Set(mySw.map((sw) => Number(sw.type)));
+        const ownedTypes = new Set(mySw.map((sw) => superWeaponIndex(sw)));
         for (const type of [...this.readySince.keys()]) {
             if (!ownedTypes.has(type)) {
                 this.readySince.delete(type);
@@ -120,7 +127,7 @@ export class SuperweaponOfficer {
         const fireDelay = FIRE_DELAY_BY_DIFFICULTY[this.config.difficultyId] ?? 450;
 
         for (const sw of mySw) {
-            const type = Number(sw.type);
+            const type = superWeaponIndex(sw);
             if (Number(sw.status) !== SuperWeaponStatus.Ready) {
                 this.readySince.delete(type);
                 continue;
@@ -131,7 +138,7 @@ export class SuperweaponOfficer {
             if (currentTick < this.readySince.get(type)! + fireDelay) {
                 continue;
             }
-            if (this.tryFire(context, missionController, type, logger)) {
+            if (this.tryFire(context, missionController, type, logger, sw)) {
                 this.readySince.delete(type);
             }
         }
@@ -142,9 +149,21 @@ export class SuperweaponOfficer {
         missionController: MissionController,
         type: number,
         logger: DebugLogger,
+        superWeaponData?: any,
     ): boolean {
         const { game, player, matchAwareness } = context;
         const playerData = game.getPlayerData(player.name);
+
+        const aresResult = this.tryFireWithAresTargeting(
+            context,
+            missionController,
+            type,
+            logger,
+            superWeaponData,
+        );
+        if (aresResult !== undefined) {
+            return aresResult;
+        }
 
         switch (type) {
             case SuperWeaponType.MultiMissile:
@@ -256,6 +275,159 @@ export class SuperweaponOfficer {
     }
 
     /**
+     * Routes custom Ares types and explicitly configured vanilla types through
+     * the documented SW.AITargeting mode. The target heuristics remain in the
+     * host AI, while mode defaults/empty-cell semantics come from the shared
+     * Ares normalized definition.
+     */
+    private tryFireWithAresTargeting(
+        context: SupabotContext,
+        missionController: MissionController,
+        type: number,
+        logger: DebugLogger,
+        superWeaponData?: any,
+    ): boolean | undefined {
+        const ares = superWeaponData?.ares;
+        if (!ares?.extensionType && !ares?.swAITargeting) {
+            return undefined;
+        }
+
+        const profile = resolveAresSuperWeaponAITargeting({
+            ...ares,
+            type: superWeaponData?.type,
+            typeId: superWeaponData?.typeId,
+        });
+        if (!profile.supported) {
+            logger(`Ares superweapon ${superWeaponData?.name ?? type} has unsupported SW.AITargeting=${profile.rawMode ?? ""}`);
+            return false;
+        }
+
+        const { game, player, matchAwareness } = context;
+        const playerData = game.getPlayerData(player.name);
+        const underAttack = missionController
+            .getMissions()
+            .some((mission) => mission instanceof DefenceMission && mission.getPriority() > 0);
+        // These two constraints are directly observable in the standalone
+        // host. Preferred-cell and active-effect constraints need corresponding
+        // state in the shared AI API and remain diagnostics-only for now.
+        if (profile.constraints.includes("low-power") && !playerData.power.isLowPower) {
+            return false;
+        }
+        if (profile.constraints.includes("attacked") && !underAttack) {
+            return false;
+        }
+        const requiredTarget = (unit: UnitData): boolean =>
+            this.matchesAresAITarget(unit, profile.requiredTarget);
+        let target: any;
+        switch (profile.mode) {
+            case "nuke":
+            case "lightning-storm":
+            case "psychic-dominator":
+            case "offensive":
+                target = this.bestEnemyCluster(game, playerData.name, false, requiredTarget);
+                break;
+            case "genetic-mutator":
+                target = this.bestEnemyCluster(game, playerData.name, true, requiredTarget);
+                break;
+            case "stealth":
+                target = this.bestEnemyCluster(game, playerData.name, false, (unit) =>
+                    !!unit.isCloaked && requiredTarget(unit));
+                break;
+            case "paradrop":
+            case "drop-pod":
+                target = this.findArmoredPushCenter(game, missionController, 1) ??
+                    matchAwareness.getMainRallyPoint() ??
+                    this.firstEnemy(game, playerData.name)?.startLocation;
+                break;
+            case "force-shield":
+                target = this.bestOwnBuildingCluster(game, playerData.name);
+                break;
+            case "iron-curtain":
+                target = this.findArmoredPushCenter(game, missionController, 3) ??
+                    this.bestOwnBuildingCluster(game, playerData.name);
+                break;
+            case "self": {
+                const provider = game
+                    .getVisibleUnits(player.name, "self", (rules: any) => rules.superWeapon === superWeaponData?.name)
+                    .map((id) => game.getUnitData(id))
+                    .find((unit) => !!unit);
+                target = provider?.tile;
+                break;
+            }
+            case "base":
+                target = this.bestOwnBuildingCluster(game, playerData.name);
+                break;
+            case "enemy-base":
+                target = this.firstEnemy(game, playerData.name)?.startLocation;
+                break;
+            case "no-target":
+            case "hunter-seeker":
+            case "attack":
+            case "low-power":
+            case "low-power-attack":
+            case "lightning-random":
+                target = matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
+                break;
+            case "none":
+                return false;
+            case "multi-missile":
+                target = this.bestEnemyCluster(game, playerData.name, false, requiredTarget);
+                break;
+            case "unknown":
+                return false;
+        }
+
+        if (!target && profile.allowsEmptyCell) {
+            target = playerData.startLocation ?? { x: 0, y: 0 };
+        }
+        if (!target) {
+            return false;
+        }
+
+        const rx = Number(target.rx ?? target.x);
+        const ry = Number(target.ry ?? target.y);
+        if (!Number.isFinite(rx) || !Number.isFinite(ry)) {
+            return false;
+        }
+        logger(`Firing Ares superweapon ${superWeaponData?.name ?? type} at (${Math.round(rx)},${Math.round(ry)}) using ${profile.mode}`);
+        player.actions.activateSuperWeapon(type, { rx: Math.round(rx), ry: Math.round(ry) });
+        return true;
+    }
+
+    /**
+     * Applies the content-mask portion of Antares' GetPotentialAITargets /
+     * CanFireAt logic to the data exposed to the host bot. Cell-only masks
+     * (land/water) cannot reject an empty centroid here, so the activation
+     * path remains the final authority for those masks.
+     */
+    private matchesAresAITarget(unit: UnitData, requiredTarget: string): boolean {
+        const targets = new Set(requiredTarget
+            .split(",")
+            .map((token) => token.trim().toLocaleLowerCase("en-US"))
+            .filter(Boolean));
+        if (!targets.size || targets.has("none") || targets.has("all")) {
+            return true;
+        }
+
+        const typeTargets = ["infantry", "units", "buildings"].filter((target) => targets.has(target));
+        if (typeTargets.length > 0) {
+            const unitType = unit.type as any;
+            const matchesType = (targets.has("buildings") && unitType === ObjectType.Building) ||
+                (targets.has("infantry") && unitType === ObjectType.Infantry) ||
+                (targets.has("units") && (unitType === ObjectType.Vehicle || unitType === ObjectType.Aircraft));
+            if (!matchesType) return false;
+        }
+
+        if (targets.has("water") && unit.zone !== undefined && unit.zone !== ZoneType.Water) {
+            return false;
+        }
+        if (targets.has("land") && unit.zone === ZoneType.Water) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Detect enemy major-SW launches (Ready -> gone) and roll the retail
      * AISuperDefenseProbability {brutal 90 / normal 50 / easy 10} to raise
      * Force Shield over our densest base cluster. The launch target isn't
@@ -264,13 +436,13 @@ export class SuperweaponOfficer {
      */
     private watchEnemyLaunches(
         context: SupabotContext,
-        allSw: { playerName: string; type: any; status: any }[],
+        allSw: { playerName: string; index?: number; type: any; status: any }[],
         logger: DebugLogger,
     ): void {
         const { game, player } = context;
         const currentReady = new Set<string>();
         for (const sw of allSw) {
-            const type = Number(sw.type);
+            const type = superWeaponIndex(sw);
             if (sw.playerName === player.name || !MAJOR_OFFENSIVE_SW.has(type)) {
                 continue;
             }
@@ -296,7 +468,7 @@ export class SuperweaponOfficer {
         const shield = allSw.find(
             (sw) =>
                 sw.playerName === player.name &&
-                Number(sw.type) === SuperWeaponType.ForceShield &&
+                superWeaponIndex(sw) === SuperWeaponType.ForceShield &&
                 Number(sw.status) === SuperWeaponStatus.Ready,
         );
         if (!shield) {
@@ -352,12 +524,20 @@ export class SuperweaponOfficer {
     }
 
     /** Densest enemy cluster by unit value; infantryOnly counts infantry bodies. */
-    private bestEnemyCluster(game: GameApi, playerName: string, infantryOnly: boolean): Cluster | null {
+    private bestEnemyCluster(
+        game: GameApi,
+        playerName: string,
+        infantryOnly: boolean,
+        extraFilter?: (unit: UnitData) => boolean,
+    ): Cluster | null {
         const enemyIds = game.getVisibleUnits(playerName, "enemy");
         const buckets = new Map<number, Cluster>();
         for (const id of enemyIds) {
             const unit = game.getUnitData(id);
             if (!unit) {
+                continue;
+            }
+            if (extraFilter && !extraFilter(unit)) {
                 continue;
             }
             const isInfantry = (unit.type as any) === ObjectType.Infantry;

@@ -126,11 +126,16 @@ export interface AresSuperWeaponDefinition {
 
     swDamage?: number;
     swWarhead?: string;
+    /** Ares uses this to make a manual/auto-fired SW use its AI selector. */
+    swUseAITargeting?: boolean;
     swAITargeting?: string;
+    swAITargetingConstraints?: string;
+    swAITargetingPreference?: string;
     swAffectsHouse?: string;
     swAffectsTarget?: string;
     swRequiresTarget?: string;
     swAIRequiresTarget?: string;
+    swAIRequiresHouse?: string;
     swRangeMinimum?: number;
     swRangeMaximum?: number;
     swRange?: number[];
@@ -236,11 +241,15 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         extensionType,
         swDamage: getNumber(section, "SW.Damage"),
         swWarhead: getString(section, "SW.Warhead"),
+        swUseAITargeting: getBool(section, "SW.UseAITargeting"),
         swAITargeting: getString(section, "SW.AITargeting"),
+        swAITargetingConstraints: getString(section, "SW.AITargeting.Constraints"),
+        swAITargetingPreference: getString(section, "SW.AITargeting.Preference"),
         swAffectsHouse: getString(section, "SW.AffectsHouse"),
         swAffectsTarget: getString(section, "SW.AffectsTarget"),
         swRequiresTarget: getString(section, "SW.RequiresTarget"),
         swAIRequiresTarget: getString(section, "SW.AIRequiresTarget"),
+        swAIRequiresHouse: getString(section, "SW.AIRequiresHouse"),
         swRangeMinimum: getNumber(section, "SW.RangeMinimum"),
         swRangeMaximum: getNumber(section, "SW.RangeMaximum"),
         swRange: getNumberArray(section, "SW.Range"),
