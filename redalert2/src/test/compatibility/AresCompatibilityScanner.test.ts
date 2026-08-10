@@ -42,7 +42,11 @@ UnknownGameplayFlag=yes
                 contents: `
 [CustomBuilding]
 Foundation=Custom
-Ares.FoundationCells=0,0;1,0;0,1
+Foundation.X=3
+Foundation.Y=3
+Foundation.0=0,0
+FoundationOutline.Length=4
+FoundationOutline.0=-1,-1
 Ares.ProjectilePalette=laser.pal
 Ares.PassengerDelete=yes
 `,
@@ -56,14 +60,14 @@ Ares.PassengerDelete=yes
         ]));
     });
 
-    test("formats an actionable report without claiming runtime support", () => {
+    test("formats an actionable report with verified runtime coverage", () => {
         const report = scanMentalOmegaIniSources([
             { name: "rulesmo.ini", contents: "[ArmorTypes]\nmagic=steel\n" },
         ]);
         const text = formatMentalOmegaCompatibilityReport(report);
         expect(text).toContain("MENTAL OMEGA EXTENSION REQUIREMENTS");
         expect(text).toContain("ares.additional-armor-types");
-        expect(text).toContain("parsed-only");
+        expect(text).toContain("verified");
     });
 
     test("parses additional armor types and dynamic Versus values", () => {

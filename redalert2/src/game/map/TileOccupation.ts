@@ -1,6 +1,7 @@
 import { LandType, getLandType } from '@/game/type/LandType';
 import { EventDispatcher } from '@/util/event';
 import { ZoneType, getZoneType } from '@/game/gameobject/unit/ZoneType';
+import { getFoundationCells } from '@/game/art/Foundation';
 export enum LayerType {
     All = 0,
     Ground = 1,
@@ -61,7 +62,10 @@ export class TileOccupation {
         });
     }
     calculateTilesForGameObject(pos: any, obj: any) {
-        return this.tiles.getInRectangle(pos, obj.getFoundation());
+        const foundation = obj.getFoundation();
+        return getFoundationCells(foundation)
+            .map((cell) => this.tiles.getByMapCoords(pos.rx + cell.x, pos.ry + cell.y))
+            .filter((tile: any) => !!tile);
     }
     occupyTile(tile: any, obj: any) {
         const occupation = this.tileOccupation[tile.rx]?.[tile.ry];
