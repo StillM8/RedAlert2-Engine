@@ -36,7 +36,11 @@ UnknownGameplayFlag=yes
         expect(report.knownExtensionKeys).toBe(3);
         expect(report.unknownExtensionKeys).toBe(1);
         expect(report.vanillaKeys).toBe(1);
-        expect(report.featureUsage.find((item) => item.featureId === "ares.additional-armor-types")?.occurrences).toBe(3);
+        const armorUsage = report.featureUsage.find((item) => item.featureId === "ares.additional-armor-types");
+        expect(armorUsage?.occurrences).toBe(3);
+        expect(armorUsage?.sourceCount).toBe(1);
+        expect(armorUsage?.sectionCount).toBe(2);
+        expect(armorUsage?.definitionCount).toBe(2);
         expect(report.featureUsage.find((item) => item.featureId === "ares.unknown-key")?.occurrences).toBe(1);
     });
 
@@ -72,6 +76,7 @@ Ares.PassengerDelete=yes
         const text = formatMentalOmegaCompatibilityReport(report);
         expect(text).toContain("MENTAL OMEGA EXTENSION REQUIREMENTS");
         expect(text).toContain("ares.additional-armor-types");
+        expect(text).toContain("definition(s)");
         expect(text).toContain("verified");
     });
 

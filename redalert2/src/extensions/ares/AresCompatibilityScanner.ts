@@ -21,6 +21,12 @@ export interface IniKeyReference {
 export interface AresFeatureUsage {
     featureId: string;
     occurrences: number;
+    /** Number of distinct INI source files contributing this feature. */
+    sourceCount: number;
+    /** Number of distinct sections containing this feature. */
+    sectionCount: number;
+    /** Number of distinct definitions affected by this feature. */
+    definitionCount: number;
     references: IniKeyReference[];
     support?: ExtensionFeature;
 }
@@ -80,6 +86,24 @@ function featureForKey(section: string, key: string, value: string): string | un
         return "ares.custom-animation-palettes";
     }
     return undefined;
+}
+
+const DEFINITION_LIST_SECTIONS = /^(armortypes|sides|countries|multiplayercountries|aicountries|technotypes|infantrytypes|vehicletypes|aircrafttypes|buildingtypes|animtypes|weapontypes|warheadtypes|projectiletypes|superweapontypes|scripttypes|taskforces|teamtypes|triggers|events|actions|tags|cels|celltags)$/i;
+
+function referenceIdentity(reference: IniKeyReference): {
+    source: string;
+    section: string;
+    definition: string;
+} {
+    const source = reference.source.toLocaleLowerCase("en-US");
+    const section = reference.section.toLocaleLowerCase("en-US");
+    // In list sections, each key/value entry defines a distinct object. In
+    // object sections, the section itself is the definition. This keeps the
+    // report useful for both [ArmorTypes] tables and [SomeUnit] sections.
+    const definition = DEFINITION_LIST_SECTIONS.test(reference.section)
+        ? `${section}\0${reference.key.toLocaleLowerCase("en-US")}`
+        : section;
+    return { source, section: `${source}\0${section}`, definition: `${source}\0${definition}` };
 }
 
 function parseSource(source: IniScanSource, registry: AresFeatureRegistry): IniKeyReference[] {
@@ -143,9 +167,15 @@ export function scanMentalOmegaIniSources(
     const extensionRefs = references.filter((ref) => ref.classification !== "vanilla");
     const uniqueExtensionKeys = new Set(extensionRefs.map((ref) => `${ref.section.toLocaleLowerCase("en-US")}\0${ref.key.toLocaleLowerCase("en-US")}`));
     const usage = new Map<string, AresFeatureUsage>();
+    const impact = new Map<string, {
+        sources: Set<string>;
+        sections: Set<string>;
+        definitions: Set<string>;
+    }>();
     for (const reference of extensionRefs) {
         const featureId = reference.featureId ?? "ares.unknown-key";
         const existing = usage.get(featureId);
+        const identity = referenceIdentity(reference);
         if (existing) {
             existing.occurrences++;
             existing.references.push(reference);
@@ -154,10 +184,28 @@ export function scanMentalOmegaIniSources(
             usage.set(featureId, {
                 featureId,
                 occurrences: 1,
+                sourceCount: 0,
+                sectionCount: 0,
+                definitionCount: 0,
                 references: [reference],
                 support: registry.get(featureId),
             });
         }
+        const featureImpact = impact.get(featureId) ?? {
+            sources: new Set<string>(),
+            sections: new Set<string>(),
+            definitions: new Set<string>(),
+        };
+        featureImpact.sources.add(identity.source);
+        featureImpact.sections.add(identity.section);
+        featureImpact.definitions.add(identity.definition);
+        impact.set(featureId, featureImpact);
+    }
+    for (const [featureId, featureUsage] of usage) {
+        const featureImpact = impact.get(featureId)!;
+        featureUsage.sourceCount = featureImpact.sources.size;
+        featureUsage.sectionCount = featureImpact.sections.size;
+        featureUsage.definitionCount = featureImpact.definitions.size;
     }
     return {
         sourceCount: sources.length,
@@ -258,7 +306,7 @@ export function formatMentalOmegaCompatibilityReport(report: MentalOmegaCompatib
                 : support.parserImplemented
                     ? "parsed-only"
                     : "runtime-missing";
-        lines.push(`${usage.featureId}: ${usage.occurrences} occurrence(s), ${status}`);
+        lines.push(`${usage.featureId}: ${usage.occurrences} occurrence(s), ${usage.definitionCount} definition(s), ${usage.sourceCount} source(s), ${status}`);
     }
     return lines.join("\n");
 }
