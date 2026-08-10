@@ -14,17 +14,22 @@ interface EvaSpec {
 export class EvaSpecs {
     private sideType: SideType;
     private voiceTag?: string;
+    private disabled: boolean;
     private specs = new Map<string, EvaSpec>();
     constructor(sideType: SideType, voiceTag?: string) {
         this.sideType = sideType;
-        this.voiceTag = voiceTag?.trim() || undefined;
+        const normalizedVoiceTag = voiceTag?.trim();
+        this.disabled = normalizedVoiceTag?.toLocaleLowerCase("en-US") === "none";
+        this.voiceTag = this.disabled ? undefined : normalizedVoiceTag || undefined;
     }
     readIni(ini: any): EvaSpecs {
+        if (this.disabled) return this;
         let dialogListSection = ini.getSection("DialogList");
         if (!dialogListSection) {
             throw new Error("Missing eva.ini [DialogList] section");
         }
         const dialogNames = new Set(dialogListSection.entries.values());
+        const hasExplicitVoiceTag = !!this.voiceTag;
         const sidePrefix = this.voiceTag || (this.sideType === SideType.GDI
             ? "Allied"
             : this.sideType === SideType.Yuri
@@ -34,11 +39,17 @@ export class EvaSpecs {
             if (dialogName) {
                 let dialogSection = ini.getSection(dialogName);
                 if (dialogSection) {
-                    // Fall back across voice columns for entries a side does
-                    // not record (RA2's eva.ini has no Yuri column at all).
-                    const sound = dialogSection.getString(sidePrefix) ||
-                        dialogSection.getString("Russian") ||
-                        dialogSection.getString("Allied");
+                    // Retail RA2/YR has only a subset of the legacy voice
+                    // columns in some files, so retain the old fallback when
+                    // the side is selected through SideType. An explicit
+                    // Ares EVA.Tag is authoritative: an absent custom entry
+                    // means that event has no sound, rather than silently
+                    // borrowing Russian or Allied speech.
+                    const sound = hasExplicitVoiceTag
+                        ? dialogSection.getString(sidePrefix)
+                        : dialogSection.getString(sidePrefix) ||
+                            dialogSection.getString("Russian") ||
+                            dialogSection.getString("Allied");
                     const spec: EvaSpec = {
                         text: dialogSection.getString("Text"),
                         sound,
