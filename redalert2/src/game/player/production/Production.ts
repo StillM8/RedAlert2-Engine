@@ -7,6 +7,11 @@ import { evaluateAresPrerequisiteRules, isFactoryOwnerAllowed } from '@/extensio
 import type { SideId } from '@/extensions/ares/AresSides';
 import { fnv32aStrings } from '@/util/math';
 import { isAresEmpOperational } from '@/extensions/ares/AresEMP';
+import {
+    restoreAresProductionExtensionState,
+    serializeAresProductionExtensionState,
+    type AresProductionExtensionState,
+} from '@/extensions/ares/AresProductionState';
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -280,32 +285,54 @@ export class Production {
         }
     }
     /**
+     * Returns the Ares-owned portion of production state in a versioned form.
+     * Antares serializes gathered factory plans with house state; keeping this
+     * boundary on Production lets the future full-game snapshot codec restore
+     * it without serializing live building objects or registry instances.
+     */
+    serializeState(): AresProductionExtensionState {
+        return serializeAresProductionExtensionState({
+            stolenTech: this.stolenTech ?? [],
+            permanentFactoryOwnerPlans: this.permanentFactoryOwnerPlans ?? [],
+        });
+    }
+    restoreState(state: unknown): void {
+        if (!this.stolenTech) {
+            this.stolenTech = new Set();
+        }
+        if (!this.permanentFactoryOwnerPlans) {
+            this.permanentFactoryOwnerPlans = new Set();
+        }
+        restoreAresProductionExtensionState({
+            stolenTech: this.stolenTech,
+            permanentFactoryOwnerPlans: this.permanentFactoryOwnerPlans,
+        }, state);
+    }
+    /**
      * Hashes extension-owned production state that changes the effective
      * rules available to this player. Queue state is intentionally not added
      * here because it is represented by the existing action/replay flow.
      */
     getHash(): number {
-        const stolenTech = [...(this.stolenTech ?? [])]
-            .map(value => `${typeof value === "number" ? "number" : "side"}:${value}`)
-            .sort();
-        const permanentFactoryOwnerPlans = [...(this.permanentFactoryOwnerPlans ?? [])].sort();
+        const state = this.serializeState();
+        const stolenTech = state.stolenTechs
+            .map(value => `${typeof value === "number" ? "number" : "side"}:${value}`);
         return fnv32aStrings([
             "production-extension-state",
             "stolen-tech",
             ...stolenTech,
             "permanent-factory-owner-plans",
-            ...permanentFactoryOwnerPlans,
+            ...state.permanentFactoryOwnerPlans,
         ]);
     }
     debugGetState(): {
         stolenTechs: Array<number | SideId>;
         permanentFactoryOwnerPlans: string[];
     } {
-        const stolenTechs = [...(this.stolenTech ?? [])].sort((a, b) =>
-            `${typeof a}:${a}`.localeCompare(`${typeof b}:${b}`));
+        const state = this.serializeState();
         return {
-            stolenTechs,
-            permanentFactoryOwnerPlans: [...(this.permanentFactoryOwnerPlans ?? [])].sort(),
+            stolenTechs: [...state.stolenTechs],
+            permanentFactoryOwnerPlans: [...state.permanentFactoryOwnerPlans],
         };
     }
     dispose() {

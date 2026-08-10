@@ -55,9 +55,9 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         description: "FactoryOwners and FactoryOwners.Forbidden production restrictions",
         implemented: false,
         parserImplemented: true,
-        runtimeImplemented: false,
-        tests: ["AresPrerequisites.test.ts"],
-        notes: "Initial-factory-country checks, active HasAllPlans buildings, and Permanent capture plans are wired; save/load serialization of permanent plans remains to be implemented.",
+        runtimeImplemented: true,
+        tests: ["AresPrerequisites.test.ts", "AresFactoryOwnerPersistence.test.ts"],
+        notes: "Initial-factory-country checks, active HasAllPlans buildings, and Permanent capture plans are wired. Production extension state now has a versioned serializer/restorer; full-game snapshot integration remains open because current saves resume action logs.",
     },
     {
         id: "ares.custom-foundations",
