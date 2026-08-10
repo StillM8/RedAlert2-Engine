@@ -4,6 +4,7 @@ import {
     scanMentalOmegaIniSources,
     scanMentalOmegaVfs,
 } from "@/extensions/ares/AresCompatibilityScanner";
+import { createDefaultAresFeatureRegistry } from "@/extensions/ares/AresFeatureRegistry";
 import { ArmorRegistry, parseAresWarheadVerses } from "@/extensions/ares/AresArmor";
 import { IniFile } from "@/data/IniFile";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
@@ -178,6 +179,20 @@ ListIndex=11
         expect(sides.resolve("epsilon")?.sidebarMixFileIndex).toBe(4);
         expect(countries.resolve("FoehnCountry")?.sideId).toBe("Foehn");
         expect(countries.list().map((country) => country.id)).toEqual(["EpsilonCountry", "FoehnCountry"]);
+    });
+
+    test("marks dynamic side and country runtime coverage in the feature registry", () => {
+        const registry = createDefaultAresFeatureRegistry();
+        expect(registry.get("ares.custom-sides")).toMatchObject({
+            implemented: true,
+            parserImplemented: true,
+            runtimeImplemented: true,
+        });
+        expect(registry.get("ares.custom-countries")).toMatchObject({
+            implemented: true,
+            parserImplemented: true,
+            runtimeImplemented: true,
+        });
     });
 
     test("scans the effective INI graph instead of only the root file", () => {
