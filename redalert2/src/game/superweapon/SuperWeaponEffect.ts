@@ -1,5 +1,5 @@
-import { Game } from "@/game/Game";
-import { Player } from "@/game/Player";
+import type { Game } from "@/game/Game";
+import type { Player } from "@/game/Player";
 export type TileCoord = any;
 export enum EffectStatus {
     NotStarted = 0,
