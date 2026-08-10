@@ -6,6 +6,7 @@ import { SpeedType } from '@/game/type/SpeedType';
 import { Tile } from '@/game/map/Tile';
 import { GameMap } from '@/game/GameMap';
 import { GameObject } from '@/game/gameobject/GameObject';
+import { getFoundationCells } from '@/game/art/Foundation';
 type RallyContext = {
     map: GameMap;
 };
@@ -25,17 +26,14 @@ export class RallyTrait {
             !map.tileOccupation.isTileOccupiedBy(tile, gameObject));
         let validTile = finder.getNextTile();
         if (!validTile && gameObject.factoryTrait?.type === FactoryType.NavalUnitType) {
-            const { width, height } = gameObject.getFoundation();
-            for (let x = 0; x < width; x++) {
-                for (let y = 0; y < height; y++) {
-                    const tile = map.tiles.getByMapCoords(gameObject.tile.rx + x, gameObject.tile.ry + y);
-                    if (!tile)
-                        break;
-                    if (map.terrain.getPassableSpeed(tile, SpeedType.Float, false, false) > 0) {
-                        validTile = tile;
-                        break;
-                    }
+            for (const cell of getFoundationCells(gameObject.getFoundation())) {
+                const tile = map.tiles.getByMapCoords(gameObject.tile.rx + cell.x, gameObject.tile.ry + cell.y);
+                if (tile && map.terrain.getPassableSpeed(tile, SpeedType.Float, false, false) > 0) {
+                    validTile = tile;
+                    break;
                 }
+                if (validTile)
+                    break;
             }
         }
         return validTile;
