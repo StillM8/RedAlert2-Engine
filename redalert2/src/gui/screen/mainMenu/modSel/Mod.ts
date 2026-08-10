@@ -1,14 +1,5 @@
 import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
-interface ModMeta {
-    id: string;
-    name: string;
-    supported: boolean;
-    version?: string;
-    download?: string;
-    downloadSize?: number;
-    manualDownload?: boolean;
-    clone(): ModMeta;
-}
+import type { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 export class Mod {
     public status: ModStatus;
     public meta: ModMeta;

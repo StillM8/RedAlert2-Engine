@@ -40,9 +40,17 @@ html:-moz-full-screen body {
 
 #ra2web-root {
     position: relative;
-    touch-action: none;
+    /* Keep the canvas gesture-safe, but allow HTML panels (options, storage,
+       credits, etc.) to opt into their own native scrolling.  Applying
+       touch-action:none to the whole root prevented an overflowing mobile
+       panel from ever receiving a vertical scroll gesture. */
+    touch-action: auto;
     user-select: none;
     -webkit-user-select: none;
+}
+
+#ra2web-root canvas {
+    touch-action: none;
 }
 
 #ra2web-root, #ra2web-root input, #ra2web-root select, #ra2web-root .select, #ra2web-root button {
@@ -147,6 +155,9 @@ html:-moz-full-screen body {
 #ra2web-root .video-wrapper video {
     width: 632px;
     height: 570px;
+    /* The menu video is a visual backdrop. Let the canvas receive taps on
+       buttons that overlap its rectangle, especially on touch WebViews. */
+    pointer-events: none;
 }
 
 #ra2web-root .video-wrapper .logo {
@@ -212,6 +223,10 @@ html:-moz-full-screen body {
 #ra2web-root .menu-button {
     cursor: default;
     text-align: center;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
@@ -258,8 +273,13 @@ html:-moz-full-screen body {
     left: 0;
     transform: translateY(-50%);
     width: inherit;
+    box-sizing: border-box;
+    padding: 0 4px;
     text-align: center;
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #ra2web-root .menu-tooltip {
@@ -1945,6 +1965,10 @@ input[type="range"]:focus {
     width: 150px;
     text-align: right;
     margin-right: 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 #ra2web-root .opts.sound-opts input[type="range"] {
@@ -1987,6 +2011,18 @@ input[type="range"]:focus {
     width: 100%;
     max-width: 440px;
     padding: 24px 48px;
+}
+
+#ra2web-root[data-mobile-layout="true"] .opts.general-opts,
+#ra2web-root[data-compact-layout="true"] .opts.general-opts {
+    height: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 32px;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
 }
 
 #ra2web-root[data-compact-layout="true"] .opts.general-opts {

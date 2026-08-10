@@ -1,5 +1,5 @@
-import { IniFile } from "data/IniFile";
-import { RouteHelper } from "RouteHelper";
+import { IniFile } from "@/data/IniFile";
+import { RouteHelper } from "@/RouteHelper";
 import { Mod } from "@/gui/screen/mainMenu/modSel/Mod";
 import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 interface Directory {
@@ -9,6 +9,7 @@ interface Directory {
     getRawFile(name: string): Promise<RawFile>;
     deleteDirectory(name: string, recursive: boolean): Promise<void>;
 }
+type DirectoryResolver = () => Promise<Directory | undefined>;
 interface RawFile {
     text(): Promise<string>;
 }
@@ -23,14 +24,22 @@ export class ModManager {
     public static readonly modMetaFileName = "modcd.ini";
     public static readonly modIdRegex = /^[a-z0-9-_]+$/i;
     private location: Location;
-    private modDir: Directory;
+    private modDir?: Directory;
     private appResourceLoader: AppResourceLoader;
-    constructor(location: Location, modDir: Directory, appResourceLoader: AppResourceLoader) {
+    private modDirResolver?: DirectoryResolver;
+    constructor(location: Location, modDir: Directory | undefined, appResourceLoader: AppResourceLoader, modDirResolver?: DirectoryResolver) {
         this.location = location;
         this.modDir = modDir;
         this.appResourceLoader = appResourceLoader;
+        this.modDirResolver = modDirResolver;
     }
-    getModDir(): Directory {
+    async ensureModDir(): Promise<Directory | undefined> {
+        if (!this.modDir && this.modDirResolver) {
+            this.modDir = await this.modDirResolver();
+        }
+        return this.modDir;
+    }
+    getModDir(): Directory | undefined {
         return this.modDir;
     }
     async buildModList(localMods: ModMeta[], remoteMods?: ModMeta[]): Promise<Mod[]> {
@@ -54,14 +63,17 @@ export class ModManager {
             throw new Error(ModManager.remoteListFileName + " is missing the [General] section");
         }
         const mods: ModMeta[] = [];
-        for (const modId of generalSection.entries.values()) {
-            const modSection = iniFile.getSection(modId);
-            if (modSection) {
-                const modMeta = new ModMeta().fromIniSection(modSection);
-                mods.push(modMeta);
-            }
-            else {
-                console.warn(`Mod "${modId}" has no INI section`);
+        for (const modIdValue of generalSection.entries.values()) {
+            const modIds = Array.isArray(modIdValue) ? modIdValue : [modIdValue];
+            for (const modId of modIds) {
+                const modSection = iniFile.getSection(modId);
+                if (modSection) {
+                    const modMeta = new ModMeta().fromIniSection(modSection);
+                    mods.push(modMeta);
+                }
+                else {
+                    console.warn(`Mod "${modId}" has no INI section`);
+                }
             }
         }
         return mods;
@@ -82,7 +94,10 @@ export class ModManager {
         modMeta.id = modId;
         modMeta.name = modId;
         try {
-            const modDirectory = await this.modDir.getDirectory(modId, true);
+            const modDirectory = await this.modDir?.getDirectory(modId, true);
+            if (!modDirectory) {
+                return modMeta;
+            }
             const metaFile = (await modDirectory.containsEntry(ModManager.modMetaFileName))
                 ? await modDirectory.getRawFile(ModManager.modMetaFileName)
                 : undefined;
@@ -104,7 +119,7 @@ export class ModManager {
     }
     async deleteModFiles(modId: string): Promise<void> {
         if (await this.modDir?.containsEntry(modId)) {
-            await this.modDir.deleteDirectory(modId, true);
+            await this.modDir!.deleteDirectory(modId, true);
         }
     }
     loadMod(modId?: string): void {

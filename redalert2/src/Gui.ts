@@ -1,5 +1,5 @@
 import { Renderer } from './engine/gfx/Renderer.js';
-import { isNativeShell } from './shell/iosSeed.js';
+import { isNativeShell } from './shell/nativeShell.js';
 import { UiScene } from './gui/UiScene.js';
 import { JsxRenderer } from './gui/jsx/JsxRenderer.js';
 import { BoxedVar } from './util/BoxedVar.js';
@@ -41,6 +41,7 @@ import { VxlGeometryCache } from './engine/gfx/geometry/VxlGeometryCache.js';
 import { GameResConfig } from './engine/gameRes/GameResConfig.js';
 import { KeyBinds } from './gui/screen/game/worldInteraction/keyboard/KeyBinds.js';
 import { ClientApi } from './ClientApi.js';
+import { ModSelScreen } from './gui/screen/mainMenu/modSel/ModSelScreen.js';
 import type { ViewportRect } from './gui/Viewport.js';
 import { attachPerformanceOptions, installPerformanceDebugApi } from './performance/PerformanceRuntime.js';
 export class Gui {
@@ -337,6 +338,7 @@ export class Gui {
         subScreens.set(MainMenuScreenType.ReplaySelection, ReplaySelScreen);
         const { LoadGameScreen } = await import('./gui/screen/mainMenu/loadGame/LoadGameScreen.js');
         subScreens.set(MainMenuScreenType.LoadGame, LoadGameScreen);
+        subScreens.set(MainMenuScreenType.ModSelection, ModSelScreen);
         const { ReplayManager } = await import('./gui/ReplayManager.js');
         let replayManager: any;
         try {
@@ -544,7 +546,34 @@ export class Gui {
                 this.sound.initialize();
                 console.log('[Gui] Sound system initialized');
             }
-            await this.initMusicSystem();
+            // Android can keep the WebView hidden behind the secure lock
+            // screen. File-system directory enumeration used by the optional
+            // music setup may not resolve in that state, so never hold the
+            // whole GUI boot on it. Start it when the shell becomes visible
+            // or after the first interaction.
+            if (isNativeShell() && document.visibilityState === 'hidden') {
+                let started = false;
+                const startDeferredMusic = () => {
+                    if (started) {
+                        return;
+                    }
+                    started = true;
+                    document.removeEventListener('pointerdown', startDeferredMusic);
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                    void this.initMusicSystem();
+                };
+                const onVisibilityChange = () => {
+                    if (document.visibilityState === 'visible') {
+                        startDeferredMusic();
+                    }
+                };
+                document.addEventListener('pointerdown', startDeferredMusic, { once: true });
+                document.addEventListener('visibilitychange', onVisibilityChange);
+                console.log('[Gui] Deferring music initialization until native WebView is visible');
+            }
+            else {
+                await this.initMusicSystem();
+            }
             console.log('[Gui] Audio system initialization completed');
         }
         catch (error) {

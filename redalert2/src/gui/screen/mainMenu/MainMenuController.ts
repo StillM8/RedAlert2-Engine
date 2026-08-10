@@ -84,6 +84,14 @@ export class MainMenuController extends Controller {
             if (this.sound && this.shouldPlayUiSound()) {
                 this.sound.play(SoundKey.GUIMoveOutSound, ChannelType.Ui);
             }
+            // CSS/Three.js sidebar transitions do not dispatch their toggle
+            // event while Android has the WebView hidden behind the lock
+            // screen. Do the state change and resolve immediately so screen
+            // navigation cannot remain suspended in the background.
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                this.mainMenu.hideButtons?.();
+                return;
+            }
             return new Promise((resolve) => {
                 if (this.mainMenu && this.mainMenu.onSidebarToggle) {
                     const handler = () => {

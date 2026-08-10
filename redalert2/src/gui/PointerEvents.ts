@@ -12,6 +12,7 @@ interface CanvasMetrics {
     width: number;
     height: number;
     toCanvasPosition(pageX: number, pageY: number): PointerPosition;
+    toCanvasClientPosition(clientX: number, clientY: number): PointerPosition;
     toCanvasOffset(offsetX: number, offsetY: number): PointerPosition;
 }
 interface LockModePointer {
@@ -87,6 +88,7 @@ export class PointerEvents {
     private lockModePointer: LockModePointer;
     private document: Document;
     private canvasMetrics: CanvasMetrics;
+    private canvas: HTMLCanvasElement;
     private disposables: CompositeDisposable;
     private canvasContext: EventContext;
     private objectContexts: Map<THREE.Object3D, EventContext>;
@@ -106,6 +108,10 @@ export class PointerEvents {
     /** After a two-finger gesture ends with one finger still down, that finger
      * stays inert until lifted so it can't issue accidental orders. */
     private gestureConsumed = false;
+    /** True while a gesture began in the small safe-area strip outside the
+     * transformed canvas. Android delivers those touches to BODY, so without
+     * this bridge they never enter the RTS gesture engine. */
+    private edgeTouchActive = false;
     constructor(renderer: Renderer, lockModePointer: LockModePointer, document: Document, canvasMetrics: CanvasMetrics) {
         this.renderer = renderer;
         this.lockModePointer = lockModePointer;
@@ -118,6 +124,7 @@ export class PointerEvents {
         this.clickPaths = new Map();
         this.touchFingers = 0;
         const canvas = renderer.getCanvas();
+        this.canvas = canvas;
         canvas.addEventListener('dblclick', this.onDblClick, false);
         canvas.addEventListener('mousemove', this.onMouseMove, false);
         canvas.addEventListener('mousedown', this.onMouseDown, false);
@@ -127,6 +134,16 @@ export class PointerEvents {
         canvas.addEventListener('touchend', this.onTouchEnd, false);
         canvas.addEventListener('touchcancel', this.onTouchCancel, false);
         canvas.addEventListener('wheel', this.onMouseWheel, { passive: true });
+        // The Android shell reserves a side safe-area inset. The transformed
+        // root starts after that inset, which means a one-finger tap on the
+        // physical edge targets BODY instead of the canvas. Listen during
+        // capture only for touches that really began outside the app root;
+        // HTML menu controls and ordinary canvas touches keep their existing
+        // native/event paths.
+        this.document.addEventListener('touchstart', this.onEdgeTouchStart, { capture: true, passive: false });
+        this.document.addEventListener('touchmove', this.onEdgeTouchMove, { capture: true, passive: false });
+        this.document.addEventListener('touchend', this.onEdgeTouchEnd, { capture: true, passive: false });
+        this.document.addEventListener('touchcancel', this.onEdgeTouchCancel, { capture: true, passive: false });
         this.disposables.add(() => {
             canvas.removeEventListener('dblclick', this.onDblClick, false);
             canvas.removeEventListener('mousemove', this.onMouseMove, false);
@@ -137,6 +154,11 @@ export class PointerEvents {
             canvas.removeEventListener('touchend', this.onTouchEnd, false);
             canvas.removeEventListener('touchcancel', this.onTouchCancel, false);
             canvas.removeEventListener('wheel', this.onMouseWheel, false);
+            this.document.removeEventListener('touchstart', this.onEdgeTouchStart, true);
+            this.document.removeEventListener('touchmove', this.onEdgeTouchMove, true);
+            this.document.removeEventListener('touchend', this.onEdgeTouchEnd, true);
+            this.document.removeEventListener('touchcancel', this.onEdgeTouchCancel, true);
+            this.edgeTouchActive = false;
         });
     }
     private onDblClick = (event: MouseEvent): void => {
@@ -199,6 +221,39 @@ export class PointerEvents {
     };
     private onMouseWheel = (event: WheelEvent): void => {
         this.onMouseEvent('wheel', event);
+    };
+    private isTouchOutsideRoot(event: TouchEvent): boolean {
+        const root = this.canvas.closest('#ra2web-root');
+        const target = event.target;
+        return !!root && !(target instanceof Node && root.contains(target));
+    };
+    private onEdgeTouchStart = (event: TouchEvent): void => {
+        if (!this.isTouchOutsideRoot(event)) {
+            return;
+        }
+        this.edgeTouchActive = true;
+        this.onTouchStart(event);
+    };
+    private onEdgeTouchMove = (event: TouchEvent): void => {
+        if (this.edgeTouchActive) {
+            this.onTouchMove(event);
+        }
+    };
+    private onEdgeTouchEnd = (event: TouchEvent): void => {
+        if (!this.edgeTouchActive) {
+            return;
+        }
+        this.onTouchEnd(event);
+        if (event.touches.length === 0) {
+            this.edgeTouchActive = false;
+        }
+    };
+    private onEdgeTouchCancel = (event: TouchEvent): void => {
+        if (!this.edgeTouchActive) {
+            return;
+        }
+        this.onTouchCancel(event);
+        this.edgeTouchActive = false;
     };
     // --- Touch gesture engine (Generals-style RTS semantics) ---
     // 1 finger: tap = left click, drag = left drag (box select / UI).
@@ -443,7 +498,10 @@ export class PointerEvents {
         };
     }
     private computeTouchPosition(touch: Touch): PointerPosition {
-        let position = this.canvasMetrics.toCanvasPosition(touch.pageX, touch.pageY);
+        // clientX/clientY and getBoundingClientRect() share the same viewport
+        // coordinate space. pageX/pageY can include a WebView/document offset
+        // when Android applies or removes display-cutout insets.
+        let position = this.canvasMetrics.toCanvasClientPosition(touch.clientX, touch.clientY);
         position.x = clamp(position.x, 0, this.canvasMetrics.width - 1);
         position.y = clamp(position.y, 0, this.canvasMetrics.height - 1);
         return position;
@@ -498,6 +556,11 @@ export class PointerEvents {
         }
         if ((event as unknown as FakeMouseEvent).isTouch) {
             return { x: (event as MouseEvent).offsetX, y: (event as MouseEvent).offsetY };
+        }
+        const clientX = (event as MouseEvent).clientX;
+        const clientY = (event as MouseEvent).clientY;
+        if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
+            return this.canvasMetrics.toCanvasClientPosition(clientX, clientY);
         }
         return this.canvasMetrics.toCanvasOffset((event as MouseEvent).offsetX, (event as MouseEvent).offsetY);
     }

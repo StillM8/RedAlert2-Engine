@@ -61,7 +61,7 @@ import { OrderType } from '@/game/order/OrderType';
 import { RadialTileFinder } from '@/game/map/tileFinder/RadialTileFinder';
 import { Coords } from '@/game/Coords';
 import { inGameViewportActive } from '@/gui/inGameViewport';
-import { isNativeShell } from '@/shell/iosSeed';
+import { isNativeShell } from '@/shell/nativeShell';
 
 /** Compact on-screen crash detail for the native shell (no devtools on device). */
 function formatShellCrashDetail(error: any): string {

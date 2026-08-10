@@ -6,7 +6,7 @@ import { MusicType } from '../../../../engine/sound/Music';
 import { MessageBoxApi } from '../../../component/MessageBoxApi';
 import { FullScreen } from '../../../FullScreen';
 import { getHumanReadableKey } from '@/gui/screen/options/component/getHumanReadableKey';
-import { isNativeShell } from '@/shell/iosSeed';
+import { isNativeShell } from '@/shell/nativeShell';
 interface SidebarButton {
     label: string;
     tooltip?: string;
@@ -104,13 +104,13 @@ export class HomeScreen implements Screen {
                 }
             },
         ];
-        if (this.storageEnabled && !nativeShell) {
+        if (this.storageEnabled) {
             buttons.push({
                 label: this.strings.get('GUI:Mods') || 'Mods',
                 tooltip: this.strings.get('STT:Mods') || 'Manage and play modified versions of the base game',
-                onClick: async () => {
+                onClick: () => {
                     console.log('[HomeScreen] Mods clicked');
-                    await this.messageBoxApi.alert('Mods - Under Development\n\nA mod management system is required', this.strings.get('GUI:OK') || 'OK');
+                    this.controller?.pushScreen(MainMenuScreenType.ModSelection);
                 }
             });
         }

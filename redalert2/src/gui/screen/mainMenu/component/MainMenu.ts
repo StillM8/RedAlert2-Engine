@@ -263,6 +263,7 @@ export class MainMenu extends UiObject {
             }, jsx("sprite", { image: mainImage, palette: "shell.pal" }), jsx(HtmlView, {
                 component: MenuVideo,
                 props: { src: this.videoSrc },
+                pointerEvents: "none",
                 hidden: true,
                 ref: (ref: HtmlView) => (this.menuVideo = ref),
             })), jsx("container", {

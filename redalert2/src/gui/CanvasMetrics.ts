@@ -46,9 +46,24 @@ export class CanvasMetrics {
         this.updateCanvasBoxMetrics();
     }
     toCanvasPosition(pageX: number, pageY: number): { x: number; y: number; } {
+        return this.toCanvasClientPosition(
+            pageX - (this.window.scrollX || 0),
+            pageY - (this.window.scrollY || 0),
+        );
+    }
+    /**
+     * Convert a browser viewport coordinate to the renderer's logical
+     * coordinate space. This must be based on the current DOM rect rather than
+     * MouseEvent.offsetX: the game root is CSS-scaled on phones and Android
+     * WebView may change its side insets after the first frame.
+     */
+    toCanvasClientPosition(clientX: number, clientY: number): { x: number; y: number; } {
+        this.updateCanvasBoxMetrics();
+        const scrollX = this.window.scrollX || 0;
+        const scrollY = this.window.scrollY || 0;
         return this.scaleDisplayPosition({
-            x: pageX - this.x,
-            y: pageY - this.y,
+            x: clientX - (this.x - scrollX),
+            y: clientY - (this.y - scrollY),
         });
     }
     toCanvasOffset(offsetX: number, offsetY: number): { x: number; y: number; } {

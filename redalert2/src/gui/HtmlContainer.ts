@@ -5,6 +5,7 @@ export class HtmlContainer extends LazyHtmlElement {
     protected top: number = 0;
     protected width: number | string = 0;
     protected height: number | string = 0;
+    protected pointerEvents: string = "auto";
     protected relativeMode: boolean = false;
     protected translateMode: boolean = false;
     constructor() {
@@ -21,6 +22,7 @@ export class HtmlContainer extends LazyHtmlElement {
             this.updatePosition();
             this.updateVisibility();
             this.updateSize();
+            this.updatePointerEvents();
         }
         super.render();
     }
@@ -45,6 +47,10 @@ export class HtmlContainer extends LazyHtmlElement {
         this.width = width;
         this.height = height;
         this.updateSize();
+    }
+    setPointerEvents(pointerEvents: string): void {
+        this.pointerEvents = pointerEvents;
+        this.updatePointerEvents();
     }
     getSize(): {
         width: number | string;
@@ -90,6 +96,12 @@ export class HtmlContainer extends LazyHtmlElement {
         if (element) {
             element.style.width = typeof this.width === 'number' ? this.width + 'px' : this.width;
             element.style.height = typeof this.height === 'number' ? this.height + 'px' : this.height;
+        }
+    }
+    protected updatePointerEvents(): void {
+        const element = this.getElement();
+        if (element) {
+            element.style.pointerEvents = this.pointerEvents;
         }
     }
     hide(): void {

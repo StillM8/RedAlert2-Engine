@@ -10,6 +10,12 @@ import { LazyResourceCollection } from '../../../engine/LazyResourceCollection';
 import { MessageBoxApi } from '../../component/MessageBoxApi';
 import { Config } from '../../../Config';
 import { browserFileSystemAccess } from '../../../engine/gameRes/browserFileSystemAccess';
+import { ErrorHandler } from '../../../ErrorHandler';
+import { Engine } from '../../../engine/Engine';
+import { ResourceLoader } from '../../../engine/ResourceLoader';
+import { ModManager } from './modSel/ModManager';
+import { RealFileSystemDir } from '../../../data/vfs/RealFileSystemDir';
+import { isNativeShell } from '../../../shell/nativeShell';
 export interface UiScene {
     menuViewport: {
         x: number;
@@ -65,6 +71,9 @@ export class MainMenuRootScreen extends RootScreen {
         this.mixer = mixer;
         this.keyBinds = keyBinds;
         this.rootController = rootController;
+    }
+    private canAccessUserDirectories(): boolean {
+        return !(isNativeShell() && typeof document !== 'undefined' && document.visibilityState === 'hidden');
     }
     createView(): void {
         console.log('[MainMenuRootScreen] Creating view');
@@ -171,7 +180,7 @@ export class MainMenuRootScreen extends RootScreen {
             const gameModes = Engine.getMpModes();
             let mapDir: any = undefined;
             try {
-                const mapDirHandle = await Engine.getMapDir();
+                const mapDirHandle = this.canAccessUserDirectories() ? await Engine.getMapDir() : undefined;
                 if (mapDirHandle) {
                     const { RealFileSystemDir } = await import('../../../data/vfs/RealFileSystemDir.js');
                     mapDir = new RealFileSystemDir(mapDirHandle);
@@ -192,6 +201,37 @@ export class MainMenuRootScreen extends RootScreen {
             const errorHandler = new ErrorHandler(this.messageBoxApi, this.strings);
             const replayManager = (this as any).replayManager;
             screen = new screenClass(this.rootController, this.strings, this.jsxRenderer, errorHandler, this.messageBoxApi, replayManager);
+        }
+        else if (screenType === MainMenuScreenType.ModSelection) {
+            const errorHandler = new ErrorHandler(this.messageBoxApi, this.strings);
+            const modDirHandle = this.canAccessUserDirectories() ? await Engine.getModDir() : undefined;
+            const modDir = modDirHandle ? new RealFileSystemDir(modDirHandle) : undefined;
+            const modManager = new ModManager(
+                window.location,
+                modDir as any,
+                new ResourceLoader(''),
+                async () => {
+                    const handle = await Engine.getModDir();
+                    return handle ? new RealFileSystemDir(handle) : undefined;
+                },
+            );
+            // Keep the catalog bundled with the app, while resolving relative
+            // archive URLs through the configured mod CDN. Catalog entries
+            // with absolute URLs (the Android-friendly ones) are unaffected.
+            const modResourceLoader = new ResourceLoader(this.config.modsBaseUrl ?? '');
+            screen = new screenClass(
+                this.rootController,
+                this.strings,
+                this.jsxRenderer,
+                errorHandler,
+                this.messageBoxApi,
+                modManager,
+                Engine.getActiveMod() ?? '',
+                this.config.modSdkUrl,
+                modResourceLoader,
+                browserFileSystemAccess,
+                undefined,
+            );
         }
         else if (screenType === MainMenuScreenType.ReplaySelection) {
             const { ErrorHandler } = await import('../../../ErrorHandler.js');
@@ -218,7 +258,7 @@ export class MainMenuRootScreen extends RootScreen {
             const gameModes = Engine.getMpModes();
             let mapDir: any = undefined;
             try {
-                const mapDirHandle = await Engine.getMapDir();
+                const mapDirHandle = this.canAccessUserDirectories() ? await Engine.getMapDir() : undefined;
                 if (mapDirHandle) {
                     const { RealFileSystemDir } = await import('../../../data/vfs/RealFileSystemDir.js');
                     mapDir = new RealFileSystemDir(mapDirHandle);
@@ -230,7 +270,7 @@ export class MainMenuRootScreen extends RootScreen {
             screen = new screenClass(this.rootController, this.strings, this.jsxRenderer, rules, mapFileLoader, mapList, gameModes, this.localPrefs, this.messageBoxApi, mapDir);
         }
         else if (screenType === MainMenuScreenType.Home) {
-            screen = new screenClass(this.strings, this.messageBoxApi, this.appVersion, false, false, this.fullScreen);
+            screen = new screenClass(this.strings, this.messageBoxApi, this.appVersion, true, false, this.fullScreen);
         }
         else {
             screen = new screenClass(this.strings, this.messageBoxApi, this.appVersion, false, false);

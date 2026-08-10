@@ -55,7 +55,9 @@ export class Pointer {
             position.y = position.y + event.movementY;
         }
         else {
-            const pointerPosition = this.canvasMetrics.toCanvasPosition(event.pageX, event.pageY);
+            const pointerPosition = Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
+                ? this.canvasMetrics.toCanvasClientPosition(event.clientX, event.clientY)
+                : this.canvasMetrics.toCanvasPosition(event.pageX, event.pageY);
             position.x = pointerPosition.x;
             position.y = pointerPosition.y;
         }

@@ -11,7 +11,7 @@ import { ChecksumError } from './importError/ChecksumError';
 import { FileNotFoundError as GameResFileNotFoundError } from './importError/FileNotFoundError';
 import { NoStorageError } from './importError/NoStorageError';
 import { Crc32 } from '../../data/Crc32';
-import { isNativeShell } from '../../shell/iosSeed';
+import { isNativeShell } from '../../shell/nativeShell';
 import { Palette } from '../../data/Palette';
 import { ShpFile } from '../../data/ShpFile';
 import { PcxFile } from '../../data/PcxFile';
@@ -319,10 +319,20 @@ export class GameRes {
     private async lookForGameFiles(rfsDir: RealFileSystemDir): Promise<boolean> {
         const entries = await rfsDir.listEntries();
         console.log('[GameRes.lookForGameFiles] Entries in directory:', entries);
-        const requiredFiles = ["language.mix", "multi.mix", "ra2.mix"];
-        const hasAllFiles = requiredFiles.every((fileName) => entries.includes(fileName));
-        console.log('[GameRes.lookForGameFiles] Required files:', requiredFiles, 'Has all files:', hasAllFiles);
+        const missingFiles = await this.getMissingGameFiles(rfsDir, entries);
+        const hasAllFiles = missingFiles.length === 0;
+        console.log('[GameRes.lookForGameFiles] Missing required files:', missingFiles, 'Has all files:', hasAllFiles);
         return hasAllFiles;
+    }
+    private getRequiredGameFiles(): string[] {
+        return Engine.getActiveEngine() === EngineType.YurisRevenge
+            ? ["language.mix", "multi.mix", "ra2.mix", "langmd.mix", "multimd.mix", "ra2md.mix"]
+            : ["language.mix", "multi.mix", "ra2.mix"];
+    }
+    private async getMissingGameFiles(rfsDir: RealFileSystemDir, knownEntries?: string[]): Promise<string[]> {
+        const entries = knownEntries ?? await rfsDir.listEntries();
+        const lowerEntries = new Set(entries.map((entry) => entry.toLowerCase()));
+        return this.getRequiredGameFiles().filter((fileName) => !lowerEntries.has(fileName));
     }
     private async migrateStorageToNative(nativeFsHandle: FileSystemDirectoryHandle, onProgress: LoadProgressCallback): Promise<boolean> {
         const migrationPendingKey = "_storage_migration_pending";
@@ -456,6 +466,19 @@ export class GameRes {
             if (!rfs) {
                 throw new NoStorageError("No available storage adapters for local/archive resources.");
             }
+            const rootDir = rfs.getRootDirectory();
+            if (!rootDir)
+                throw new Error("RFS root not available for local game resources");
+            const missingRequiredFiles = await this.getMissingGameFiles(rootDir);
+            if (missingRequiredFiles.length > 0) {
+                const error = new Error(
+                    `Required ${Engine.getActiveEngine() === EngineType.YurisRevenge ? "Red Alert 2 + Yuri's Revenge" : "Red Alert 2"} ` +
+                    `archives are missing: ${missingRequiredFiles.join(", ")}`,
+                );
+                error.name = "FileNotFoundError";
+                (error as any).file = missingRequiredFiles.join(", ");
+                throw error;
+            }
             if (isNativeShell()) {
                 // The shell's seeder already verifies per-file sizes against the
                 // bundle manifest and self-heals. Re-reading ra2.mix here just to
@@ -466,9 +489,6 @@ export class GameRes {
             }
             else {
                 console.info("Checking integrity of mix files...");
-                const rootDir = rfs.getRootDirectory();
-                if (!rootDir)
-                    throw new Error("RFS root not available for mix integrity check");
                 await this.checkMixesIntegrity(rootDir);
                 console.info("Mixes are valid.");
             }

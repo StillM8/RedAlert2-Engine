@@ -1,15 +1,57 @@
 import { StorageKey } from '../LocalPrefs';
 import { GameResSource } from '../engine/gameRes/GameResSource';
+import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/async/cancellation';
 
 declare global {
     interface Window {
-        __RA2_SHELL__?: { platform: string; version: string };
+        __RA2_SHELL__?: {
+            platform: string;
+            version: string;
+            thermalState?: string;
+        };
+        Ra2Android?: {
+            pickGameDirectory: () => boolean;
+            startModDownload?: (url: string, requestId: string) => boolean;
+            cancelModDownload?: (requestId: string) => boolean;
+            deleteModDownload?: (token: string) => boolean;
+            readModDownloadChunk?: (token: string, offset: number, length: number) => string;
+        };
+        __RA2_NATIVE_GAME_RES_CALLBACK__?: (result: {
+            success: boolean;
+            error?: string;
+        }) => void;
+        __RA2_NATIVE_MOD_DOWNLOAD_CALLBACK__?: (requestId: string, result: {
+            success?: boolean;
+            event?: string;
+            progress?: number;
+            total?: number;
+            token?: string;
+            url?: string;
+            size?: number;
+            cancelled?: boolean;
+            error?: string;
+        }) => void;
     }
 }
 
 interface SeedManifest {
     files: { path: string; size: number }[];
 }
+
+// The Android folder importer can copy an arbitrary directory tree, so a
+// manifest alone is not proof that it contains a playable game. These are the
+// implicit archives loaded by the YR engine before any menu can render.
+const REQUIRED_RA2_GAME_FILES = [
+    'language.mix',
+    'multi.mix',
+    'ra2.mix',
+];
+const OPTIONAL_YR_GAME_FILES = [
+    'langmd.mix',
+    'multimd.mix',
+    'ra2md.mix',
+];
+const NATIVE_ENGINE_STORAGE_KEY = '_ra2_native_engine';
 
 /**
  * Both debug channels below talk to a hardcoded dev host over plain HTTP: the
@@ -28,7 +70,7 @@ const DEBUG_NET_ALLOWED = !!(import.meta as any).env?.DEV
     || !!(import.meta as any).env?.VITE_DEBUG_NET_FORCE;
 
 /**
- * Debug aid: mirrors console output to a dev machine over HTTP so WKWebView
+ * Debug aid: mirrors console output to a dev machine over HTTP so native WebView
  * logs are visible without attaching Safari's inspector. Silently inert when
  * no dev receiver is listening.
  */
@@ -82,7 +124,7 @@ export function installShellDebugLog(): void {
 /**
  * Debug aid (VITE_DEBUG_REPL=1 builds only): polls the dev receiver for JS
  * snippets, evals them in page context and posts the result back. Gives a
- * full REPL into WKWebView builds (simulator or device) where no console
+ * full REPL into native WebView builds (emulator or device) where no console
  * input channel exists. Inert unless the build flag is set AND a receiver
  * is listening.
  */
@@ -96,8 +138,8 @@ export function installShellRepl(): void {
     let logged = false;
     const poll = async () => {
         try {
-            // POST, not GET: WKWebView on-device silently drops the GETs here
-            // while identical POSTs (the /log channel) go through.
+            // POST, not GET: some embedded WebViews handle the two paths
+            // differently while identical POSTs (the /log channel) go through.
             const response = await fetch(`http://${host}:4100/cmd`, { method: 'POST', body: 'poll' });
             if (!logged) {
                 logged = true;
@@ -130,11 +172,204 @@ export function installShellRepl(): void {
     poll();
 }
 
-export function isNativeShell(): boolean {
+/**
+ * Android can identify the shell with URL parameters because its WebView
+ * bootstrap runs after the document has been created. iOS still injects the
+ * object at document start, so both native shells expose the same contract.
+ */
+function ensureShellMarker(): void {
     if (window.__RA2_SHELL__)
-        return true;
-    // Dev aid: lets a desktop browser exercise the shell code paths.
-    return new URLSearchParams(window.location.search).has('shell');
+        return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('shell'))
+        return;
+    window.__RA2_SHELL__ = {
+        platform: params.get('platform') || 'native',
+        version: params.get('shellVersion') || '0.1.0',
+    };
+}
+
+export function isNativeShell(): boolean {
+    ensureShellMarker();
+    // The query flag also lets a desktop browser exercise the native code path.
+    return !!window.__RA2_SHELL__;
+}
+
+export function canPickGameDirectoryFromShell(): boolean {
+    ensureShellMarker();
+    return window.__RA2_SHELL__?.platform === 'android'
+        && typeof window.Ra2Android?.pickGameDirectory === 'function';
+}
+
+export function pickGameDirectoryFromShell(): Promise<boolean> {
+    if (!canPickGameDirectoryFromShell())
+        return Promise.resolve(false);
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (result: { success: boolean; error?: string }) => {
+            if (settled)
+                return;
+            settled = true;
+            window.__RA2_NATIVE_GAME_RES_CALLBACK__ = undefined;
+            if (result.success)
+                resolve(true);
+            else if (result.error)
+                reject(new Error(result.error));
+            else
+                resolve(false);
+        };
+        window.__RA2_NATIVE_GAME_RES_CALLBACK__ = finish;
+        try {
+            if (!window.Ra2Android!.pickGameDirectory())
+                finish({ success: false });
+        }
+        catch (error) {
+            finish({ success: false, error: String(error) });
+        }
+    });
+}
+
+interface NativeModDownloadResult {
+    success?: boolean;
+    event?: string;
+    progress?: number;
+    total?: number;
+    token?: string;
+    url?: string;
+    size?: number;
+    cancelled?: boolean;
+    error?: string;
+}
+
+interface NativeModDownloadHandler {
+    onProgress?: (progress: number) => void;
+    resolve: (result: NativeModDownloadResult) => void;
+    reject: (error: Error) => void;
+}
+
+const nativeModDownloadHandlers = new Map<string, NativeModDownloadHandler>();
+let nativeModDownloadDispatcherInstalled = false;
+
+function installNativeModDownloadDispatcher(): void {
+    if (nativeModDownloadDispatcherInstalled)
+        return;
+    nativeModDownloadDispatcherInstalled = true;
+    window.__RA2_NATIVE_MOD_DOWNLOAD_CALLBACK__ = (requestId, result) => {
+        const handler = nativeModDownloadHandlers.get(requestId);
+        if (!handler)
+            return;
+        if (result.event === 'progress' || result.progress !== undefined) {
+            const total = result.total ?? 0;
+            const progress = total > 0
+                ? Math.floor(Math.min(1, result.progress! / total) * 100)
+                : 0;
+            handler.onProgress?.(progress);
+            return;
+        }
+        nativeModDownloadHandlers.delete(requestId);
+        handler.resolve(result);
+    };
+}
+
+export function canDownloadModFromShell(): boolean {
+    ensureShellMarker();
+    return window.__RA2_SHELL__?.platform === 'android'
+        && typeof window.Ra2Android?.startModDownload === 'function';
+}
+
+/**
+ * Android's WebView cannot read many community mod hosts because their
+ * archives omit CORS headers. Ask the shell to download the archive natively,
+ * then read it back in bounded chunks so the existing JS importer and 7-Zip
+ * path remain shared with desktop/iOS.
+ *
+ * Returns undefined when the current shell has no native downloader, allowing
+ * callers to use their normal browser fetch path.
+ */
+export function downloadModFromShell(
+    url: string,
+    fileName: string,
+    cancellationToken?: CancellationToken,
+    onProgress?: (progress: number) => void,
+): Promise<File> | undefined {
+    if (!canDownloadModFromShell())
+        return undefined;
+    installNativeModDownloadDispatcher();
+    const requestId = `mod-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const nativeApi = window.Ra2Android!;
+    let started = false;
+    let cancelPromise: ((error: Error) => void) | undefined;
+    const promise = new Promise<File>((resolve, reject) => {
+        cancelPromise = reject;
+        const handler: NativeModDownloadHandler = {
+            onProgress,
+            resolve: (result) => {
+                if (!result.success || !result.token) {
+                    reject(result.cancelled
+                        ? new OperationCanceledError(cancellationToken as CancellationToken)
+                        : new Error(result.error || 'Native mod download failed'));
+                    return;
+                }
+                void (async () => {
+                    try {
+                        const totalSize = result.size ?? 0;
+                        if (!totalSize || typeof nativeApi.readModDownloadChunk !== 'function') {
+                            throw new Error('Native mod download returned no readable archive');
+                        }
+                        const chunkSize = 256 * 1024;
+                        const chunks: Uint8Array[] = [];
+                        let offset = 0;
+                        while (offset < totalSize) {
+                            cancellationToken?.throwIfCancelled();
+                            const encoded = nativeApi.readModDownloadChunk(result.token!, offset, chunkSize);
+                            if (!encoded)
+                                throw new Error('Native mod download ended before all bytes were read');
+                            const binary = atob(encoded);
+                            const chunk = new Uint8Array(binary.length);
+                            for (let i = 0; i < binary.length; i++)
+                                chunk[i] = binary.charCodeAt(i);
+                            chunks.push(chunk);
+                            offset += chunk.length;
+                            onProgress?.(Math.floor(Math.min(1, offset / totalSize) * 100));
+                            // Give the WebView event loop a turn between Binder
+                            // reads so cancellation and rendering remain live.
+                            await Promise.resolve();
+                        }
+                        nativeApi.deleteModDownload?.(result.token!);
+                        resolve(new File(chunks as unknown as BlobPart[], fileName || 'mod-archive', {
+                            type: 'application/octet-stream',
+                        }));
+                    }
+                    catch (error: any) {
+                        nativeApi.deleteModDownload?.(result.token!);
+                        reject(error instanceof Error ? error : new Error(String(error)));
+                    }
+                })();
+            },
+            reject,
+        };
+        nativeModDownloadHandlers.set(requestId, handler);
+        try {
+            started = !!nativeApi.startModDownload!(url, requestId);
+        }
+        catch (error: any) {
+            nativeModDownloadHandlers.delete(requestId);
+            reject(error instanceof Error ? error : new Error(String(error)));
+        }
+        if (!started) {
+            nativeModDownloadHandlers.delete(requestId);
+        }
+    });
+    if (!started)
+        return undefined;
+    cancellationToken?.register(() => {
+        if (!nativeModDownloadHandlers.has(requestId))
+            return;
+        nativeModDownloadHandlers.delete(requestId);
+        nativeApi.cancelModDownload?.(requestId);
+        cancelPromise?.(new OperationCanceledError(cancellationToken as CancellationToken));
+    });
+    return promise;
 }
 
 /**
@@ -147,8 +382,8 @@ export function isNativeShell(): boolean {
 export async function seedGameResFromShell(): Promise<void> {
     if (!isNativeShell())
         return;
-    // Never trust the localStorage flag alone: the OS can purge origin storage
-    // (iOS disk pressure) while localStorage survives, or vice versa. The seed
+    // Never trust the localStorage flag alone: an OS can purge origin storage
+    // under disk pressure while localStorage survives, or vice versa. The seed
     // itself verifies per-file sizes and only copies what is missing or stale,
     // so running it on every launch is cheap and self-healing.
     let overlay: ReturnType<typeof createSeedOverlay> | undefined;
@@ -163,14 +398,13 @@ export async function seedGameResFromShell(): Promise<void> {
         overlay?.remove();
     }
     // Copying ~750MB into OPFS leaves the content process at a memory
-    // high-water mark that the first game load then pushes over the jetsam
-    // limit (observed on iPad mini: first Start Game killed the web process,
-    // the shell rebooted, and only the second attempt survived). After a real
+    // high-water mark that the first game load can push over the WebView
+    // renderer limit. After a real
     // first-time seed, reload once up front so the process starts the session
     // clean instead of dying mid game-load.
     if (wroteFiles > 0 && !sessionStorage.getItem('shellSeedReloaded')) {
         sessionStorage.setItem('shellSeedReloaded', '1');
-        console.log(`[iosSeed] Fresh seed wrote ${wroteFiles} files; reloading once to reset memory high-water`);
+        console.log(`[nativeShell] Fresh seed wrote ${wroteFiles} files; reloading once to reset memory high-water`);
         window.location.reload();
         // Halt boot; the reload takes over.
         await new Promise(() => { });
@@ -194,12 +428,37 @@ function createSeedOverlay(): { setText: (text: string) => void; remove: () => v
 async function runSeed(onProgress: (text: string) => void): Promise<number> {
     const manifestResponse = await fetch('/gameres/manifest.json');
     if (!manifestResponse.ok) {
+        // A shell build may intentionally omit retail resources. Let the
+        // normal GameRes flow render its import/CDN chooser rather than
+        // aborting Application.main() before the UI exists.
+        if (manifestResponse.status === 404) {
+            console.info('[nativeShell] No bundled game-resource manifest; continuing with normal resource selection');
+            return 0;
+        }
         throw new Error(`Shell seed manifest missing (${manifestResponse.status})`);
     }
     const manifest: SeedManifest = await manifestResponse.json();
+    const manifestPaths = new Set(manifest.files.map((file) => file.path.toLowerCase()));
+    const missingRequiredFiles = REQUIRED_RA2_GAME_FILES.filter((file) => !manifestPaths.has(file));
+    if (missingRequiredFiles.length > 0) {
+        console.warn(
+            `[nativeShell] Resource import is incomplete; missing ${missingRequiredFiles.join(', ')}. ` +
+            'The game-resource chooser will remain available.',
+        );
+        localStorage.removeItem(StorageKey.GameRes);
+        localStorage.removeItem(NATIVE_ENGINE_STORAGE_KEY);
+    }
+    else {
+        const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(file));
+        localStorage.setItem(NATIVE_ENGINE_STORAGE_KEY, hasYuriFiles ? 'yr' : 'ra2');
+        console.info(`[nativeShell] Detected ${hasYuriFiles ? "Red Alert 2 + Yuri's Revenge" : "Red Alert 2"} resources`);
+    }
     const totalBytes = manifest.files.reduce((sum, f) => sum + f.size, 0);
     let copiedBytes = 0;
     let wroteFiles = 0;
+    if (typeof navigator.storage?.getDirectory !== 'function') {
+        throw new Error('Native shell requires Origin Private File System support to seed game resources');
+    }
     const root = await navigator.storage.getDirectory();
     for (const file of manifest.files) {
         const segments = file.path.split('/');
@@ -229,8 +488,10 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             `Preparing game files... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`,
         );
     }
-    const config = String(GameResSource.Local);
-    localStorage.setItem(StorageKey.GameRes, config);
-    console.log(`[iosSeed] Seeded ${manifest.files.length} files (${totalBytes} bytes, ${wroteFiles} written) from shell bundle`);
+    if (missingRequiredFiles.length === 0) {
+        const config = String(GameResSource.Local);
+        localStorage.setItem(StorageKey.GameRes, config);
+    }
+    console.log(`[nativeShell] Seeded ${manifest.files.length} files (${totalBytes} bytes, ${wroteFiles} written) from shell bundle`);
     return wroteFiles;
 }

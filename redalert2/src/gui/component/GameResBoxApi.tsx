@@ -4,6 +4,7 @@ import { HtmlReactElement } from '../HtmlReactElement';
 import { Dialog, type DialogProps } from './Dialog';
 import { GameResForm, type GameResFormProps } from './GameResForm';
 import { FileSystemUtil } from '../../engine/gameRes/FileSystemUtil';
+import { canPickGameDirectoryFromShell, pickGameDirectoryFromShell } from '../../shell/nativeShell';
 import type { Viewport } from '../Viewport';
 import type { Strings } from '../../data/Strings';
 interface FsAccessLibraryShim {
@@ -55,6 +56,20 @@ export class GameResBoxApi {
                     },
                     onBrowseFolder: async () => {
                         console.log('[GameResBoxApi] onBrowseFolder called');
+                        if (canPickGameDirectoryFromShell()) {
+                            try {
+                                const imported = await pickGameDirectoryFromShell();
+                                if (imported) {
+                                    handleResolve(undefined);
+                                    window.location.reload();
+                                }
+                            }
+                            catch (e) {
+                                console.error("Error importing Android game folder:", e);
+                                alert((e as Error).message || "Could not import the selected game folder.");
+                            }
+                            return;
+                        }
                         try {
                             const handle = await this.fsAccessLib.showDirectoryPicker({ _preferPolyfill: true });
                             handleResolve(handle);

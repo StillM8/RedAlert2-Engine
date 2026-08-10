@@ -4,10 +4,10 @@ import { HtmlView } from "@/gui/jsx/HtmlView";
 import { ScreenType } from "@/gui/screen/ScreenType";
 import { ScreenType as MainMenuScreenType } from "@/gui/screen/mainMenu/ScreenType";
 import { CompositeDisposable } from "@/util/disposable/CompositeDisposable";
-import { StorageQuotaError } from "data/vfs/StorageQuotaError";
+import { StorageQuotaError } from "@/data/vfs/StorageQuotaError";
 import { MainMenuScreen } from "@/gui/screen/mainMenu/MainMenuScreen";
-import { IOError } from "data/vfs/IOError";
-import { FileNotFoundError } from "data/vfs/FileNotFoundError";
+import { IOError } from "@/data/vfs/IOError";
+import { FileNotFoundError } from "@/data/vfs/FileNotFoundError";
 import { ModSel } from "@/gui/screen/mainMenu/modSel/ModSel";
 import { Engine } from "@/engine/Engine";
 import { FileSystemUtil } from "@/engine/gameRes/FileSystemUtil";
@@ -20,10 +20,12 @@ import { Mod } from "@/gui/screen/mainMenu/modSel/Mod";
 import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
 import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib/async/cancellation";
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
+import { downloadModFromShell } from "@/shell/nativeShell";
 interface ModManager {
     listLocal(): Promise<any[]>;
     listRemote(): Promise<any[]>;
     buildModList(local: any[], remote?: any[]): Promise<Mod[]>;
+    ensureModDir?(): Promise<any>;
     deleteModFiles(modId: string): Promise<void>;
     loadMod(modId?: string): void;
     getModDir(): any;
@@ -37,6 +39,7 @@ interface ErrorHandler {
 interface MessageBoxApi {
     show(message: React.ReactElement | string, buttonText?: string, onClose?: () => void): void;
     confirm(message: React.ReactElement | string, confirmText: string, cancelText: string): Promise<boolean>;
+    alert(message: string, buttonText: string): Promise<void>;
     destroy(): void;
     updateText(text: string): void;
 }
@@ -103,6 +106,9 @@ export class ModSelScreen extends MainMenuScreen {
         this.availableMods = [];
         this.controller.toggleMainVideo(false);
         this.initForm();
+        if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+            await this.modManager.ensureModDir?.();
+        }
         const mods = await this.loadAvailableMods();
         if (mods) {
             this.availableMods = mods;
@@ -243,7 +249,7 @@ export class ModSelScreen extends MainMenuScreen {
                             if (error.name === "AbortError")
                                 return;
                             if (error instanceof DOMException) {
-                                throw new IOError(`File could not be read (${error.name})`, { cause: error });
+                                throw new IOError(`File could not be read (${error.name})`, error);
                             }
                             throw error;
                         }
@@ -293,7 +299,7 @@ export class ModSelScreen extends MainMenuScreen {
                 label: this.strings.get("GUI:BrowseMod"),
                 tooltip: this.strings.get("STT:BrowseMod"),
                 onClick: () => {
-                    this.controller?.pushScreen(ScreenType.OptionsStorage, {
+                    this.controller?.pushScreen(MainMenuScreenType.OptionsStorage, {
                         startIn: Engine.rfsSettings.modDir +
                             (this.selectedMod?.isInstalled() ? "/" + this.selectedMod.id : ""),
                     });
@@ -336,6 +342,22 @@ export class ModSelScreen extends MainMenuScreen {
             type: "binary",
             sizeHint: mod.meta.downloadSize,
         };
+        // Android WebView cannot fetch several community archive hosts because
+        // they do not emit CORS headers. Let the shell download absolute URLs
+        // natively, then feed the resulting File through the same 7-Zip
+        // importer used by desktop/iOS. Relative catalog URLs still use the
+        // normal configured CDN path.
+        if (/^https?:\/\//i.test(downloadUrl)) {
+            const nativeDownload = downloadModFromShell(
+                downloadUrl,
+                this.modResourceLoader.getResourceFileName(resource),
+                cancellationSource.token,
+                (progress) => this.messageBoxApi.updateText(this.strings.get("TS:DownloadingPg", progress)),
+            );
+            if (nativeDownload) {
+                return await nativeDownload;
+            }
+        }
         const resources = await this.modResourceLoader.loadResources([resource], cancellationSource.token, (progress: number) => {
             this.messageBoxApi.updateText(this.strings.get("TS:DownloadingPg", progress));
         });
@@ -348,13 +370,19 @@ export class ModSelScreen extends MainMenuScreen {
             this.messageBoxApi.updateText(message);
         };
         let modMeta: any;
+        const modDir = this.modManager.getModDir();
+        if (!modDir) {
+            this.messageBoxApi.destroy();
+            this.handleError(new IOError("The Android mod storage is not ready yet"), this.strings.get("GUI:ImportModError"));
+            return;
+        }
         try {
-            modMeta = await new ModImporter(this.strings, this.messageBoxApi, navigator.storage).import(file, this.modManager.getModDir(), overwrite, onProgress);
+            modMeta = await new ModImporter(this.strings, this.messageBoxApi, navigator.storage).import(file, modDir, overwrite, onProgress);
         }
         finally {
             this.messageBoxApi.destroy();
         }
-        if (modMeta) {
+        if (modMeta?.id) {
             const mod = new Mod(modMeta, undefined);
             if (mod) {
                 const existingIndex = this.availableMods.findIndex((m) => m.id === mod.id);
@@ -386,14 +414,14 @@ export class ModSelScreen extends MainMenuScreen {
             message += "\n\n" + strings.get("ts:import_invalid_archive");
         }
         else if (error instanceof ArchiveExtractionError) {
-            if (error.cause?.message?.match(/out of memory|allocation/i)) {
+            if ((error.cause as Error | undefined)?.message?.match(/out of memory|allocation/i)) {
                 message += "\n\n" + strings.get("ts:import_out_of_memory");
             }
             else {
                 message += "\n\n" + strings.get("ts:import_archive_extract_failed");
             }
         }
-        else if (error.message?.match(/out of memory|allocation/i)) {
+        else if (error?.message?.match(/out of memory|allocation/i)) {
             message += "\n\n" + strings.get("ts:import_out_of_memory");
         }
         else if (error.name === "QuotaExceededError" || error instanceof StorageQuotaError) {
@@ -420,7 +448,7 @@ export class ModSelScreen extends MainMenuScreen {
     }
     private handleError(error: any, message: string): void {
         this.errorHandler.handle(error, message, () => {
-            this.rootController.goToScreen(MainMenuScreenType.MainMenuRoot);
+            this.rootController.goToScreen(ScreenType.MainMenuRoot);
         });
     }
 }

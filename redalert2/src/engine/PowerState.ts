@@ -4,13 +4,13 @@ export type ThermalState = 'nominal' | 'fair' | 'serious' | 'critical' | 'unknow
 
 /**
  * OS-reported thermal pressure, pushed in by the native shell
- * (ios/Sources/GameViewController.swift). Nothing in the browser can observe
+ * (ios/Sources/GameViewController.swift or the Android shell). Nothing in the browser can observe
  * this: JavaScript timing cannot tell SoC throttling apart from a heavy frame,
  * so without the shell the game has no way to know it is cooking the device.
  */
 export const thermalState = new BoxedVar<ThermalState>('nominal');
 
-/** Set when iOS Low Power Mode is on. Treated the same as thermal pressure. */
+/** Set when the native shell reports a power-saving mode. */
 export const lowPowerMode = new BoxedVar<boolean>(false);
 
 /**

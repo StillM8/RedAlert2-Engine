@@ -4,8 +4,8 @@ import { GrowingPacker } from './GrowingPacker';
 // Gutter around each packed image, filled with copies of its edge pixels.
 // Without it, nearest-neighbor sampling at fractional zoom/pan reads texels
 // from the adjacent atlas entry (visible as dots along tile edges, e.g. in
-// the shroud). Rects still reference the unpadded image area, so UVs are
-// unchanged.
+// the shroud). Rects still reference the unpadded image area; SpriteUtils
+// samples the centres of those texels when it builds the UVs.
 const ATLAS_PADDING = 1;
 function extrudeEdges(atlas: IndexedBitmap, x: number, y: number, w: number, h: number): void {
     const data = atlas.data;

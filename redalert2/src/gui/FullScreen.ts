@@ -1,7 +1,7 @@
 import { CompositeDisposable } from '../util/disposable/CompositeDisposable';
 import { setupFullScreenChangeListener } from '../util/fullScreen';
 import { EventDispatcher } from '../util/event';
-import { isNativeShell } from '../shell/iosSeed';
+import { isNativeShell } from '../shell/nativeShell';
 export interface HotKey {
     altKey: boolean;
     shiftKey: boolean;

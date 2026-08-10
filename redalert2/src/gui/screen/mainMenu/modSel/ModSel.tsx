@@ -16,7 +16,7 @@ interface ModSelProps {
     onSelectMod: (mod: Mod, doubleClick?: boolean) => void;
 }
 export const ModSel: React.FC<ModSelProps> = ({ strings, mods, activeMod, selectedMod, onSelectMod, }) => {
-    const selectedRef = useRef<HTMLElement>(null);
+    const selectedRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         selectedRef.current?.scrollIntoView();
     }, []);

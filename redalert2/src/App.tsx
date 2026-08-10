@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Application, SplashScreenUpdateCallback } from './Application';
 import SplashScreenComponent from './gui/component/SplashScreen';
-import { installShellDebugLog, installShellRepl, seedGameResFromShell } from './shell/iosSeed';
+import { installShellDebugLog, installShellRepl, seedGameResFromShell } from './shell/nativeShell';
 import { installPowerStateReceiver } from './engine/PowerState';
 import type { ComponentProps } from 'react';
 function App() {

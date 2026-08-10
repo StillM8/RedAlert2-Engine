@@ -141,17 +141,24 @@ class SpriteUtilsClass {
         geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
     }
     writeNonIndexedRectUvsIntoBuffer(buffer: Float32Array, offset: number, textureArea: TextureArea, imageSize: ImageSize): void {
-        const u = textureArea.x / imageSize.width;
-        const v = 1 - (textureArea.y + textureArea.height) / imageSize.height;
-        const uWidth = textureArea.width / imageSize.width;
-        const vHeight = textureArea.height / imageSize.height;
+        // UVs that land exactly on an atlas boundary let NearestFilter choose
+        // the neighbouring entry on fractional-scale mobile renders. Sample
+        // texel centres instead; this complements TextureAtlas's edge gutter
+        // and removes the isolated coloured dots that otherwise leak into the
+        // black shroud.
+        const u = (textureArea.x + 0.5) / imageSize.width;
+        const v = 1 - (textureArea.y + textureArea.height - 0.5) / imageSize.height;
+        const uWidth = Math.max(0, textureArea.width - 1) / imageSize.width;
+        const vHeight = Math.max(0, textureArea.height - 1) / imageSize.height;
         buffer.set([u, v + vHeight, u, v, u + uWidth, v + vHeight, u, v, u + uWidth, v, u + uWidth, v + vHeight], 12 * offset);
     }
     writeIndexedRectUvsIntoBuffer(buffer: Float32Array, offset: number, textureArea: TextureArea, imageSize: ImageSize): void {
-        const u = textureArea.x / imageSize.width;
-        const v = 1 - (textureArea.y + textureArea.height) / imageSize.height;
-        const uWidth = textureArea.width / imageSize.width;
-        const vHeight = textureArea.height / imageSize.height;
+        // Keep indexed sprites on texel centres for the same atlas-boundary
+        // reason as the non-indexed path above.
+        const u = (textureArea.x + 0.5) / imageSize.width;
+        const v = 1 - (textureArea.y + textureArea.height - 0.5) / imageSize.height;
+        const uWidth = Math.max(0, textureArea.width - 1) / imageSize.width;
+        const vHeight = Math.max(0, textureArea.height - 1) / imageSize.height;
         buffer.set([u, v + vHeight, u + uWidth, v + vHeight, u, v, u + uWidth, v], 8 * offset);
     }
     applyDepth(geometry: THREE.BufferGeometry, camera: THREE.Camera, depthOffset: number): void {
