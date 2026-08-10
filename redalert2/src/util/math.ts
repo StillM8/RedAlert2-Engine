@@ -37,3 +37,24 @@ export function fnv32a(data: Uint8Array | number[]): number {
     }
     return hash >>> 0;
 }
+
+/**
+ * Hashes a sequence of scalar values without allowing adjacent values to
+ * become ambiguous (for example, ["ab", "c"] vs ["a", "bc"]). This is used
+ * for stable content-defined IDs that participate in deterministic state.
+ */
+export function fnv32aStrings(values: readonly (string | number)[]): number {
+    const bytes: number[] = [];
+    for (const value of values) {
+        const encoded = new TextEncoder().encode(String(value));
+        const length = encoded.length;
+        bytes.push(
+            length & 0xff,
+            (length >>> 8) & 0xff,
+            (length >>> 16) & 0xff,
+            (length >>> 24) & 0xff,
+            ...encoded,
+        );
+    }
+    return fnv32a(bytes);
+}
