@@ -254,7 +254,7 @@ export class SuperWeaponsTrait {
                     t.push(new PsychicRevealEffect(o, i, s));
                     break;
                 case SuperWeaponType.ForceShield:
-                    t.push(new ForceShieldEffect(o, i, s));
+                    t.push(new ForceShieldEffect(o, i, s, e.ares?.swRange));
                     break;
                 case SuperWeaponType.SpyPlane:
                     t.push(new SpyPlaneEffect(o, i, s));
