@@ -30,8 +30,36 @@ export interface CountryDescriptor {
     loadScreen?: string;
 }
 
+export interface SideMixSelection {
+    mixFileIndex: number;
+    baseMixFile: string;
+    expansionMixFile: string;
+    compatibilityMixFile: string;
+    useYuriFileNames: boolean;
+}
+
 function normalize(value: string): string {
     return value.trim().toLocaleLowerCase("en-US");
+}
+
+export function resolveSideMixSelection(
+    side: SideDescriptor | undefined,
+    legacySide: SideType = SideType.GDI,
+    defaultYuriFileNames = false,
+): SideMixSelection {
+    const fallbackIndex = legacySide === SideType.GDI ? 1 : 2;
+    const configuredIndex = side?.sidebarMixFileIndex;
+    const mixFileIndex = Number.isInteger(configuredIndex) && configuredIndex! > 0
+        ? configuredIndex!
+        : fallbackIndex;
+    const suffix = String(mixFileIndex).padStart(2, "0");
+    return {
+        mixFileIndex,
+        baseMixFile: `sidec${suffix}.mix`,
+        expansionMixFile: `sidec${suffix}md.mix`,
+        compatibilityMixFile: `sidec${suffix}cd.mix`,
+        useYuriFileNames: side?.sidebarYuriFileNames ?? defaultYuriFileNames,
+    };
 }
 
 function sectionValue(section: IniSectionLike | undefined, name: string): string | undefined {

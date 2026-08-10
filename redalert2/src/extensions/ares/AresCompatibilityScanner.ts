@@ -1,4 +1,5 @@
 import { AresFeatureRegistry, createDefaultAresFeatureRegistry, type ExtensionFeature } from "./AresFeatureRegistry";
+import type { IniSourceLoader } from "@/engine/IniSourceLoader";
 
 export interface IniScanSource {
     name: string;
@@ -178,6 +179,12 @@ export interface VfsTextReader {
     listFiles?(): string[];
 }
 
+export interface EffectiveIniReader {
+    loadEffectiveIni(filename: string): {
+        ini: { toString(): string };
+    } | undefined;
+}
+
 /**
  * Scan the active VFS without requiring proprietary MO files in the source
  * tree.  MIX entries are hash-addressable, so the known profile INIs are
@@ -187,6 +194,7 @@ export interface VfsTextReader {
 export function scanMentalOmegaVfs(
     vfs: VfsTextReader,
     registry: AresFeatureRegistry = createDefaultAresFeatureRegistry(),
+    sourceLoader?: EffectiveIniReader | IniSourceLoader,
 ): MentalOmegaCompatibilityReport {
     const candidateNames = new Set([
         "rules.ini",
@@ -202,14 +210,24 @@ export function scanMentalOmegaVfs(
         "uimd.ini",
         "uimo.ini",
     ]);
-    for (const filename of vfs.listFiles?.() ?? []) {
-        if (/\.(?:ini|csf)$/i.test(filename)) candidateNames.add(filename);
+    // With an effective loader, included files are reached from their entry
+    // point and must not be counted a second time as independent roots. The
+    // raw fallback keeps the old archive-enumeration behavior for callers that
+    // have not mounted an IniSourceLoader yet.
+    if (!sourceLoader) {
+        for (const filename of vfs.listFiles?.() ?? []) {
+            if (/\.(?:ini|csf)$/i.test(filename)) candidateNames.add(filename);
+        }
     }
     const sources: IniScanSource[] = [];
     for (const filename of candidateNames) {
         try {
             if (vfs.fileExists(filename)) {
-                sources.push({ name: filename, contents: vfs.openFile(filename).readAsString() });
+                const effective = sourceLoader?.loadEffectiveIni(filename);
+                sources.push({
+                    name: effective ? `${filename} (effective)` : filename,
+                    contents: effective?.ini.toString() ?? vfs.openFile(filename).readAsString(),
+                });
             }
         }
         catch {

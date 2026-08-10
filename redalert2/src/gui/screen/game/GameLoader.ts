@@ -27,6 +27,7 @@ import { GameOptRandomGen } from '@/game/gameopts/GameOptRandomGen';
 import { DebugRenderable } from '@/engine/renderable/DebugRenderable';
 import { MixinRules } from '@/game/ini/MixinRules';
 import { isNotNullOrUndefined } from '@/util/typeGuard';
+import { resolveSideMixSelection, type SideDescriptor } from '@/extensions/ares/AresSides';
 export class GameLoader {
     constructor(private appVersion: string, private workerHostApi: any, private cdnResourceLoader: any, private appResourceLoader: any, private rules: any, private gameModes: any, private sound: any, private iniLogger: any, private actionLogger: any, private speedCheat: any, private gameResConfig: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private debugBotIndex: any, private devMode: boolean) { }
     async load(gameId: string, timestamp: number, gameOptions: any, mapFile: any, playerName: string, isSinglePlayer: boolean, loadingScreenApi: any, cancellationToken?: any): Promise<any> {
@@ -74,18 +75,24 @@ export class GameLoader {
         }
         const { game, theater } = await this.createGame(gameId, timestamp, gameOptions, mapFile, isSinglePlayer, botsLib);
         let hudSide = SideType.GDI;
+        let sideDescriptor: SideDescriptor | undefined;
+        let useYuriArt = false;
         let localPlayer: any;
         if (playerName) {
             localPlayer = game.getPlayerByName(playerName);
             if (!localPlayer.isObserver) {
                 const yuri = isYuriCountry(localPlayer.country);
-                // Retail Yuri uses the Soviet shell archive plus its Yuri
-                // radar delta from sidec02md.mix. Keep that presentation flag
-                // separate from the broad side archive selected below.
-                hudSide = localPlayer.country.side === SideType.GDI ? SideType.GDI : SideType.Nod;
+                sideDescriptor = game.rules.sideRegistry?.resolve(localPlayer.country.sideId ?? localPlayer.country.name);
+                hudSide = sideDescriptor
+                    ? game.rules.sideRegistry.toLegacySide(sideDescriptor.id)
+                    : localPlayer.country.side === SideType.GDI ? SideType.GDI : SideType.Nod;
+                const sideMixSelection = resolveSideMixSelection(sideDescriptor, hudSide, yuri);
+                useYuriArt = sideMixSelection.useYuriFileNames;
                 console.info('[GameLoader] Local presentation', {
                     country: localPlayer.country?.name,
                     side: localPlayer.country?.side,
+                    sideId: localPlayer.country?.sideId,
+                    sidebarMixFileIndex: sideMixSelection.mixFileIndex,
                     hudSide,
                     yuri,
                     engine: Engine.getActiveEngine(),
@@ -96,7 +103,7 @@ export class GameLoader {
         if (this.gameResConfig.isCdn()) {
             cdnResources = await this.cdnResourceLoader.loadResources([
                 ResourceType.Sounds,
-                ...(hudSide === SideType.GDI
+                ...(resolveSideMixSelection(sideDescriptor, hudSide, isYuriCountry(localPlayer?.country)).mixFileIndex === 1
                     ? [ResourceType.EvaAlly, ResourceType.UiAlly]
                     : [ResourceType.EvaSov, ResourceType.UiSov]),
                 ResourceType.Cameo,
@@ -107,7 +114,7 @@ export class GameLoader {
             await Engine.vfs.addMixFile('cameocd.mix');
         }
         const cameoFilenames = this.collectCameoFileNames(game);
-        await this.loadHudSideImages(cdnResources, hudSide);
+        await this.loadHudSideImages(cdnResources, hudSide, sideDescriptor, useYuriArt);
         loadingScreenApi.onLoadProgress(40);
         await sleep(1);
         if (cdnResources) {
@@ -152,7 +159,7 @@ export class GameLoader {
         cancellationToken?.throwIfCancelled();
         loadingScreenApi.onLoadProgress(95);
         await sleep(1);
-        return { game, theater, hudSide, cameoFilenames };
+        return { game, theater, hudSide, sideDescriptor, useYuriArt, cameoFilenames };
     }
     private collectCameoFileNames(game: any): string[] {
         const filenames: string[] = [];
@@ -271,43 +278,50 @@ export class GameLoader {
             return { version: this.appVersion };
         }
     }
-    private async loadHudSideImages(cdnResources?: any, hudSide: SideType = SideType.GDI): Promise<void> {
+    private async loadHudSideImages(cdnResources?: any, hudSide: SideType = SideType.GDI, sideDescriptor?: SideDescriptor, useYuriArt = false): Promise<void> {
         if (!Engine.vfs)
             throw new Error('VFS is not initialized');
-        Engine.vfs.removeArchive('sidec01.mix');
-        Engine.vfs.removeArchive('sidec02.mix');
-        Engine.vfs.removeArchive('sidec01md.mix');
-        Engine.vfs.removeArchive('sidec02md.mix');
-        Engine.vfs.removeArchive('sidec01cd.mix');
-        Engine.vfs.removeArchive('sidec02cd.mix');
-        Engine.unloadSideMixData();
+        const sideMixSelection = resolveSideMixSelection(sideDescriptor, hudSide, useYuriArt);
+        const sideMixFiles = [
+            sideMixSelection.baseMixFile,
+            sideMixSelection.expansionMixFile,
+            sideMixSelection.compatibilityMixFile,
+        ];
+        Engine.unloadSideMixData(sideMixFiles);
+        for (const mixFile of sideMixFiles) {
+            Engine.vfs.removeArchive(mixFile);
+        }
         if (cdnResources) {
-            const resourceType = hudSide === SideType.GDI ? ResourceType.UiAlly : ResourceType.UiSov;
+            const resourceType = sideMixSelection.mixFileIndex === 1 ? ResourceType.UiAlly : ResourceType.UiSov;
             const fileName = this.cdnResourceLoader.getResourceFileName(resourceType);
-            if (!['sidec01.mix', 'sidec02.mix'].includes(fileName)) {
+            if (fileName.toLocaleLowerCase() !== sideMixSelection.baseMixFile) {
                 throw new Error(`Side mix file name "${fileName}" mismatch`);
             }
             Engine.vfs.addArchive(new MixFile(new DataStream(cdnResources.pop(resourceType))), fileName);
         }
         else {
-            await Engine.vfs.addMixFile(hudSide === SideType.GDI ? 'sidec01.mix' : 'sidec02.mix');
-            // YR ships side art deltas (e.g. Yuri's radar bezel radary.shp in
-            // sidec02md.mix) layered over the base side mix.
-            const mdSideMix = hudSide === SideType.GDI ? 'sidec01md.mix' : 'sidec02md.mix';
-            if (Engine.vfs.fileExists(mdSideMix)) {
-                await Engine.vfs.addMixFile(mdSideMix);
+            if (Engine.vfs.fileExists(sideMixSelection.baseMixFile)) {
+                await Engine.vfs.addMixFile(sideMixSelection.baseMixFile);
+            }
+            if (Engine.vfs.fileExists(sideMixSelection.expansionMixFile)) {
+                await Engine.vfs.addMixFile(sideMixSelection.expansionMixFile);
                 // radary.shp is painted against its own purple palette, which
                 // sits in the same mix under a hash whose original filename is
                 // lost. Seed it under an alias so the HUD can pick it up.
                 const YURI_RADAR_PAL_HASH = 0x0b8d57c4;
-                const sideArchive: any = Engine.vfs.getArchive(mdSideMix);
-                if (sideArchive?.containsHash?.(YURI_RADAR_PAL_HASH)) {
-                    const palFile = sideArchive.openFileByHash(YURI_RADAR_PAL_HASH, 'radary.pal');
-                    Engine.getPalettes().set('radary.pal', new Palette(palFile.getBytes()));
+                if (sideMixSelection.useYuriFileNames) {
+                    const sideArchive: any = Engine.vfs.getArchive(sideMixSelection.expansionMixFile);
+                    if (sideArchive?.containsHash?.(YURI_RADAR_PAL_HASH)) {
+                        const palFile = sideArchive.openFileByHash(YURI_RADAR_PAL_HASH, 'radary.pal');
+                        Engine.getPalettes().set('radary.pal', new Palette(palFile.getBytes()));
+                    }
                 }
             }
+            if (Engine.vfs.fileExists(sideMixSelection.compatibilityMixFile)) {
+                await Engine.vfs.addMixFile(sideMixSelection.compatibilityMixFile);
+            }
         }
-        await Engine.vfs.addMixFile(hudSide === SideType.GDI ? 'sidec01cd.mix' : 'sidec02cd.mix');
+        Engine.markSideMixDataLoaded(sideMixFiles);
     }
     private async prepareTextures(rules: any, art: any, mapFile: any, imageFinder: ImageFinder, cancellationToken?: any, onProgress?: (percent: number) => void): Promise<void> {
         const buildingShpHelper = new BuildingShpHelper(imageFinder);

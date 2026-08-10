@@ -2,10 +2,15 @@ import { describe, expect, test } from "bun:test";
 import {
     formatMentalOmegaCompatibilityReport,
     scanMentalOmegaIniSources,
+    scanMentalOmegaVfs,
 } from "@/extensions/ares/AresCompatibilityScanner";
 import { ArmorRegistry, parseAresWarheadVerses } from "@/extensions/ares/AresArmor";
 import { IniFile } from "@/data/IniFile";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
+import { IniSourceLoader } from "@/engine/IniSourceLoader";
+import { VirtualFile } from "@/data/vfs/VirtualFile";
+import { MemArchive } from "@/data/vfs/MemArchive";
+import { VirtualFileSystem } from "@/data/vfs/VirtualFileSystem";
 
 describe("Ares compatibility scanner", () => {
     test("separates vanilla, known extension, and unknown extension keys", () => {
@@ -135,5 +140,21 @@ ListIndex=11
         expect(sides.resolve("epsilon")?.sidebarMixFileIndex).toBe(4);
         expect(countries.resolve("FoehnCountry")?.sideId).toBe("Foehn");
         expect(countries.list().map((country) => country.id)).toEqual(["EpsilonCountry", "FoehnCountry"]);
+    });
+
+    test("scans the effective INI graph instead of only the root file", () => {
+        const archive = new MemArchive();
+        archive.addFile(VirtualFile.fromBytes(new TextEncoder().encode(`[#include]\n1=rules_units.ini\n`), "rulesmo.ini"));
+        archive.addFile(VirtualFile.fromBytes(new TextEncoder().encode(`[FoehnUnit]\nAres.CustomArmor=yes\n`), "rules_units.ini"));
+        const vfs = new VirtualFileSystem(undefined as any, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+        vfs.addArchive(archive, "expandmo95.mix");
+        const report = scanMentalOmegaVfs(vfs, undefined, new IniSourceLoader(vfs));
+
+        expect(report.references.some((reference) => reference.source === "rulesmo.ini (effective)" && reference.key === "Ares.CustomArmor")).toBe(true);
+        expect(report.featureUsage.find((usage) => usage.featureId === "ares.additional-armor-types")?.occurrences).toBe(1);
     });
 });

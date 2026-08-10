@@ -12,10 +12,11 @@ import { LazyResourceCollection } from './LazyResourceCollection';
 import { WavFile } from '../data/WavFile';
 import { LazyAsyncResourceCollection } from './LazyAsyncResourceCollection';
 import { Mp3File } from '../data/Mp3File';
-import { mixDatabase } from './mixDatabase';
+import { mixDatabase, sideBarCdFiles, sideBarFiles } from './mixDatabase';
 import { GameResSource } from './gameRes/GameResSource';
 import { Crc32 } from '../data/Crc32';
 import { GameModes } from '../game/ini/GameModes';
+import { IniSourceLoader } from './IniSourceLoader';
 import * as stringUtils from '../util/string';
 import { MapList } from './MapList';
 import { HvaFile } from '../data/HvaFile';
@@ -204,9 +205,11 @@ export class Engine {
     public static mixinRulesFileNames = new Map<MixinRulesType, string>().set(MixinRulesType.NoDogEngiKills, "nodogengikills.ini");
     private static activeMod?: string;
     private static activeProfile: GameProfileDescriptor = GAME_PROFILES.ra2;
+    private static loadedSideMixNames = new Set<string>();
     private static modHash?: number;
     private static gameResSource?: GameResSource;
     public static rfs?: RealFileSystem;
+    private static iniSourceLoader?: IniSourceLoader;
     public static vfs?: VirtualFileSystem;
     public static art?: IniFile;
     public static rules?: IniFile;
@@ -239,6 +242,7 @@ export class Engine {
     static async initVfs(rfsInstance: RealFileSystem | undefined, logger: VfsLogger, profile: GameProfileDescriptor = GAME_PROFILES.ra2): Promise<VirtualFileSystem> {
         this.activeProfile = profile;
         this.vfs = new VirtualFileSystem(rfsInstance, logger);
+        this.iniSourceLoader = new IniSourceLoader(this.vfs);
         this.iniFiles.setVfs(this.vfs);
         this.palettes.setVfs(this.vfs);
         this.images.setVfs(this.vfs);
@@ -322,25 +326,31 @@ export class Engine {
             }
         }
     }
-    static unloadSideMixData(): void {
-        for (const mixFileName of [
+    static markSideMixDataLoaded(mixFileNames: readonly string[]): void {
+        for (const mixFileName of mixFileNames) {
+            this.loadedSideMixNames.add(mixFileName.toLocaleLowerCase("en-US"));
+        }
+    }
+    static unloadSideMixData(mixFileNames: readonly string[] = []): void {
+        const sideMixNames = new Set([
             "sidec01.mix",
             "sidec02.mix",
             "sidec01md.mix",
             "sidec02md.mix",
             "sidec01cd.mix",
             "sidec02cd.mix",
-        ]) {
+            ...this.loadedSideMixNames,
+            ...mixFileNames.map((name) => name.toLocaleLowerCase("en-US")),
+        ]);
+        for (const mixFileName of sideMixNames) {
             const mixInfo = mixDatabase.get(mixFileName);
-            if (!mixInfo) {
-                console.warn(`Mix "${mixFileName}" not found in mix database`);
-                continue;
-            }
-            for (const entryName of mixInfo) {
+            const fallbackEntries = mixFileName.endsWith("cd.mix") ? sideBarCdFiles : sideBarFiles;
+            for (const entryName of mixInfo ?? (mixFileName.startsWith("sidec") ? fallbackEntries : [])) {
                 const extension = entryName.split('.').pop()?.toLowerCase();
                 (extension === "pal" ? this.palettes : this.images).clear(entryName);
             }
         }
+        this.loadedSideMixNames.clear();
         // These Yuri resources are hash-only entries in sidec02md.mix and
         // are loaded under aliases by GameLoader.
         this.images.clear("radary.shp");
@@ -354,26 +364,44 @@ export class Engine {
         const rulesFileName = this.getFileNameVariant("rules.ini");
         const artFileName = this.getFileNameVariant("art.ini");
         const aiFileName = this.getFileNameVariant("ai.ini");
-        const rulesBase = this.iniFiles.get(rulesFileName);
-        console.log('current rulesBase', rulesBase);
-        const artBase = this.iniFiles.get(artFileName);
-        const aiBase = this.iniFiles.get(aiFileName);
-        if (!rulesBase)
-            throw new Error(`Rules "${rulesFileName}" not found`);
-        if (!artBase)
-            throw new Error(`Art "${artFileName}" not found`);
-        if (!aiBase)
-            throw new Error(`AI "${aiFileName}" not found`);
-        const rulesCustom = this.iniFiles.get(this.customRulesFileName);
-        const artCustom = this.iniFiles.get(this.customArtFileName);
+        const baseRulesFileName = this.getEngineBaseFileName("rules.ini");
+        const baseArtFileName = this.getEngineBaseFileName("art.ini");
+        const baseAiFileName = this.getEngineBaseFileName("ai.ini");
+        const rulesBase = this.getIni(baseRulesFileName);
+        const artBase = this.getIni(baseArtFileName);
+        const aiBase = this.getIni(baseAiFileName);
+        const rulesProfile = this.getIni(rulesFileName);
+        const artProfile = this.getIni(artFileName);
+        const aiProfile = this.getIni(aiFileName);
+        if (!rulesBase || !rulesProfile)
+            throw new Error(`Rules "${rulesFileName}" or base "${baseRulesFileName}" not found`);
+        if (!artBase || !artProfile)
+            throw new Error(`Art "${artFileName}" or base "${baseArtFileName}" not found`);
+        if (!aiBase || !aiProfile)
+            throw new Error(`AI "${aiFileName}" or base "${baseAiFileName}" not found`);
+        const rulesCustom = this.getIni(this.customRulesFileName);
+        const artCustom = this.getIni(this.customArtFileName);
         if (!rulesCustom)
             throw new Error(`Rules "${this.customRulesFileName}" not found`);
         if (!artCustom)
             throw new Error(`Art "${this.customArtFileName}" not found`);
-        this.art = artBase.clone().mergeWith(artCustom);
-        this.rules = rulesBase.clone().mergeWith(rulesCustom);
-        console.log('current custom rules', rulesCustom);
-        this.ai = aiBase;
+        // A profile such as Mental Omega supplies an override INI while still
+        // depending on the retail YR definitions. Merge in this order so
+        // profile content wins without making vanilla RA2/YR pay for it.
+        this.art = artBase.clone();
+        if (artFileName !== baseArtFileName) {
+            this.art.mergeWith(artProfile);
+        }
+        this.art.mergeWith(artCustom);
+        this.rules = rulesBase.clone();
+        if (rulesFileName !== baseRulesFileName) {
+            this.rules.mergeWith(rulesProfile);
+        }
+        this.rules.mergeWith(rulesCustom);
+        this.ai = aiBase.clone();
+        if (aiFileName !== baseAiFileName) {
+            this.ai.mergeWith(aiProfile);
+        }
         this.modHash = this.computeModHash();
     }
     static computeModHash(): number {
@@ -410,7 +438,10 @@ export class Engine {
             if (!this.vfs.fileExists(fileName)) {
                 throw new Error(`File ${fileName} not found for hashing`);
             }
-            crc.append(this.vfs.openFile(fileName).getBytes());
+            const effective = this.iniSourceLoader?.loadEffectiveIni(fileName);
+            crc.append(effective
+                ? stringUtils.binaryStringToUint8Array(effective.ini.toString())
+                : this.vfs.openFile(fileName).getBytes());
         }
         crc.append(stringUtils.binaryStringToUint8Array(this.getVersion()));
         return crc.get();
@@ -432,6 +463,15 @@ export class Engine {
         return this.ai;
     }
     static getFileNameVariant(baseFileName: string): string {
+        const normalizedBaseFileName = baseFileName.toLocaleLowerCase("en-US");
+        const profileOverride = this.activeProfile.fileNameOverrides?.[normalizedBaseFileName];
+        if (profileOverride) {
+            return profileOverride;
+        }
+        const optionalProfileOverride = this.activeProfile.optionalFileNameOverrides?.[normalizedBaseFileName];
+        if (optionalProfileOverride && this.iniFiles.has(optionalProfileOverride)) {
+            return optionalProfileOverride;
+        }
         const currentEngine = this.getActiveEngine();
         let suffix = "";
         if (currentEngine === EngineType.YurisRevenge) {
@@ -442,6 +482,16 @@ export class Engine {
         }
         return suffix ? baseFileName.replace(/\.([^.]+)$/, `${suffix}.$1`) : baseFileName;
     }
+    private static getEngineBaseFileName(baseFileName: string): string {
+        const currentEngine = this.getActiveEngine();
+        if (currentEngine === EngineType.YurisRevenge) {
+            return baseFileName.replace(/\.([^.]+)$/, `md.$1`);
+        }
+        if (currentEngine === EngineType.RedAlert2) {
+            return baseFileName;
+        }
+        throw new Error("Unsupported engine type " + EngineType[currentEngine]);
+    }
     static getMpModes(): GameModes {
         return new GameModes(this.getIni(this.customMpModesFileName), (fileName: string) => this.getIni(fileName));
     }
@@ -450,12 +500,19 @@ export class Engine {
         return this.getIni(uiIniFileName);
     }
     static getIni(fileName: string): IniFile {
+        const effective = this.iniSourceLoader?.loadEffectiveIni(fileName);
+        if (effective) {
+            return effective.ini;
+        }
         const iniFile = this.iniFiles.get(fileName);
         if (!iniFile) {
             console.warn(`INI file "${fileName}" not found, returning empty INI file`);
             return new IniFile();
         }
         return iniFile;
+    }
+    static getIniSourceLoader(): IniSourceLoader | undefined {
+        return this.iniSourceLoader;
     }
     static async loadMapList(): Promise<MapList> {
         if (!this.vfs)

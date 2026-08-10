@@ -59,6 +59,15 @@ describe('GameProfile detection', () => {
         expect(detectGameProfile(paths)).toBe('yr');
         expect(getGameProfile('mental-omega').engine).toBe(getGameProfile('yr').engine);
         expect(getGameProfile('mental-omega').extensionRuntime).toBe('ares');
+        expect(getGameProfile('mental-omega').fileNameOverrides).toEqual({
+            'rules.ini': 'rulesmo.ini',
+            'art.ini': 'artmo.ini',
+            'ai.ini': 'aimo.ini',
+        });
+        expect(getGameProfile('mental-omega').optionalFileNameOverrides).toEqual({
+            'ui.ini': 'uimo.ini',
+            'missions.pkt': 'missionsmo.pkt',
+        });
     });
 
     test('validates Mental Omega only when its own content signatures are present', () => {
