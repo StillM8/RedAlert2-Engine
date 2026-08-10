@@ -56,7 +56,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: false,
         tests: ["AresPrerequisites.test.ts"],
-        notes: "Basic initial-factory-country checks are wired for production; Ares plan inheritance (HasAllPlans/Permanent) remains to be implemented.",
+        notes: "Initial-factory-country checks, active HasAllPlans buildings, and Permanent capture plans are wired; save/load serialization of permanent plans remains to be implemented.",
     },
     {
         id: "ares.custom-foundations",

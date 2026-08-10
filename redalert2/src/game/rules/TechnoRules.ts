@@ -62,6 +62,10 @@ export class TechnoRules extends ObjectRules {
     declare stolenTechs: number[];
     declare factoryOwners: string[];
     declare factoryOwnersForbidden: string[];
+    /** BuildingType: grants all factory plans of its initial owner while held. */
+    declare factoryOwnersHasAllPlans: boolean;
+    /** BuildingType: captured plans remain available after the building is lost. */
+    declare factoryOwnersPermanent: boolean;
     declare soylent: number;
     declare crateGoodie: boolean;
     declare buildCat: BuildCat;
@@ -364,6 +368,8 @@ export class TechnoRules extends ObjectRules {
         this.stolenTechs = prerequisiteRules.stolenTechs;
         this.factoryOwners = prerequisiteRules.factoryOwners;
         this.factoryOwnersForbidden = prerequisiteRules.factoryOwnersForbidden;
+        this.factoryOwnersHasAllPlans = this.ini.getBool("FactoryOwners.HasAllPlans");
+        this.factoryOwnersPermanent = this.ini.getBool("FactoryOwners.Permanent");
         this.soylent = this.ini.getNumber("Soylent");
         this.crateGoodie = this.ini.getBool("CrateGoodie");
         this.buildCat = this.ini.getEnum("BuildCat", BuildCat, BuildCat.Combat);
