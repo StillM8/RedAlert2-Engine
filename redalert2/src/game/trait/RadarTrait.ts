@@ -95,7 +95,7 @@ export class RadarTrait {
             this.addEventForPlayer(RadarEventType.BaseUnderAttack, attacker.owner, attacker.tile, game);
         }
     }
-    private addEventForPlayer(eventType: RadarEventType, player: any, tile: any, game: any): void {
+    public addEventForPlayer(eventType: RadarEventType, player: any, tile: any, game: any): void {
         const radarTrait = player.radarTrait;
         if (!radarTrait)
             return;

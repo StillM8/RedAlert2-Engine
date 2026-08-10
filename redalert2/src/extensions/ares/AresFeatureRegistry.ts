@@ -87,6 +87,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Verified against the Ares UnitDelivery documentation and Antares 3.0p1 state machine: deferred placement, owner selection, infantry/vehicle/aircraft/building delivery, irregular foundation bounds, BaseNormal override, and deterministic cleanup are covered; buildup/audio/power edge behavior remains separate.",
     },
     {
+        id: "ares.superweapon-sonar-pulse",
+        description: "SonarPulse temporarily decloaks eligible technos in a water-targeted area",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSonarPulse.test.ts", "AresSuperWeapons.test.ts"],
+        notes: "Verified against Ares 3.0p1/Antares: default radius and enemy-water targeting, full-map mode, rectangular/circular range selection, and max-duration cloak suppression are wired; explicit radar-event presentation remains dependent on the host radar event table.",
+    },
+    {
         id: "ares.staged-weapons",
         description: "Data-defined weapon stages, spin-up, and burst behavior",
         implemented: false,
