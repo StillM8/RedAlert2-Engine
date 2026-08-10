@@ -75,7 +75,16 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: false,
         tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts"],
-        notes: "GenericWarhead cell detonation and deterministic house/target filters are wired; the remaining custom handlers are still unsupported.",
+        notes: "GenericWarhead cell detonation and UnitDelivery placement with deterministic house/target filters are wired; the remaining custom handlers are still unsupported.",
+    },
+    {
+        id: "ares.superweapon-unit-delivery",
+        description: "UnitDelivery creates data-defined TechnoTypes near the target cell",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeapons.test.ts", "AresUnitDelivery.test.ts"],
+        notes: "Verified against the Ares UnitDelivery documentation and Antares 3.0p1 state machine: deferred placement, owner selection, infantry/vehicle/aircraft/building delivery, irregular foundation bounds, BaseNormal override, and deterministic cleanup are covered; buildup/audio/power edge behavior remains separate.",
     },
     {
         id: "ares.staged-weapons",
