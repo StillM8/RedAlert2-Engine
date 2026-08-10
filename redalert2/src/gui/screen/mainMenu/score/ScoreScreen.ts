@@ -1,7 +1,8 @@
 import { jsx } from "@/gui/jsx/jsx";
 import { HtmlView } from "@/gui/jsx/HtmlView";
 import { ScoreTable } from "@/gui/screen/mainMenu/score/ScoreTable";
-import { SideType, isYuriCountry } from "@/game/SideType";
+import { SideType } from "@/game/SideType";
+import { resolveMultiplayerScorePresentation, type SideDescriptor } from "@/extensions/ares/AresSides";
 import { Engine } from "@/engine/Engine";
 import { MusicType } from "@/engine/sound/Music";
 import { MainMenuScreen } from "@/gui/screen/mainMenu/MainMenuScreen";
@@ -14,6 +15,7 @@ interface Game {
 interface Player {
     country?: {
         side: SideType;
+        sideDefinition?: SideDescriptor;
     };
 }
 interface ScoreScreenParams {
@@ -32,15 +34,6 @@ interface GameReport {
 interface WolService {
     getLastGameReport(): GameReport | undefined;
 }
-const sideAssets = new Map<SideType, {
-    img: string;
-    pal: string;
-}>([
-    [SideType.GDI, { img: "mpascrnl.shp", pal: "mpascrn.pal" }],
-    [SideType.Nod, { img: "mpsscrnl.shp", pal: "mpsscrn.pal" }],
-    // YR ships the Yuri score screen in ra2md.mix::localmd.mix
-    [SideType.Yuri, { img: "mpyscrnl.shp", pal: "mpyscrn.pal" }],
-]);
 export class ScoreScreen extends MainMenuScreen {
     private strings: any;
     private jsxRenderer: any;
@@ -76,15 +69,15 @@ export class ScoreScreen extends MainMenuScreen {
             },
         ]);
         this.controller.showSidebarButtons();
-        const side = isYuriCountry(localPlayer.country)
-            ? SideType.Yuri
-            : localPlayer.country?.side ?? SideType.GDI;
-        let assets = sideAssets.get(side);
-        if (!assets) {
-            // A wrong background beats a blank score screen.
-            console.warn("No score screen assets for sideType " + side);
-            assets = sideAssets.get(SideType.GDI)!;
-        }
+        const side = localPlayer.country?.side ?? SideType.GDI;
+        const scorePresentation = resolveMultiplayerScorePresentation(
+            localPlayer.country?.sideDefinition,
+            side,
+        );
+        const assets = {
+            img: scorePresentation.image,
+            pal: scorePresentation.palette,
+        };
         console.info('[ScoreScreen] Faction presentation', {
             side,
             image: assets.img,

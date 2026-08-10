@@ -26,6 +26,11 @@ export interface SideDescriptor {
     sidebarYuriFileNames?: boolean;
     evaTag?: string;
     loadingTheme?: string;
+    multiplayerScoreBackground?: string;
+    multiplayerScorePalette?: string;
+    multiplayerScoreBars?: string;
+    multiplayerScoreWinTheme?: string;
+    multiplayerScoreLoseTheme?: string;
     crew?: string;
     engineer?: string;
     technician?: string;
@@ -49,6 +54,14 @@ export interface SidePresentation {
     useYuriFileNames: boolean;
     evaTag?: string;
     loadingTheme?: string;
+}
+
+export interface MultiplayerScorePresentation {
+    image: string;
+    palette: string;
+    bars: string;
+    winTheme?: string;
+    loseTheme?: string;
 }
 
 export interface CountryDescriptor {
@@ -120,6 +133,29 @@ export function resolveSidePresentation(
         useYuriFileNames: mixSelection.useYuriFileNames,
         evaTag: side?.evaTag,
         loadingTheme: side?.loadingTheme,
+    };
+}
+
+/**
+ * Resolves Ares' per-side multiplayer score assets. Ares uses the Allied and
+ * Soviet defaults for their corresponding legacy sides and the Yuri assets
+ * for other sides unless the side supplies explicit overrides.
+ */
+export function resolveMultiplayerScorePresentation(
+    side: SideDescriptor | undefined,
+    legacySide: SideType = SideType.Civilian,
+): MultiplayerScorePresentation {
+    const defaults = legacySide === SideType.GDI
+        ? { image: "mpascrnl.shp", palette: "mpascrn.pal", bars: "mpascrnlbar~~.pcx" }
+        : legacySide === SideType.Nod
+            ? { image: "mpsscrnl.shp", palette: "mpsscrn.pal", bars: "mpsscrnlbar~~.pcx" }
+            : { image: "mpyscrnl.shp", palette: "mpyscrn.pal", bars: "mpyscrnlbar~~.pcx" };
+    return {
+        image: side?.multiplayerScoreBackground ?? defaults.image,
+        palette: side?.multiplayerScorePalette ?? defaults.palette,
+        bars: side?.multiplayerScoreBars ?? defaults.bars,
+        winTheme: side?.multiplayerScoreWinTheme,
+        loseTheme: side?.multiplayerScoreLoseTheme,
     };
 }
 
@@ -209,6 +245,11 @@ export class AresSideRegistry {
                     : sectionBool(section, "Sidebar.YuriFileNames"),
                 evaTag: sectionValue(section, "EVA.Tag"),
                 loadingTheme: sectionValue(section, "LoadingTheme"),
+                multiplayerScoreBackground: sectionValue(section, "MultiplayerScore.Background"),
+                multiplayerScorePalette: sectionValue(section, "MultiplayerScore.Palette"),
+                multiplayerScoreBars: sectionValue(section, "MultiplayerScore.Bars"),
+                multiplayerScoreWinTheme: sectionValue(section, "MultiplayerScore.WinTheme"),
+                multiplayerScoreLoseTheme: sectionValue(section, "MultiplayerScore.LoseTheme"),
                 crew: sectionValue(section, "Crew"),
                 engineer: sectionValue(section, "Engineer"),
                 technician: sectionValue(section, "Technician"),
