@@ -1,5 +1,6 @@
 import { AresFeatureRegistry, createDefaultAresFeatureRegistry, type ExtensionFeature } from "./AresFeatureRegistry";
 import type { IniSourceLoader } from "@/engine/IniSourceLoader";
+import { scanIniDependencies, type IniDependencyGraph } from "./AresDependencyScanner";
 
 export interface IniScanSource {
     name: string;
@@ -42,6 +43,15 @@ export interface MentalOmegaCompatibilityReport {
     vanillaKeys: number;
     references: IniKeyReference[];
     featureUsage: AresFeatureUsage[];
+    dependencyGraph: IniDependencyGraph;
+    sideCountryCoverage: {
+        sideDefinitions: number;
+        sideReferences: number;
+        unknownSideReferences: number;
+        countryDefinitions: number;
+        countryReferences: number;
+        unknownCountryReferences: number;
+    };
 }
 
 const VANILLA_KEY_PATTERNS: ReadonlyArray<readonly [RegExp, RegExp]> = [
@@ -207,6 +217,9 @@ export function scanMentalOmegaIniSources(
         featureUsage.sectionCount = featureImpact.sections.size;
         featureUsage.definitionCount = featureImpact.definitions.size;
     }
+    const dependencyGraph = scanIniDependencies(sources);
+    const sideCoverage = dependencyGraph.coverage.find((coverage) => coverage.kind === "side");
+    const countryCoverage = dependencyGraph.coverage.find((coverage) => coverage.kind === "country");
     return {
         sourceCount: sources.length,
         sectionCount: new Set(references.map((ref) => `${ref.source}\0${ref.section.toLocaleLowerCase("en-US")}`)).size,
@@ -218,6 +231,15 @@ export function scanMentalOmegaIniSources(
         vanillaKeys: references.filter((ref) => ref.classification === "vanilla").length,
         references,
         featureUsage: [...usage.values()].sort((a, b) => b.occurrences - a.occurrences || a.featureId.localeCompare(b.featureId)),
+        dependencyGraph,
+        sideCountryCoverage: {
+            sideDefinitions: sideCoverage?.definitions ?? 0,
+            sideReferences: sideCoverage?.references ?? 0,
+            unknownSideReferences: sideCoverage?.unresolved ?? 0,
+            countryDefinitions: countryCoverage?.definitions ?? 0,
+            countryReferences: countryCoverage?.references ?? 0,
+            unknownCountryReferences: countryCoverage?.unresolved ?? 0,
+        },
     };
 }
 
@@ -307,6 +329,27 @@ export function formatMentalOmegaCompatibilityReport(report: MentalOmegaCompatib
                     ? "parsed-only"
                     : "runtime-missing";
         lines.push(`${usage.featureId}: ${usage.occurrences} occurrence(s), ${usage.definitionCount} definition(s), ${usage.sourceCount} source(s), ${status}`);
+    }
+    lines.push(
+        "",
+        "SIDES",
+        `defined: ${report.sideCountryCoverage.sideDefinitions}`,
+        `references: ${report.sideCountryCoverage.sideReferences}`,
+        `unknown references: ${report.sideCountryCoverage.unknownSideReferences}`,
+        "COUNTRIES",
+        `defined: ${report.sideCountryCoverage.countryDefinitions}`,
+        `references: ${report.sideCountryCoverage.countryReferences}`,
+        `unknown references: ${report.sideCountryCoverage.unknownCountryReferences}`,
+    );
+    lines.push("", "DEPENDENCY COVERAGE");
+    for (const coverage of report.dependencyGraph.coverage) {
+        lines.push(`${coverage.kind}: ${coverage.definitions} definition(s), ${coverage.references} reference(s), ${coverage.unresolved} unresolved`);
+    }
+    if (report.dependencyGraph.unresolved.length) {
+        lines.push("", "UNRESOLVED DEFINITIONS");
+        for (const edge of report.dependencyGraph.unresolved.slice(0, 50)) {
+            lines.push(`${edge.source} [${edge.section}] ${edge.key}=${edge.value} -> ${edge.kind}`);
+        }
     }
     return lines.join("\n");
 }

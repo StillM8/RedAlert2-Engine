@@ -162,4 +162,79 @@ ListIndex=11
         expect(report.references.some((reference) => reference.source === "rulesmo.ini (effective)" && reference.key === "Ares.CustomArmor")).toBe(true);
         expect(report.featureUsage.find((usage) => usage.featureId === "ares.additional-armor-types")?.occurrences).toBe(1);
     });
+
+    test("builds side/country and gameplay dependency coverage from effective sources", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[Sides]
+0=Alpha
+1=Beta
+2=Gamma
+3=Delta
+
+[Countries]
+0=AlphaCountry
+1=BetaCountry
+2=GammaCountry
+3=DeltaCountry
+
+[AlphaCountry]
+Side=Alpha
+
+[BetaCountry]
+Side=Beta
+
+[GammaCountry]
+Side=Gamma
+
+[DeltaCountry]
+Side=Delta
+
+[TechnoTypes]
+0=TestTank
+
+[WeaponTypes]
+0=TestWeapon
+
+[ProjectileTypes]
+0=TestProjectile
+
+[WarheadTypes]
+0=TestWarhead
+
+[TestTank]
+Primary=TestWeapon
+Owner=AlphaCountry
+
+[TestWeapon]
+Projectile=TestProjectile
+Warhead=TestWarhead
+`,
+            },
+        ]);
+
+        const sideNodes = report.dependencyGraph.nodes.filter((node) => node.kind === "side");
+        const countryNodes = report.dependencyGraph.nodes.filter((node) => node.kind === "country");
+        expect(sideNodes.map((node) => node.name)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
+        expect(countryNodes.map((node) => node.name)).toEqual(["AlphaCountry", "BetaCountry", "GammaCountry", "DeltaCountry"]);
+        expect(report.dependencyGraph.edges.filter((edge) => edge.kind === "side")).toHaveLength(4);
+        expect(report.dependencyGraph.edges.some((edge) => edge.kind === "weapon" && edge.value === "TestWeapon" && edge.resolved)).toBe(true);
+        expect(report.dependencyGraph.edges.some((edge) => edge.kind === "projectile" && edge.value === "TestProjectile" && edge.resolved)).toBe(true);
+        expect(report.dependencyGraph.edges.some((edge) => edge.kind === "warhead" && edge.value === "TestWarhead" && edge.resolved)).toBe(true);
+        expect(report.dependencyGraph.unresolved).toHaveLength(0);
+        expect(report.sideCountryCoverage).toEqual({
+            sideDefinitions: 4,
+            sideReferences: 4,
+            unknownSideReferences: 0,
+            countryDefinitions: 4,
+            countryReferences: 1,
+            unknownCountryReferences: 0,
+        });
+
+        const text = formatMentalOmegaCompatibilityReport(report);
+        expect(text).toContain("side: 4 definition(s)");
+        expect(text).toContain("country: 4 definition(s)");
+    });
 });
