@@ -5,8 +5,10 @@ import { NO_TEAM_ID, OBS_COUNTRY_NAME } from '@/game/gameopts/constants';
 import { formatTeamId } from '@/gui/component/TeamSelect';
 interface Country {
     name: string;
+    id?: string;
     uiName?: string;
     side?: any;
+    flag?: string;
 }
 interface PlayerInfo {
     name: string;
@@ -93,7 +95,7 @@ export class LoadingScreen extends React.Component<LoadingScreenProps> {
                     this.props.strings.get("GUI:TeamNo", formatTeamId(player.team))}
           </span>)}
         <progress value={player.loadPercent.toString()} max={100}/>
-        <CountryIcon country={player.country ? player.country.name : OBS_COUNTRY_NAME}/>
+        <CountryIcon country={player.country ?? OBS_COUNTRY_NAME}/>
         <span className="player-name">
           {player.name}
         </span>

@@ -114,9 +114,7 @@ export const DiploForm: React.FC<DiploFormProps> = ({ strings, playerInfos, loca
                     : localPlayer.color.asHexString(),
             }}>
                 <td className="player-country">
-                  <CountryIcon country={localPlayer.country
-                ? localPlayer.country.name
-                : OBS_COUNTRY_NAME}/>
+                  <CountryIcon country={localPlayer.country ?? OBS_COUNTRY_NAME}/>
                 </td>
                 <td className="player-ping">
                   {localPlayerPing !== undefined && (<PingIndicator ping={localPlayerPing} strings={strings}/>)}
@@ -141,9 +139,7 @@ export const DiploForm: React.FC<DiploFormProps> = ({ strings, playerInfos, loca
                         : playerInfo.player.color.asHexString(),
                 }}>
                   <td className="player-country">
-                    <CountryIcon country={playerInfo.player.country
-                    ? playerInfo.player.country.name
-                    : OBS_COUNTRY_NAME}/>
+                    <CountryIcon country={playerInfo.player.country ?? OBS_COUNTRY_NAME}/>
                   </td>
                   <td className="player-ping">
                     {ping !== undefined && (<PingIndicator ping={ping} strings={strings}/>)}

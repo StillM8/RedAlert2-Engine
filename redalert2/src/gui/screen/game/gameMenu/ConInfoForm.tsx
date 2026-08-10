@@ -88,9 +88,7 @@ export const ConInfoForm: React.FC<ConInfoFormProps> = ({ strings, conInfos, pla
                         : 1,
                 }}>
                     <td>
-                      <CountryIcon country={player.country
-                    ? player.country.name
-                    : OBS_COUNTRY_NAME}/>
+                      <CountryIcon country={player.country ?? OBS_COUNTRY_NAME}/>
                     </td>
                     <td className="player-name">
                       {player.name}
