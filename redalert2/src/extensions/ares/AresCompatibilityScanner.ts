@@ -82,6 +82,11 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^armortypes$/i.test(section) || /^versus\./i.test(key)) {
         return "ares.additional-armor-types";
     }
+    if (/^superweapons$/i.test(key) ||
+        /^(?:SW|Deliver|DropPod|EMPulse|Battery|HunterSeeker|Firestorm|GenericWarhead|ChronoWarp|SonarPulse)\./i.test(key) ||
+        (/^type$/i.test(key) && /^(?:GenericWarhead|UnitDelivery|Firestorm|HunterSeeker|DropPod|EMPulse|Battery|SonarPulse|ChronoWarp)$/i.test(value))) {
+        return "ares.custom-superweapons";
+    }
     if (/^ares[._]/i.test(key)) {
         const lower = key.toLocaleLowerCase("en-US");
         if (lower.includes("armor") || lower.includes("verse")) return "ares.additional-armor-types";
