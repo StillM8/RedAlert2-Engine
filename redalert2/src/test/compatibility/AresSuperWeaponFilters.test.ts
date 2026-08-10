@@ -46,4 +46,31 @@ describe("Ares superweapon target filters", () => {
         const unrestricted = createAresSuperWeaponTargetFilter(undefined, undefined, owner, game);
         expect(unrestricted(object(ObjectType.Building, enemy), {})).toBe(true);
     });
+
+    test("treats land and water as an inclusive zone mask and keeps infantry out of units", () => {
+        const owner = { id: "owner" };
+        const enemy = { id: "enemy" };
+        let zone = ZoneType.Ground;
+        const game: any = {
+            alliances: { areAllied: () => false },
+            map: { getTileZone: () => zone },
+        };
+        const filter = createAresSuperWeaponTargetFilter("enemies", "land,water,units", owner, game);
+        expect(filter(object(ObjectType.Vehicle, enemy), {})).toBe(true);
+        expect(filter(object(ObjectType.Infantry, enemy), {})).toBe(false);
+        zone = ZoneType.Water;
+        expect(filter(object(ObjectType.Vehicle, enemy), {})).toBe(true);
+    });
+
+    test("does not apply an empty-cell-only target rule to occupied objects", () => {
+        const owner = { id: "owner" };
+        const enemy = { id: "enemy" };
+        const game: any = {
+            alliances: { areAllied: () => false },
+            map: { getTileZone: () => ZoneType.Ground },
+        };
+        const filter = createAresSuperWeaponTargetFilter("enemies", "empty", owner, game);
+        expect(filter(object(ObjectType.Vehicle, enemy), {})).toBe(false);
+        expect(filter(undefined, {})).toBe(false);
+    });
 });
