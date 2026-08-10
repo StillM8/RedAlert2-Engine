@@ -5,6 +5,7 @@ import { EventDispatcher } from '@/util/event';
 import { SideType } from '@/game/SideType';
 import { evaluateAresPrerequisiteRules, isFactoryOwnerAllowed } from '@/extensions/ares/AresPrerequisites';
 import type { SideId } from '@/extensions/ares/AresSides';
+import { fnv32aStrings } from '@/util/math';
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -264,8 +265,39 @@ export class Production {
             this.permanentFactoryOwnerPlans.add(countryId.trim());
         }
     }
+    /**
+     * Hashes extension-owned production state that changes the effective
+     * rules available to this player. Queue state is intentionally not added
+     * here because it is represented by the existing action/replay flow.
+     */
+    getHash(): number {
+        const stolenTech = [...(this.stolenTech ?? [])]
+            .map(value => `${typeof value === "number" ? "number" : "side"}:${value}`)
+            .sort();
+        const permanentFactoryOwnerPlans = [...(this.permanentFactoryOwnerPlans ?? [])].sort();
+        return fnv32aStrings([
+            "production-extension-state",
+            "stolen-tech",
+            ...stolenTech,
+            "permanent-factory-owner-plans",
+            ...permanentFactoryOwnerPlans,
+        ]);
+    }
+    debugGetState(): {
+        stolenTechs: Array<number | SideId>;
+        permanentFactoryOwnerPlans: string[];
+    } {
+        const stolenTechs = [...(this.stolenTech ?? [])].sort((a, b) =>
+            `${typeof a}:${a}`.localeCompare(`${typeof b}:${b}`));
+        return {
+            stolenTechs,
+            permanentFactoryOwnerPlans: [...(this.permanentFactoryOwnerPlans ?? [])].sort(),
+        };
+    }
     dispose() {
         this.queues.clear();
+        this.stolenTech.clear();
+        this.permanentFactoryOwnerPlans.clear();
         this.player = undefined;
     }
 }

@@ -9,6 +9,8 @@ import { Rules } from "@/game/rules/Rules";
 import { TechnoRules } from "@/game/rules/TechnoRules";
 import { ParadropRules } from "@/game/rules/general/ParadropRules";
 import { sideTypeToTriggerSide } from "@/game/ai/thirdpartbot/builtIn/bot/logic/ai-ini/aiTriggerDb";
+import { Player } from "@/game/Player";
+import { Production } from "@/game/player/production/Production";
 
 describe("Ares side presentation", () => {
     test("keeps four authored sides and their countries data-defined", () => {
@@ -197,5 +199,36 @@ describe("Ares side presentation", () => {
         })).toBeUndefined();
         expect(sideTypeToTriggerSide(SideType.GDI)).toBe(1);
         expect(sideTypeToTriggerSide(SideType.Yuri)).toBe(3);
+    });
+
+    test("keeps dynamic country and side identity in deterministic player state", () => {
+        const alphaCountry = {
+            id: "AlphaCountry",
+            sideId: "Alpha",
+            isPlayable: () => true,
+        } as Country;
+        const betaCountry = {
+            id: "BetaCountry",
+            sideId: "Beta",
+            isPlayable: () => true,
+        } as Country;
+        const alphaPlayer = new Player("Alpha", alphaCountry);
+        const betaPlayer = new Player("Beta", betaCountry);
+        alphaPlayer.production = new Production(alphaPlayer, 9, {}, {}, []);
+
+        const initialHash = alphaPlayer.getHash();
+        alphaPlayer.production.addStolenTech("Gamma");
+        const stolenTechHash = alphaPlayer.getHash();
+
+        expect(stolenTechHash).not.toBe(initialHash);
+        expect(alphaPlayer.getHash()).not.toBe(betaPlayer.getHash());
+        expect(alphaPlayer.debugGetState()).toMatchObject({
+            countryId: "AlphaCountry",
+            sideId: "Alpha",
+            production: {
+                stolenTechs: ["Gamma"],
+                permanentFactoryOwnerPlans: [],
+            },
+        });
     });
 });

@@ -1,7 +1,7 @@
 import { Color } from '@/util/Color';
 import { ObjectType } from '@/engine/type/ObjectType';
 import { Traits } from '@/game/Traits';
-import { fnv32a } from '@/util/math';
+import { fnv32aStrings } from '@/util/math';
 import { Country } from '@/game/Country';
 import type { Production } from '@/game/player/production/Production';
 interface PlayerOwnedObject {
@@ -154,15 +154,22 @@ export class Player {
             this.country.hasVeteranUnit(object.type, object.name));
     }
     getHash(): number {
-        return fnv32a([
+        return fnv32aStrings([
+            "player",
             this.credits,
-            ...this.traits.getAll().map(trait => trait.getHash?.() ?? 0)
+            this.country?.id ?? "",
+            this.country?.sideId ?? "",
+            this.production?.getHash?.() ?? 0,
+            ...this.traits.getAll().map(trait => trait.getHash?.() ?? 0),
         ]);
     }
     debugGetState(): Record<string, any> {
         return {
             name: this.name,
             credits: this.credits,
+            countryId: this.country?.id,
+            sideId: this.country?.sideId,
+            production: this.production?.debugGetState?.(),
             traits: this.traits.getAll().reduce((acc, trait) => {
                 const state = trait.debugGetState?.();
                 if (state !== undefined) {
