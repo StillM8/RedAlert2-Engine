@@ -2,15 +2,8 @@ import { QueueType, ProductionQueue } from './ProductionQueue';
 import { BuildCat, FactoryType } from '../../rules/TechnoRules';
 import { ObjectType } from '@/engine/type/ObjectType';
 import { EventDispatcher } from '@/util/event';
-import { PrereqCategory } from '@/game/rules/GeneralRules';
 import { SideType } from '@/game/SideType';
-const PREREQ_MAP = new Map()
-    .set("POWER", PrereqCategory.Power)
-    .set("FACTORY", PrereqCategory.Factory)
-    .set("BARRACKS", PrereqCategory.Barracks)
-    .set("RADAR", PrereqCategory.Radar)
-    .set("TECH", PrereqCategory.Tech)
-    .set("PROC", PrereqCategory.Proc);
+import { evaluateAresPrerequisiteRules } from '@/extensions/ares/AresPrerequisites';
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -159,33 +152,21 @@ export class Production {
         return object.naval ? FactoryType.NavalUnitType : FactoryType.UnitType;
     }
     meetsPrerequisites(object: any): boolean {
-        const buildingNames = Array.from(this.player.buildings).map((b: any) => b.name);
-        for (const prereq of object.prerequisite) {
-            const upperPrereq = prereq.toUpperCase();
-            if (PREREQ_MAP.has(upperPrereq)) {
-                const category = PREREQ_MAP.get(upperPrereq);
-                if (category === undefined) {
-                    throw new Error("Unknown prereqName " + upperPrereq);
-                }
-                const prereqBuildings = this.rules.general.prereqCategories.get(category);
-                if (prereqBuildings === undefined) {
-                    throw new Error(`Missing prerequisite category ${category} in rules`);
-                }
-                let hasPrereq = false;
-                for (const building of prereqBuildings) {
-                    if (buildingNames.indexOf(building) !== -1) {
-                        hasPrereq = true;
-                        break;
-                    }
-                }
-                if (!hasPrereq)
-                    return false;
-            }
-            else if (buildingNames.indexOf(upperPrereq) === -1) {
-                return false;
-            }
-        }
-        return true;
+        const ownedObjects = typeof this.player.getOwnedObjects === "function"
+            ? this.player.getOwnedObjects()
+            : Array.from(this.player.buildings);
+        const alternativeLists = object.prerequisiteLists ?? [object.prerequisite ?? []];
+        return evaluateAresPrerequisiteRules({
+            alternativeLists,
+            negative: object.negativePrerequisite ?? [],
+            requiredTheaters: object.requiredTheaters ?? [],
+            stolenTechs: object.stolenTechs ?? [],
+        }, {
+            ownedObjectNames: ownedObjects.map((owned: any) => owned.name),
+            genericGroups: this.rules.general.genericPrerequisites,
+            genericAlternates: this.rules.general.genericPrerequisiteAlternates,
+            stolenTechs: this.stolenTech,
+        });
     }
     getPrimaryFactory(type: FactoryType): any {
         return this.primaryFactories.get(type);

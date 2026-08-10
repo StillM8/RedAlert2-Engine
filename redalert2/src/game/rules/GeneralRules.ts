@@ -9,6 +9,7 @@ import { LightningStormRules } from './general/LightningStormRules';
 import { V3RocketRules } from './general/V3RocketRules';
 import { DMislRules } from './general/DMislRules';
 import { HoverRules } from './general/HoverRules';
+import { normalizePrerequisiteId } from '@/extensions/ares/AresPrerequisites';
 import { clamp } from '@/util/math';
 export enum PrereqCategory {
     Power = 0,
@@ -25,6 +26,7 @@ interface IniReader {
     getFixed(key: string, defaultValue?: number): number;
     getBool(key: string, defaultValue?: boolean): boolean;
     has(key: string): boolean;
+    entries?: Map<string, string | string[]>;
 }
 interface MissileRules {
     type: string;
@@ -39,6 +41,13 @@ const prereqCategoryMap = new Map<PrereqCategory, string>([
 ]);
 export class GeneralRules {
     public prereqCategories = new Map<PrereqCategory, string[]>();
+    /**
+     * Normalized prerequisite groups, including the six vanilla groups and
+     * any Ares [GenericPrerequisites] overrides/additions.
+     */
+    public genericPrerequisites = new Map<string, string[]>();
+    /** Alternate TechnoTypes that can satisfy a generic prerequisite group. */
+    public genericPrerequisiteAlternates = new Map<string, string[]>();
     public aircraftFogReveal!: number;
     public flightLevel!: number;
     public alliedDisguise!: string;
@@ -161,13 +170,47 @@ export class GeneralRules {
         this.veteran = new VeteranRules().readIni(ini);
         this.wallBuildSpeedCoefficient = ini.getFixed('WallBuildSpeedCoefficient');
         this.readPrereqCategories(ini);
+        this.readGenericPrerequisiteAlternates(ini);
     }
     private readPrereqCategories(ini: IniReader): void {
         for (const [category, key] of prereqCategoryMap) {
             if (!ini.has(key)) {
                 throw new Error(`Missing prerequisite category ${key} in [General] section`);
             }
-            this.prereqCategories.set(category, ini.getArray(key));
+            const values = ini.getArray(key);
+            this.prereqCategories.set(category, values);
+            this.genericPrerequisites.set(normalizePrerequisiteId(PrereqCategory[category]), values);
+        }
+    }
+    /**
+     * Reads Ares' [GenericPrerequisites] section. A declared vanilla group
+     * replaces the corresponding [General] group, while new group names are
+     * simply added to the same normalized registry.
+     */
+    public readGenericPrerequisites(section?: IniReader): void {
+        if (!section?.entries) {
+            return;
+        }
+        for (const key of section.entries.keys()) {
+            this.genericPrerequisites.set(
+                normalizePrerequisiteId(key),
+                section.getArray(key),
+            );
+        }
+    }
+    private readGenericPrerequisiteAlternates(ini: IniReader): void {
+        if (!ini.entries) {
+            return;
+        }
+        for (const key of ini.entries.keys()) {
+            const match = /^Prerequisite(.+)Alternate$/i.exec(key);
+            if (!match) {
+                continue;
+            }
+            this.genericPrerequisiteAlternates.set(
+                normalizePrerequisiteId(match[1]),
+                ini.getArray(key),
+            );
         }
     }
     public getMissileRules(type: string): MissileRules {

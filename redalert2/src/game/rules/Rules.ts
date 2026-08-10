@@ -286,6 +286,7 @@ export class Rules {
         this.readCombatDamage();
         this.readRadiation();
         this.readGeneral();
+        this.general.readGenericPrerequisites(this.ini.getSection("GenericPrerequisites") as any);
         this.readAi();
         this.readCrateRules();
         this.readElevationModel();

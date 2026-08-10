@@ -42,10 +42,11 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     {
         id: "ares.generic-prerequisites",
         description: "Generic and composable prerequisite expressions",
-        implemented: false,
-        parserImplemented: false,
-        runtimeImplemented: false,
-        tests: [],
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresPrerequisites.test.ts"],
+        notes: "Supports generic groups, alternate TechnoTypes, negative prerequisites, alternative lists, required theaters when map context is available, and stolen-tech gates.",
     },
     {
         id: "ares.custom-foundations",

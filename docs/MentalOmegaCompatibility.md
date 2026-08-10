@@ -15,6 +15,13 @@ extension runtime identifier; vanilla `ra2` and `yr` profiles remain separate.
 - VFS resolution has explicit layers and provenance diagnostics.
 - The Ares scanner reports vanilla keys, known extension keys, and unknown
   extension keys separately.
+- Additional armor types and per-armor warhead verses are normalized through a
+  shared armor registry.
+- Sides and countries are parsed from data-defined registries rather than
+  assuming only the vanilla side/country set.
+- Generic Ares prerequisites support custom groups, alternate TechnoTypes,
+  alternative lists, negative prerequisites, stolen-tech gates, and theater
+  gates when map theater context is available.
 
 ## Compatibility status
 

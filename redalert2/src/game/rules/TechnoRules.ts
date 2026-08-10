@@ -13,6 +13,7 @@ import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 import { VhpScan } from "@/game/type/VhpScan";
 import { Vector3 } from "@/game/math/Vector3";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
+import { parseAresPrerequisiteRules } from "@/extensions/ares/AresPrerequisites";
 interface House {
     name: string;
 }
@@ -47,6 +48,11 @@ export class TechnoRules extends ObjectRules {
     declare poweredUnit: boolean;
     declare powersUnit?: string;
     declare prerequisite: string[];
+    /** Ares alternative prerequisite lists; list entries are ANDed. */
+    declare prerequisiteLists: string[][];
+    declare negativePrerequisite: string[];
+    declare requiredTheaters: string[];
+    declare stolenTechs: number[];
     declare soylent: number;
     declare crateGoodie: boolean;
     declare buildCat: BuildCat;
@@ -324,7 +330,12 @@ export class TechnoRules extends ObjectRules {
         // Retail YR: [ROBO] PoweredUnit=yes, [GAROBO] PowersUnit=ROBO.
         this.poweredUnit = this.ini.getBool("PoweredUnit");
         this.powersUnit = this.ini.getString("PowersUnit") || undefined;
-        this.prerequisite = this.ini.getArray("Prerequisite");
+        const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
+        this.prerequisiteLists = prerequisiteRules.alternativeLists;
+        this.prerequisite = this.prerequisiteLists[0] ?? [];
+        this.negativePrerequisite = prerequisiteRules.negative;
+        this.requiredTheaters = prerequisiteRules.requiredTheaters;
+        this.stolenTechs = prerequisiteRules.stolenTechs;
         this.soylent = this.ini.getNumber("Soylent");
         this.crateGoodie = this.ini.getBool("CrateGoodie");
         this.buildCat = this.ini.getEnum("BuildCat", BuildCat, BuildCat.Combat);
