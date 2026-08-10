@@ -18,10 +18,15 @@ function tokens(value: string | undefined): Set<string> {
 }
 
 function isUnit(object: any): boolean {
-    return object?.isUnit?.() === true ||
-        object?.rules?.type === ObjectType.Infantry ||
-        object?.rules?.type === ObjectType.Vehicle ||
-        object?.rules?.type === ObjectType.Aircraft;
+    // Ares distinguishes `Infantry` from `Unit`; the latter covers vehicles
+    // and aircraft.  Some engine objects expose only isUnit(), so guard the
+    // infantry case explicitly instead of treating every unit as a vehicle.
+    if (object?.isInfantry?.() === true || object?.rules?.type === ObjectType.Infantry) {
+        return false;
+    }
+    return object?.isVehicle?.() === true ||
+        object?.isAircraft?.() === true ||
+        (object?.isUnit?.() === true && object?.rules?.type !== ObjectType.Infantry);
 }
 
 function isBuilding(object: any): boolean {
@@ -45,10 +50,17 @@ function houseAllowed(object: any, owner: any, houses: Set<string>, game: AresSu
 function targetAllowed(object: any, tile: any, targets: Set<string>, game: AresSuperWeaponFilterGame): boolean {
     if (!targets.size || targets.has("none")) return true;
     const zone = game.map.getTileZone(tile);
-    if (targets.has("land") && zone !== ZoneType.Ground) return false;
-    if (targets.has("water") && zone !== ZoneType.Water) return false;
+    // Antares stores land/water as a bitmask.  Therefore land,water means
+    // both zones are legal; it is not two sequential predicates.
+    const allowsLand = targets.has("land");
+    const allowsWater = targets.has("water");
+    if ((allowsLand || allowsWater) &&
+        ((zone === ZoneType.Ground && !allowsLand) ||
+            (zone === ZoneType.Water && !allowsWater))) {
+        return false;
+    }
     const typeTargets = ["infantry", "units", "buildings"].filter(target => targets.has(target));
-    if (!typeTargets.length) return true;
+    if (!typeTargets.length) return !targets.has("empty");
     if (targets.has("buildings") && isBuilding(object)) return true;
     if (targets.has("infantry") && object?.isInfantry?.()) return true;
     if (targets.has("units") && isUnit(object)) return true;
