@@ -298,9 +298,9 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         capabilityId: "ares.superweapons",
         parserStatus: "partial", normalizedModelStatus: "partial", runtimeStatus: "partial",
         aiStatus: "missing", presentationStatus: "partial", saveLoadStatus: "missing", multiplayerStatus: "partial",
-        verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts"],
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters"], targetModUsage: "required",
-        notes: "Common fields, target filters, GenericWarhead, UnitDelivery, SonarPulse, and the EMPulse launch state are present; animation/presentation, AI, persistence, and the remaining handlers are not complete.",
+        notes: "Common fields, manual SW.RequiresTarget/SW.RequiresHouse gates, target filters, GenericWarhead, UnitDelivery, SonarPulse, and the EMPulse launch state are present; animation/presentation, AI, persistence, and the remaining handlers are not complete.",
     },
     "restored/emp.rst": {
         capabilityId: "ares.emp",

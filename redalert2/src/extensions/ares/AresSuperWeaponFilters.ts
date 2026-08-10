@@ -7,6 +7,8 @@ export interface AresSuperWeaponFilterGame {
     };
     map: {
         getTileZone(tile: any): ZoneType;
+        getGroundObjectsOnTile?(tile: any): any[];
+        getObjectsOnTile?(tile: any): any[];
     };
 }
 
@@ -65,6 +67,100 @@ function targetAllowed(object: any, tile: any, targets: Set<string>, game: AresS
     if (targets.has("infantry") && object?.isInfantry?.()) return true;
     if (targets.has("units") && isUnit(object)) return true;
     return false;
+}
+
+function isTechno(object: any): boolean {
+    return object?.isTechno?.() === true ||
+        isBuilding(object) ||
+        object?.isInfantry?.() === true ||
+        object?.isVehicle?.() === true ||
+        object?.isAircraft?.() === true ||
+        object?.isUnit?.() === true ||
+        [ObjectType.Building, ObjectType.Infantry, ObjectType.Vehicle, ObjectType.Aircraft]
+            .includes(object?.rules?.type);
+}
+
+function compareTargetObjects(first: any, second: any): number {
+    const firstId = first?.id;
+    const secondId = second?.id;
+    if (typeof firstId === "number" && typeof secondId === "number") {
+        return firstId - secondId;
+    }
+    const firstKey = String(firstId ?? first?.name ?? "");
+    const secondKey = String(secondId ?? second?.name ?? "");
+    return firstKey.localeCompare(secondKey);
+}
+
+function getTechnoTargetsAtCell(game: AresSuperWeaponFilterGame, tile: any): any[] {
+    const objects = game.map.getGroundObjectsOnTile?.(tile) ?? game.map.getObjectsOnTile?.(tile) ?? [];
+    return objects.filter(isTechno).sort(compareTargetObjects);
+}
+
+function requiredHouseAllowed(object: any, owner: any, houses: Set<string>, game: AresSuperWeaponFilterGame): boolean {
+    // Antares treats RequiresHouse=None as no house restriction.  This is
+    // intentionally different from AffectsHouse=None, which affects nothing.
+    if (!houses.size || houses.has("none")) return true;
+    return houseAllowed(object, owner, houses, game);
+}
+
+/**
+ * Implements Antares' IsCellEligible + IsTechnoEligible semantics for a
+ * manually selected superweapon target.  A cell-only mask such as `water`
+ * allows both occupied and empty cells; a content mask such as `buildings`
+ * requires a matching techno; `empty` requires no techno on the cell.
+ */
+export function isAresSuperWeaponRequiredTargetAllowed(
+    object: any | undefined,
+    tile: any,
+    requiresTarget: string | undefined,
+    game: AresSuperWeaponFilterGame,
+): boolean {
+    const targets = tokens(requiresTarget);
+    if (!targets.size || targets.has("none") || targets.has("all")) return true;
+
+    const zone = game.map.getTileZone(tile);
+    const allowsLand = targets.has("land");
+    const allowsWater = targets.has("water");
+    if ((allowsLand || allowsWater) &&
+        ((zone === ZoneType.Ground && !allowsLand) ||
+            (zone === ZoneType.Water && !allowsWater))) {
+        return false;
+    }
+
+    const hasContentMask = targets.has("empty") ||
+        targets.has("infantry") ||
+        targets.has("units") ||
+        targets.has("buildings");
+    if (!hasContentMask) return true;
+    if (!object) return targets.has("empty");
+    if (targets.has("buildings") && isBuilding(object)) return true;
+    if (targets.has("infantry") && object?.isInfantry?.() === true) return true;
+    if (targets.has("units") && isUnit(object)) return true;
+    return false;
+}
+
+/**
+ * Validate the target cell before an Ares superweapon activation.  The
+ * original game checks the cell's ground content, not overlays or terrain
+ * objects.  The host may expose more than one techno on a tile, so this
+ * standalone runtime accepts a matching deterministic candidate; ordinary
+ * maps still have one ground content object just like the original cell.
+ */
+export function isAresSuperWeaponActivationAllowed(
+    requiresHouse: string | undefined,
+    requiresTarget: string | undefined,
+    owner: any,
+    tile: any,
+    game: AresSuperWeaponFilterGame,
+): boolean {
+    const houses = tokens(requiresHouse);
+    const targets = getTechnoTargetsAtCell(game, tile);
+    if (!targets.length) {
+        return isAresSuperWeaponRequiredTargetAllowed(undefined, tile, requiresTarget, game);
+    }
+    return targets.some((object) =>
+        isAresSuperWeaponRequiredTargetAllowed(object, tile, requiresTarget, game) &&
+        requiredHouseAllowed(object, owner, houses, game));
 }
 
 /**

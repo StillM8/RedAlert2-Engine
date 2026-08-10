@@ -94,6 +94,26 @@ Deliver.Types=MOUnit
         expect(usage?.support?.implemented).toBe(false);
     });
 
+    test("tracks manual superweapon target requirements separately from effect handlers", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[MOProtect]
+Type=GenericWarhead
+SW.RequiresTarget=Land,Buildings
+SW.RequiresHouse=Team
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-target-requirements");
+        expect(usage?.occurrences).toBe(2);
+        expect(usage?.definitionCount).toBe(1);
+        expect(usage?.support?.parserImplemented).toBe(true);
+        expect(usage?.support?.runtimeImplemented).toBe(true);
+    });
+
     test("classifies EMPulse fields and launch-site flags as one capability", () => {
         const report = scanMentalOmegaIniSources([
             {
