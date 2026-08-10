@@ -114,7 +114,15 @@ export class SuperWeaponsTrait {
                     console.warn(`GenericWarhead superweapon "${e.name}" needs SW.Damage and SW.Warhead; skipped.`);
                 }
                 else {
-                    t.push(new GenericWarheadEffect(eventType, i, s, damage, warhead));
+                    t.push(new GenericWarheadEffect(
+                        eventType,
+                        i,
+                        s,
+                        damage,
+                        warhead,
+                        e.ares?.swAffectsHouse,
+                        e.ares?.swAffectsTarget,
+                    ));
                 }
             }
             switch (o) {

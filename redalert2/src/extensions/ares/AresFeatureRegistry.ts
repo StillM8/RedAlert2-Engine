@@ -75,7 +75,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: false,
         tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts"],
-        notes: "GenericWarhead cell detonation is wired; Ares target filters and the remaining custom handlers are still unsupported.",
+        notes: "GenericWarhead cell detonation and deterministic house/target filters are wired; the remaining custom handlers are still unsupported.",
     },
     {
         id: "ares.staged-weapons",

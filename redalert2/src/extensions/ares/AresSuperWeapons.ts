@@ -69,6 +69,13 @@ function getArray(section: IniSectionLike, key: string): string[] | undefined {
     return result.length ? result : [];
 }
 
+function getNumberArray(section: IniSectionLike, key: string): number[] | undefined {
+    const values = getArray(section, key);
+    if (values === undefined) return undefined;
+    const numbers = values.map(value => value.endsWith("%") ? Number(value.slice(0, -1)) / 100 : Number(value));
+    return numbers.every(Number.isFinite) ? numbers : undefined;
+}
+
 function parseVanillaType(value: string | undefined): SuperWeaponType | undefined {
     if (!value) return undefined;
     const expected = normalize(value);
@@ -126,12 +133,23 @@ export interface AresSuperWeaponDefinition {
     swAIRequiresTarget?: string;
     swRangeMinimum?: number;
     swRangeMaximum?: number;
+    swRange?: number[];
     swMaxCount?: number;
     swDeferment?: number;
     swActivationSound?: string;
     swCursor?: string;
     swNoCursor?: string;
     swChargeToDrainRatio?: number;
+    swRequiresHouse?: string;
+    swInitialReady?: boolean;
+    swVirtualCharge?: boolean;
+    swGroup?: number;
+    swCreateRadarEvent?: boolean;
+    swShowCameo?: boolean;
+    swTimerVisibility?: string;
+    swAnimation?: string;
+    swAnimationHeight?: number;
+    swSound?: string;
 
     evaDetected?: string;
     evaReady?: string;
@@ -223,12 +241,23 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAIRequiresTarget: getString(section, "SW.AIRequiresTarget"),
         swRangeMinimum: getNumber(section, "SW.RangeMinimum"),
         swRangeMaximum: getNumber(section, "SW.RangeMaximum"),
+        swRange: getNumberArray(section, "SW.Range"),
         swMaxCount: getNumber(section, "SW.MaxCount"),
         swDeferment: getNumber(section, "SW.Deferment"),
         swActivationSound: getString(section, "SW.ActivationSound"),
         swCursor: getString(section, "Cursor") ?? getString(section, "SW.Cursor"),
         swNoCursor: getString(section, "NoCursor") ?? getString(section, "SW.NoCursor"),
         swChargeToDrainRatio: getNumber(section, "SW.ChargeToDrainRatio"),
+        swRequiresHouse: getString(section, "SW.RequiresHouse"),
+        swInitialReady: getBool(section, "SW.InitialReady"),
+        swVirtualCharge: getBool(section, "SW.VirtualCharge"),
+        swGroup: getNumber(section, "SW.Group"),
+        swCreateRadarEvent: getBool(section, "SW.CreateRadarEvent"),
+        swShowCameo: getBool(section, "SW.ShowCameo"),
+        swTimerVisibility: getString(section, "SW.TimerVisibility"),
+        swAnimation: getString(section, "SW.Animation"),
+        swAnimationHeight: getNumber(section, "SW.AnimationHeight"),
+        swSound: getString(section, "SW.Sound"),
         evaDetected: getString(section, "EVA.Detected"),
         evaReady: getString(section, "EVA.Ready"),
         evaActivated: getString(section, "EVA.Activated"),

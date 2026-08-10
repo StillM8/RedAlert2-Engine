@@ -33,5 +33,7 @@ describe("Ares GenericWarhead superweapon", () => {
         expect(TestWarhead.calls[0][2]).toBe(tile);
         expect(TestWarhead.calls[0][7]).toEqual({ object: undefined, targetTile: tile });
         expect(TestWarhead.calls[0][8].player).toBe(owner);
+        expect(typeof TestWarhead.calls[0][13]).toBe("function");
+        expect(TestWarhead.calls[0][13]({ owner }, tile)).toBe(true);
     });
 });
