@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveSideMixSelection } from "@/extensions/ares/AresSides";
+import { resolveSideMixSelection, resolveSidePresentation } from "@/extensions/ares/AresSides";
 import { SideType } from "@/game/SideType";
 import { IniSection } from "@/data/IniSection";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
@@ -30,6 +30,27 @@ describe("Ares side presentation", () => {
         expect(selection.useYuriFileNames).toBe(true);
     });
 
+    test("keeps custom presentation identity separate from legacy SideType", () => {
+        const presentation = resolveSidePresentation({
+            id: "Foehn",
+            index: 4,
+            presentationId: "Foehn",
+            sidebarMixFileIndex: 4,
+            evaTag: "Foehn",
+        }, SideType.Civilian);
+
+        expect(presentation).toEqual({
+            id: "Foehn",
+            hudLayout: "soviet",
+            sidebarMixFileIndex: 4,
+            useYuriFileNames: false,
+            evaTag: "Foehn",
+            loadingTheme: undefined,
+        });
+        expect(resolveSidePresentation(undefined, SideType.GDI).hudLayout).toBe("allied");
+        expect(resolveSidePresentation(undefined, SideType.Yuri, true).hudLayout).toBe("yuri");
+    });
+
     test("preserves data-defined country metadata in runtime Country objects", () => {
         const side = new IniSection("Epsilon");
         side.set("Presentation", "epsilon");
@@ -39,6 +60,7 @@ describe("Ares side presentation", () => {
         country.set("UITooltip", "STT_EPSILON_COUNTRY");
         country.set("Flag", "epsilon_flag");
         country.set("LoadingScreen", "epsilon_load");
+        country.set("LoadingScreenPalette", "epsilon_load.pal");
         country.set("Multiplay", "yes");
         country.set("ListIndex", "12");
         const sections = new Map([
@@ -66,6 +88,7 @@ describe("Ares side presentation", () => {
         expect(runtimeCountry.presentationId).toBe("epsilon");
         expect(runtimeCountry.flag).toBe("epsilon_flag");
         expect(runtimeCountry.loadScreen).toBe("epsilon_load");
+        expect(runtimeCountry.loadScreenPalette).toBe("epsilon_load.pal");
         expect(runtimeCountry.uiTooltip).toBe("STT_EPSILON_COUNTRY");
     });
 });

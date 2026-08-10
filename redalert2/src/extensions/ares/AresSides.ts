@@ -20,6 +20,22 @@ export interface SideDescriptor {
     loadingTheme?: string;
 }
 
+export type HudLayout = "allied" | "soviet" | "yuri";
+
+/**
+ * Presentation data is deliberately separate from the simulation side ID.
+ * Vanilla HUD code still has a few layout adapters, but custom sides no
+ * longer need to masquerade as an out-of-range SideType value to reach them.
+ */
+export interface SidePresentation {
+    id: string;
+    hudLayout: HudLayout;
+    sidebarMixFileIndex: number;
+    useYuriFileNames: boolean;
+    evaTag?: string;
+    loadingTheme?: string;
+}
+
 export interface CountryDescriptor {
     id: string;
     sideId: string;
@@ -32,6 +48,7 @@ export interface CountryDescriptor {
     randomSelectionWeight: number;
     listIndex: number;
     loadScreen?: string;
+    loadScreenPalette?: string;
 }
 
 export interface SideMixSelection {
@@ -63,6 +80,27 @@ export function resolveSideMixSelection(
         expansionMixFile: `sidec${suffix}md.mix`,
         compatibilityMixFile: `sidec${suffix}cd.mix`,
         useYuriFileNames: side?.sidebarYuriFileNames ?? defaultYuriFileNames,
+    };
+}
+
+export function resolveSidePresentation(
+    side: SideDescriptor | undefined,
+    legacySide: SideType = SideType.GDI,
+    defaultYuriFileNames = false,
+): SidePresentation {
+    const mixSelection = resolveSideMixSelection(side, legacySide, defaultYuriFileNames);
+    const presentationId = normalize(side?.presentationId ?? side?.id ?? "");
+    const isAllied = presentationId === "gdi" || presentationId === "allied" ||
+        (legacySide === SideType.GDI && !presentationId.includes("yuri"));
+    const isYuri = presentationId === "yuri" || presentationId === "thirdside" ||
+        legacySide === SideType.Yuri || mixSelection.useYuriFileNames;
+    return {
+        id: side?.presentationId ?? side?.id ?? String(legacySide),
+        hudLayout: isYuri ? "yuri" : isAllied ? "allied" : "soviet",
+        sidebarMixFileIndex: mixSelection.mixFileIndex,
+        useYuriFileNames: mixSelection.useYuriFileNames,
+        evaTag: side?.evaTag,
+        loadingTheme: side?.loadingTheme,
     };
 }
 
@@ -169,6 +207,7 @@ export class AresCountryRegistry {
                 randomSelectionWeight: sectionNumber(section, "RandomSelectionWeight", 1),
                 listIndex: sectionNumber(section, "ListIndex", 100),
                 loadScreen: sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),
+                loadScreenPalette: sectionValue(section, "LoadingScreenPalette") ?? sectionValue(section, "LoadScreenPalette"),
             });
         }
         return registry;

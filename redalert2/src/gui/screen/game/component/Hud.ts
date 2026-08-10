@@ -1,6 +1,7 @@
 import * as jsx from "@/gui/jsx/jsx";
 import { ShpFile } from "@/data/ShpFile";
 import { SideType } from "@/game/SideType";
+import { resolveSidePresentation, type SidePresentation } from "@/extensions/ares/AresSides";
 import { SidebarCard } from "@/gui/screen/game/component/hud/SidebarCard";
 import { SidebarTabs } from "@/gui/screen/game/component/hud/SidebarTabs";
 import { SidebarIconButton } from "@/gui/screen/game/component/hud/SidebarIconButton";
@@ -39,6 +40,7 @@ interface SidebarModel {
 }
 export class Hud extends UiObject {
     private sideType: SideType;
+    private presentation: SidePresentation;
     private useYuriArt: boolean = false;
     private viewport: Viewport;
     private images: Map<string, any>;
@@ -93,10 +95,11 @@ export class Hud extends UiObject {
     private menuContentContainer?: any;
     private menuContentContainerInner?: any;
     private menuContent?: any;
-    constructor(sideType: SideType, viewport: Viewport, images: Map<string, any>, palettes: Map<string, any>, cameoFilenames: string[], sidebarModel: SidebarModel, messageList: any, chatHistory: any, debugTextValue: any, debugTextEnabled: any, localPlayer: any, players: any, stalemateDetectTrait: any, countdownTimer: any, jsxRenderer: any, strings: any, commandBarButtonTypes: CommandBarButtonType[], persistentHoverTags: any, useYuriArt: boolean = false) {
+    constructor(sideType: SideType, viewport: Viewport, images: Map<string, any>, palettes: Map<string, any>, cameoFilenames: string[], sidebarModel: SidebarModel, messageList: any, chatHistory: any, debugTextValue: any, debugTextEnabled: any, localPlayer: any, players: any, stalemateDetectTrait: any, countdownTimer: any, jsxRenderer: any, strings: any, commandBarButtonTypes: CommandBarButtonType[], persistentHoverTags: any, useYuriArt: boolean = false, presentation?: SidePresentation) {
         super(new THREE.Object3D(), new HtmlContainer());
         this.sideType = sideType;
-        this.useYuriArt = useYuriArt;
+        this.presentation = presentation ?? resolveSidePresentation(undefined, sideType, useYuriArt);
+        this.useYuriArt = presentation?.useYuriFileNames ?? useYuriArt;
         this.viewport = viewport;
         this.images = images;
         this.palettes = palettes;
@@ -238,16 +241,16 @@ export class Hud extends UiObject {
             clippedBttnbkgd = bttnbkgdImg.clip(remainderWidth, bttnbkgdImg.height);
         }
         let diploButtonOffset = { x: 12, y: 4 };
-        if (this.sideType === SideType.Nod) {
+        if (this.presentation.hudLayout === "soviet") {
             diploButtonOffset = { x: 14, y: 5 };
         }
         let repairButtonOffset = { x: 20, y: 8 };
-        if (this.sideType === SideType.Nod) {
+        if (this.presentation.hudLayout === "soviet") {
             repairButtonOffset = { x: 34, y: 7 };
         }
         let tabSpacing = 1;
         let tabOffset = { x: 26, y: -3 };
-        if (this.sideType === SideType.Nod) {
+        if (this.presentation.hudLayout === "soviet") {
             tabSpacing = 0;
             tabOffset = { x: 20, y: -2 };
         }
@@ -258,7 +261,7 @@ export class Hud extends UiObject {
         const cameoNameToIdMap = this.createCameoNameToIdMap();
         const sidebarSlotSize = { width: slotClockImg.width, height: slotClockImg.height };
         const sidebarCardOffset = { x: 22, y: 1 };
-        const sidebarCardPosition = this.sideType === SideType.GDI
+        const sidebarCardPosition = this.presentation.hudLayout === "allied"
             ? { x: 5, y: 2 }
             : { x: 0, y: 0 };
         const scrollButtonX = 38;
@@ -498,7 +501,7 @@ export class Hud extends UiObject {
         }))));
     }
     public getTextColor(): string {
-        return this.sideType === SideType.GDI
+        return this.presentation.hudLayout === "allied"
             ? "rgb(165,211,255)"
             : "yellow";
     }

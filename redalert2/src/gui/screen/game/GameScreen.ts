@@ -22,6 +22,7 @@ import { Eva } from '@/engine/sound/Eva';
 import { EvaSpecs } from '@/engine/sound/EvaSpecs';
 import { SideType, isYuriCountry } from '@/game/SideType';
 import { HudFactory } from '@/gui/screen/game/HudFactory';
+import type { SidePresentation } from '@/extensions/ares/AresSides';
 import { Minimap } from '@/gui/screen/game/component/Minimap';
 import { Replay } from '@/network/gamestate/Replay';
 import { ReplayRecorder } from '@/network/gamestate/ReplayRecorder';
@@ -235,7 +236,7 @@ export class GameScreen extends RootScreen {
         if (cancellationToken.isCancelled()) {
             return;
         }
-        const { game, theater, hudSide, useYuriArt: loadedUseYuriArt, cameoFilenames } = gameLoadResult;
+        const { game, theater, hudSide, sidePresentation, useYuriArt: loadedUseYuriArt, cameoFilenames } = gameLoadResult;
         this.game = game;
         this.disposables.add(game, () => this.game = undefined, () => Engine.unloadTheater(theater.type));
         let localPlayer: any;
@@ -254,7 +255,7 @@ export class GameScreen extends RootScreen {
         }
         let uiInitResult: any;
         try {
-            uiInitResult = this.loadUi(game, theater, localPlayer, hudSide, cameoFilenames, loadedUseYuriArt);
+            uiInitResult = this.loadUi(game, theater, localPlayer, hudSide, cameoFilenames, loadedUseYuriArt, sidePresentation);
         }
         catch (error) {
             const errorMessage = error.message?.match(/memory|allocation/i)
@@ -633,7 +634,7 @@ export class GameScreen extends RootScreen {
         }
         return mapFileData;
     }
-    private loadUi(game: any, theater: any, localPlayer: any, hudSide: any, cameoFilenames: any, loadedUseYuriArt = false): any {
+    private loadUi(game: any, theater: any, localPlayer: any, hudSide: any, cameoFilenames: any, loadedUseYuriArt = false, sidePresentation?: SidePresentation): any {
         const sidebarModel = localPlayer.isObserver
             ? new SidebarModel(game, this.replay)
             : new CombatantSidebarModel(localPlayer, game);
@@ -655,8 +656,10 @@ export class GameScreen extends RootScreen {
             side: localPlayer.country?.side,
             useYuriArt,
             hudSide,
+            presentationId: sidePresentation?.id,
+            hudLayout: sidePresentation?.hudLayout,
         });
-        this.hudFactory = new HudFactory(hudSide, this.viewport.value, sidebarModel, messageList, chatHistory, game.debugText, this.runtimeVars.debugText, localPlayer.isObserver ? undefined : localPlayer, game.getCombatants(), game.stalemateDetectTrait, game.countdownTimer, cameoFilenames, this.jsxRenderer, this.strings, commandBarButtonList.buttons, this.runtimeVars.persistentHoverTags, useYuriArt);
+        this.hudFactory = new HudFactory(hudSide, this.viewport.value, sidebarModel, messageList, chatHistory, game.debugText, this.runtimeVars.debugText, localPlayer.isObserver ? undefined : localPlayer, game.getCombatants(), game.stalemateDetectTrait, game.countdownTimer, cameoFilenames, this.jsxRenderer, this.strings, commandBarButtonList.buttons, this.runtimeVars.persistentHoverTags, useYuriArt, sidePresentation);
         this.disposables.add(() => this.hudFactory = undefined);
         const hud = this.hudFactory.create();
         this.hud = hud;
@@ -703,7 +706,8 @@ export class GameScreen extends RootScreen {
         // YR's evamd.ini adds the Yuri voice column; the side picks whose EVA
         // speaks (observers hear the Allied one).
         const evaSide = localPlayer?.country?.side ?? SideType.GDI;
-        const evaSpecs = new EvaSpecs(evaSide).readIni(Engine.getIni(Engine.getFileNameVariant('eva.ini')));
+        const evaSideDescriptor = game?.rules?.sideRegistry?.resolve(localPlayer?.country?.sideId ?? localPlayer?.country?.name);
+        const evaSpecs = new EvaSpecs(evaSide, evaSideDescriptor?.evaTag).readIni(Engine.getIni(Engine.getFileNameVariant('eva.ini')));
         const eva = new Eva(evaSpecs, this.sound, this.renderer);
         eva.init();
         this.disposables.add(eva);
