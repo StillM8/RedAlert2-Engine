@@ -171,6 +171,8 @@ export class TechnoRules extends ObjectRules {
     declare empModifier: number;
     /** Ares EMP.Threshold; destruction handling is integrated separately. */
     declare empThreshold: number;
+    /** Ares BuildingType flag for the default EMPulse launch-site path. */
+    declare empulseCannon: boolean;
     declare typeImmune: boolean;
     declare warpable: boolean;
     declare isTilter: boolean;
@@ -633,6 +635,7 @@ export class TechnoRules extends ObjectRules {
             : defaultImmuneToEMP;
         this.empModifier = this.ini.getFixed("EMP.Modifier", 1);
         this.empThreshold = parseAresEmpThreshold(this.ini.getString("EMP.Threshold"));
+        this.empulseCannon = this.ini.getBool("EMPulseCannon");
         this.selectable = !(this.type === ObjectType.Aircraft && !landable) && this.ini.getBool("Selectable", true);
         this.isSelectableCombatant = this.ini.getBool("IsSelectableCombatant");
         this.invisibleInGame = this.ini.getBool("InvisibleInGame");
