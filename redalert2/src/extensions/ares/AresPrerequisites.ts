@@ -40,7 +40,7 @@ export interface PrerequisiteRuleSet {
     /** Countries whose factory plans may not produce this object. */
     factoryOwnersForbidden: string[];
     /** Complete normalized expression for shared prerequisite consumers. */
-    expression: PrerequisiteExpression;
+    expression?: PrerequisiteExpression;
 }
 
 export interface PrerequisiteEvaluationContext {
@@ -224,5 +224,13 @@ export function evaluateAresPrerequisiteRules(
     context: PrerequisiteEvaluationContext,
 ): boolean {
     const owned = new Set([...context.ownedObjectNames].map(normalizePrerequisiteId));
-    return evaluateExpression(rules.expression, context, owned);
+    // Keep callers that construct a legacy snapshot manually source-compatible
+    // while all INI-parsed rules retain their normalized expression tree.
+    const expression = rules.expression ?? buildExpression(
+        rules.alternativeLists,
+        rules.negative,
+        rules.requiredTheaters,
+        rules.stolenTechs,
+    );
+    return evaluateExpression(expression, context, owned);
 }
