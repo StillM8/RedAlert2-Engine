@@ -68,11 +68,26 @@ export class Country {
     get flag(): string | undefined {
         return this.rules.flag;
     }
+    get loadScreenTextName(): string | undefined {
+        return this.rules.loadScreenTextName;
+    }
+    get loadScreenTextSpecialName(): string | undefined {
+        return this.rules.loadScreenTextSpecialName;
+    }
+    get loadScreenTextBrief(): string | undefined {
+        return this.rules.loadScreenTextBrief;
+    }
+    get loadScreenTextColor(): string | undefined {
+        return this.rules.loadScreenTextColor;
+    }
     get loadScreen(): string | undefined {
         return this.rules.loadScreen;
     }
     get loadScreenPalette(): string | undefined {
         return this.rules.loadScreenPalette;
+    }
+    get loadingTheme(): string | undefined {
+        return this.rules.loadingTheme;
     }
     get isMultiplayerPassive(): boolean {
         return this.rules.isMultiplayerPassive;
@@ -81,7 +96,7 @@ export class Country {
         return this.rules.name;
     }
     isPlayable(): boolean {
-        return this.rules.multiplay && !this.rules.isMultiplayerPassive;
+        return this.rules.multiplay && !this.rules.isMultiplayerPassive && this.rules.listIndex >= 0;
     }
     hasVeteranUnit(type: ObjectType, name: string): boolean {
         let veteranUnits: string[];

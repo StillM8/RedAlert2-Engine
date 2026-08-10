@@ -12,6 +12,8 @@ interface Country {
     name: string;
     side: SideType;
     uiName: string;
+    loadScreenTextName?: string;
+    loadScreenTextColor?: string;
     loadScreen?: string;
     loadScreenPalette?: string;
 }
@@ -96,11 +98,11 @@ export class LoadingScreenWrapper extends UiComponent<LoadingScreenWrapperProps>
         this.countryName = countryName;
         let color = player?.color ?? "#fff";
         if (player?.country) {
-            const loadColorKey = player.country.side === SideType.GDI
+            const loadColorKey = player.country.loadScreenTextColor?.trim() || (player.country.side === SideType.GDI
                 ? "AlliedLoad"
                 : player.country.side === SideType.Yuri
                     ? "YuriLoad"
-                    : "SovietLoad";
+                    : "SovietLoad");
             color = (this.props.rules.colors.get(loadColorKey) ??
                 this.props.rules.colors.get("SovietLoad"))?.asHexString() ?? "#fff";
         }
@@ -179,7 +181,7 @@ export class LoadingScreenWrapper extends UiComponent<LoadingScreenWrapperProps>
                 viewport: this.props.viewport,
                 countryUiNames: new Map([
                     [OBS_COUNTRY_NAME, OBS_COUNTRY_UI_NAME],
-                    ...countries.map(country => [country.name, country.uiName] as [
+                    ...countries.map(country => [country.name, country.loadScreenTextName || country.uiName] as [
                         string,
                         string
                     ])

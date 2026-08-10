@@ -24,8 +24,13 @@ export class CountryRules {
     public legacySideFallback = false;
     public presentationId?: string;
     public flag?: string;
+    public loadScreenTextName?: string;
+    public loadScreenTextSpecialName?: string;
+    public loadScreenTextBrief?: string;
+    public loadScreenTextColor?: string;
     public loadScreen?: string;
     public loadScreenPalette?: string;
+    public loadingTheme?: string;
     public listIndex = 100;
     /** Authored [Countries] order, used as the deterministic fallback order. */
     public order = 0;
@@ -47,7 +52,7 @@ export class CountryRules {
     ): CountryRules {
         this.name = ini.name || this.id;
         this.uiName = ini.getString("UIName");
-        this.uiTooltip = ini.getString("UITooltip") || tooltipMap.get(this.name);
+        this.uiTooltip = ini.getString("MenuText.Status") || ini.getString("UITooltip") || tooltipMap.get(this.name);
         const sideStr = ini.getString("Side");
         if (!sideStr) {
             throw new Error(`Missing Side for country "${this.name}"`);
@@ -62,9 +67,14 @@ export class CountryRules {
         this.legacySideFallback = legacySide === undefined;
         this.side = legacySide ?? SideType.Civilian;
         this.presentationId = ini.getString("Presentation") || sideDescriptor.presentationId;
-        this.flag = ini.getString("Flag") || undefined;
-        this.loadScreen = ini.getString("LoadingScreen") || ini.getString("LoadScreen") || undefined;
-        this.loadScreenPalette = ini.getString("LoadingScreenPalette") || ini.getString("LoadScreenPalette") || undefined;
+        this.flag = ini.getString("File.Flag") || ini.getString("Flag") || undefined;
+        this.loadScreenTextName = ini.getString("LoadScreenText.Name") || undefined;
+        this.loadScreenTextSpecialName = ini.getString("LoadScreenText.SpecialName") || undefined;
+        this.loadScreenTextBrief = ini.getString("LoadScreenText.Brief") || undefined;
+        this.loadScreenTextColor = ini.getString("LoadScreenText.Color") || undefined;
+        this.loadScreen = ini.getString("File.LoadScreen") || ini.getString("LoadingScreen") || ini.getString("LoadScreen") || undefined;
+        this.loadScreenPalette = ini.getString("File.LoadScreenPAL") || ini.getString("LoadingScreenPalette") || ini.getString("LoadScreenPalette") || undefined;
+        this.loadingTheme = ini.getString("LoadingTheme") || undefined;
         this.multiplay = ini.getBool("Multiplay");
         this.listIndex = ini.getNumber("ListIndex", 100);
         this.order = metadata?.order ?? this.order;

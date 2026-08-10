@@ -41,12 +41,31 @@ export class GameOptRandomGen {
         humanPlayers: any[];
         aiPlayers: any[];
     }, rules: any): Map<any, number> {
-        const countryCount = rules.getMultiplayerCountries().length;
+        const countries = rules.getMultiplayerCountries();
+        const weightedCountries = countries
+            .map((country: any, index: number) => ({
+                index,
+                weight: Math.max(0, Math.floor(Number(country.randomSelectionWeight ?? 1))),
+            }))
+            .filter(({ weight }: { weight: number }) => weight > 0);
+        const randomCountries = weightedCountries.length
+            ? weightedCountries
+            : countries.map((_: any, index: number) => ({ index, weight: 1 }));
         const allPlayers = [...players.humanPlayers, ...players.aiPlayers].filter(isNotNullOrUndefined);
         const countryMap = new Map();
         allPlayers.forEach(player => {
             if (player.countryId === RANDOM_COUNTRY_ID) {
-                countryMap.set(player, this.prng.generateRandomInt(0, countryCount - 1));
+                const totalWeight = randomCountries.reduce((sum, country) => sum + country.weight, 0);
+                let roll = this.prng.generateRandomInt(1, totalWeight);
+                let selectedCountry = randomCountries[randomCountries.length - 1];
+                for (const country of randomCountries) {
+                    roll -= country.weight;
+                    if (roll <= 0) {
+                        selectedCountry = country;
+                        break;
+                    }
+                }
+                countryMap.set(player, selectedCountry.index);
             }
         });
         return countryMap;

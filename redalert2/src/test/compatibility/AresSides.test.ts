@@ -27,11 +27,13 @@ describe("Ares side presentation", () => {
             "1": "BetaCountry",
             "2": "GammaCountry",
             "3": "DeltaCountry",
+            "4": "HiddenCountry",
         });
         add("AlphaCountry", { Side: "Alpha", Multiplay: "yes", ListIndex: "20" });
         add("BetaCountry", { Side: "Beta", Multiplay: "no", ListIndex: "21" });
         add("GammaCountry", { Side: "Gamma", Multiplay: "yes", ListIndex: "22" });
         add("DeltaCountry", { Side: "Delta", Multiplay: "yes", ListIndex: "23" });
+        add("HiddenCountry", { Side: "Alpha", Multiplay: "yes", ListIndex: "-1" });
         const reader = { getSection: (name: string) => sections.get(name) };
         const sides = AresSideRegistry.fromIni(reader);
         const countries = AresCountryRegistry.fromIni(reader, sides);
@@ -40,7 +42,7 @@ describe("Ares side presentation", () => {
         expect(sides.list().map((side) => side.order)).toEqual([0, 1, 2, 3]);
         expect(sides.resolve("Alpha")?.tooltipColor).toBe("1,2,3");
         expect(sides.resolveByIndex(3)?.id).toBe("Delta");
-        expect(countries.definitionOrder().map((country) => country.sideId)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
+        expect(countries.definitionOrder().map((country) => country.sideId)).toEqual(["Alpha", "Beta", "Gamma", "Delta", "Alpha"]);
         expect(countries.multiplayerCountries().map((country) => country.id)).toEqual([
             "AlphaCountry",
             "GammaCountry",
@@ -142,10 +144,12 @@ describe("Ares side presentation", () => {
         const country = new IniSection("EpsilonCountry");
         country.set("Side", "Epsilon");
         country.set("UIName", "TXT_EPSILON_COUNTRY");
-        country.set("UITooltip", "STT_EPSILON_COUNTRY");
-        country.set("Flag", "epsilon_flag");
-        country.set("LoadingScreen", "epsilon_load");
-        country.set("LoadingScreenPalette", "epsilon_load.pal");
+        country.set("MenuText.Status", "STT_EPSILON_COUNTRY");
+        country.set("File.Flag", "epsilon_flag.pcx");
+        country.set("File.LoadScreen", "epsilon_load.shp");
+        country.set("File.LoadScreenPAL", "epsilon_load.pal");
+        country.set("LoadScreenText.Name", "Name:EPSILON");
+        country.set("LoadScreenText.Color", "EpsilonLoad");
         country.set("Multiplay", "yes");
         country.set("ListIndex", "12");
         const sections = new Map([
@@ -168,13 +172,15 @@ describe("Ares side presentation", () => {
         const rules = new CountryRules("EpsilonCountry").readIni(country, sides, { order: 7, networkIndex: 3 });
         const runtimeCountry = new Country(rules);
 
-        expect(countries.resolve("epsiloncountry")?.flag).toBe("epsilon_flag");
+        expect(countries.resolve("epsiloncountry")?.flag).toBe("epsilon_flag.pcx");
         expect(runtimeCountry.sideId).toBe("Epsilon");
         expect(runtimeCountry.presentationId).toBe("epsilon");
-        expect(runtimeCountry.flag).toBe("epsilon_flag");
-        expect(runtimeCountry.loadScreen).toBe("epsilon_load");
+        expect(runtimeCountry.flag).toBe("epsilon_flag.pcx");
+        expect(runtimeCountry.loadScreen).toBe("epsilon_load.shp");
         expect(runtimeCountry.loadScreenPalette).toBe("epsilon_load.pal");
         expect(runtimeCountry.uiTooltip).toBe("STT_EPSILON_COUNTRY");
+        expect(runtimeCountry.loadScreenTextName).toBe("Name:EPSILON");
+        expect(runtimeCountry.loadScreenTextColor).toBe("EpsilonLoad");
         expect(runtimeCountry.id).toBe("EpsilonCountry");
         expect(runtimeCountry.order).toBe(7);
         expect(runtimeCountry.networkIndex).toBe(3);
