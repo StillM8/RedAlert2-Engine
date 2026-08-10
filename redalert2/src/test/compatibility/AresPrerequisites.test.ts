@@ -100,6 +100,64 @@ Prerequisite.List0=RIGHT
         })).toBe(false);
     });
 
+    test("normalizes alternatives and independent exclusions into an expression tree", () => {
+        const rules = parseAresPrerequisiteRules(new IniFile(`
+[TestUnit]
+Prerequisite=GAPILE,GATECH
+Prerequisite.Lists=1
+Prerequisite.List1=NAHAND,NATECH
+Prerequisite.Negative=YACOMD
+Prerequisite.RequiredTheaters=SNOW,NEWURBAN
+Prerequisite.StolenTechs=2,5
+`).getSection("TestUnit")!);
+
+        expect(rules.expression).toEqual({
+            type: "all",
+            children: [
+                {
+                    type: "any",
+                    children: [
+                        {
+                            type: "all",
+                            children: [
+                                { type: "reference", id: "GAPILE" },
+                                { type: "reference", id: "GATECH" },
+                            ],
+                        },
+                        {
+                            type: "all",
+                            children: [
+                                { type: "reference", id: "NAHAND" },
+                                { type: "reference", id: "NATECH" },
+                            ],
+                        },
+                    ],
+                },
+                { type: "not", child: { type: "reference", id: "YACOMD" } },
+                { type: "theater", allowed: ["SNOW", "NEWURBAN"] },
+                { type: "stolen-tech", required: [2, 5] },
+            ],
+        });
+        expect(evaluateAresPrerequisiteRules(rules, {
+            ownedObjectNames: ["NAHAND", "NATECH"],
+            stolenTechs: [2, 5],
+            theater: "SNOW",
+        })).toBe(true);
+    });
+
+    test("does not turn a missing declared alternative list into an always-true list", () => {
+        const rules = parseAresPrerequisiteRules(new IniFile(`
+[TestUnit]
+Prerequisite=GAPILE
+Prerequisite.Lists=2
+Prerequisite.List1=NAHAND
+`).getSection("TestUnit")!);
+
+        expect(rules.alternativeLists).toEqual([["GAPILE"], ["NAHAND"]]);
+        expect(evaluateAresPrerequisiteRules(rules, { ownedObjectNames: [] })).toBe(false);
+        expect(evaluateAresPrerequisiteRules(rules, { ownedObjectNames: ["NAHAND"] })).toBe(true);
+    });
+
     test("treats disabled stolen-tech values and missing theater context correctly", () => {
         const disabledStolenTech = parseAresPrerequisiteRules(new IniFile(`
 [TestUnit]

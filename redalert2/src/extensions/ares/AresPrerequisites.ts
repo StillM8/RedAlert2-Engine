@@ -16,6 +16,19 @@ export interface PrerequisiteSection {
     entries?: Map<string, unknown>;
 }
 
+/**
+ * Normalized prerequisite nodes. A reference is resolved against the loaded
+ * generic prerequisite registry at evaluation time, so the same parsed rule
+ * set can be shared by production, UI, and AI consumers.
+ */
+export type PrerequisiteExpression =
+    | { type: "reference"; id: string }
+    | { type: "all"; children: PrerequisiteExpression[] }
+    | { type: "any"; children: PrerequisiteExpression[] }
+    | { type: "not"; child: PrerequisiteExpression }
+    | { type: "theater"; allowed: string[] }
+    | { type: "stolen-tech"; required: number[] };
+
 export interface PrerequisiteRuleSet {
     /** Each list is an AND expression; any complete list satisfies the rule. */
     alternativeLists: string[][];
@@ -26,6 +39,8 @@ export interface PrerequisiteRuleSet {
     factoryOwners: string[];
     /** Countries whose factory plans may not produce this object. */
     factoryOwnersForbidden: string[];
+    /** Complete normalized expression for shared prerequisite consumers. */
+    expression: PrerequisiteExpression;
 }
 
 export interface PrerequisiteEvaluationContext {
@@ -68,6 +83,38 @@ function normalizeList(values: Iterable<string>): string[] {
         .filter(Boolean);
 }
 
+function all(children: PrerequisiteExpression[]): PrerequisiteExpression {
+    return { type: "all", children };
+}
+
+function any(children: PrerequisiteExpression[]): PrerequisiteExpression {
+    return { type: "any", children };
+}
+
+function buildExpression(
+    alternativeLists: readonly string[][],
+    negative: readonly string[],
+    requiredTheaters: readonly string[],
+    stolenTechs: readonly number[],
+): PrerequisiteExpression {
+    const alternatives = alternativeLists.map(list =>
+        all(list.map(id => ({ type: "reference", id }) as PrerequisiteExpression)));
+    const children: PrerequisiteExpression[] = [
+        alternatives.length === 1 ? alternatives[0] : any(alternatives),
+        ...negative.map(id => ({
+            type: "not",
+            child: { type: "reference", id },
+        }) as PrerequisiteExpression),
+    ];
+    if (requiredTheaters.length) {
+        children.push({ type: "theater", allowed: [...requiredTheaters] });
+    }
+    if (stolenTechs.length) {
+        children.push({ type: "stolen-tech", required: [...stolenTechs] });
+    }
+    return all(children);
+}
+
 /**
  * Parses the Ares prerequisite extensions while preserving vanilla syntax.
  * `Prerequisite.List0` intentionally takes precedence over `Prerequisite`, as
@@ -91,7 +138,13 @@ export function parseAresPrerequisiteRules(section: PrerequisiteSection): Prereq
         if (match) highestList = Math.max(highestList, Number(match[1]));
     }
     for (let i = 1; i <= highestList; i++) {
-        alternativeLists.push(normalizeList(section.getArray(`Prerequisite.List${i}`)));
+        const key = `Prerequisite.List${i}`;
+        // A missing numbered list is not an empty alternative. Treating it as
+        // one would make every object buildable when a declared list is
+        // omitted, because an empty AND expression is always true.
+        if (section.has(key)) {
+            alternativeLists.push(normalizeList(section.getArray(key)));
+        }
     }
 
     const stolenTechValues = section.getNumberArray("Prerequisite.StolenTechs")
@@ -107,6 +160,12 @@ export function parseAresPrerequisiteRules(section: PrerequisiteSection): Prereq
         stolenTechs,
         factoryOwners: normalizeList(section.getArray("FactoryOwners")),
         factoryOwnersForbidden: normalizeList(section.getArray("FactoryOwners.Forbidden")),
+        expression: buildExpression(
+            alternativeLists,
+            normalizeList(section.getArray("Prerequisite.Negative")),
+            normalizeList(section.getArray("Prerequisite.RequiredTheaters")),
+            stolenTechs,
+        ),
     };
 }
 
@@ -131,37 +190,39 @@ function satisfiesToken(token: string, context: PrerequisiteEvaluationContext, o
     return alternates.some(name => hasOwnedName(owned, name));
 }
 
+function evaluateExpression(
+    expression: PrerequisiteExpression,
+    context: PrerequisiteEvaluationContext,
+    owned: ReadonlySet<string>,
+): boolean {
+    switch (expression.type) {
+        case "reference":
+            return satisfiesToken(expression.id, context, owned);
+        case "all":
+            return expression.children.every(child => evaluateExpression(child, context, owned));
+        case "any":
+            return expression.children.some(child => evaluateExpression(child, context, owned));
+        case "not":
+            return !evaluateExpression(expression.child, context, owned);
+        case "theater":
+            return context.theater !== undefined &&
+                expression.allowed.includes(normalizePrerequisiteId(context.theater));
+        case "stolen-tech": {
+            const stolen = new Set(
+                [...(context.stolenTechs ?? [])].map(value =>
+                    typeof value === "number" ? Math.trunc(value) : Number(value),
+                ),
+            );
+            return expression.required.every(value => stolen.has(value));
+        }
+    }
+}
+
 /** Evaluates one parsed rule set against a deterministic player snapshot. */
 export function evaluateAresPrerequisiteRules(
     rules: PrerequisiteRuleSet,
     context: PrerequisiteEvaluationContext,
 ): boolean {
     const owned = new Set([...context.ownedObjectNames].map(normalizePrerequisiteId));
-
-    if (rules.negative.some(name => owned.has(normalizePrerequisiteId(name)))) {
-        return false;
-    }
-
-    if (rules.requiredTheaters.length) {
-        if (context.theater === undefined) return false;
-        const theater = normalizePrerequisiteId(context.theater);
-        if (!rules.requiredTheaters.includes(theater)) return false;
-    }
-
-    if (rules.stolenTechs.length) {
-        const stolen = new Set(
-            [...(context.stolenTechs ?? [])].map(value =>
-                typeof value === "number" ? Math.trunc(value) : Number(value),
-            ),
-        );
-        if (rules.stolenTechs.some(value => !stolen.has(value))) {
-            return false;
-        }
-    }
-
-    // An empty prerequisite list is the vanilla "no prerequisite" case and
-    // is also the documented Ares behavior when a list is explicitly empty.
-    return rules.alternativeLists.some(list =>
-        list.every(token => satisfiesToken(token, context, owned)),
-    );
+    return evaluateExpression(rules.expression, context, owned);
 }
