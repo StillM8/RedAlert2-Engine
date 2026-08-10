@@ -12,9 +12,10 @@ interface CountrySelectProps {
     };
     countryUiNames: Map<string, string>;
     countryUiTooltips: Map<string, string>;
+    countryFlags?: Map<string, string>;
     onSelect?: (country: string) => void;
 }
-export const CountrySelect: React.FC<CountrySelectProps> = ({ country, availableCountries, onlyIcon, disabled, strings, countryUiNames, countryUiTooltips, onSelect, }) => {
+export const CountrySelect: React.FC<CountrySelectProps> = ({ country, availableCountries, onlyIcon, disabled, strings, countryUiNames, countryUiTooltips, countryFlags, onSelect, }) => {
     const [selectedCountry, setSelectedCountry] = useState(() => country);
     useEffect(() => {
         if (selectedCountry !== country) {
@@ -23,7 +24,7 @@ export const CountrySelect: React.FC<CountrySelectProps> = ({ country, available
     }, [country]);
     return (<div className="country-select">
       <div className="player-country-icon" data-r-tooltip={strings.get("STT:HostPictureFlag")}>
-        <CountryIcon country={selectedCountry}/>
+        <CountryIcon country={selectedCountry} countryFlags={countryFlags}/>
       </div>
       {!onlyIcon && (<Select className="player-country-select" tooltip={strings.get("STT:HostComboCountry")} initialValue={selectedCountry} disabled={disabled} onSelect={(value) => {
                 setSelectedCountry(value);

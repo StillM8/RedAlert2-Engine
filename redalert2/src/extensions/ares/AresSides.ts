@@ -24,7 +24,11 @@ export interface CountryDescriptor {
     id: string;
     sideId: string;
     uiName?: string;
+    uiTooltip?: string;
+    presentationId?: string;
+    flag?: string;
     multiplayerSelectable: boolean;
+    multiplayerPassive?: boolean;
     randomSelectionWeight: number;
     listIndex: number;
     loadScreen?: string;
@@ -157,7 +161,11 @@ export class AresCountryRegistry {
                 id,
                 sideId: sides.resolve(sideId)?.id ?? sideId,
                 uiName: sectionValue(section, "UIName"),
+                uiTooltip: sectionValue(section, "UITooltip"),
+                presentationId: sectionValue(section, "Presentation"),
+                flag: sectionValue(section, "Flag"),
                 multiplayerSelectable: sectionBool(section, "Multiplay"),
+                multiplayerPassive: sectionBool(section, "MultiplayPassive"),
                 randomSelectionWeight: sectionNumber(section, "RandomSelectionWeight", 1),
                 listIndex: sectionNumber(section, "ListIndex", 100),
                 loadScreen: sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),

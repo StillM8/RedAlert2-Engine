@@ -1,10 +1,17 @@
 import { ObjectType } from '@/engine/type/ObjectType';
+import { SideType } from '@/game/SideType';
 interface CountryRules {
     id: string;
-    side: string;
+    side: SideType;
+    sideId: string;
     name: string;
+    uiName: string;
+    uiTooltip?: string;
+    presentationId?: string;
+    flag?: string;
+    loadScreen?: string;
     multiplay: boolean;
-    multiplayPassive: boolean;
+    isMultiplayerPassive: boolean;
     veteranAircraft: string[];
     veteranInfantry: string[];
     veteranUnits: string[];
@@ -21,14 +28,35 @@ export class Country {
     get id(): string {
         return this.rules.id;
     }
-    get side(): string {
+    get side(): SideType {
         return this.rules.side;
+    }
+    get sideId(): string {
+        return this.rules.sideId;
+    }
+    get uiName(): string {
+        return this.rules.uiName;
+    }
+    get uiTooltip(): string | undefined {
+        return this.rules.uiTooltip;
+    }
+    get presentationId(): string | undefined {
+        return this.rules.presentationId;
+    }
+    get flag(): string | undefined {
+        return this.rules.flag;
+    }
+    get loadScreen(): string | undefined {
+        return this.rules.loadScreen;
+    }
+    get isMultiplayerPassive(): boolean {
+        return this.rules.isMultiplayerPassive;
     }
     get name(): string {
         return this.rules.name;
     }
     isPlayable(): boolean {
-        return this.rules.multiplay && !this.rules.multiplayPassive;
+        return this.rules.multiplay && !this.rules.isMultiplayerPassive;
     }
     hasVeteranUnit(type: ObjectType, name: string): boolean {
         let veteranUnits: string[];

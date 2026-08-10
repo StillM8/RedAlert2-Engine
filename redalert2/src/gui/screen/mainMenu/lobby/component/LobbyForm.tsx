@@ -41,6 +41,7 @@ interface LobbyFormProps {
     activeSlotIndex: number;
     countryUiNames: any;
     countryUiTooltips: any;
+    countryFlags?: Map<string, string>;
     availablePlayerCountries: any;
     availablePlayerColors: any;
     availableStartPositions: any;
@@ -243,7 +244,7 @@ export class LobbyForm extends React.Component<LobbyFormProps> {
           {this.renderPlayerStatus(slot.status)}
         </div>
         {this.renderPlayerSelect(slot, index, props.lobbyType)}
-        <CountrySelect countryUiNames={props.countryUiNames} countryUiTooltips={props.countryUiTooltips} country={slot.country} availableCountries={props.availablePlayerCountries} disabled={(index !== props.activeSlotIndex &&
+        <CountrySelect countryUiNames={props.countryUiNames} countryUiTooltips={props.countryUiTooltips} countryFlags={props.countryFlags} country={slot.country} availableCountries={props.availablePlayerCountries} disabled={(index !== props.activeSlotIndex &&
                 (!isHost || slot.type !== SlotType.Ai)) ||
                 slot.type === SlotType.Observer ||
                 (slot.status === PlayerStatus.Ready &&

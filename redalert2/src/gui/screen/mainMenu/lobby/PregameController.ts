@@ -345,6 +345,11 @@ export class PregameController {
                     .filter((country: any) => country.uiTooltip)
                     .map((country: any) => [country.name, country.uiTooltip] as [string, string]),
             ]),
+            countryFlags: new Map<string, string>(
+                this.getAvailablePlayerCountryRules()
+                    .filter((country: any) => country.flag)
+                    .map((country: any) => [country.name, country.flag] as [string, string]),
+            ),
             availablePlayerCountries: [RANDOM_COUNTRY_NAME, OBS_COUNTRY_NAME].concat(this.getAvailablePlayerCountries()),
             availablePlayerColors: this.getSelectablePlayerColors(playerSlots),
             availableAiNames: this.buildAvailableAiNames(),
