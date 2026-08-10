@@ -20,6 +20,7 @@ import { IniSection } from "@/data/IniSection";
 import { ProjectileRules } from "@/game/rules/ProjectileRules";
 import { AnimTerrainEffect } from "@/game/gameobject/common/AnimTerrainEffect";
 import { ObjectAttackedEvent } from "@/game/event/ObjectAttackedEvent";
+import { aresEmpThresholdExceeded } from "@/extensions/ares/AresEMP";
 interface GameObject {
     isSpawned: boolean;
     isDisposed: boolean;
@@ -61,6 +62,7 @@ interface TechnoObject extends GameObject {
     delayedKillTrait?: DelayedKillTrait;
     empTrait?: {
         isUnderEMP(): boolean;
+        getRemainingFrames?(): number;
         apply(duration: number, cap: number, modifier?: number): boolean;
     };
 }
@@ -90,6 +92,7 @@ interface GameObjectRules {
     typeImmune: boolean;
     immuneToEMP?: boolean;
     empModifier?: number;
+    empThreshold?: number;
     wall: boolean;
 }
 interface WarheadRules {
@@ -477,6 +480,17 @@ export class Warhead {
                 }
             }
             const empApplied = this.applyEmp(obj, weaponInfo, gameWorld);
+            if (empApplied && obj.isTechno() && !obj.isAircraft() &&
+                obj.rules.empThreshold !== undefined &&
+                aresEmpThresholdExceeded(
+                    obj.rules.empThreshold,
+                    (obj as TechnoObject).empTrait?.getRemainingFrames?.() ?? 0,
+                    obj.zone === ZoneType.Air,
+                    !!(obj as any).isParachuting?.() || !!(obj as any).parachuting,
+                )) {
+                gameWorld.destroyObject(obj, weaponInfo);
+                continue;
+            }
             if (!damage && !empApplied)
                 continue;
             for (const distance of damage ? objectDistances.get(obj)! : []) {

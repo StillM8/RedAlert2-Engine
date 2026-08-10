@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ObjectType } from "@/engine/type/ObjectType";
 import {
+    aresEmpThresholdExceeded,
     defaultAresEmpImmunity,
     parseAresEmpThreshold,
     resolveAresEmpCounter,
@@ -45,6 +46,15 @@ describe("Ares EMP rules", () => {
         expect(parseAresEmpThreshold("inair")).toBe(-1);
         expect(parseAresEmpThreshold("17")).toBe(17);
         expect(parseAresEmpThreshold("not-a-threshold")).toBe(-1);
+    });
+
+    test("applies positive and in-air EMP threshold semantics", () => {
+        expect(aresEmpThresholdExceeded(0, 999, true)).toBe(false);
+        expect(aresEmpThresholdExceeded(10, 10, false)).toBe(false);
+        expect(aresEmpThresholdExceeded(10, 11, false)).toBe(true);
+        expect(aresEmpThresholdExceeded(-1, 11, false)).toBe(false);
+        expect(aresEmpThresholdExceeded(-1, 11, true)).toBe(true);
+        expect(aresEmpThresholdExceeded(-1, 11, true, true)).toBe(false);
     });
 
     test("calculates Ares default immunity by Techno category and function", () => {
@@ -192,4 +202,3 @@ describe("Ares EMP rules", () => {
         expect(new EmpTrait(veteran).apply(10, -1)).toBe(false);
     });
 });
-
