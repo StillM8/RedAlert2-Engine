@@ -114,6 +114,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.createradarevent$/i.test(key)) {
         return "ares.superweapon-radar-event";
     }
+    if (/^sw\.range$/i.test(key)) {
+        return "ares.superweapon-range";
+    }
     if (/^sw\.(?:aitargeting|aitargeting\.constraints|aitargeting\.preference|airequirestarget|airequireshouse|useaitargeting)$/i.test(key)) {
         return "ares.superweapon-ai-targeting";
     }
