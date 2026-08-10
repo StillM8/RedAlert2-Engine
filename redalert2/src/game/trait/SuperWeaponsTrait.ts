@@ -116,7 +116,7 @@ export class SuperWeaponsTrait {
                     }
                     break;
                 case SuperWeaponType.ParaDrop: {
-                    const e = r.rules.general.paradrop.getParadropSquads(i.country.side);
+                    const e = r.rules.general.paradrop.getParadropSquads(i.country.sideId ?? i.country.side);
                     for (const [h, u] of e.entries()) {
                         if (r.rules.hasObject(u.inf, ObjectType.Infantry)) {
                             t.push(new ParadropEffect(o, i, s, u, h));

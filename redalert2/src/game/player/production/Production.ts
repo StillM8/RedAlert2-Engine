@@ -4,6 +4,7 @@ import { ObjectType } from '@/engine/type/ObjectType';
 import { EventDispatcher } from '@/util/event';
 import { SideType } from '@/game/SideType';
 import { evaluateAresPrerequisiteRules, isFactoryOwnerAllowed } from '@/extensions/ares/AresPrerequisites';
+import type { SideId } from '@/extensions/ares/AresSides';
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -16,7 +17,7 @@ export class Production {
     private primaryFactories: Map<any, any>;
     private factoryCounts: Map<any, number>;
     private veteranTypes: Set<any>;
-    private stolenTech: Set<SideType>;
+    private stolenTech: Set<number | SideId>;
     private theater?: string;
     static factory(player: any, rules: any, gameOpts: any, availableObjects: any[], theater?: string): Production {
         const production = new Production(player, rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects, theater);
@@ -150,9 +151,9 @@ export class Production {
         // check, YR's Psi Commando (PTROOP, RequiresStolenThirdTech=yes) leaks
         // into every barracks at tech 9.
         const THIRD_SIDE_TECH = 2;
-        return (!object.requiresStolenAlliedTech || this.stolenTech.has(SideType.GDI)) &&
-            (!object.requiresStolenSovietTech || this.stolenTech.has(SideType.Nod)) &&
-            (!object.requiresStolenThirdTech || this.stolenTech.has(THIRD_SIDE_TECH));
+        return (!object.requiresStolenAlliedTech || this.hasStolenTech(SideType.GDI)) &&
+            (!object.requiresStolenSovietTech || this.hasStolenTech(SideType.Nod)) &&
+            (!object.requiresStolenThirdTech || this.hasStolenTech(THIRD_SIDE_TECH));
     }
     getFactoryTypeFor(object: any): FactoryType {
         if (object.type === ObjectType.Building)
@@ -224,7 +225,16 @@ export class Production {
     hasVeteranType(type: any): boolean {
         return this.veteranTypes.has(type);
     }
-    addStolenTech(type: SideType) {
+    private hasStolenTech(value: number | SideId): boolean {
+        if (typeof value === "number") {
+            return this.stolenTech.has(value) || this.stolenTech.has(String(value));
+        }
+        const normalized = value.trim().toLocaleLowerCase("en-US");
+        return [...this.stolenTech].some((entry) =>
+            typeof entry === "string" && entry.trim().toLocaleLowerCase("en-US") === normalized,
+        );
+    }
+    addStolenTech(type: number | SideId) {
         this.stolenTech.add(type);
     }
     dispose() {

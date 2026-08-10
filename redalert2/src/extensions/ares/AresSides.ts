@@ -235,6 +235,16 @@ export class AresSideRegistry {
         return id ? this.sides.get(normalize(id)) : undefined;
     }
 
+    /**
+     * Resolve the authored numeric side index used by legacy rules keys such
+     * as AIBasePlanningSide without turning that index into a closed enum.
+     * Ares content may define sides that have no SideType adapter at all.
+     */
+    resolveByIndex(index: number): SideDescriptor | undefined {
+        if (!Number.isInteger(index) || index < 0) return undefined;
+        return this.list().find((side) => side.index === index || side.order === index);
+    }
+
     has(id: string): boolean {
         return this.sides.has(normalize(id));
     }

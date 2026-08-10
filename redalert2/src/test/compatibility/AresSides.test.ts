@@ -7,6 +7,8 @@ import { CountryRules } from "@/game/rules/CountryRules";
 import { Country } from "@/game/Country";
 import { Rules } from "@/game/rules/Rules";
 import { TechnoRules } from "@/game/rules/TechnoRules";
+import { ParadropRules } from "@/game/rules/general/ParadropRules";
+import { sideTypeToTriggerSide } from "@/game/ai/thirdpartbot/builtIn/bot/logic/ai-ini/aiTriggerDb";
 
 describe("Ares side presentation", () => {
     test("keeps four authored sides and their countries data-defined", () => {
@@ -33,6 +35,7 @@ describe("Ares side presentation", () => {
 
         expect(sides.list().map((side) => side.id)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
         expect(sides.list().map((side) => side.order)).toEqual([0, 1, 2, 3]);
+        expect(sides.resolveByIndex(3)?.id).toBe("Delta");
         expect(countries.definitionOrder().map((country) => country.sideId)).toEqual(["Alpha", "Beta", "Gamma", "Delta"]);
         expect(countries.multiplayerCountries().map((country) => country.id)).toEqual([
             "AlphaCountry",
@@ -158,5 +161,41 @@ describe("Ares side presentation", () => {
         expect(technoRules.hasOwner({ name: "alphacountry" })).toBe(true);
         expect(technoRules.isAvailableTo({ name: "ALPHACOUNTRY" })).toBe(true);
         expect(technoRules.isAvailableTo({ name: "betacountry" })).toBe(false);
+    });
+
+    test("does not silently reuse Soviet paradrops for an unmapped authored side", () => {
+        const general = new IniSection("General");
+        general.set("AllyParaDropInf", "ENGINEER");
+        general.set("AllyParaDropNum", "1");
+        general.set("AmerParaDropInf", "ENGINEER");
+        general.set("AmerParaDropNum", "1");
+        general.set("SovParaDropInf", "CONS");
+        general.set("SovParaDropNum", "4");
+        general.set("YuriParaDropInf", "INIT");
+        general.set("YuriParaDropNum", "2");
+        general.set("ParadropPlane", "PDPLANE");
+        general.set("ParadropRadius", "3");
+
+        const sections = new Map<string, IniSection>();
+        const sidesSection = new IniSection("Sides");
+        sidesSection.set("0", "Alpha");
+        sidesSection.set("1", "Beta");
+        sections.set("Sides", sidesSection);
+        const ini = { getSection: (name: string) => sections.get(name) };
+        const sides = AresSideRegistry.fromIni(ini);
+        const paradrop = new ParadropRules().readIni(general, sides);
+
+        expect(paradrop.getParadropSquads("Alpha")).toEqual([]);
+        expect(paradrop.getParadropSquads("Beta")).toEqual([]);
+    });
+
+    test("does not give a custom side a vanilla AI trigger identity", () => {
+        expect(sideTypeToTriggerSide({
+            side: SideType.Civilian,
+            legacySideFallback: true,
+            sideDefinition: { legacySide: undefined },
+        })).toBeUndefined();
+        expect(sideTypeToTriggerSide(SideType.GDI)).toBe(1);
+        expect(sideTypeToTriggerSide(SideType.Yuri)).toBe(3);
     });
 });

@@ -290,7 +290,10 @@ export class CrateGeneratorTrait implements NotifyTick {
                     ...gameState.rules.ai.buildRefinery,
                 ]
                     .map((name: string) => gameState.rules.getBuilding(name))
-                    .filter((building: any) => building.aiBasePlanningSide === player.country.side)
+                    .filter((building: any) =>
+                        building.aiBasePlanningSideId
+                            ? building.aiBasePlanningSideId.trim().toLocaleLowerCase("en-US") === player.country.sideId.trim().toLocaleLowerCase("en-US")
+                            : building.aiBasePlanningSide === player.country.side)
                     .reduce((sum: number, building: any) => sum + building.cost, 0);
                 if (player.credits >= requiredCost) {
                     const suitableMCV = baseUnits.find((unitName: string) => {
