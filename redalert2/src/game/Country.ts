@@ -10,6 +10,7 @@ interface CountryRules {
     presentationId?: string;
     flag?: string;
     loadScreen?: string;
+    loadScreenPalette?: string;
     multiplay: boolean;
     isMultiplayerPassive: boolean;
     veteranAircraft: string[];
@@ -48,6 +49,9 @@ export class Country {
     }
     get loadScreen(): string | undefined {
         return this.rules.loadScreen;
+    }
+    get loadScreenPalette(): string | undefined {
+        return this.rules.loadScreenPalette;
     }
     get isMultiplayerPassive(): boolean {
         return this.rules.isMultiplayerPassive;

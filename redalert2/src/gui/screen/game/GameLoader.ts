@@ -27,7 +27,7 @@ import { GameOptRandomGen } from '@/game/gameopts/GameOptRandomGen';
 import { DebugRenderable } from '@/engine/renderable/DebugRenderable';
 import { MixinRules } from '@/game/ini/MixinRules';
 import { isNotNullOrUndefined } from '@/util/typeGuard';
-import { resolveSideMixSelection, type SideDescriptor } from '@/extensions/ares/AresSides';
+import { resolveSideMixSelection, resolveSidePresentation, type SideDescriptor, type SidePresentation } from '@/extensions/ares/AresSides';
 export class GameLoader {
     constructor(private appVersion: string, private workerHostApi: any, private cdnResourceLoader: any, private appResourceLoader: any, private rules: any, private gameModes: any, private sound: any, private iniLogger: any, private actionLogger: any, private speedCheat: any, private gameResConfig: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private debugBotIndex: any, private devMode: boolean) { }
     async load(gameId: string, timestamp: number, gameOptions: any, mapFile: any, playerName: string, isSinglePlayer: boolean, loadingScreenApi: any, cancellationToken?: any): Promise<any> {
@@ -76,6 +76,7 @@ export class GameLoader {
         const { game, theater } = await this.createGame(gameId, timestamp, gameOptions, mapFile, isSinglePlayer, botsLib);
         let hudSide = SideType.GDI;
         let sideDescriptor: SideDescriptor | undefined;
+        let sidePresentation: SidePresentation = resolveSidePresentation(undefined, hudSide);
         let useYuriArt = false;
         let localPlayer: any;
         if (playerName) {
@@ -86,13 +87,15 @@ export class GameLoader {
                 hudSide = sideDescriptor
                     ? game.rules.sideRegistry.toLegacySide(sideDescriptor.id)
                     : localPlayer.country.side === SideType.GDI ? SideType.GDI : SideType.Nod;
-                const sideMixSelection = resolveSideMixSelection(sideDescriptor, hudSide, yuri);
-                useYuriArt = sideMixSelection.useYuriFileNames;
+                sidePresentation = resolveSidePresentation(sideDescriptor, hudSide, yuri);
+                useYuriArt = sidePresentation.useYuriFileNames;
                 console.info('[GameLoader] Local presentation', {
                     country: localPlayer.country?.name,
                     side: localPlayer.country?.side,
                     sideId: localPlayer.country?.sideId,
-                    sidebarMixFileIndex: sideMixSelection.mixFileIndex,
+                    sidebarMixFileIndex: sidePresentation.sidebarMixFileIndex,
+                    presentationId: sidePresentation.id,
+                    hudLayout: sidePresentation.hudLayout,
                     hudSide,
                     yuri,
                     engine: Engine.getActiveEngine(),
@@ -159,7 +162,7 @@ export class GameLoader {
         cancellationToken?.throwIfCancelled();
         loadingScreenApi.onLoadProgress(95);
         await sleep(1);
-        return { game, theater, hudSide, sideDescriptor, useYuriArt, cameoFilenames };
+        return { game, theater, hudSide, sideDescriptor, sidePresentation, useYuriArt, cameoFilenames };
     }
     private collectCameoFileNames(game: any): string[] {
         const filenames: string[] = [];

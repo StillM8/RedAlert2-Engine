@@ -13,9 +13,11 @@ interface EvaSpec {
 }
 export class EvaSpecs {
     private sideType: SideType;
+    private voiceTag?: string;
     private specs = new Map<string, EvaSpec>();
-    constructor(sideType: SideType) {
+    constructor(sideType: SideType, voiceTag?: string) {
         this.sideType = sideType;
+        this.voiceTag = voiceTag?.trim() || undefined;
     }
     readIni(ini: any): EvaSpecs {
         let dialogListSection = ini.getSection("DialogList");
@@ -23,11 +25,11 @@ export class EvaSpecs {
             throw new Error("Missing eva.ini [DialogList] section");
         }
         const dialogNames = new Set(dialogListSection.entries.values());
-        const sidePrefix = this.sideType === SideType.GDI
+        const sidePrefix = this.voiceTag || (this.sideType === SideType.GDI
             ? "Allied"
             : this.sideType === SideType.Yuri
                 ? "Yuri"
-                : "Russian";
+                : "Russian");
         for (let dialogName of dialogNames) {
             if (dialogName) {
                 let dialogSection = ini.getSection(dialogName);

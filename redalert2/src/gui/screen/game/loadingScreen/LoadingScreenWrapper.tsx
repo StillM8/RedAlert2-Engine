@@ -12,6 +12,8 @@ interface Country {
     name: string;
     side: SideType;
     uiName: string;
+    loadScreen?: string;
+    loadScreenPalette?: string;
 }
 interface PlayerInfo {
     name: string;
@@ -103,14 +105,21 @@ export class LoadingScreenWrapper extends UiComponent<LoadingScreenWrapperProps>
                 this.props.rules.colors.get("SovietLoad"))?.asHexString() ?? "#fff";
         }
         this.color = color;
-        const backgroundImage = countryBackgrounds.get(countryName);
+        const configuredBackground = player?.country?.loadScreen?.trim();
+        const backgroundImage = configuredBackground || countryBackgrounds.get(countryName);
         if (backgroundImage) {
             if (gameResConfig.isCdn()) {
-                this.bgHtmlImg = gameResConfig.getCdnBaseUrl() + "ls/" + backgroundImage;
+                const htmlImage = /\.shp$/i.test(backgroundImage)
+                    ? backgroundImage.replace(/\.shp$/i, '.png')
+                    : backgroundImage;
+                this.bgHtmlImg = gameResConfig.getCdnBaseUrl() + "ls/" + htmlImage;
             }
             else {
-                this.bgSpriteImg = backgroundImage.replace("png", "shp");
-                const perCountryPal = countryPalettes.get(countryName);
+                this.bgSpriteImg = /\.(png|shp)$/i.test(backgroundImage)
+                    ? backgroundImage.replace(/\.png$/i, '.shp')
+                    : `${backgroundImage}.shp`;
+                const configuredPalette = player?.country?.loadScreenPalette?.trim();
+                const perCountryPal = configuredPalette || countryPalettes.get(countryName);
                 this.bgSpritePal = perCountryPal && Engine.vfs?.fileExists(perCountryPal)
                     ? perCountryPal
                     : (player?.country ? "mpls.pal" : "mplsobs.pal");
