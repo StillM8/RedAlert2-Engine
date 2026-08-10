@@ -69,6 +69,16 @@ function isVanillaKey(section: string, key: string): boolean {
 }
 
 function featureForKey(section: string, key: string, value: string): string | undefined {
+    if (/^genericprerequisites$/i.test(section)) {
+        return "ares.generic-prerequisites";
+    }
+    if (/^factoryowners(?:\.(?:forbidden|hasallplans|permanent))?$/i.test(key)) {
+        return "ares.factory-owner-prerequisites";
+    }
+    if (/^prerequisite\.(?:list\d+|lists|negative|requiredtheaters|stolentechs)$/i.test(key) ||
+        (/^general$/i.test(section) && /^prerequisite.+alternate$/i.test(key))) {
+        return "ares.generic-prerequisites";
+    }
     if (/^armortypes$/i.test(section) || /^versus\./i.test(key)) {
         return "ares.additional-armor-types";
     }

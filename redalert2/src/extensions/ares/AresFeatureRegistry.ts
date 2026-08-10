@@ -37,7 +37,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: false,
-        tests: [],
+        tests: ["AresSides.test.ts", "CountryIcon.test.ts"],
+        notes: "Country IDs, side IDs, lobby ordering, multiplayer filtering, provenance, and explicit flag resources are data-driven; legacy adapters remain for older simulation paths.",
     },
     {
         id: "ares.generic-prerequisites",
@@ -47,6 +48,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         runtimeImplemented: true,
         tests: ["AresPrerequisites.test.ts"],
         notes: "Supports generic groups, alternate TechnoTypes, negative prerequisites, alternative lists, required theaters when map context is available, and stolen-tech gates.",
+    },
+    {
+        id: "ares.factory-owner-prerequisites",
+        description: "FactoryOwners and FactoryOwners.Forbidden production restrictions",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: false,
+        tests: ["AresPrerequisites.test.ts"],
+        notes: "Basic initial-factory-country checks are wired for production; Ares plan inheritance (HasAllPlans/Permanent) remains to be implemented.",
     },
     {
         id: "ares.custom-foundations",

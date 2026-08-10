@@ -69,6 +69,39 @@ Ares.PassengerDelete=yes
         ]));
     });
 
+    test("classifies documented prerequisite extensions and factory-owner country edges", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[GenericPrerequisites]
+NAVALYARD=GAYARD,NAYARD
+
+[General]
+PrerequisiteNavalyardAlternate=SHMIN
+
+[TechnoTypes]
+0=TestUnit
+
+[TestUnit]
+Prerequisite.Lists=1
+Prerequisite.List1=GATECH
+Prerequisite.RequiredTheaters=SNOW
+FactoryOwners=AlphaCountry
+FactoryOwners.Forbidden=BetaCountry
+`,
+            },
+        ]);
+
+        expect(report.unknownExtensionKeys).toBe(0);
+        expect(report.featureUsage.find((usage) => usage.featureId === "ares.generic-prerequisites")?.occurrences).toBe(5);
+        expect(report.featureUsage.find((usage) => usage.featureId === "ares.factory-owner-prerequisites")?.occurrences).toBe(2);
+        expect(report.dependencyGraph.edges.filter((edge) => edge.kind === "country").map((edge) => edge.value)).toEqual([
+            "AlphaCountry",
+            "BetaCountry",
+        ]);
+    });
+
     test("formats an actionable report with verified runtime coverage", () => {
         const report = scanMentalOmegaIniSources([
             { name: "rulesmo.ini", contents: "[ArmorTypes]\nmagic=steel\n" },

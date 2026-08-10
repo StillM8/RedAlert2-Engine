@@ -6,6 +6,7 @@ import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSid
 import { CountryRules } from "@/game/rules/CountryRules";
 import { Country } from "@/game/Country";
 import { Rules } from "@/game/rules/Rules";
+import { TechnoRules } from "@/game/rules/TechnoRules";
 
 describe("Ares side presentation", () => {
     test("keeps four authored sides and their countries data-defined", () => {
@@ -146,5 +147,16 @@ describe("Ares side presentation", () => {
         expect(runtimeCountry.order).toBe(7);
         expect(runtimeCountry.networkIndex).toBe(3);
         expect(runtimeCountry.legacySideFallback).toBe(true);
+    });
+
+    test("matches dynamic country ownership fields case-insensitively", () => {
+        const technoRules = Object.create(TechnoRules.prototype) as any;
+        technoRules.owner = ["AlphaCountry"];
+        technoRules.requiredHouses = ["AlphaCountry"];
+        technoRules.forbiddenHouses = ["BetaCountry"];
+
+        expect(technoRules.hasOwner({ name: "alphacountry" })).toBe(true);
+        expect(technoRules.isAvailableTo({ name: "ALPHACOUNTRY" })).toBe(true);
+        expect(technoRules.isAvailableTo({ name: "betacountry" })).toBe(false);
     });
 });
