@@ -214,7 +214,7 @@ export class SuperWeaponsTrait {
                     t.push(new NukeEffect(o, i, s, e.weaponType));
                     break;
                 case SuperWeaponType.LightningStorm:
-                    t.push(new LightningStormEffect(o, i, s));
+                    t.push(new LightningStormEffect(o, i, s, e.ares?.swDeferment));
                     break;
                 case SuperWeaponType.IronCurtain:
                     t.push(new IronCurtainEffect(o, i, s));
@@ -226,7 +226,7 @@ export class SuperWeaponsTrait {
                     t.push(new ChronoSphereEffect(o, i, s, a));
                     break;
                 case SuperWeaponType.PsychicDominator:
-                    t.push(new PsychicDominatorEffect(o, i, s));
+                    t.push(new PsychicDominatorEffect(o, i, s, e.ares?.swDeferment));
                     break;
                 case SuperWeaponType.GeneticConverter:
                     t.push(new GeneticConverterEffect(o, i, s, e.range));

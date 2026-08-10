@@ -284,7 +284,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresPrerequisites.test.ts"],
         dependencies: ["ares.effective-ini", "ares.dynamic-sides-countries"], targetModUsage: "required",
-        notes: "Generic groups, alternatives, negatives, stolen tech, theater requirements, and factory-owner predicates are normalized; permanent plan persistence remains open.",
+        notes: "Generic groups, alternatives, negatives, stolen tech, theater requirements, and factory-owner predicates are normalized; permanent plans have a versioned production-extension codec while direct full-game snapshot integration remains open.",
     },
     "new/sidescountries.rst": {
         capabilityId: "ares.dynamic-sides-countries",
@@ -298,9 +298,9 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         capabilityId: "ares.superweapons",
         parserStatus: "partial", normalizedModelStatus: "partial", runtimeStatus: "partial",
         aiStatus: "missing", presentationStatus: "partial", saveLoadStatus: "missing", multiplayerStatus: "partial",
-        verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresSuperWeaponCharge.test.ts", "AresSuperWeaponPostDependent.test.ts", "AresSuperWeaponRadar.test.ts", "AresSuperWeaponAITargeting.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts", "AresDropPod.test.ts"],
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresSuperWeaponCharge.test.ts", "AresSuperWeaponDeferment.test.ts", "AresSuperWeaponPostDependent.test.ts", "AresSuperWeaponRadar.test.ts", "AresSuperWeaponAITargeting.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts", "AresDropPod.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters"], targetModUsage: "required",
-        notes: "Common fields, manual SW.RequiresTarget/SW.RequiresHouse gates, InitialReady/VirtualCharge timer state, PostDependent stage selection, common radar-event delivery, target filters, GenericWarhead, UnitDelivery, SonarPulse, the EMPulse launch state, and the Antares DropPod core placement handler are present; animation/presentation, AI, persistence, and the remaining handlers are not complete.",
+        notes: "Common fields, SW.Deferment for supported state machines, manual SW.RequiresTarget/SW.RequiresHouse gates, InitialReady/VirtualCharge timer state, PostDependent stage selection, common radar-event delivery, target filters, GenericWarhead, UnitDelivery, SonarPulse, the EMPulse launch state, and the Antares DropPod core placement handler are present; animation/presentation, AI, persistence, and the remaining handlers are not complete.",
     },
     "restored/emp.rst": {
         capabilityId: "ares.emp",

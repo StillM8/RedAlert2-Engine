@@ -18,6 +18,11 @@ interface Cloud {
     durationTicks: number;
     ticksLeft: number;
 }
+
+function normalizeDeferment(value: number | undefined): number {
+    return Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
+}
+
 export class LightningStormEffect extends SuperWeaponEffect {
     private state: LightningStormState = LightningStormState.Approaching;
     private clouds: Cloud[] = [];
@@ -25,9 +30,22 @@ export class LightningStormEffect extends SuperWeaponEffect {
     private manifestEndTimer: number = 0;
     private nextDirectHitTimer: number = 0;
     private nextRandomHitTimer: number = 0;
+    constructor(
+        type: any,
+        owner: any,
+        tile: TileCoord,
+        private readonly superWeaponDeferment?: number,
+    ) {
+        super(type, owner, tile);
+    }
     onStart(game: Game): void {
         const lightningStorm = game.rules.general.lightningStorm;
-        this.manifestStartTimer = lightningStorm.deferment;
+        // Antares resolves SW.Deferment per superweapon and falls back to
+        // General.LightningDeferment for Lightning Storm. A zero override is
+        // meaningful, so use nullish rather than truthy fallback semantics.
+        this.manifestStartTimer = normalizeDeferment(
+            this.superWeaponDeferment ?? lightningStorm.deferment,
+        );
         this.manifestEndTimer = lightningStorm.duration;
         this.nextDirectHitTimer = 0;
         this.nextRandomHitTimer = 0;

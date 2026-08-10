@@ -12,6 +12,10 @@ const DEFERMENT_TICKS = 45;
 // Dominated units shrug off the accompanying blast.
 const BLAST_SHIELD_TICKS = 30;
 
+function normalizeDeferment(value: number | undefined): number {
+    return Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
+}
+
 /**
  * Yuri's Psychic Dominator: a warhead blast at the epicenter plus permanent
  * capture of every non-psionic-immune unit around it. Tuning comes from the
@@ -19,12 +23,35 @@ const BLAST_SHIELD_TICKS = 30;
  */
 export class PsychicDominatorEffect extends SuperWeaponEffect {
     private ticksLeft = DEFERMENT_TICKS;
+    private initialDeferment: number;
+
+    constructor(
+        type: any,
+        owner: any,
+        tile: any,
+        superWeaponDeferment?: number,
+    ) {
+        super(type, owner, tile);
+        this.initialDeferment = normalizeDeferment(superWeaponDeferment);
+    }
 
     onStart(game: Game): void {
-        game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile));
+        if (this.initialDeferment <= 0) {
+            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile));
+        }
     }
 
     onTick(game: Game): boolean {
+        if (this.initialDeferment > 0) {
+            this.initialDeferment--;
+            if (this.initialDeferment > 0) {
+                return false;
+            }
+            // The Ares deferment is before the first Dominator animation; the
+            // existing 45-tick counter remains the retail animation/build-up
+            // timing after that animation has been created.
+            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile));
+        }
         if (this.ticksLeft-- > 0) {
             return false;
         }
