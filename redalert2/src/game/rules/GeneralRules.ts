@@ -89,6 +89,14 @@ export class GeneralRules {
     public padAircraft!: string[];
     public parachuteMaxFallRate!: number;
     public dropPodWeapon!: string;
+    /** Ares global fallback list for Type=DropPod superweapons. */
+    public dropPodTypes!: string[];
+    /** Ares global minimum number of units delivered by a DropPod. */
+    public dropPodMinimum!: number;
+    /** Ares global maximum number of units delivered by a DropPod. */
+    public dropPodMaximum!: number;
+    /** Ares DropPod trailer animation; presentation support is separate. */
+    public dropPodTrailer!: string;
     public refundPercent!: number;
     public returnStructures!: boolean;
     public unitsUnsellable!: boolean;
@@ -130,6 +138,10 @@ export class GeneralRules {
         this.defaultMirageDisguises = ini.getArray('DefaultMirageDisguises');
         this.dMisl = new DMislRules().readIni(ini);
         this.dropPodWeapon = ini.getString('DropPodWeapon');
+        this.dropPodTypes = ini.getArray('DropPodTypes');
+        this.dropPodMinimum = Math.max(0, Math.floor(ini.getNumber('DropPodMinimum')));
+        this.dropPodMaximum = Math.max(0, Math.floor(ini.getNumber('DropPodMaximum')));
+        this.dropPodTrailer = ini.getString('DropPodTrailer');
         this.engineer = ini.getString('Engineer');
         this.engineerCaptureLevel = ini.getFixed('EngineerCaptureLevel', 0.25);
         this.engineerDamage = ini.getFixed('EngineerDamage', 0.437);

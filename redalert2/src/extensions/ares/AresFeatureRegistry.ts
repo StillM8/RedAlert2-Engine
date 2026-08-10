@@ -132,6 +132,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Antares launch-site defaults, EMPulse.Cannons override, linked range behavior, SW.MaxCount, TargetSelf immediate detonation, and PulseDelay-backed normal firing are wired; pulse-ball animation and AI targeting remain separate.",
     },
     {
+        id: "ares.superweapon-drop-pod",
+        description: "DropPod selects and places data-defined non-building TechnoTypes",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresDropPod.test.ts", "AresSuperWeapons.test.ts"],
+        notes: "Antares 3.0p1 global/per-superweapon types, inclusive count range, deterministic type selection, building abort, valid landing placement, ownership, fractional veterancy, and cleanup are wired; DropPod locomotion/trailer presentation, AI targeting, and persistent in-flight state remain open.",
+    },
+    {
         id: "ares.staged-weapons",
         description: "Data-defined weapon stages, spin-up, and burst behavior",
         implemented: false,
