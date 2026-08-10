@@ -59,6 +59,10 @@ interface TechnoObject extends GameObject {
     crashableTrait?: CrashableTrait;
     submergibleTrait?: SubmergibleTrait;
     delayedKillTrait?: DelayedKillTrait;
+    empTrait?: {
+        isUnderEMP(): boolean;
+        apply(duration: number, cap: number, modifier?: number): boolean;
+    };
 }
 interface UnitObject extends TechnoObject {
     crateBonuses: CrateBonuses;
@@ -84,6 +88,8 @@ interface GameObjectRules {
     fraidycat: boolean;
     insignificant: boolean;
     typeImmune: boolean;
+    immuneToEMP?: boolean;
+    empModifier?: number;
     wall: boolean;
 }
 interface WarheadRules {
@@ -97,12 +103,15 @@ interface WarheadRules {
     wood: boolean;
     infDeath: DeathType;
     affectsAllies: boolean;
+    affectsEnemies?: boolean;
     causesDelayKill: boolean;
     delayKillAtMax: number;
     delayKillFrames: number;
     rocker: boolean;
     conventional: boolean;
     emEffect: boolean;
+    empDuration: number;
+    empCap: number;
     animList: string[];
     name: string;
     cellSpread: number;
@@ -460,14 +469,17 @@ export class Warhead {
             if (obj.isDestroyed || obj.isCrashing)
                 continue;
             let damage = this.computeDamage(baseDamage, obj, gameWorld, isWeatherStorm);
-            if (baseDamage > 0 && !this.rules.affectsAllies && obj.isTechno() && sourcePlayer) {
-                if (gameWorld.alliances.areAllied(obj.owner, sourcePlayer) || obj.owner === sourcePlayer) {
+            if (baseDamage > 0 && obj.isTechno() && sourcePlayer) {
+                const isFriendly = gameWorld.alliances.areAllied(obj.owner, sourcePlayer) || obj.owner === sourcePlayer;
+                if ((isFriendly && !this.rules.affectsAllies) ||
+                    (!isFriendly && this.rules.affectsEnemies === false)) {
                     damage = 0;
                 }
             }
-            if (!damage)
+            const empApplied = this.applyEmp(obj, weaponInfo, gameWorld);
+            if (!damage && !empApplied)
                 continue;
-            for (const distance of objectDistances.get(obj)!) {
+            for (const distance of damage ? objectDistances.get(obj)! : []) {
                 let finalDamage = damage;
                 if (cellSpread > 0 && Number.isFinite(finalDamage)) {
                     finalDamage = MathUtils.lerp(finalDamage, percentAtMax * finalDamage, distance / cellSpread);
@@ -536,6 +548,39 @@ export class Warhead {
                 terrainEffect.spawnSmudges(animation, centerTile, gameWorld);
         }
         gameWorld.events.dispatch(new WarheadDetonateEvent(this, centerCoords, animation, isWeatherStorm));
+    }
+    /**
+     * Ares delivers EMP independently from ordinary weapon damage.  In
+     * particular, a warhead may paralyze a target while its Damage/Verses
+     * calculation produces zero; only a 0% Verses entry suppresses the EMP.
+     */
+    private applyEmp(target: GameObject, weaponInfo: WeaponInfo | undefined, gameWorld: GameWorld): boolean {
+        if (!this.rules.empDuration || !target.isTechno()) {
+            return false;
+        }
+        const techno = target as TechnoObject;
+        if (!techno.empTrait || techno.rules.immuneToEMP) {
+            return false;
+        }
+        const verses = this.rules.verses.get(target.rules.armor);
+        if (verses === 0) {
+            return false;
+        }
+
+        const sourcePlayer = weaponInfo?.player ?? weaponInfo?.obj?.owner;
+        if (sourcePlayer) {
+            const isFriendly = target.owner === sourcePlayer || gameWorld.alliances.areAllied(target.owner, sourcePlayer);
+            if ((isFriendly && !this.rules.affectsAllies) ||
+                (!isFriendly && this.rules.affectsEnemies === false)) {
+                return false;
+            }
+        }
+
+        return techno.empTrait.apply(
+            this.rules.empDuration,
+            this.rules.empCap,
+            techno.rules.empModifier ?? 1,
+        );
     }
     private pickExplodeAnim(damage: number, directHitTarget: GameObject | undefined, zone: ZoneType, gameWorld: GameWorld, isWeatherStorm: boolean): string | undefined {
         if (!damage)

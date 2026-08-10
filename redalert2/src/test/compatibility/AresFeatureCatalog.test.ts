@@ -23,8 +23,8 @@ describe("Ares documentation catalog", () => {
         expect(armor?.parserStatus).toBe("complete");
         expect(armor?.runtimeStatus).toBe("complete");
         expect(armor?.verificationStatus).toBe("synthetic");
-        expect(emp?.parserStatus).toBe("partial");
-        expect(emp?.runtimeStatus).toBe("missing");
+        expect(emp?.parserStatus).toBe("complete");
+        expect(emp?.runtimeStatus).toBe("partial");
     });
 
     test("reports a stable category summary", () => {

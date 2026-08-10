@@ -69,6 +69,12 @@ function isVanillaKey(section: string, key: string): boolean {
 }
 
 function featureForKey(section: string, key: string, value: string): string | undefined {
+    if (/^emp\.threshold$/i.test(key)) {
+        return "ares.emp-threshold";
+    }
+    if (/^(?:emp\.(?:duration|cap|sparkles)|immuneToEMP|emp\.modifier)$/i.test(key)) {
+        return "ares.emp";
+    }
     if (/^genericprerequisites$/i.test(section)) {
         return "ares.generic-prerequisites";
     }

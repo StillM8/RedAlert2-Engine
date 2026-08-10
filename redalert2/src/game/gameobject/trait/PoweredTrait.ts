@@ -15,12 +15,14 @@ export class PoweredTrait {
             !!this.obj.overpoweredTrait?.hasChargersToPowerOn());
     }
     isPoweredOn(checkCharged: boolean = false): boolean {
-        return (!(!this.obj || !this.turnedOn) &&
-            (!(checkCharged || !this.isCharged()) ||
-                (!this.obj.rules.power && this.obj.rules.needsEngineer
-                    ? !this.obj.owner.isNeutral
-                    : !!this.obj.owner.powerTrait &&
-                        this.obj.owner.powerTrait?.level !== PowerLevel.Low)));
+        if (!this.obj || !this.turnedOn || this.obj.empTrait?.isUnderEMP()) {
+            return false;
+        }
+        return (!(checkCharged || !this.isCharged()) ||
+            (!this.obj.rules.power && this.obj.rules.needsEngineer
+                ? !this.obj.owner.isNeutral
+                : !!this.obj.owner.powerTrait &&
+                    this.obj.owner.powerTrait?.level !== PowerLevel.Low));
     }
     dispose(): void {
         this.obj = undefined;

@@ -304,19 +304,19 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
     },
     "restored/emp.rst": {
         capabilityId: "ares.emp",
-        parserStatus: "partial", normalizedModelStatus: "missing", runtimeStatus: "missing",
-        aiStatus: "missing", presentationStatus: "missing", saveLoadStatus: "missing", multiplayerStatus: "missing",
-        verificationStatus: "unverified", deterministic: true, tests: [],
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresEMP.test.ts"],
         dependencies: ["ares.effective-ini", "ares.warhead-effects"], targetModUsage: "unknown",
-        notes: "The official EMP duration/cap semantics are documented and Antares provides the reference behavior; standalone runtime work is the next implementation slice.",
+        notes: "Official EMP duration/cap counters, immunity defaults, EMP.Modifier, veteran EMPIMMUNE, movement/attack paralysis, powered blackout and aircraft crash entry are implemented. Specialized manager suspension, sparkle presentation, and EMP.Threshold destruction remain separate slices.",
     },
     "new/destroyunitsbyemp.rst": {
         capabilityId: "ares.emp-threshold",
-        parserStatus: "missing", normalizedModelStatus: "missing", runtimeStatus: "missing",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "missing",
         aiStatus: "missing", presentationStatus: "missing", saveLoadStatus: "missing", multiplayerStatus: "missing",
-        verificationStatus: "unverified", deterministic: true, tests: [],
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresEMP.test.ts"],
         dependencies: ["ares.emp"], targetModUsage: "unknown",
-        notes: "Depends on the generic EMP counter and TechnoType immunity/modifier model.",
+        notes: "EMP.Threshold is parsed and normalized as yes/no/inair/integer; the destruction check is still a separate runtime capability.",
     },
 };
 

@@ -15,6 +15,7 @@ import { Vector3 } from "@/game/math/Vector3";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 import type { AresSideRegistry, SideId } from "@/extensions/ares/AresSides";
 import { parseAresPrerequisiteRules } from "@/extensions/ares/AresPrerequisites";
+import { defaultAresEmpImmunity, parseAresEmpThreshold } from "@/extensions/ares/AresEMP";
 interface House {
     name: string;
 }
@@ -165,6 +166,11 @@ export class TechnoRules extends ObjectRules {
     declare immune: boolean;
     declare immuneToRadiation: boolean;
     declare immuneToPsionics: boolean;
+    /** Ares EMP immunity and target-specific duration modifier. */
+    declare immuneToEMP: boolean;
+    declare empModifier: number;
+    /** Ares EMP.Threshold; destruction handling is integrated separately. */
+    declare empThreshold: number;
     declare typeImmune: boolean;
     declare warpable: boolean;
     declare isTilter: boolean;
@@ -621,6 +627,12 @@ export class TechnoRules extends ObjectRules {
         this.radar = this.ini.getBool("Radar");
         this.radarInvisible = this.ini.getBool("RadarInvisible");
         this.revealToAll = this.ini.getBool("RevealToAll");
+        const defaultImmuneToEMP = this.resolveDefaultEmpImmunity();
+        this.immuneToEMP = this.ini.has("ImmuneToEMP")
+            ? this.ini.getBool("ImmuneToEMP")
+            : defaultImmuneToEMP;
+        this.empModifier = this.ini.getFixed("EMP.Modifier", 1);
+        this.empThreshold = parseAresEmpThreshold(this.ini.getString("EMP.Threshold"));
         this.selectable = !(this.type === ObjectType.Aircraft && !landable) && this.ini.getBool("Selectable", true);
         this.isSelectableCombatant = this.ini.getBool("IsSelectableCombatant");
         this.invisibleInGame = this.ini.getBool("InvisibleInGame");
@@ -707,6 +719,30 @@ export class TechnoRules extends ObjectRules {
     }
     private parseWeaponName(weaponName: string | undefined): string | undefined {
         return weaponName && weaponName.toLowerCase() !== "none" ? weaponName : undefined;
+    }
+
+    /**
+     * Ares' default EMP immunity is based on the TechnoType's useful
+     * functions, not just its object category.  Keep this calculation at
+     * rule-load time so runtime EMP code never has to inspect raw INI keys.
+     */
+    private resolveDefaultEmpImmunity(): boolean {
+        return defaultAresEmpImmunity({
+            type: this.type,
+            powered: this.powered,
+            power: this.power,
+            radar: this.radar,
+            spySat: this.spySat,
+            hasSuperWeapon: !!this.superWeapon,
+            undeploysInto: !!this.undeploysInto,
+            powersUnit: !!this.powersUnit,
+            gapGenerator: this.gapGenerator,
+            sensors: this.sensors,
+            sensorArray: this.sensorArray,
+            laserFencePost: this.ini.getBool("LaserFencePost"),
+            cyborg: this.ini.getBool("Cyborg"),
+            organic: this.organic,
+        });
     }
     private parseTurretIndexes(): Map<number, number> {
         const turretIndexMap = new Map<number, number>();

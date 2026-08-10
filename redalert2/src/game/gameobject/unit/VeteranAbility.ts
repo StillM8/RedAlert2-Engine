@@ -13,5 +13,7 @@ export enum VeteranAbility {
     FEARLESS = 11,
     C4 = 12,
     GUARD_AREA = 13,
-    CRUSHER = 14
+    CRUSHER = 14,
+    /** Ares EMPIMMUNE veteran/elite ability. */
+    EMPIMMUNE = 15
 }

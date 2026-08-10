@@ -44,6 +44,7 @@ import { Debris } from "@/game/gameobject/Debris";
 import { DebrisRules } from "@/game/rules/DebrisRules";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { SensorsTrait } from "@/game/gameobject/trait/SensorsTrait";
+import { EmpTrait } from "@/game/gameobject/trait/EmpTrait";
 export class ObjectFactory {
     private tiles: any;
     private tileOccupation: any;
@@ -223,6 +224,11 @@ export class ObjectFactory {
             if (gameObject.rules.maxDebris) {
                 gameObject.traits.add(new SpawnDebrisTrait());
             }
+            // Every Techno owns an EMP counter, including objects whose
+            // default rules make them immune.  This preserves the state for
+            // explicit ImmuneToEMP overrides and for later transformations.
+            gameObject.empTrait = new EmpTrait(gameObject);
+            gameObject.traits.add(gameObject.empTrait);
         }
         if (gameObject.isTechno() || gameObject.isOverlay() || gameObject.isTerrain()) {
             const isBridgeOverlay = gameObject.isOverlay() &&

@@ -5,6 +5,7 @@ export class WarheadRules {
     private verses: Map<number, number>;
     public armorVersusBehavior: Map<number, ArmorVersusBehavior>;
     public affectsAllies!: boolean;
+    public affectsEnemies!: boolean;
     public airstrike!: boolean;
     public psychedelic!: boolean;
     public animList!: string[];
@@ -18,6 +19,10 @@ export class WarheadRules {
     public delayKillFrames!: number;
     public electricAssault!: boolean;
     public emEffect!: boolean;
+    /** Ares EMP frame counter contribution. */
+    public empDuration!: number;
+    /** Ares EMP counter cap; -1 is the legacy set-unless-longer mode. */
+    public empCap!: number;
     public isLocomotor!: boolean;
     public infDeath!: InfDeathType;
     public ivanBomb!: boolean;
@@ -50,6 +55,7 @@ export class WarheadRules {
     }
     private parse(): void {
         this.affectsAllies = this.rules.getBool("AffectsAllies", true);
+        this.affectsEnemies = this.rules.getBool("AffectsEnemies", true);
         this.airstrike = this.rules.getBool("Airstrike");
         this.psychedelic = this.rules.getBool("Psychedelic");
         this.animList = this.rules.getArray("AnimList");
@@ -63,6 +69,8 @@ export class WarheadRules {
         this.delayKillFrames = this.rules.getNumber("DelayKillFrames");
         this.electricAssault = this.rules.getBool("ElectricAssault");
         this.emEffect = this.rules.getBool("EMEffect");
+        this.empDuration = Math.trunc(this.rules.getNumber("EMP.Duration"));
+        this.empCap = Math.trunc(this.rules.getNumber("EMP.Cap", -1));
         this.isLocomotor = this.rules.getBool("IsLocomotor");
         this.infDeath = this.rules.getEnumNumeric("InfDeath", InfDeathType, InfDeathType.None);
         this.ivanBomb = this.rules.getBool("IvanBomb");
