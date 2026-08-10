@@ -133,6 +133,26 @@ SW.FireIntoShroud=no
         expect(report.unknownExtensionKeys).toBe(0);
     });
 
+    test("classifies AutoFire and ManualFire as one activation-policy capability", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[MOAuto]
+Type=GenericWarhead
+SW.AutoFire=yes
+SW.ManualFire=no
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-fire-mode");
+        expect(usage?.occurrences).toBe(2);
+        expect(usage?.definitionCount).toBe(1);
+        expect(usage?.support?.runtimeImplemented).toBe(true);
+        expect(report.unknownExtensionKeys).toBe(0);
+    });
+
     test("classifies EMPulse fields and launch-site flags as one capability", () => {
         const report = scanMentalOmegaIniSources([
             {

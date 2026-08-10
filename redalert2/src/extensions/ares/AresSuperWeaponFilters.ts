@@ -150,6 +150,19 @@ export function isAresSuperWeaponFireIntoShroudAllowed(
 }
 
 /**
+ * Ares only applies SW.ManualFire=no when AutoFire is enabled.  This mirrors
+ * the Antares click-path rule: an auto-only superweapon ignores owner clicks,
+ * while AI-created activation actions remain valid.
+ */
+export function isAresSuperWeaponManualActivationAllowed(
+    autoFire: boolean | undefined,
+    manualFire: boolean | undefined,
+    owner: any,
+): boolean {
+    return !(autoFire === true && manualFire === false && !owner?.isAi);
+}
+
+/**
  * Implements Antares' IsCellEligible + IsTechnoEligible semantics for a
  * manually selected superweapon target.  A cell-only mask such as `water`
  * allows both occupied and empty cells; a content mask such as `buildings`

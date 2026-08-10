@@ -114,6 +114,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "The documented default is permissive; when explicitly disabled, manual activation rejects only unexplored cells using the owner's MapShroud, while temporary reveals remain valid. AI actions pass through the same final activation gate.",
     },
     {
+        id: "ares.superweapon-fire-mode",
+        description: "Ares SW.AutoFire and SW.ManualFire activation policy",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponTargeting.test.ts", "AresSuperWeapons.test.ts"],
+        notes: "Auto-only superweapons reject human click actions while allowing AI-created actions; ManualFire remains ignored when AutoFire is disabled, matching Antares. Human automatic target selection is a separate host/AI integration task.",
+    },
+    {
         id: "ares.superweapon-charge-state",
         description: "Ares SW.InitialReady and SW.VirtualCharge timer semantics",
         implemented: false,

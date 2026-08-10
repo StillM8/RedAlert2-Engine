@@ -7,6 +7,7 @@ import { Game } from '@/game/Game';
 import {
     isAresSuperWeaponActivationAllowed,
     isAresSuperWeaponFireIntoShroudAllowed,
+    isAresSuperWeaponManualActivationAllowed,
 } from '@/extensions/ares/AresSuperWeaponFilters';
 export class ActivateSuperWeaponAction extends Action {
     private game: Game;
@@ -73,6 +74,14 @@ export class ActivateSuperWeaponAction extends Action {
         const rules = this.game.rules.getSuperWeaponByIndex(this.superWeaponType);
         if (!rules) {
             console.warn(`Superweapon index ${this.superWeaponType} doesn't exist; ignored`);
+            return;
+        }
+        if (rules.ares && !isAresSuperWeaponManualActivationAllowed(
+            rules.ares.swAutoFire,
+            rules.ares.swManualFire,
+            this.player,
+        )) {
+            console.warn(`Superweapon ${rules.name} is auto-fire only; manual activation ignored`);
             return;
         }
         if (rules.type === SuperWeaponType.ChronoSphere && !tile2) {

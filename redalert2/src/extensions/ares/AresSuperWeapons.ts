@@ -137,6 +137,10 @@ export interface AresSuperWeaponDefinition {
     swRequiresTarget?: string;
     /** Whether manual/AI activation may target the player's unexplored shroud. */
     swFireIntoShroud?: boolean;
+    /** Automatically launch for human owners using the configured AI targeter. */
+    swAutoFire?: boolean;
+    /** When AutoFire is enabled, whether the owning human may click-launch it. */
+    swManualFire?: boolean;
     swAIRequiresTarget?: string;
     swAIRequiresHouse?: string;
     swRangeMinimum?: number;
@@ -259,6 +263,8 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAffectsTarget: getString(section, "SW.AffectsTarget"),
         swRequiresTarget: getString(section, "SW.RequiresTarget"),
         swFireIntoShroud: getBool(section, "SW.FireIntoShroud"),
+        swAutoFire: getBool(section, "SW.AutoFire"),
+        swManualFire: getBool(section, "SW.ManualFire"),
         swAIRequiresTarget: getString(section, "SW.AIRequiresTarget"),
         swAIRequiresHouse: getString(section, "SW.AIRequiresHouse"),
         swRangeMinimum: getNumber(section, "SW.RangeMinimum"),
