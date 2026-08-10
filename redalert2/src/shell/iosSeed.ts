@@ -12,6 +12,7 @@ declare global {
         };
         Ra2Android?: {
             pickGameDirectory: () => boolean;
+            pickModDirectory?: () => boolean;
             pickModArchives?: () => boolean;
             deleteNativeModImport?: (token: string) => boolean;
             startModDownload?: (url: string, requestId: string) => boolean;
@@ -260,15 +261,15 @@ export function canImportModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
         && getNativeShellEngine() === 'yr'
-        && typeof window.Ra2Android?.pickModArchives === 'function';
+        && (typeof window.Ra2Android?.pickModDirectory === 'function'
+            || typeof window.Ra2Android?.pickModArchives === 'function');
 }
 
 /**
- * Imports one or more ZIP archives selected by Android's Storage Access
- * Framework. The native side extracts the root files and applies later
- * archives over earlier ones (which is how the Mental Omega full package and
- * patch are normally installed). The resulting files are streamed into the
- * same OPFS mod directory used by the desktop importer.
+ * Imports an extracted mod folder selected by Android's Storage Access
+ * Framework. ZIP archive selection remains available as a fallback for
+ * installations that have not been extracted. The resulting files are
+ * streamed into the same OPFS mod directory used by the desktop importer.
  */
 export async function importModFromShell(
     modId: string,
@@ -288,7 +289,8 @@ export async function importModFromShell(
         };
         window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__ = finish;
         try {
-            if (!nativeApi.pickModArchives!())
+            const picker = nativeApi.pickModDirectory ?? nativeApi.pickModArchives;
+            if (!picker || !picker())
                 finish({ success: false });
         }
         catch (error: any) {
@@ -311,7 +313,7 @@ export async function importModFromShell(
         const manifest = await manifestResponse.json() as { files?: NativeModImportFile[] };
         const files = Array.isArray(manifest.files) ? manifest.files : [];
         if (!files.length)
-            throw new Error('The selected mod archive contains no root game files');
+            throw new Error('The selected mod folder contains no root game files');
 
         if (typeof navigator.storage?.getDirectory !== 'function')
             throw new Error('Android OPFS storage is unavailable');

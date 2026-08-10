@@ -53,7 +53,8 @@ class MainActivity : Activity() {
         private const val RECOVERY_WINDOW_MS = 5 * 60 * 1000L
         private const val FILE_CHOOSER_REQUEST = 4102
         private const val GAME_DIRECTORY_REQUEST = 4103
-        private const val MOD_ARCHIVE_REQUEST = 4104
+        private const val MOD_DIRECTORY_REQUEST = 4104
+        private const val MOD_ARCHIVE_REQUEST = 4105
         private const val NATIVE_DOWNLOAD_MAX_BYTES = 1024L * 1024L * 1024L
         private const val NATIVE_DOWNLOAD_DIR = "ra2-mod-downloads"
         private const val NATIVE_MOD_IMPORT_DIR = "ra2-mod-imports"
@@ -192,6 +193,19 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun pickGameDirectory(): Boolean {
             runOnUiThread { launchGameDirectoryPicker() }
+            return true
+        }
+
+        /**
+         * Opens Android's folder picker for an already extracted mod. This is
+         * the normal Android path because it avoids making the user re-pack a
+         * Windows installation just to import it.
+         */
+        @JavascriptInterface
+        fun pickModDirectory(): Boolean {
+            if (modArchivePickerActive) return false
+            modArchivePickerActive = true
+            runOnUiThread { launchModDirectoryPicker() }
             return true
         }
 
@@ -432,12 +446,11 @@ class MainActivity : Activity() {
                     or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                     or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
             )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                putExtra(
-                    DocumentsContract.EXTRA_INITIAL_URI,
-                    Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload"),
-                )
-            }
+            // Do not force an initial URI here. Some Android DocumentsUI
+            // builds close ACTION_OPEN_DOCUMENT_TREE immediately when the
+            // requested provider location is unavailable, leaving the WebView
+            // looking like the picker never opened. The user can still open
+            // Download from the standard picker navigation.
         }
         try {
             startActivityForResult(intent, GAME_DIRECTORY_REQUEST)
@@ -469,6 +482,24 @@ class MainActivity : Activity() {
             modArchivePickerActive = false
             Log.e(TAG, "Unable to launch mod archive picker", error)
             notifyNativeModImport(false, error.message ?: "Archive picker unavailable")
+        }
+    }
+
+    private fun launchModDirectoryPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
+            )
+        }
+        try {
+            startActivityForResult(intent, MOD_DIRECTORY_REQUEST)
+        }
+        catch (error: Exception) {
+            modArchivePickerActive = false
+            Log.e(TAG, "Unable to launch Android mod folder picker", error)
+            notifyNativeModImport(false, error.message ?: "Mod folder picker unavailable")
         }
     }
 
@@ -553,10 +584,67 @@ class MainActivity : Activity() {
     }
 
     /**
+     * Copies an extracted Mental Omega folder into the native staging area.
+     * The web mod filesystem is intentionally flat, like the original game
+     * root, so nested map/assets folders are flattened before the manifest is
+     * exposed to JavaScript.
+     */
+    private fun importModDirectory(treeUri: Uri) {
+        importExecutor.execute {
+            val token = UUID.randomUUID().toString().replace("-", "")
+            val staging = File(filesDir, ".mod-importing-$token")
+            try {
+                if (!staging.mkdirs() && !staging.isDirectory) {
+                    throw IOException("Could not create the mod import directory")
+                }
+                val files = mutableListOf<ImportedFile>()
+                val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+                copyTree(treeUri, rootDocumentId, staging, "", files)
+                if (files.isEmpty()) {
+                    throw IOException("The selected mod folder contains no readable files")
+                }
+                normalizeModRoot(staging, files)
+                if (files.isEmpty()) {
+                    throw IOException("The selected mod folder contains no usable game files")
+                }
+                val manifestFiles = JSONArray()
+                files.sortedBy { it.path.lowercase() }.forEach { file ->
+                    manifestFiles.put(
+                        JSONObject()
+                            .put("path", file.path)
+                            .put("size", file.size),
+                    )
+                }
+                File(staging, "manifest.json").writeText(
+                    JSONObject().put("files", manifestFiles).toString(),
+                    Charsets.UTF_8,
+                )
+                val destination = File(filesDir, "$NATIVE_MOD_IMPORT_DIR/$token")
+                destination.parentFile?.mkdirs()
+                if (destination.exists() && !destination.deleteRecursively()) {
+                    throw IOException("Could not replace the previous native mod import")
+                }
+                if (!staging.renameTo(destination)) {
+                    throw IOException("Could not commit the native mod import")
+                }
+                notifyNativeModImport(true, token = token)
+            }
+            catch (error: Exception) {
+                staging.deleteRecursively()
+                Log.e(TAG, "Game-resource mod folder import failed", error)
+                notifyNativeModImport(false, error.message ?: "Could not import the selected mod folder")
+            }
+            finally {
+                modArchivePickerActive = false
+            }
+        }
+    }
+
+    /**
      * The web VFS consumes root game files. Mental Omega's playable maps are
      * shipped below MapsMO/..., while its client/editor payload is not used by
-     * the web engine. Keep root files plus loose map/pkt files, flattening the
-     * latter to the filenames the map loader expects at the game root.
+     * the web engine. Keep root files plus loose map/pkt files, flattening all
+     * selected files to the filenames the web VFS expects at the game root.
      */
     private fun modArchiveEntryName(rawName: String): String? {
         val normalized = rawName.replace('\\', '/').removePrefix("./")
@@ -564,11 +652,36 @@ class MainActivity : Activity() {
         val safeName = File(normalized).name
         if (safeName.isEmpty() || safeName == "." || safeName == ".." ||
             normalized.split('/').any { it.isEmpty() || it == "." || it == ".." }) return null
-        if (normalized.contains('/') &&
-            !safeName.substringAfterLast('.', "").lowercase().let { it == "map" || it == "mpr" || it == "pkt" }) {
-            return null
-        }
         return safeName
+    }
+
+    private fun normalizeModRoot(destinationRoot: File, files: MutableList<ImportedFile>) {
+        val nestedFiles = files.filter { it.path.contains('/') }
+        for (imported in nestedFiles) {
+            val flattenedName = modArchiveEntryName(imported.path) ?: continue
+            val source = File(destinationRoot, imported.path).canonicalFile
+            val target = File(destinationRoot, flattenedName).canonicalFile
+            val root = destinationRoot.canonicalFile
+            if (!source.path.startsWith(root.path + File.separator) ||
+                !target.path.startsWith(root.path + File.separator)) {
+                throw IOException("Unsafe mod folder path: ${imported.path}")
+            }
+            if (target.exists()) {
+                throw IOException("Duplicate file while flattening imported mod folder: $flattenedName")
+            }
+            target.parentFile?.mkdirs()
+            if (!source.renameTo(target)) {
+                source.copyTo(target, overwrite = false)
+                if (!source.delete()) {
+                    throw IOException("Could not flatten imported mod file: ${imported.path}")
+                }
+            }
+        }
+        files.removeAll { it.path.contains('/') }
+        files.addAll(nestedFiles.mapNotNull { imported ->
+            modArchiveEntryName(imported.path)?.let { imported.copy(path = it) }
+        })
+        destinationRoot.listFiles()?.filter { it.isDirectory }?.forEach { it.deleteRecursively() }
     }
 
     private fun queryDisplayName(uri: Uri): String {
@@ -792,6 +905,25 @@ class MainActivity : Activity() {
                 Log.w(TAG, "Could not persist folder permission; copying while the picker grant is live", error)
             }
             importGameDirectory(treeUri)
+            return
+        }
+        if (requestCode == MOD_DIRECTORY_REQUEST) {
+            modArchivePickerActive = false
+            val treeUri = data?.data
+            if (resultCode != RESULT_OK || treeUri == null) {
+                notifyNativeModImport(false)
+                return
+            }
+            try {
+                val takeFlags = data.flags and
+                    (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+            }
+            catch (error: Exception) {
+                Log.w(TAG, "Could not persist mod folder permission; copying while the picker grant is live", error)
+            }
+            modArchivePickerActive = true
+            importModDirectory(treeUri)
             return
         }
         if (requestCode == MOD_ARCHIVE_REQUEST) {
