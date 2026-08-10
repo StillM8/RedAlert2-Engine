@@ -308,7 +308,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresEMP.test.ts"],
         dependencies: ["ares.effective-ini", "ares.warhead-effects"], targetModUsage: "unknown",
-        notes: "Official EMP duration/cap counters, immunity defaults, EMP.Modifier, veteran EMPIMMUNE, movement/attack paralysis, powered blackout and aircraft crash entry are implemented. Specialized manager suspension, sparkle presentation, and EMP.Threshold destruction remain separate slices.",
+        notes: "Official EMP duration/cap counters, immunity defaults, EMP.Modifier, veteran EMPIMMUNE, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and aircraft crash entry are implemented. Sparkle presentation and full subsystem notifications remain separate.",
     },
     "new/destroyunitsbyemp.rst": {
         capabilityId: "ares.emp-threshold",
@@ -316,7 +316,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "partial", presentationStatus: "missing", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresEMP.test.ts"],
         dependencies: ["ares.emp"], targetModUsage: "unknown",
-        notes: "EMP.Threshold is normalized as yes/no/inair/integer and positive/in-air counter crossings destroy non-aircraft Technos through the normal world destruction path. Aircraft crash handling, parachute traits, and persistence remain open.",
+        notes: "EMP.Threshold is normalized as yes/no/inair/integer and positive/in-air counter crossings destroy non-aircraft Technos through the normal world destruction path. Full hover/aircraft edge coverage, parachute integration, persistence, and network certification remain open.",
     },
 };
 

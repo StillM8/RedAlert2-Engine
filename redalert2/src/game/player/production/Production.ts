@@ -6,6 +6,7 @@ import { SideType } from '@/game/SideType';
 import { evaluateAresPrerequisiteRules, isFactoryOwnerAllowed } from '@/extensions/ares/AresPrerequisites';
 import type { SideId } from '@/extensions/ares/AresSides';
 import { fnv32aStrings } from '@/util/math';
+import { isAresEmpOperational } from '@/extensions/ares/AresEMP';
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -229,6 +230,19 @@ export class Production {
     }
     getFactoryCount(type: FactoryType): number {
         return this.factoryCounts.get(type) ?? 0;
+    }
+    /**
+     * Ares pauses queue progress when all factories serving that queue are
+     * EMP-disabled. The count-only fallback preserves headless tests that
+     * register factories without materializing Building objects.
+     */
+    hasOperationalFactory(type: FactoryType): boolean {
+        const buildings = [...(this.player.buildings ?? [])]
+            .filter((building: any) => building.factoryTrait?.type === type || building.rules?.factory === type);
+        if (!buildings.length) {
+            return this.getFactoryCount(type) > 0;
+        }
+        return buildings.some((building: any) => isAresEmpOperational(building));
     }
     crownPrimaryFactoryHeir(type: FactoryType) {
         const heir = Array.from(this.player.buildings).find((building: any) => building.rules.factory === type);

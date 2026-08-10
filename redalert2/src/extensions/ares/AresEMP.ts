@@ -88,6 +88,16 @@ export function aresEmpThresholdExceeded(
 }
 
 /**
+ * A Techno whose EMP counter or warp-out state is active cannot perform
+ * factory/spawner/superweapon manager work.  Keep this predicate shared so
+ * each manager applies the same operational boundary.
+ */
+export function isAresEmpOperational(techno: any): boolean {
+    return !techno?.empTrait?.isUnderEMP?.() &&
+        !techno?.warpedOutTrait?.isActive?.();
+}
+
+/**
  * Applies Ares' EMP.Duration/EMP.Cap counter rules.
  *
  * EMP.Modifier only affects positive durations.  Negative durations are the
