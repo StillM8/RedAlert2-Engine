@@ -12,6 +12,7 @@ import { WeaponType } from "@/game/WeaponType";
 import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 import { VhpScan } from "@/game/type/VhpScan";
 import { Vector3 } from "@/game/math/Vector3";
+import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 interface House {
     name: string;
 }
@@ -302,8 +303,8 @@ export class TechnoRules extends ObjectRules {
     declare chronoOutSound?: string;
     declare enterTransportSound?: string;
     declare leaveTransportSound?: string;
-    constructor(e: any, t: any, i: any, r: any) {
-        super(e, t, i, r);
+    constructor(e: any, t: any, i: any, r: any, armorRegistry?: ArmorRegistry) {
+        super(e, t, i, r, armorRegistry);
     }
     parse(): void {
         super.parse();
@@ -437,7 +438,7 @@ export class TechnoRules extends ObjectRules {
         this.selfHealing = this.ini.getBool("SelfHealing");
         this.wall = this.ini.getBool("Wall");
         this.gate = this.ini.getBool("Gate");
-        this.armor = this.ini.getEnum("Armor", ArmorType, ArmorType.None, true);
+        this.armor = this.armorRegistry.resolve(this.ini.getString("Armor"), ArmorType.None);
         this.strength = Math.floor(this.ini.getNumber("Strength"));
         this.immune = this.ini.getBool("Immune");
         this.immuneToRadiation = this.ini.getBool("ImmuneToRadiation");

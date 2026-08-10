@@ -35,6 +35,14 @@ android {
             buildConfigField("String", "GAME_ENGINE", "\"yr\"")
             buildConfigField("String", "GAME_PROFILE", "\"yr\"")
         }
+        create("mo") {
+            dimension = "game"
+            applicationId = "com.ammaar.mentalomegaandroid"
+            // MO uses the Yuri's Revenge simulation family plus an explicit
+            // profile/extension runtime selected by the web engine.
+            buildConfigField("String", "GAME_ENGINE", "\"yr\"")
+            buildConfigField("String", "GAME_PROFILE", "\"mental-omega\"")
+        }
     }
 
     buildTypes {

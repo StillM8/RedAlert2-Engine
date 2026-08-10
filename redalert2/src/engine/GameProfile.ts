@@ -1,13 +1,18 @@
 import { EngineType } from "./EngineType";
 import { gamePathKey, gamePathLeaf, tryNormalizeGamePath } from "./GamePath";
 
-export type GameProfileId = "ra2" | "yr";
+export type GameProfileId = "ra2" | "yr" | "mental-omega";
+
+export type ExtensionRuntimeId = "ares";
 
 export interface GameProfileDescriptor {
     id: GameProfileId;
     engine: EngineType;
     displayName: string;
     requiredFiles: string[];
+    extensionRuntime?: ExtensionRuntimeId;
+    resourceProfile?: string;
+    presentationProfile?: string;
 }
 
 export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
@@ -23,6 +28,18 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
         displayName: "Yuri's Revenge",
         requiredFiles: ["language.mix", "multi.mix", "ra2.mix", "langmd.mix", "multimd.mix", "ra2md.mix"],
     },
+    "mental-omega": {
+        id: "mental-omega",
+        // Mental Omega is a Yuri's Revenge content profile.  Keeping the
+        // simulation engine separate from the profile prevents MO-specific
+        // branches from leaking into vanilla RA2/YR engine selection.
+        engine: EngineType.YurisRevenge,
+        displayName: "Mental Omega",
+        requiredFiles: ["language.mix", "multi.mix", "ra2.mix", "langmd.mix", "multimd.mix", "ra2md.mix"],
+        extensionRuntime: "ares",
+        resourceProfile: "mental-omega",
+        presentationProfile: "mental-omega",
+    },
 };
 
 export function getGameProfile(id: GameProfileId | undefined): GameProfileDescriptor {
@@ -30,7 +47,82 @@ export function getGameProfile(id: GameProfileId | undefined): GameProfileDescri
 }
 
 export function isGameProfileId(value: string | null | undefined): value is GameProfileId {
-    return value === "ra2" || value === "yr";
+    return value === "ra2" || value === "yr" || value === "mental-omega";
+}
+
+export interface MentalOmegaValidation {
+    valid: boolean;
+    version?: string;
+    baseGameValid: boolean;
+    extensionFilesValid: boolean;
+    modFilesValid: boolean;
+    missing: string[];
+    warnings: string[];
+}
+
+function normalizedPathKeys(paths: Iterable<string>): Set<string> {
+    const result = new Set<string>();
+    for (const path of paths) {
+        const normalized = tryNormalizeGamePath(path);
+        if (!normalized) {
+            continue;
+        }
+        result.add(gamePathKey(normalized));
+        result.add(gamePathKey(gamePathLeaf(normalized)));
+    }
+    return result;
+}
+
+/**
+ * Validate the content profile separately from vanilla profile detection.
+ *
+ * This intentionally is not used by detectGameProfile(): a plain YR folder
+ * must remain YR unless the user explicitly selects Mental Omega.  The
+ * validator only answers whether the selected folder contains the base YR
+ * resources and recognizable MO content.
+ */
+export function validateMentalOmegaInstallation(paths: Iterable<string>): MentalOmegaValidation {
+    const keys = normalizedPathKeys(paths);
+    const missing: string[] = [];
+    const warnings: string[] = [];
+    const baseGameValid = GAME_PROFILES.yr.requiredFiles.every((file) => keys.has(gamePathKey(file)));
+    if (!baseGameValid) {
+        for (const file of GAME_PROFILES.yr.requiredFiles) {
+            if (!keys.has(gamePathKey(file))) {
+                missing.push(`Yuri's Revenge base resource: ${file}`);
+            }
+        }
+    }
+
+    const hasRules = keys.has("rulesmo.ini");
+    const hasArt = keys.has("artmo.ini");
+    const extensionFilesValid = hasRules && hasArt;
+    if (!hasRules) {
+        missing.push("Mental Omega rules: rulesmo.ini");
+    }
+    if (!hasArt) {
+        missing.push("Mental Omega art: artmo.ini");
+    }
+
+    const hasMoArchive = [...keys].some((key) => /^expandmo\d{2}\.mix$/i.test(key));
+    const hasMoLooseContent = [...keys].some((key) =>
+        key === "uimo.ini" || /(?:^|\/)mapsmo\//i.test(key) || /(?:^|\/)missionsmo\//i.test(key));
+    const modFilesValid = hasMoArchive || hasMoLooseContent;
+    if (!modFilesValid) {
+        missing.push("Mental Omega content archive or MapsMO/MissionsMO files");
+    }
+    if (!keys.has("aimo.ini")) {
+        warnings.push("aimo.ini was not found; Mental Omega AI may be unavailable for this installation.");
+    }
+
+    return {
+        valid: baseGameValid && extensionFilesValid && modFilesValid,
+        baseGameValid,
+        extensionFilesValid,
+        modFilesValid,
+        missing,
+        warnings,
+    };
 }
 
 /**

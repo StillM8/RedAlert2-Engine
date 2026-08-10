@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { detectGameProfile } from '@/engine/GameProfile';
+import { detectGameProfile, getGameProfile, validateMentalOmegaInstallation } from '@/engine/GameProfile';
 import { gamePathKey, normalizeGamePath } from '@/engine/GamePath';
 
 describe('GameProfile detection', () => {
@@ -48,6 +48,55 @@ describe('GameProfile detection', () => {
             'language.mix', 'multi.mix', 'ra2.mix',
             'langmd.mix', 'multimd.mix',
         ])).toBe('ra2');
+    });
+
+    test('keeps Mental Omega explicit and does not auto-detect it as a vanilla profile', () => {
+        const paths = [
+            'language.mix', 'multi.mix', 'ra2.mix',
+            'langmd.mix', 'multimd.mix', 'ra2md.mix',
+            'rulesmo.ini', 'artmo.ini', 'expandmo95.mix',
+        ];
+        expect(detectGameProfile(paths)).toBe('yr');
+        expect(getGameProfile('mental-omega').engine).toBe(getGameProfile('yr').engine);
+        expect(getGameProfile('mental-omega').extensionRuntime).toBe('ares');
+    });
+
+    test('validates Mental Omega only when its own content signatures are present', () => {
+        const yrOnly = validateMentalOmegaInstallation([
+            'language.mix', 'multi.mix', 'ra2.mix',
+            'langmd.mix', 'multimd.mix', 'ra2md.mix',
+        ]);
+        expect(yrOnly.valid).toBe(false);
+        expect(yrOnly.baseGameValid).toBe(true);
+        expect(yrOnly.missing).toContain('Mental Omega rules: rulesmo.ini');
+
+        const mo = validateMentalOmegaInstallation([
+            'Install/MIX/LANGUAGE.MIX',
+            'Install/MIX/MULTI.MIX',
+            'Install/MIX/RA2.MIX',
+            'Install/MIX/LANGMD.MIX',
+            'Install/MIX/MULTIMD.MIX',
+            'Install/MIX/RA2MD.MIX',
+            'Install/RULESMO.INI',
+            'Install/ARTMO.INI',
+            'Install/EXPANDMO95.MIX',
+        ]);
+        expect(mo.valid).toBe(true);
+        expect(mo.baseGameValid).toBe(true);
+        expect(mo.extensionFilesValid).toBe(true);
+        expect(mo.modFilesValid).toBe(true);
+        expect(mo.warnings).toHaveLength(1);
+    });
+
+    test('rejects unsafe paths during Mental Omega validation', () => {
+        const result = validateMentalOmegaInstallation([
+            '../rulesmo.ini',
+            '/absolute/artmo.ini',
+            'language.mix', 'multi.mix', 'ra2.mix',
+            'langmd.mix', 'multimd.mix', 'ra2md.mix',
+        ]);
+        expect(result.valid).toBe(false);
+        expect(result.extensionFilesValid).toBe(false);
     });
 });
 

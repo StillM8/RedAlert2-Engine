@@ -1,7 +1,9 @@
 import { InfDeathType } from '../gameobject/infantry/InfDeathType';
+import { ArmorRegistry, parseAresWarheadVerses, type ArmorVersusBehavior } from '@/extensions/ares/AresArmor';
 export class WarheadRules {
     private rules: any;
     private verses: Map<number, number>;
+    public armorVersusBehavior: Map<number, ArmorVersusBehavior>;
     public affectsAllies!: boolean;
     public airstrike!: boolean;
     public psychedelic!: boolean;
@@ -34,10 +36,14 @@ export class WarheadRules {
     public wallAbsoluteDestroyer!: boolean;
     public wall!: boolean;
     public wood!: boolean;
-    constructor(rules: any) {
+    constructor(rules: any, armorRegistry: ArmorRegistry = new ArmorRegistry()) {
         this.rules = rules;
         this.verses = new Map();
+        this.armorVersusBehavior = new Map();
         this.parse();
+        const parsed = parseAresWarheadVerses(rules, armorRegistry);
+        this.verses = parsed.verses;
+        this.armorVersusBehavior = parsed.behavior;
     }
     get name(): string {
         return this.rules.name;
@@ -72,8 +78,6 @@ export class WarheadRules {
         this.rocker = this.rules.getBool("Rocker");
         this.sonic = this.rules.getBool("Sonic");
         this.temporal = this.rules.getBool("Temporal");
-        const verses = this.rules.getFixedArray("Verses");
-        verses.forEach((value: number, index: number) => this.verses.set(index, value));
         this.wallAbsoluteDestroyer = this.rules.getBool("WallAbsoluteDestroyer");
         this.wall = this.rules.getBool("Wall");
         this.wood = this.rules.getBool("Wood");

@@ -1,10 +1,12 @@
 import { ObjectType } from "@/engine/type/ObjectType";
+import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 export class ObjectRules {
     static readonly IMAGE_NONE = "none";
     public type: ObjectType;
     protected ini: any;
     public index: number;
     protected generalRules: any;
+    protected armorRegistry: ArmorRegistry;
     private alphaImage?: string;
     private alternateArcticArt: boolean = false;
     private crushable: boolean = false;
@@ -20,11 +22,12 @@ export class ObjectRules {
     static iniRotToDegsPerTick(rotation: number): number {
         return (rotation / 256) * 360;
     }
-    constructor(type: ObjectType, ini: any, index: number = -1, generalRules?: any) {
+    constructor(type: ObjectType, ini: any, index: number = -1, generalRules?: any, armorRegistry: ArmorRegistry = new ArmorRegistry()) {
         this.type = type;
         this.ini = ini;
         this.index = index;
         this.generalRules = generalRules || {};
+        this.armorRegistry = armorRegistry;
         this.parse();
     }
     protected parse(): void {

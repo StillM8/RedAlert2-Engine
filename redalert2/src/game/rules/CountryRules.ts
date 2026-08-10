@@ -1,10 +1,5 @@
 import { SideType } from "@/game/SideType";
-const sideMap = new Map<string, SideType>()
-    .set("GDI", SideType.GDI)
-    .set("Nod", SideType.Nod)
-    .set("Civilian", SideType.Civilian)
-    .set("Mutant", SideType.Mutant)
-    .set("ThirdSide", SideType.Yuri);
+import { AresSideRegistry } from "@/extensions/ares/AresSides";
 const tooltipMap = new Map<string, string>([
     ["Americans", "STT:PlayerSideAmerica"],
     ["Alliance", "STT:PlayerSideKorea"],
@@ -22,6 +17,9 @@ export class CountryRules {
     public uiName!: string;
     private uiTooltip: string;
     public side!: SideType;
+    public sideId!: string;
+    public listIndex = 100;
+    public randomSelectionWeight = 1;
     public multiplay: boolean;
     private multiplayPassive: boolean;
     private veteranAircraft: string[];
@@ -30,7 +28,7 @@ export class CountryRules {
     constructor(id: string) {
         this.id = id;
     }
-    readIni(ini: any): CountryRules {
+    readIni(ini: any, sideRegistry: AresSideRegistry = AresSideRegistry.fromIni({ getSection: () => undefined })): CountryRules {
         this.name = ini.name;
         this.uiName = ini.getString("UIName");
         this.uiTooltip = ini.getString("UITooltip") || tooltipMap.get(this.name);
@@ -38,12 +36,15 @@ export class CountryRules {
         if (!sideStr) {
             throw new Error(`Missing Side for country "${this.name}"`);
         }
-        const side = sideMap.get(sideStr);
-        if (side === undefined) {
+        const sideDescriptor = sideRegistry.resolve(sideStr);
+        if (!sideDescriptor) {
             throw new Error(`Unknown side "${sideStr}" for country "${this.name}"`);
         }
-        this.side = side;
+        this.sideId = sideDescriptor.id;
+        this.side = sideRegistry.toLegacySide(sideDescriptor.id);
         this.multiplay = ini.getBool("Multiplay");
+        this.listIndex = ini.getNumber("ListIndex", 100);
+        this.randomSelectionWeight = ini.getNumber("RandomSelectionWeight", 1);
         this.multiplayPassive = ini.getBool("MultiplayPassive");
         this.veteranAircraft = ini.getArray("VeteranAircraft");
         this.veteranInfantry = ini.getArray("VeteranInfantry");

@@ -2,6 +2,7 @@ import { LandType } from '@/game/type/LandType';
 import { ObjectRules } from '@/game/rules/ObjectRules';
 import { ArmorType } from '@/game/type/ArmorType';
 import { ObjectType } from '@/engine/type/ObjectType';
+import { ArmorRegistry } from '@/extensions/ares/AresArmor';
 export class OverlayRules extends ObjectRules {
     public armor!: ArmorType;
     public crate!: boolean;
@@ -15,13 +16,13 @@ export class OverlayRules extends ObjectRules {
     public tiberium!: boolean;
     public wall!: boolean;
     public radarInvisible!: boolean;
-    constructor(type: ObjectType, ini: any, index: number = -1, generalRules?: any) {
-        super(type, ini, index, generalRules);
+    constructor(type: ObjectType, ini: any, index: number = -1, generalRules?: any, armorRegistry?: ArmorRegistry) {
+        super(type, ini, index, generalRules, armorRegistry);
         this.parse();
     }
     protected parse(): void {
         super.parse();
-        this.armor = this.ini.getEnum("Armor", ArmorType, ArmorType.None, true);
+        this.armor = this.armorRegistry.resolve(this.ini.getString("Armor"), ArmorType.None);
         this.crate = this.ini.getBool("Crate");
         const isARock = this.ini.getBool("IsARock");
         this.isARock = isARock;

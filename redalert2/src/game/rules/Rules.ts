@@ -22,6 +22,8 @@ import { PowerupsRules } from "@/game/rules/PowerupsRules";
 import { mpAllowedColors } from "@/game/rules/mpAllowedColors";
 import { isNotNullOrUndefined } from "@/util/typeGuard";
 import { Weapon } from "@/game/Weapon";
+import { ArmorRegistry } from "@/extensions/ares/AresArmor";
+import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
 interface IniFile {
     getSection(name: string): IniSection | undefined;
     getOrCreateSection(name: string): IniSection;
@@ -87,6 +89,9 @@ export class Rules {
     public audioVisual = new AudioVisualRules();
     public combatDamage = new CombatDamageRules();
     public radiation = new RadiationRules();
+    public readonly armorRegistry: ArmorRegistry;
+    public readonly sideRegistry: AresSideRegistry;
+    public readonly countryRegistry: AresCountryRegistry;
     private landRules = new Map<LandType, LandRules>();
     private tiberiumRules = new Map<string, TiberiumRules>();
     private superWeaponRules = new Map<string, SuperWeaponRules>();
@@ -95,6 +100,9 @@ export class Rules {
     constructor(ini: IniFile, logger?: Logger) {
         this.ini = ini;
         this.logger = logger;
+        this.armorRegistry = ArmorRegistry.fromIni(ini);
+        this.sideRegistry = AresSideRegistry.fromIni(ini);
+        this.countryRegistry = AresCountryRegistry.fromIni(ini, this.sideRegistry);
         this.init();
     }
     hasObject(name: string, type: ObjectType): boolean {
@@ -160,7 +168,7 @@ export class Rules {
         if (!rules) {
             const section = this.ini.getSection(name);
             if (section) {
-                rules = new WarheadRules(section);
+                rules = new WarheadRules(section, this.armorRegistry);
                 this.warheadRules.set(name.toLowerCase(), rules);
             }
         }
@@ -418,7 +426,7 @@ export class Rules {
         typeMap.forEach((typeName, id) => {
             const section = this.ini.getSection(typeName);
             if (section) {
-                const rules = new ObjectRulesFactory().create(objectType, section, this.general, id as any);
+                const rules = new ObjectRulesFactory().create(objectType, section, this.general, id as any, this.armorRegistry);
                 rulesMap.set(typeName, rules as any);
             }
             else {
@@ -455,7 +463,7 @@ export class Rules {
         if (!section.has("Insignificant")) {
             section.set("Insignificant", "yes");
         }
-        const rules = new ObjectRulesFactory().create(type, section, this.general, entry[0] as any);
+        const rules = new ObjectRulesFactory().create(type, section, this.general, entry[0] as any, this.armorRegistry);
         this.allObjectRules.get(type)?.set(name, rules as any);
         return true;
     }
@@ -466,7 +474,7 @@ export class Rules {
                 throw new Error("Missing ini section for country " + name);
             }
             const rules = new CountryRules(id as any);
-            rules.readIni(section as any);
+            rules.readIni(section as any, this.sideRegistry);
             this.countryRules.set(name, rules);
         });
     }
@@ -474,7 +482,7 @@ export class Rules {
         this.warheadTypes.forEach(name => {
             const section = this.ini.getSection(name);
             if (section) {
-                const rules = new WarheadRules(section);
+                const rules = new WarheadRules(section, this.armorRegistry);
                 this.warheadRules.set(name.toLowerCase(), rules);
             }
             else {

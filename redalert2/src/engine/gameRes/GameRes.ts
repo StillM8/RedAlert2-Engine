@@ -35,6 +35,7 @@ import type { Viewport } from '../../gui/Viewport';
 import type { Config } from '../../Config';
 import { RealFileSystemDir } from '../../data/vfs/RealFileSystemDir';
 import { GAME_PROFILES, type GameProfileId } from '../GameProfile';
+import { ResourceLayer } from '../../data/vfs/ResourceLayer';
 interface FsAccessLibrary {
     support: {
         adapter: {
@@ -354,8 +355,29 @@ export class GameRes {
     }
     private async getMissingGameFiles(rfsDir: RealFileSystemDir, knownEntries?: string[]): Promise<string[]> {
         const entries = knownEntries ?? await rfsDir.listEntries();
-        const lowerEntries = new Set(entries.map((entry) => entry.toLowerCase()));
-        return this.getRequiredGameFiles().filter((fileName) => !lowerEntries.has(fileName));
+        let entriesToCheck = entries;
+        if (this.profile === "mental-omega") {
+            const recursiveEntries: string[] = [];
+            for await (const entry of rfsDir.getEntriesRecursive()) {
+                recursiveEntries.push(entry);
+            }
+            entriesToCheck = recursiveEntries;
+        }
+        const lowerEntries = new Set(entriesToCheck.map((entry) => entry.toLowerCase()));
+        const leafEntries = new Set(entriesToCheck.map((entry) => entry.split(/[\\/]/).pop()!.toLowerCase()));
+        const missing = this.getRequiredGameFiles().filter((fileName) =>
+            !lowerEntries.has(fileName.toLowerCase()) && !leafEntries.has(fileName.toLowerCase()));
+        if (this.profile === "mental-omega") {
+            if (!leafEntries.has("rulesmo.ini")) missing.push("rulesmo.ini");
+            if (!leafEntries.has("artmo.ini")) missing.push("artmo.ini");
+            const hasMoArchive = [...leafEntries].some((entry) => /^expandmo\d{2}\.mix$/i.test(entry));
+            const hasMoLooseContent = [...lowerEntries].some((entry) =>
+                /(?:^|\/)mapsmo\//i.test(entry) || /(?:^|\/)missionsmo\//i.test(entry) || entry.endsWith("/uimo.ini"));
+            if (!hasMoArchive && !hasMoLooseContent) {
+                missing.push("expandmo##.mix or MapsMO/MissionsMO content");
+            }
+        }
+        return missing;
     }
     private async migrateStorageToNative(nativeFsHandle: FileSystemDirectoryHandle, onProgress: LoadProgressCallback): Promise<boolean> {
         const migrationPendingKey = "_storage_migration_pending";
@@ -522,7 +544,7 @@ export class GameRes {
         await vfs.loadStandaloneFiles({
             exclude: ["keyboard.ini", "theme.ini"].map((fileName) => Engine.getFileNameVariant(fileName)),
         });
-        await vfs.loadExtraMixFiles(Engine.getActiveEngine());
+        await vfs.loadExtraMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile]);
         await this.loadCustomMix(vfs);
         await this.loadMixes(config, cdnLoader, vfs, onProgress);
         await Engine.loadMapList();
@@ -563,7 +585,10 @@ export class GameRes {
         const resourceLoader = new ResourceLoader(this.appResPath);
         const mixDataBuffer = await resourceLoader.loadBinary(`ra2cd.mix?v=${this.appVersion}`);
         const mixFile = new MixFile(new DataStream(mixDataBuffer));
-        vfs.addArchive(mixFile, "ra2cd.mix");
+        vfs.addArchive(mixFile, "ra2cd.mix", {
+            layer: ResourceLayer.ExtensionRuntime,
+            source: "engine",
+        });
     }
     private async loadMixes(config: GameResConfig, cdnLoader: CdnResourceLoader | undefined, vfs: VirtualFileSystem, onProgress: LoadProgressCallback): Promise<void> {
         if (config.isCdn() && cdnLoader) {

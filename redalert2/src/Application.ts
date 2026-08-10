@@ -31,7 +31,7 @@ import type { TestToolRuntimeContext } from './tools/TestToolSupport';
 import { attachPerformanceOptions, installPerformanceDebugApi } from './performance/PerformanceRuntime';
 import { inGameViewportActive } from './gui/inGameViewport';
 import { getNativeShellEngine, getNativeShellProfile, isNativeShell } from './shell/nativeShell';
-import type { GameProfileId } from './engine/GameProfile';
+import { getGameProfile, type GameProfileId } from './engine/GameProfile';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -630,6 +630,14 @@ export class Application {
             this.loadGameStringsFromVfs();
             try {
                 const vfsAny: any = (Engine as any).vfs;
+                const debugRoot = ((window as any).__ra2debug ??= {});
+                debugRoot.profile = getGameProfile(profile);
+                debugRoot.vfs = {
+                    explain: (filename: string) => vfsAny?.explain?.(filename),
+                    resolve: (filename: string) => vfsAny?.resolve?.(filename),
+                    listArchives: () => vfsAny?.listArchives?.() ?? [],
+                    listFiles: () => vfsAny?.listFiles?.() ?? [],
+                };
                 if (vfsAny?.debugListFileOwners) {
                     vfsAny.debugListFileOwners('rules.ini');
                     vfsAny.debugListFileOwners('art.ini');
