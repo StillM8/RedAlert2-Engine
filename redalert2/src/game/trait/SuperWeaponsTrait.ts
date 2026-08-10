@@ -17,6 +17,7 @@ import { PsychicRevealEffect } from "@/game/superweapon/PsychicRevealEffect";
 import { ForceShieldEffect } from "@/game/superweapon/ForceShieldEffect";
 import { SpyPlaneEffect } from "@/game/superweapon/SpyPlaneEffect";
 import { GenericWarheadEffect } from "@/game/superweapon/GenericWarheadEffect";
+import { UnitDeliveryEffect } from "@/game/superweapon/UnitDeliveryEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 export class SuperWeaponsTrait {
@@ -122,6 +123,23 @@ export class SuperWeaponsTrait {
                         warhead,
                         e.ares?.swAffectsHouse,
                         e.ares?.swAffectsTarget,
+                    ));
+                }
+            }
+            if (extensionType === "UnitDelivery") {
+                const deliverTypes = e.ares?.deliverTypes ?? [];
+                if (!deliverTypes.length) {
+                    console.warn(`UnitDelivery superweapon "${e.name}" has no Deliver.Types; skipped.`);
+                }
+                else {
+                    t.push(new UnitDeliveryEffect(
+                        eventType,
+                        i,
+                        s,
+                        deliverTypes,
+                        e.ares?.swDeferment ?? 20,
+                        e.ares?.deliverOwner,
+                        e.ares?.deliverBaseNormal ?? true,
                     ));
                 }
             }

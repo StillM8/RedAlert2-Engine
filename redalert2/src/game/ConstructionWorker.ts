@@ -66,6 +66,11 @@ interface Game {
         } | null;
     };
 }
+
+/** Runtime building base-space override used by Ares UnitDelivery. */
+export function getEffectiveBaseNormal(building: { baseNormalOverride?: boolean; rules: { baseNormal: boolean } }): boolean {
+    return building.baseNormalOverride ?? building.rules.baseNormal;
+}
 interface GameMap {
     tiles: {
         getByMapCoords(x: number, y: number): Tile | null;
@@ -157,7 +162,7 @@ export class ConstructionWorker {
                 : []),
         ];
         for (const building of buildings) {
-            if (building.rules.baseNormal) {
+            if (getEffectiveBaseNormal(building)) {
                 adjacentRects.push(this.getAdjacentRect(building.tile, building.art.foundation, adjacentRange));
             }
         }
