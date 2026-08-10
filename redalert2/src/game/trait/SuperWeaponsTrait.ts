@@ -242,7 +242,7 @@ export class SuperWeaponsTrait {
                     if (!a) {
                         throw new Error("Missing tile2 action param");
                     }
-                    t.push(new ChronoSphereEffect(o, i, s, a));
+                    t.push(new ChronoSphereEffect(o, i, s, a, e.ares?.swRange));
                     break;
                 case SuperWeaponType.PsychicDominator:
                     t.push(new PsychicDominatorEffect(o, i, s, e.ares?.swDeferment, e.ares?.swRange));

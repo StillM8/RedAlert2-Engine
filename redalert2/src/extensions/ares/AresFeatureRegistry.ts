@@ -165,7 +165,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresSuperWeaponRange.test.ts"],
-        notes: "A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range is consumed by Psychic Dominator, Genetic Mutator, Force Shield, and Psychic Reveal; Lightning Storm, ChronoSphere, and complete all-type coverage remain open.",
+        notes: "A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range is consumed by Psychic Dominator, Genetic Mutator, Force Shield, Psychic Reveal, and ChronoSphere; Lightning Storm and complete all-type coverage remain open.",
     },
     {
         id: "ares.superweapon-unit-delivery",

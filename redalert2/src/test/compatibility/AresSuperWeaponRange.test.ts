@@ -9,6 +9,7 @@ import {
 } from "@/game/superweapon/AresSuperWeaponRange";
 import { MapShroud, ShroudType } from "@/game/map/MapShroud";
 import { TerrainType } from "@/engine/type/TerrainType";
+import { ChronoSphereEffect } from "@/game/superweapon/ChronoSphereEffect";
 
 describe("Ares superweapon range", () => {
     test("parses SW.Range and reports the documented capability", () => {
@@ -86,6 +87,62 @@ SW.Range=3,3
         expect(shroud.getShroudTypeByTileCoords(5, 4, 0)).toBe(ShroudType.Explored);
         expect(shroud.getShroudTypeByTileCoords(1, 4, 0)).toBe(ShroudType.Unexplored);
         expect(shroud.getShroudTypeByTileCoords(4, 2, 0)).toBe(ShroudType.Unexplored);
+    });
+
+    test("uses ChronoSphere SW.Range and preserves source-to-destination offsets", () => {
+        const sourceCenter = { rx: 4, ry: 4, z: 0 };
+        const destinationCenter = { rx: 10, ry: 10, z: 0 };
+        const sourceTiles = new Map<string, any>();
+        const getTile = (rx: number, ry: number) => {
+            const key = `${rx},${ry}`;
+            let tile = sourceTiles.get(key);
+            if (!tile) {
+                tile = { rx, ry, z: 0, onBridgeLandType: false };
+                sourceTiles.set(key, tile);
+            }
+            return tile;
+        };
+        const inRange = {
+            tile: getTile(5, 4),
+            isUnit: () => true,
+            isInfantry: () => false,
+            isDisposed: false,
+            onBridge: false,
+            tileElevation: 0,
+            rules: { organic: false, teleporter: true },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isActive: () => false, setActive: (active: boolean) => { inRange.warped = active; } },
+            warped: false,
+        } as any;
+        const outOfRange = {
+            tile: getTile(8, 4),
+            isUnit: () => true,
+            isInfantry: () => false,
+            isDisposed: false,
+            onBridge: false,
+            tileElevation: 0,
+            rules: { organic: false, teleporter: true },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isActive: () => false, setActive: (active: boolean) => { outOfRange.warped = active; } },
+            warped: false,
+        } as any;
+        const game = {
+            rules: { general: { chronoDelay: 0 } },
+            map: {
+                tiles: { getByMapCoords: getTile },
+                tileOccupation: { calculateTilesForGameObject: (tile: any) => [tile] },
+                getGroundObjectsOnTile: () => [],
+            },
+            getWorld: () => ({ getAllObjects: () => [inRange, outOfRange] }),
+            destroyObject: () => { throw new Error("range test destroyed an object"); },
+        } as any;
+
+        const effect = new ChronoSphereEffect("ChronoSphere", {} as any, sourceCenter, destinationCenter, [4, 2]);
+        effect.onStart(game);
+
+        expect(inRange.warped).toBe(true);
+        expect(outOfRange.warped).toBe(false);
+        expect((effect as any).objectsToTeleport[0].destTile).toMatchObject({ rx: 11, ry: 10 });
     });
 
 });
