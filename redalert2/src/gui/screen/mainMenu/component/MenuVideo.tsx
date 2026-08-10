@@ -1,5 +1,4 @@
 import React from "react";
-import { CompositeDisposable } from "../../../../util/disposable/CompositeDisposable";
 const mimeTypeMap = new Map([
     ["mp4", "video/mp4"],
     ["webm", "video/webm"],
@@ -11,12 +10,7 @@ interface MenuVideoState {
 }
 export class MenuVideo extends React.Component<MenuVideoProps, MenuVideoState> {
     private el: HTMLDivElement | null = null;
-    private disposables: CompositeDisposable = new CompositeDisposable();
-    private disposed: boolean = false;
-    private timeoutId?: number;
-    constructor(props: MenuVideoProps) {
-        super(props);
-    }
+    private videoUrl?: string;
     render() {
         const src = this.props.src;
         let url: string;
@@ -26,11 +20,11 @@ export class MenuVideo extends React.Component<MenuVideoProps, MenuVideoState> {
             mimeType = mimeTypeMap.get(src.split("?")[0].split(".").pop() ?? "") ?? "video/webm";
         }
         else if (src) {
-            url = URL.createObjectURL(src);
-            mimeType = src.type;
-            this.disposables.add(() => {
-                URL.revokeObjectURL(url);
-            });
+            // The object URL is created once in componentDidMount/update. A
+            // URL created during render leaks on every React render and can
+            // leave the WebView with a stale media source.
+            url = this.videoUrl ?? "";
+            mimeType = src.type || mimeTypeMap.get(src.name.split(".").pop()?.toLowerCase() ?? "") || "video/webm";
         }
         else {
             url = "";
@@ -41,7 +35,7 @@ export class MenuVideo extends React.Component<MenuVideoProps, MenuVideoState> {
             ref: (ref) => (this.el = ref as HTMLDivElement),
             dangerouslySetInnerHTML: {
                 __html: `
-          <video style="outline: none;" loop playsinline muted autoplay>
+          <video style="outline: none; width: 100%; height: 100%; object-fit: cover;" loop playsinline muted autoplay preload="auto">
               <source src="${url}" type="${mimeType}" />
           </video>
         `,
@@ -49,91 +43,83 @@ export class MenuVideo extends React.Component<MenuVideoProps, MenuVideoState> {
         });
     }
     componentDidMount() {
+        this.loadVideoSource();
+    }
+    componentDidUpdate(prevProps: MenuVideoProps) {
+        if (prevProps.src !== this.props.src) {
+            this.loadVideoSource();
+        }
+    }
+    private loadVideoSource(): void {
         const src = this.props.src;
         const video = this.el?.querySelector("video");
-        const logo = this.el?.querySelector("div");
-        if (!src || !video || !logo) {
-            console.log('[MenuVideo] No video source provided or elements not found');
+        const source = video?.querySelector("source");
+        if (!video || !source) {
+            console.warn('[MenuVideo] Video element was not created');
             return;
         }
-        if (src instanceof File && window.MediaSource) {
-            const errorHandler = async () => {
-                console.log('[MenuVideo] Video source error, trying MediaSource fallback');
-                this.applyMediaSourceFallback(video, await src.arrayBuffer());
-            };
-            const source = video.querySelector("source");
-            if (source) {
-                source.addEventListener("error", errorHandler, { once: true });
-                video.addEventListener("loadeddata", () => {
-                    source.removeEventListener("error", errorHandler);
-                    console.log('[MenuVideo] Video loaded successfully');
-                });
-            }
+        if (this.videoUrl) {
+            URL.revokeObjectURL(this.videoUrl);
+            this.videoUrl = undefined;
         }
+        if (!src) {
+            source.removeAttribute("src");
+            video.removeAttribute("src");
+            video.load();
+            console.warn('[MenuVideo] No menu video source was provided');
+            return;
+        }
+        const url = typeof src === "string" ? src : URL.createObjectURL(src);
+        this.videoUrl = typeof src === "string" ? undefined : url;
+        const extension = typeof src === "string"
+            ? src.split("?")[0].split(".").pop()?.toLowerCase()
+            : src.name.split(".").pop()?.toLowerCase();
+        const mimeType = (typeof src === "string" ? undefined : src.type) || mimeTypeMap.get(extension ?? "") || "video/webm";
+        source.src = url;
+        source.type = mimeType;
+        video.muted = true;
+        video.defaultMuted = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.load();
         video.addEventListener("loadeddata", () => {
-            logo.style.opacity = "";
-            console.log('[MenuVideo] Video data loaded, showing logo');
-        });
-        video.addEventListener("error", (e) => {
-            console.error('[MenuVideo] Video error:', e);
-        });
-    }
-    private async applyMediaSourceFallback(video: HTMLVideoElement, buffer: ArrayBuffer): Promise<void> {
-        if (!this.disposed) {
-            const mediaSource = new MediaSource();
-            mediaSource.addEventListener("sourceopen", () => {
-                try {
-                    const sourceBuffer = mediaSource.addSourceBuffer('video/webm; codecs="vp8"');
-                    sourceBuffer.mode = "sequence";
-                    sourceBuffer.appendBuffer(buffer);
-                    this.timeoutId = setTimeout(() => this.processNextSegment(sourceBuffer, video, buffer), 1000);
-                    this.disposables.add(() => {
-                        if (this.timeoutId) {
-                            clearTimeout(this.timeoutId);
-                        }
-                    });
-                }
-                catch (error) {
-                    if ((error as Error).name !== "NotSupportedError") {
-                        console.error(error);
-                    }
-                    return;
+            console.log(`[MenuVideo] Video loaded successfully (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(2)}s)`);
+        }, { once: true });
+        video.addEventListener("error", () => {
+            const mediaError = video.error;
+            console.error('[MenuVideo] Video error:', {
+                code: mediaError?.code,
+                message: mediaError?.message,
+                networkState: video.networkState,
+                readyState: video.readyState,
+                source: url,
+                mimeType,
+            });
+        }, { once: true });
+        let interactionRetryRegistered = false;
+        const playWhenReady = () => {
+            void video.play().catch((error) => {
+                if (!interactionRetryRegistered) {
+                    interactionRetryRegistered = true;
+                    console.warn('[MenuVideo] Autoplay was rejected; retrying after the first interaction', error);
+                    const retry = () => {
+                        void video.play().catch((retryError) => console.warn('[MenuVideo] Menu video play failed', retryError));
+                    };
+                    document.addEventListener("pointerdown", retry, { once: true });
                 }
             });
-            const objectUrl = (video.src = URL.createObjectURL(mediaSource));
-            this.disposables.add(() => {
-                URL.revokeObjectURL(objectUrl);
-            });
-        }
-    }
-    private processNextSegment(sourceBuffer: SourceBuffer, video: HTMLVideoElement, buffer: ArrayBuffer): void {
-        try {
-            if (this.disposed || !sourceBuffer || sourceBuffer.updating) {
-                return;
-            }
-            if (!sourceBuffer.buffered) {
-                console.warn('[MenuVideo] SourceBuffer has been removed from MediaSource');
-                return;
-            }
-            if (sourceBuffer.buffered.length > 0) {
-                if (sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1) - video.currentTime < 10) {
-                    sourceBuffer.appendBuffer(buffer);
-                }
-                if (video.paused) {
-                    video.play()?.catch((error) => console.error(error));
-                }
-            }
-        }
-        catch (error) {
-            console.error('[MenuVideo] Error in processNextSegment:', error);
-            return;
-        }
-        if (!this.disposed) {
-            this.timeoutId = setTimeout(() => this.processNextSegment(sourceBuffer, video, buffer), 1000);
-        }
+        };
+        // Setting the source after the element was created can make an
+        // immediate play() call race media preparation on Android WebView.
+        // Retry once the first frame is available so muted autoplay has a
+        // chance to start without requiring a menu tap.
+        video.addEventListener("canplay", playWhenReady, { once: true });
+        playWhenReady();
     }
     componentWillUnmount() {
-        this.disposables.dispose();
-        this.disposed = true;
+        if (this.videoUrl) {
+            URL.revokeObjectURL(this.videoUrl);
+            this.videoUrl = undefined;
+        }
     }
 }

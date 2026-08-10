@@ -9,6 +9,7 @@ android/app/build/
 android/.gradle/
 android/local.properties
 redalert2/public/local-pack/
+redalert2/public/ffmpeg/
 # Retail English string tables, extracted from your language(md).mix at import time.
 redalert2/public/general.csf
 redalert2/public/generalmd.csf

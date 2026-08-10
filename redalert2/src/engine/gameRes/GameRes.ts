@@ -171,6 +171,28 @@ export class GameRes {
             }
         }
         if (currentConfig) {
+            const rfsRootDir = rfs?.getRootDirectory();
+            if (rfsRootDir && !currentConfig.isCdn()) {
+                // Older native builds could leave language.mix imported while
+                // failing to convert its Bink menu movie. Repair that state
+                // before the first menu is constructed; failures remain
+                // non-fatal so the playable game files are still usable.
+                try {
+                    const repaired = await new GameResImporter(this.appConfig, this.strings, this.sentry)
+                        .ensureMenuVideo(rfsRootDir, (text) => {
+                            if (text) {
+                                this.splashScreen.setLoadingText(text);
+                                console.info(text);
+                            }
+                        });
+                    if (repaired) {
+                        console.info('[GameRes] Menu video is ready.');
+                    }
+                }
+                catch (e) {
+                    console.warn('[GameRes] Menu video repair failed; continuing without video.', e);
+                }
+            }
             const splashBg = await this.loadSplashScreenBackground(rfs?.getRootDirectory(), modRfsDir, currentConfig);
             if (typeof splashBg === 'string') {
                 this.splashScreen.setBackgroundImage(splashBg);

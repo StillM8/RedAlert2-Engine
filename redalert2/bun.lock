@@ -8,6 +8,7 @@
         "7z-wasm": "^1.1.0",
         "@brakebein/threeoctree": "^2.0.1",
         "@datastructures-js/priority-queue": "^6.3.5",
+        "@ffmpeg/core": "^0.12.10",
         "@ffmpeg/ffmpeg": "^0.12.15",
         "@puzzl/core": "^1.0.0-beta.1",
         "@ra2web/pcxfile": "^1.0.1",
@@ -49,6 +50,8 @@
     "@datastructures-js/heap": ["@datastructures-js/heap@4.3.7", "https://registry.npmmirror.com/@datastructures-js/heap/-/heap-4.3.7.tgz", {}, "sha512-Dx4un7Uj0dVxkfoq4RkpzsY2OrvNJgQYZ3n3UlGdl88RxxdHd7oTi21/l3zoxUUe0sXFuNUrfmWqlHzqnoN6Ug=="],
 
     "@datastructures-js/priority-queue": ["@datastructures-js/priority-queue@6.3.5", "https://registry.npmmirror.com/@datastructures-js/priority-queue/-/priority-queue-6.3.5.tgz", { "dependencies": { "@datastructures-js/heap": "^4.3.7" } }, "sha512-NmdmvLnkUyG67W6Iy8tP+865ILq5VDyZh90c8lHMOkYYydUNzOV0QNPCRAuj4AoHSm/V2DeuYvDKnvALaCwLvA=="],
+
+    "@ffmpeg/core": ["@ffmpeg/core@0.12.10", "https://registry.npmmirror.com/@ffmpeg/core/-/core-0.12.10.tgz", { "engines": { "node": ">=16.x" } }, "sha512-dzNplnn2Nxle2c2i2rrDhqcB19q9cglCkWnoMTDN9Q9l3PvdjZWd1HfSPjCNWc/p8Q3CT+Es9fWOR0UhAeYQZA=="],
 
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "https://registry.npmmirror.com/@dimforge/rapier3d-compat/-/rapier3d-compat-0.12.0.tgz", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
 

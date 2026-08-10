@@ -351,7 +351,10 @@ export class GameResImporter {
         }
         else if (mixFileNameLower.match(/language\.mix$/)) {
             onProgress(S.get("ts:import_importing_long", mixFileNameLower));
-            await this.importVideo(mixVirtualFile, targetRfsRootDir);
+            onProgress(S.get("ts:import_converting_video"));
+            await this.importVideo(mixVirtualFile, targetRfsRootDir, (progress) => {
+                onProgress(S.get("ts:import_converting_video_pg", (progress * 100).toFixed(0)));
+            });
         }
         else if (mixFileNameLower.match(/ra2\.mix$/)) {
             const splashImageBlob = await this.importSplashImage(mixVirtualFile, targetRfsRootDir);
@@ -421,7 +424,40 @@ export class GameResImporter {
             }
         }
     }
-    private async importVideo(languageMixVirtualFile: VirtualFile, targetRfsRootDir: RealFileSystemDir): Promise<void> {
+    /**
+     * Convert the retail Bink menu movie when it is not already present in
+     * origin-private storage. This is also used as a migration for folders
+     * imported by older Android builds, which copied language.mix but did not
+     * finish the conversion step.
+     */
+    async ensureMenuVideo(targetRfsRootDir: RealFileSystemDir, onProgress?: (text?: string) => void): Promise<boolean> {
+        const webmFileName = Engine.rfsSettings.menuVideoFileName;
+        if (await targetRfsRootDir.containsEntry(webmFileName)) {
+            return true;
+        }
+        let languageMixVirtualFile: VirtualFile;
+        try {
+            languageMixVirtualFile = await targetRfsRootDir.openFile("language.mix");
+        }
+        catch (e) {
+            if (e instanceof VfsFileNotFoundError) {
+                console.warn('[GameResImporter] language.mix is not available; cannot repair menu video');
+                return false;
+            }
+            throw e;
+        }
+        onProgress?.(this.strings.get("ts:import_converting_video"));
+        await this.importVideo(languageMixVirtualFile, targetRfsRootDir, (progress) => {
+            onProgress?.(this.strings.get("ts:import_converting_video_pg", (progress * 100).toFixed(0)));
+        });
+        return await targetRfsRootDir.containsEntry(webmFileName);
+    }
+
+    private async importVideo(
+        languageMixVirtualFile: VirtualFile,
+        targetRfsRootDir: RealFileSystemDir,
+        onProgress?: (progress: number) => void,
+    ): Promise<void> {
         let ffmpeg: FFmpeg;
         try {
             ffmpeg = await this.createFFmpeg();
@@ -477,16 +513,16 @@ export class GameResImporter {
         const binkFileEntry = langMix.openFile(actualVideoFileName);
         let webmBuffer: Uint8Array;
         try {
-            webmBuffer = await new VideoConverter().convertBinkVideo(ffmpeg, binkFileEntry);
+            webmBuffer = await new VideoConverter().convertBinkVideo(ffmpeg, binkFileEntry, "webm", onProgress);
         }
         catch (e) {
             this.sentry?.captureException(new Error(`Bink to WebM conversion failed for ${actualVideoFileName}`), { extra: { error: e } });
             console.error("Bink video conversion failed, skipping menu video.", e);
             return;
         }
-        const webmBlob = new Blob([webmBuffer as any], { type: "video/webm" });
         const virtualWebmFile = VirtualFile.fromBytes(webmBuffer, webmFileName);
         await targetRfsRootDir.writeFile(virtualWebmFile);
+        console.log(`[GameResImporter] ✅ Wrote converted menu video "${webmFileName}" (${webmBuffer.byteLength} bytes)`);
     }
     private async createFFmpeg(): Promise<FFmpeg> {
         const ffmpegModule = await import("@ffmpeg/ffmpeg");
@@ -499,7 +535,11 @@ export class GameResImporter {
         const originalDefine = (window as any).define;
         (window as any).define = undefined;
         try {
-            await ffmpeg.load();
+            const coreBaseUrl = new URL("/ffmpeg/", window.location.origin).toString();
+            await ffmpeg.load({
+                coreURL: `${coreBaseUrl}ffmpeg-core.js`,
+                wasmURL: `${coreBaseUrl}ffmpeg-core.wasm`,
+            });
         }
         finally {
             (window as any).define = originalDefine;
