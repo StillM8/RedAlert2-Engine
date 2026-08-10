@@ -138,6 +138,9 @@ function edgeKind(ownerKind: DependencyKind | undefined, key: string): Dependenc
     if (ownerKind === 'techno' && /^(?:owner|requiredhouses|forbiddenhouses|houses|country|countries)$/.test(normalized)) {
         return 'country';
     }
+    if (ownerKind === 'techno' && /^factoryowners(?:\.(?:forbidden|hasallplans|permanent))?$/.test(normalized)) {
+        return 'country';
+    }
     if (ownerKind === 'country' && normalized === 'side') return 'side';
     if (ownerKind === 'side' && /^(?:defaultcountry|country|countries)/.test(normalized)) return 'country';
     if (ownerKind === 'script' && /^(?:action|event|team|teamtype|trigger|taskforce)/.test(normalized)) {

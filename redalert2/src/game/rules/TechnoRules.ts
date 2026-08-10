@@ -17,6 +17,9 @@ import { parseAresPrerequisiteRules } from "@/extensions/ares/AresPrerequisites"
 interface House {
     name: string;
 }
+function normalizeHouseName(name: string): string {
+    return name.trim().toLocaleLowerCase("en-US");
+}
 export enum BuildCat {
     Combat = 0,
     Tech = 1,
@@ -702,12 +705,17 @@ export class TechnoRules extends ObjectRules {
         return burstDelays;
     }
     public hasOwner(house: House): boolean {
-        return this.owner.length > 0 && this.owner.indexOf(house.name) !== -1;
+        const normalizedHouse = normalizeHouseName(house.name);
+        return this.owner.length > 0 && this.owner.some((owner) =>
+            normalizeHouseName(owner) === normalizedHouse);
     }
     public isAvailableTo(house: House): boolean {
+        const normalizedHouse = normalizeHouseName(house.name);
         const hasRequiredHouse = this.requiredHouses.length === 0 ||
-            this.requiredHouses.indexOf(house.name) !== -1;
-        const isForbidden = this.forbiddenHouses.indexOf(house.name) !== -1;
+            this.requiredHouses.some((requiredHouse) =>
+                normalizeHouseName(requiredHouse) === normalizedHouse);
+        const isForbidden = this.forbiddenHouses.some((forbiddenHouse) =>
+            normalizeHouseName(forbiddenHouse) === normalizedHouse);
         return hasRequiredHouse && !isForbidden;
     }
     public getWeaponAtIndex(index: number): string | undefined {
