@@ -7,6 +7,8 @@ import {
     isAresSuperWeaponInRange,
     resolveAresSuperWeaponRange,
 } from "@/game/superweapon/AresSuperWeaponRange";
+import { MapShroud, ShroudType } from "@/game/map/MapShroud";
+import { TerrainType } from "@/engine/type/TerrainType";
 
 describe("Ares superweapon range", () => {
     test("parses SW.Range and reports the documented capability", () => {
@@ -63,6 +65,27 @@ SW.Range=3,3
             { widthOrRange: 0, height: -1 },
             tileOccupation,
         )).toBe(true);
+    });
+
+    test("applies a rectangular range to shroud without widening it to a circle", () => {
+        const tiles = Array.from({ length: 8 }, (_, ry) =>
+            Array.from({ length: 8 }, (_, rx) => ({ rx, ry, z: 0, terrainType: TerrainType.Clear }))
+        ).flat();
+        const map = {
+            getMapSize: () => ({ width: 8, height: 8 }),
+            getMaxTileHeight: () => 0,
+            getAll: () => tiles,
+            getByMapCoords: (rx: number, ry: number) => tiles.find((tile) => tile.rx === rx && tile.ry === ry),
+        };
+        const shroud = new MapShroud().fromTiles(map);
+
+        shroud.revealArea({ rx: 4, ry: 4, z: 0, terrainType: TerrainType.Clear }, 4, 2);
+        shroud.update();
+
+        expect(shroud.getShroudTypeByTileCoords(2, 3, 0)).toBe(ShroudType.Explored);
+        expect(shroud.getShroudTypeByTileCoords(5, 4, 0)).toBe(ShroudType.Explored);
+        expect(shroud.getShroudTypeByTileCoords(1, 4, 0)).toBe(ShroudType.Unexplored);
+        expect(shroud.getShroudTypeByTileCoords(4, 2, 0)).toBe(ShroudType.Unexplored);
     });
 
 });

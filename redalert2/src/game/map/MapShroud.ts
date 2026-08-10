@@ -37,7 +37,8 @@ interface TileMap {
 interface Invalidation {
     center: ShroudCoords;
     elevation: number;
-    radius: number;
+    radius?: number;
+    rectangles: Array<{ width: number; height: number }>;
 }
 export class MapShroud {
     private invalidations: Map<number, Invalidation>;
@@ -165,11 +166,29 @@ export class MapShroud {
         const index = coords.sx + coords.sy * this.size.width;
         let invalidation = this.invalidations.get(index);
         if (!invalidation) {
-            invalidation = { center: coords, elevation: 0, radius: 0 };
+            invalidation = { center: coords, elevation: 0, rectangles: [] };
             this.invalidations.set(index, invalidation);
         }
         invalidation.elevation = Math.max(invalidation.elevation, elevation);
-        invalidation.radius = Math.max(invalidation.radius, radius);
+        invalidation.radius = Math.max(invalidation.radius ?? 0, radius);
+    }
+    invalidateRectangle(coords: ShroudCoords, elevation: number, width: number, height: number): void {
+        const normalizedWidth = Math.max(0, Math.trunc(width));
+        const normalizedHeight = Math.max(0, Math.trunc(height));
+        if (normalizedWidth <= 0 || normalizedHeight <= 0) return;
+
+        const index = coords.sx + coords.sy * this.size.width;
+        let invalidation = this.invalidations.get(index);
+        if (!invalidation) {
+            invalidation = { center: coords, elevation: 0, rectangles: [] };
+            this.invalidations.set(index, invalidation);
+        }
+        invalidation.elevation = Math.max(invalidation.elevation, elevation);
+        const existing = invalidation.rectangles.find((rectangle) =>
+            rectangle.width === normalizedWidth && rectangle.height === normalizedHeight);
+        if (!existing) {
+            invalidation.rectangles.push({ width: normalizedWidth, height: normalizedHeight });
+        }
     }
     revealFrom(object: {
         isBuilding(): boolean;
@@ -189,6 +208,24 @@ export class MapShroud {
     revealAround(tile: Tile, radius: number): void {
         const coords = this.rxyzToSxy(tile.rx, tile.ry, tile.z);
         this.invalidate(coords, Number.POSITIVE_INFINITY, radius);
+    }
+    /**
+     * Reveal a circular or rectangular Ares-style area. A negative width is
+     * the full-map sentinel; rectangle coordinates are centered on the
+     * supplied tile and use the same half-width convention as Ares.
+     */
+    revealArea(tile: Tile, widthOrRange: number, height: number): void {
+        if (widthOrRange < 0) {
+            this.revealAll();
+            return;
+        }
+        const coords = this.rxyzToSxy(tile.rx, tile.ry, tile.z);
+        if (height > 0) {
+            this.invalidateRectangle(coords, Number.POSITIVE_INFINITY, widthOrRange, height);
+        }
+        else {
+            this.invalidate(coords, Number.POSITIVE_INFINITY, widthOrRange);
+        }
     }
     unrevealAround(tile: Tile, radius: number): void {
         const coords: ShroudCoords[] = [];
@@ -226,7 +263,12 @@ export class MapShroud {
         const changedCoords: ShroudCoords[] = [];
         if (this.invalidations.size) {
             for (const invalidation of this.invalidations.values()) {
-                this.setValueAround(invalidation.center, invalidation.radius, invalidation.elevation, changedCoords, ShroudType.Explored, [ShroudType.Unexplored, ShroudType.TemporaryReveal]);
+                if (invalidation.radius !== undefined) {
+                    this.setValueAround(invalidation.center, invalidation.radius, invalidation.elevation, changedCoords, ShroudType.Explored, [ShroudType.Unexplored, ShroudType.TemporaryReveal]);
+                }
+                for (const rectangle of invalidation.rectangles) {
+                    this.setValueInRectangle(invalidation.center, rectangle.width, rectangle.height, invalidation.elevation, changedCoords, ShroudType.Explored, [ShroudType.Unexplored, ShroudType.TemporaryReveal]);
+                }
             }
             this.invalidations.clear();
         }
@@ -288,6 +330,39 @@ export class MapShroud {
                 if (!matchesOldValue || !inRadius || !belowElevationLimit) {
                     continue;
                 }
+                const nextType = newValue ?? currentType;
+                this.tiles[index] = nextType | newFlags;
+                if (currentType !== nextType || currentFlags !== newFlags) {
+                    changedCoords.push({ sx: x, sy: y });
+                }
+            }
+        }
+    }
+    private setValueInRectangle(center: ShroudCoords, width: number, height: number, maxElevation: number, changedCoords: ShroudCoords[], newValue?: ShroudType, oldValue?: ShroudType | ShroudType[], flags?: {
+        setFlags?: number;
+        clearFlags?: number;
+    }): void {
+        const rawMinX = center.sx - Math.trunc(width / 2);
+        const rawMinY = center.sy - Math.trunc(height / 2);
+        const minX = clamp(rawMinX, 0, this.size.width - 1);
+        const minY = clamp(rawMinY, 0, this.size.height - 1);
+        const maxX = clamp(rawMinX + width - 1, 0, this.size.width - 1);
+        const maxY = clamp(rawMinY + height - 1, 0, this.size.height - 1);
+        const mapWidth = this.size.width;
+        for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+                const index = x + y * mapWidth;
+                const currentType = this.tiles[index] & MapShroud.SHROUD_TYPE_MASK;
+                const currentFlags = (this.tiles[index] >> MapShroud.SHROUD_TYPE_BITS) << MapShroud.SHROUD_TYPE_BITS;
+                let newFlags = currentFlags;
+                if (flags?.setFlags !== undefined) newFlags |= flags.setFlags;
+                if (flags?.clearFlags !== undefined) newFlags &= ~flags.clearFlags;
+                const matchesOldValue = oldValue === undefined
+                    ? true
+                    : Array.isArray(oldValue)
+                        ? oldValue.includes(currentType)
+                        : oldValue === currentType;
+                if (!matchesOldValue || this.tileElevation[index] >= maxElevation + 4) continue;
                 const nextType = newValue ?? currentType;
                 this.tiles[index] = nextType | newFlags;
                 if (currentType !== nextType || currentFlags !== newFlags) {
