@@ -51,10 +51,11 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     {
         id: "ares.custom-foundations",
         description: "Non-rectangular building foundation cells",
-        implemented: false,
-        parserImplemented: false,
-        runtimeImplemented: false,
-        tests: [],
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresCompatibilityScanner.test.ts", "AresFoundation.test.ts"],
+        notes: "Foundation=Custom cells are parsed with their optional outline and used by placement preview, build validation, and tile occupation; factory-specific exit behavior remains a separate compatibility task.",
     },
     {
         id: "ares.custom-superweapons",

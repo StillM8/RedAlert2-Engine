@@ -1,0 +1,93 @@
+import { describe, expect, test } from "bun:test";
+import { IniSection } from "@/data/IniSection";
+import { getFoundationCells, parseFoundation } from "@/game/art/Foundation";
+import { TileOccupation } from "@/game/map/TileOccupation";
+
+describe("Ares custom foundations", () => {
+    test("parses occupied cells and an outline outside the bounding box", () => {
+        const section = new IniSection("CustomBuilding");
+        section.set("Foundation", "Custom");
+        section.set("Foundation.X", "3");
+        section.set("Foundation.Y", "3");
+        section.set("Foundation.0", "0,0");
+        section.set("Foundation.1", "1,0");
+        section.set("Foundation.2", "2,0");
+        section.set("Foundation.3", "0,1");
+        section.set("Foundation.4", "1,1");
+        section.set("Foundation.5", "0,2");
+        section.set("Foundation.6", "1,2");
+        section.set("Foundation.7", "2,2");
+        section.set("FoundationOutline.Length", "4");
+        section.set("FoundationOutline.0", "-1,-1");
+        section.set("FoundationOutline.1", "0,-1");
+        section.set("FoundationOutline.2", "3,1");
+        section.set("FoundationOutline.3", "3,3");
+
+        const foundation = parseFoundation(section);
+        expect(foundation.width).toBe(3);
+        expect(foundation.height).toBe(3);
+        expect(foundation.cells).toHaveLength(8);
+        expect(foundation.cells).not.toContainEqual({ x: 2, y: 1 });
+        expect(foundation.outline).toEqual([
+            { x: -1, y: -1 },
+            { x: 0, y: -1 },
+            { x: 3, y: 1 },
+            { x: 3, y: 3 },
+        ]);
+    });
+
+    test("keeps vanilla rectangular foundations unchanged", () => {
+        const section = new IniSection("VanillaBuilding");
+        section.set("Foundation", "2x3");
+
+        const foundation = parseFoundation(section);
+        expect(foundation).toEqual({ width: 2, height: 3 });
+        expect(getFoundationCells(foundation)).toHaveLength(6);
+    });
+
+    test("falls back safely when a custom foundation has no cells", () => {
+        const section = new IniSection("MalformedCustomBuilding");
+        section.set("Foundation", "Custom");
+        section.set("Foundation.X", "2");
+        section.set("Foundation.Y", "2");
+
+        const foundation = parseFoundation(section);
+        expect(foundation.cells).toBeUndefined();
+        expect(getFoundationCells(foundation)).toEqual([
+            { x: 0, y: 0 },
+            { x: 0, y: 1 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+        ]);
+    });
+
+    test("occupies only declared custom foundation cells", () => {
+        const section = new IniSection("CustomBuilding");
+        section.set("Foundation", "Custom");
+        section.set("Foundation.X", "2");
+        section.set("Foundation.Y", "2");
+        section.set("Foundation.0", "0,0");
+        section.set("Foundation.1", "1,0");
+        section.set("Foundation.2", "0,1");
+        const foundation = parseFoundation(section);
+        const tiles = Array.from({ length: 4 }, (_, index) => ({
+            rx: 10 + index % 2,
+            ry: 20 + Math.floor(index / 2),
+        }));
+        const tileCollection = {
+            getAll: () => tiles,
+            getByMapCoords: (x: number, y: number) => tiles.find((tile) => tile.rx === x && tile.ry === y),
+        };
+        const occupation = new TileOccupation(tileCollection);
+        const occupied = occupation.calculateTilesForGameObject(
+            { rx: 10, ry: 20 },
+            { getFoundation: () => foundation },
+        );
+
+        expect(occupied.map((tile: any) => `${tile.rx},${tile.ry}`)).toEqual([
+            "10,20",
+            "11,20",
+            "10,21",
+        ]);
+    });
+});

@@ -7,6 +7,7 @@ import { TaskGroup } from '@/game/gameobject/task/system/TaskGroup';
 import { CompositeDisposable } from '@/util/disposable/CompositeDisposable';
 import { EventType } from '@/game/event/EventType';
 import { NotifyTick } from '@/game/gameobject/trait/interface/NotifyTick';
+import { getFoundationCells } from '@/game/art/Foundation';
 interface PlacementOptions {
     normalizedTile?: boolean;
     ignoreObjects?: any[];
@@ -195,17 +196,15 @@ export class ConstructionWorker {
             !this.meetsAdjacency(buildingRect, buildingRules.adjacent)) {
             canPlace = false;
         }
-        for (let x = 0; x < foundation.width; x++) {
-            for (let y = 0; y < foundation.height; y++) {
-                const tileCoords = { x: placementTile.rx + x, y: placementTile.ry + y };
-                const tile = this.map.tiles.getByMapCoords(tileCoords.x, tileCoords.y);
-                if (tile) {
-                    previewTiles.push({
-                        rx: tileCoords.x,
-                        ry: tileCoords.y,
-                        buildable: canPlace && this.isTileBuildable(tile, buildingRules, ignoreObjects),
-                    });
-                }
+        for (const cell of getFoundationCells(foundation)) {
+            const tileCoords = { x: placementTile.rx + cell.x, y: placementTile.ry + cell.y };
+            const tile = this.map.tiles.getByMapCoords(tileCoords.x, tileCoords.y);
+            if (tile) {
+                previewTiles.push({
+                    rx: tileCoords.x,
+                    ry: tileCoords.y,
+                    buildable: canPlace && this.isTileBuildable(tile, buildingRules, ignoreObjects),
+                });
             }
         }
         if (buildingRules.wall && previewTiles[0]?.buildable) {
@@ -235,13 +234,11 @@ export class ConstructionWorker {
             !this.meetsAdjacency(buildingRect, buildingRules.adjacent)) {
             return false;
         }
-        for (let x = 0; x < foundation.width; x++) {
-            for (let y = 0; y < foundation.height; y++) {
-                const tileCoords = { x: placementTile.rx + x, y: placementTile.ry + y };
-                const tile = this.map.tiles.getByMapCoords(tileCoords.x, tileCoords.y);
-                if (!tile || !this.isTileBuildable(tile, buildingRules, ignoreObjects)) {
-                    return false;
-                }
+        for (const cell of getFoundationCells(foundation)) {
+            const tileCoords = { x: placementTile.rx + cell.x, y: placementTile.ry + cell.y };
+            const tile = this.map.tiles.getByMapCoords(tileCoords.x, tileCoords.y);
+            if (!tile || !this.isTileBuildable(tile, buildingRules, ignoreObjects)) {
+                return false;
             }
         }
         return true;
