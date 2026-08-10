@@ -1,6 +1,7 @@
 import { PointerType } from '@/engine/type/PointerType';
 import { EventDispatcher } from '@/util/event';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
+import { resolveAresPostDependentSuperWeapon } from '@/extensions/ares/AresSuperWeapons';
 const pointerTypeBySuperWeapon = new Map<SuperWeaponType, PointerType>()
     .set(SuperWeaponType.MultiMissile, PointerType.Nuke)
     .set(SuperWeaponType.LightningStorm, PointerType.Storm)
@@ -51,14 +52,22 @@ export class SpecialActionMode {
             !this.isPostClick) {
             this.superWeaponFxHandler.createChronoSphereAnim(tile);
         }
-        if (this.superWeaponRules.preClick && !this.isPostClick) {
+        const aresDependentRules = !this.isPostClick
+            ? resolveAresPostDependentSuperWeapon(this.allSuperWeaponRules.values(), this.superWeaponRules)
+            : undefined;
+        if ((this.superWeaponRules.preClick || aresDependentRules) && !this.isPostClick) {
             this.isPostClick = true;
             this.preTile = tile;
-            const dependentType = [...this.allSuperWeaponRules.values()].find((rules: any) => rules.postClick && rules.preDependent === this.superWeaponRules.type)?.type;
-            if (dependentType === undefined) {
+            const dependentRules = aresDependentRules ??
+                [...this.allSuperWeaponRules.values()].find((rules: any) => rules.postClick && rules.preDependent === this.superWeaponRules.type);
+            if (!dependentRules) {
                 throw new Error(`No super weapon section found with PostClick=yes and PreDependent="${SuperWeaponType[this.superWeaponRules.type]}"`);
             }
-            this.pointerSwType = dependentType;
+            // Custom ChronoWarp definitions retain a string type ID instead
+            // of being coerced into the vanilla enum. Keep the source cursor
+            // in that case; the second click still dispatches the source
+            // action with tile/tile2 and does not depend on a numeric type.
+            this.pointerSwType = dependentRules.type ?? this.superWeaponRules.type;
             return false;
         }
         this._onExecute.dispatch(this, this.isPostClick ? { tile: this.preTile, tile2: tile } : { tile });
