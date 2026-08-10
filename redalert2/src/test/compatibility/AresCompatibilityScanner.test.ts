@@ -94,6 +94,30 @@ Deliver.Types=MOUnit
         expect(usage?.support?.implemented).toBe(false);
     });
 
+    test("classifies EMPulse fields and launch-site flags as one capability", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[EMPulseSW]
+Type=EMPulse
+EMPulse.Linked=yes
+EMPulse.TargetSelf=no
+EMPulse.PulseDelay=32
+EMPulse.Cannons=PulseCannon
+
+[PulseCannon]
+EMPulseCannon=yes
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-empulse");
+        expect(usage?.occurrences).toBe(5);
+        expect(report.unknownExtensionKeys).toBe(0);
+        expect(usage?.support?.runtimeImplemented).toBe(true);
+    });
+
     test("classifies EMP duration, immunity, modifier, and threshold separately", () => {
         const report = scanMentalOmegaIniSources([
             {

@@ -19,6 +19,7 @@ import { SpyPlaneEffect } from "@/game/superweapon/SpyPlaneEffect";
 import { GenericWarheadEffect } from "@/game/superweapon/GenericWarheadEffect";
 import { UnitDeliveryEffect } from "@/game/superweapon/UnitDeliveryEffect";
 import { SonarPulseEffect } from "@/game/superweapon/SonarPulseEffect";
+import { EMPulseEffect } from "@/game/superweapon/EMPulseEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
@@ -159,6 +160,15 @@ export class SuperWeaponsTrait {
                     e.ares?.swAffectsTarget ?? "Water",
                     e.ares?.sonarPulseDelay ?? 60,
                     e.ares?.swCreateRadarEvent ?? false,
+                ));
+            }
+            if (extensionType === "EMPulse") {
+                t.push(new EMPulseEffect(
+                    eventType,
+                    i,
+                    s,
+                    e.ares,
+                    i.superWeaponsTrait?.get?.(e.name),
                 ));
             }
             switch (o) {

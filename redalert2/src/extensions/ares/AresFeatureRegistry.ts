@@ -114,6 +114,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Verified against Ares 3.0p1/Antares: default radius and enemy-water targeting, full-map mode, rectangular/circular range selection, and max-duration cloak suppression are wired; explicit radar-event presentation remains dependent on the host radar event table.",
     },
     {
+        id: "ares.superweapon-empulse",
+        description: "EMPulse selects powered EMP cannons and delivers their EMP warhead",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresEMPulse.test.ts", "AresSuperWeapons.test.ts"],
+        notes: "Antares launch-site defaults, EMPulse.Cannons override, linked range behavior, SW.MaxCount, TargetSelf immediate detonation, and PulseDelay-backed normal firing are wired; pulse-ball animation and AI targeting remain separate.",
+    },
+    {
         id: "ares.staged-weapons",
         description: "Data-defined weapon stages, spin-up, and burst behavior",
         implemented: false,
