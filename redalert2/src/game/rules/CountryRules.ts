@@ -12,12 +12,15 @@ const tooltipMap = new Map<string, string>([
     ["Russians", "STT:PlayerSideRussia"],
 ]);
 export class CountryRules {
-    private id: string;
+    public readonly id: string;
     public name!: string;
     public uiName!: string;
-    private uiTooltip: string;
+    public uiTooltip?: string;
     public side!: SideType;
     public sideId!: string;
+    public presentationId?: string;
+    public flag?: string;
+    public loadScreen?: string;
     public listIndex = 100;
     public randomSelectionWeight = 1;
     public multiplay: boolean;
@@ -42,6 +45,9 @@ export class CountryRules {
         }
         this.sideId = sideDescriptor.id;
         this.side = sideRegistry.toLegacySide(sideDescriptor.id);
+        this.presentationId = ini.getString("Presentation") || sideDescriptor.presentationId;
+        this.flag = ini.getString("Flag") || undefined;
+        this.loadScreen = ini.getString("LoadingScreen") || ini.getString("LoadScreen") || undefined;
         this.multiplay = ini.getBool("Multiplay");
         this.listIndex = ini.getNumber("ListIndex", 100);
         this.randomSelectionWeight = ini.getNumber("RandomSelectionWeight", 1);
@@ -50,5 +56,8 @@ export class CountryRules {
         this.veteranInfantry = ini.getArray("VeteranInfantry");
         this.veteranUnits = ini.getArray("VeteranUnits");
         return this;
+    }
+    get isMultiplayerPassive(): boolean {
+        return this.multiplayPassive;
     }
 }

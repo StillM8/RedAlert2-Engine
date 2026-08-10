@@ -18,10 +18,15 @@ const countryIcons = new Map<string, string>()
     .set(OBS_COUNTRY_NAME, "obsi.pcx");
 interface CountryIconProps {
     country: any;
+    countryFlags?: Map<string, string>;
 }
-export const CountryIcon: React.FC<CountryIconProps> = ({ country }) => {
+function normalizeFlagName(flag: string): string {
+    return /\.[a-z0-9]+$/i.test(flag) ? flag : `${flag}.pcx`;
+}
+export const CountryIcon: React.FC<CountryIconProps> = ({ country, countryFlags }) => {
     const countryName = typeof country === 'string' ? country : country?.name;
-    const iconSrc = countryIcons.get(countryName);
+    const configuredFlag = typeof country !== 'string' ? country?.flag : countryFlags?.get(countryName);
+    const iconSrc = configuredFlag ? normalizeFlagName(configuredFlag) : countryIcons.get(countryName);
     return (<div className="player-country-icon">
       {iconSrc && <Image src={iconSrc}/>}
     </div>);

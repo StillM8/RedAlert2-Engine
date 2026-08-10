@@ -230,16 +230,18 @@ export class Rules {
         return this.animationTypes.get(id);
     }
     getCountry(name: string): CountryRules {
-        if (!this.countryRules.has(name)) {
+        const exact = this.countryRules.get(name);
+        const country = exact ?? [...this.countryRules.entries()]
+            .find(([countryName]) => countryName.toLocaleLowerCase("en-US") === name.toLocaleLowerCase("en-US"))?.[1];
+        if (!country) {
             throw new Error("Unknown country " + name);
         }
-        return this.countryRules.get(name)!;
+        return country;
     }
     getMultiplayerCountries(): CountryRules[] {
-        // Phase B: Yuri is selectable. Known gap until the slave miner
-        // economy lands: no Yuri ore income yet — early game runs on
-        // starting credits.
-        return [...this.countryRules.values()].filter(country => country.multiplay);
+        return [...this.countryRules.values()]
+            .filter(country => country.multiplay && !country.isMultiplayerPassive)
+            .sort((a, b) => a.listIndex - b.listIndex);
     }
     getMultiplayerColors(): Map<string, Color> {
         const colors = new Map<string, Color>();
