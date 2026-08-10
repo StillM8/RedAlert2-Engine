@@ -94,6 +94,29 @@ Deliver.Types=MOUnit
         expect(usage?.support?.implemented).toBe(false);
     });
 
+    test("classifies EMP duration, immunity, modifier, and threshold separately", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[EMPWarhead]
+EMP.Duration=150
+EMP.Cap=300
+
+[EMPUnit]
+ImmuneToEMP=no
+EMP.Modifier=50%
+EMP.Threshold=inair
+`,
+            },
+        ]);
+
+        expect(report.featureUsage.find((item) => item.featureId === "ares.emp")?.occurrences).toBe(4);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.emp-threshold")?.occurrences).toBe(1);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.emp")?.support?.runtimeImplemented).toBe(true);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.emp-threshold")?.support?.parserImplemented).toBe(true);
+    });
+
     test("classifies documented prerequisite extensions and factory-owner country edges", () => {
         const report = scanMentalOmegaIniSources([
             {
