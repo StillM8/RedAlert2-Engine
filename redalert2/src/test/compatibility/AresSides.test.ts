@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveSideMixSelection, resolveSidePresentation } from "@/extensions/ares/AresSides";
+import { resolveMultiplayerScorePresentation, resolveSideMixSelection, resolveSidePresentation } from "@/extensions/ares/AresSides";
 import { SideType } from "@/game/SideType";
 import { IniSection } from "@/data/IniSection";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
@@ -107,6 +107,29 @@ describe("Ares side presentation", () => {
         });
         expect(resolveSidePresentation(undefined, SideType.GDI).hudLayout).toBe("allied");
         expect(resolveSidePresentation(undefined, SideType.Yuri, true).hudLayout).toBe("yuri");
+    });
+
+    test("uses data-defined score assets for custom sides", () => {
+        expect(resolveMultiplayerScorePresentation({
+            id: "Foehn",
+            index: 3,
+            multiplayerScoreBackground: "foehn_score.shp",
+            multiplayerScorePalette: "foehn_score.pal",
+            multiplayerScoreBars: "foehn_score~~.pcx",
+        }, SideType.Civilian)).toEqual({
+            image: "foehn_score.shp",
+            palette: "foehn_score.pal",
+            bars: "foehn_score~~.pcx",
+            winTheme: undefined,
+            loseTheme: undefined,
+        });
+        expect(resolveMultiplayerScorePresentation({ id: "Foehn", index: 3 }, SideType.Civilian)).toEqual({
+            image: "mpyscrnl.shp",
+            palette: "mpyscrn.pal",
+            bars: "mpyscrnlbar~~.pcx",
+            winTheme: undefined,
+            loseTheme: undefined,
+        });
     });
 
     test("preserves data-defined country metadata in runtime Country objects", () => {
