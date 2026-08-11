@@ -1,0 +1,141 @@
+/**
+ * Data-only Ares TechnoType extensions used by Gunner IFVs and powered units.
+ *
+ * This module deliberately stops at normalized rules data.  It does not decide
+ * which passenger is active, resolve a provider against a house, or change
+ * weapon/power runtime behavior.
+ */
+
+export type AresIniValue = string | string[];
+
+export interface AresTechnoSectionLike {
+    entries: ReadonlyMap<string, AresIniValue>;
+}
+
+export interface AresIfvModeRules {
+    /** Passenger-selected IFV mode. Vanilla's 0-based default is explicit. */
+    ifvMode: number;
+    /** Entries are keyed by the 1-based WeaponX number. */
+    weaponTurretIndexes: Map<number, number>;
+    /** Optional CSF labels keyed by the 1-based WeaponX number. */
+    weaponUiNames: Map<number, string>;
+    /** Explicit per-IFV repair voice; undefined means use the caller's fallback chain. */
+    voiceIfvRepair?: string;
+}
+
+export interface AresPoweredByRules {
+    /** BuildingType IDs, retaining authored casing after whitespace normalization. */
+    providers: string[];
+    /** Ares defines comma-separated PoweredBy entries as alternatives, never AND. */
+    relation: "any";
+}
+
+export interface AresTechnoExtensions {
+    ifv: AresIfvModeRules;
+    poweredBy: AresPoweredByRules;
+}
+
+export const DEFAULT_ARES_IFV_MODE = 0;
+export const DEFAULT_ARES_WEAPON_TURRET_INDEX = -1;
+
+function keyName(value: string): string {
+    return value.trim().toLocaleLowerCase("en-US");
+}
+
+function firstScalar(value: AresIniValue | undefined): string | undefined {
+    const scalar = Array.isArray(value) ? value[0] : value;
+    if (typeof scalar !== "string") return undefined;
+    const result = scalar.trim();
+    return result || undefined;
+}
+
+function findEntry(section: AresTechnoSectionLike, expectedKey: string): AresIniValue | undefined {
+    const expected = keyName(expectedKey);
+    let result: AresIniValue | undefined;
+    for (const [key, value] of section.entries) {
+        if (keyName(key) === expected) result = value;
+    }
+    return result;
+}
+
+function parseInteger(value: string | undefined, defaultValue: number): number {
+    if (value === undefined || !/^[+-]?\d+$/.test(value)) return defaultValue;
+    const result = Number(value);
+    return Number.isSafeInteger(result) ? result : defaultValue;
+}
+
+function parseTurretIndex(value: string | undefined): number {
+    const parsed = parseInteger(value, DEFAULT_ARES_WEAPON_TURRET_INDEX);
+    return parsed < 0 ? DEFAULT_ARES_WEAPON_TURRET_INDEX : parsed;
+}
+
+function parseIndexedEntries(
+    section: AresTechnoSectionLike,
+    pattern: RegExp,
+): Map<number, AresIniValue> {
+    const result = new Map<number, AresIniValue>();
+    for (const [key, value] of section.entries) {
+        const match = key.trim().match(pattern);
+        if (!match) continue;
+        const index = Number(match[1]);
+        if (!Number.isSafeInteger(index) || index < 1) continue;
+        // Later entries win, matching the normal INI override direction while
+        // retaining deterministic behavior for case-variant duplicate keys.
+        result.set(index, value);
+    }
+    return result;
+}
+
+function parseCommaList(value: AresIniValue | undefined): string[] {
+    if (value === undefined) return [];
+    const values = (Array.isArray(value) ? value : [value])
+        .flatMap(item => item.split(","))
+        .map(item => item.trim())
+        .filter(Boolean);
+    // Ares stores a vector and does not make case-folded IDs part of the data
+    // contract. Preserve authored order, spelling, and even duplicates; the
+    // OR membership check gives duplicates no additional runtime meaning.
+    return values;
+}
+
+export function getAresWeaponTurretIndex(
+    rules: AresIfvModeRules,
+    weaponNumber: number,
+): number {
+    return rules.weaponTurretIndexes.get(weaponNumber) ?? DEFAULT_ARES_WEAPON_TURRET_INDEX;
+}
+
+export function parseAresIfvModeRules(section: AresTechnoSectionLike): AresIfvModeRules {
+    const weaponTurretIndexes = new Map<number, number>();
+    for (const [index, value] of parseIndexedEntries(section, /^WeaponTurretIndex(\d+)$/i)) {
+        weaponTurretIndexes.set(index, parseTurretIndex(firstScalar(value)));
+    }
+
+    const weaponUiNames = new Map<number, string>();
+    for (const [index, value] of parseIndexedEntries(section, /^WeaponUIName(\d+)$/i)) {
+        const label = firstScalar(value);
+        if (label !== undefined) weaponUiNames.set(index, label);
+    }
+
+    const voiceIfvRepair = firstScalar(findEntry(section, "VoiceIFVRepair"));
+    return {
+        ifvMode: parseInteger(firstScalar(findEntry(section, "IFVMode")), DEFAULT_ARES_IFV_MODE),
+        weaponTurretIndexes,
+        weaponUiNames,
+        ...(voiceIfvRepair === undefined ? {} : { voiceIfvRepair }),
+    };
+}
+
+export function parseAresPoweredByRules(section: AresTechnoSectionLike): AresPoweredByRules {
+    return {
+        providers: parseCommaList(findEntry(section, "PoweredBy")),
+        relation: "any",
+    };
+}
+
+export function parseAresTechnoExtensions(section: AresTechnoSectionLike): AresTechnoExtensions {
+    return {
+        ifv: parseAresIfvModeRules(section),
+        poweredBy: parseAresPoweredByRules(section),
+    };
+}
