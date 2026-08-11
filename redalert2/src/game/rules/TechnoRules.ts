@@ -160,12 +160,16 @@ export class TechnoRules extends ObjectRules {
     declare eliteAbilities: Set<VeteranAbility>;
     declare selfHealing: boolean;
     declare wall: boolean;
+    /** Ares Firestorm.Wall; separate from ordinary wall terrain/connection rules. */
+    declare firestormWall: boolean;
     declare gate: boolean;
     declare armor: ArmorType;
     declare strength: number;
     declare immune: boolean;
     declare immuneToRadiation: boolean;
     declare immuneToPsionics: boolean;
+    /** Antares Firestorm contact immunity for FootClass objects. */
+    declare ignoresFirestorm: boolean;
     /** Ares EMP immunity and target-specific duration modifier. */
     declare immuneToEMP: boolean;
     declare empModifier: number;
@@ -490,12 +494,14 @@ export class TechnoRules extends ObjectRules {
         ]);
         this.selfHealing = this.ini.getBool("SelfHealing");
         this.wall = this.ini.getBool("Wall");
+        this.firestormWall = this.ini.getBool("Firestorm.Wall");
         this.gate = this.ini.getBool("Gate");
         this.armor = this.armorRegistry.resolve(this.ini.getString("Armor"), ArmorType.None);
         this.strength = Math.floor(this.ini.getNumber("Strength"));
         this.immune = this.ini.getBool("Immune");
         this.immuneToRadiation = this.ini.getBool("ImmuneToRadiation");
         this.immuneToPsionics = this.ini.getBool("ImmuneToPsionics");
+        this.ignoresFirestorm = this.ini.getBool("IgnoresFirestorm");
         this.typeImmune = this.ini.getBool("TypeImmune");
         this.warpable = this.ini.getBool("Warpable", true);
         this.isTilter = this.ini.getBool("IsTilter", true);

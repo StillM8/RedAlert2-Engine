@@ -16,6 +16,7 @@ export class SuperWeaponsTrait {
         return this.superWeapons.get(name);
     }
     remove(name: string): void {
+        this.superWeapons.get(name)?.deactivateChargeDrain?.();
         this.superWeapons.delete(name);
     }
 }

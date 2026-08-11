@@ -111,6 +111,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.(?:initialready|virtualcharge)$/i.test(key)) {
         return "ares.superweapon-charge-state";
     }
+    if (/^firestorm\.wall$/i.test(key) || /^subjecttofirestorm$/i.test(key) || /^ignoresfirestorm$/i.test(key)) {
+        return "ares.firestorm-wall";
+    }
     if (/^(?:usechargedrain|chargetodrainratio)$/i.test(key) ||
         /^sw\.(?:chargetodrainratio|unstoppable)$/i.test(key)) {
         return "ares.superweapon-charge-drain";

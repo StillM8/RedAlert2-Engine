@@ -214,6 +214,7 @@ const DOCUMENTED_KEYS: Readonly<Record<string, readonly string[]>> = {
     "new/include.rst": ["[#include]"],
     "new/killingdrivers.rst": ["[Warhead]KillDriver", "[TechnoType]ProtectedDriver", "[TechnoType]CanDrive"],
     "new/lightningrods.rst": ["[BuildingType]LightningRod", "LightningRod.Modifier"],
+    "restored/firestormwall.rst": ["Firestorm.Wall", "SubjectToFirestorm", "FirestormActiveAnim", "FirestormIdleAnim", "FirestormGroundAnim", "FirestormAirAnim", "FirestormWarhead", "DamageToFirestormDamageCoefficient"],
     "new/makeinfantryowner.rst": ["MakeInfantryOwner"],
     "new/newpoweredunitlogic.rst": ["[UnitType]PoweredBy"],
     "new/operator.rst": ["[TechnoType]Operator"],
@@ -301,6 +302,14 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresSuperWeaponCharge.test.ts", "AresSuperWeaponChargeDrain.test.ts", "AresSuperWeaponDeferment.test.ts", "AresSuperWeaponPostDependent.test.ts", "AresSuperWeaponRadar.test.ts", "AresSuperWeaponAITargeting.test.ts", "AresSuperWeaponRange.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts", "AresDropPod.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters"], targetModUsage: "required",
         notes: "Common fields, SW.Range for supported ranged effects, SW.Deferment for supported state machines, Money.Amount launch transactions, charge-drain timer/ratio/money scheduling, manual SW.RequiresTarget/SW.RequiresHouse gates, InitialReady/VirtualCharge timer state, PostDependent stage selection, common radar-event delivery, target filters, GenericWarhead, UnitDelivery, SonarPulse, the EMPulse launch state, and the Antares DropPod core placement handler are present; Firestorm/Battery effects, animation/presentation, AI, persistence, and the remaining handlers are not complete.",
+    },
+    "restored/firestormwall.rst": {
+        capabilityId: "ares.firestorm-wall",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        presentationStatus: "missing", saveLoadStatus: "partial", multiplayerStatus: "partial",
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresFirestorm.test.ts"],
+        dependencies: ["ares.superweapon-charge-drain"], targetModUsage: "unknown",
+        notes: "Firestorm wall metadata, same-owner linking, contact immolation, active-charge damage feedback, and hostile projectile interception are implemented; active/idle wall animation presentation and persistent/trigger/network state remain open.",
     },
     "restored/emp.rst": {
         capabilityId: "ares.emp",

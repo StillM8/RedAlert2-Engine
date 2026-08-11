@@ -25,6 +25,10 @@ import { CollisionHelper } from './unit/CollisionHelper';
 import { CollisionType } from './unit/CollisionType';
 import { Vector2 } from '@/game/math/Vector2';
 import { Vector3 } from '@/game/math/Vector3';
+import {
+    applyAresFirestormWallDamage,
+    isAresActiveFirestormWall,
+} from '@/extensions/ares/AresFirestorm';
 export enum ProjectileState {
     Travel = 0,
     Impact = 1,
@@ -575,6 +579,9 @@ export class Projectile extends GameObject {
             ground: this.isHoming(),
             shore: this.rules.level,
             walls: this.rules.subjectToWalls,
+            firestorm: this.rules.subjectToFirestorm
+                ? (object: any) => isAresActiveFirestormWall(object, this.fromPlayer)
+                : undefined,
             units: !this.rules.inaccurate &&
                 ((owner: any) => this.fromPlayer !== owner &&
                     !game.alliances.areAllied(this.fromPlayer, owner)),
@@ -790,7 +797,16 @@ export class Projectile extends GameObject {
                 player: this.fromPlayer,
                 weapon: weapon,
                 obj: this.fromObject,
-            }, this.isShrapnel, this.impactAnim, undefined);
+            }, this.isShrapnel, this.impactAnim, undefined, false, (object: any) => {
+                if (!isAresActiveFirestormWall(object, this.fromPlayer)) return true;
+                const coefficient = game.rules.general.damageToFirestormDamageCoefficient ?? 1;
+                applyAresFirestormWallDamage(
+                    object,
+                    warhead.computeDamage(damage, object, game),
+                    coefficient,
+                );
+                return false;
+            });
         }
         if (warhead.rules.nukeMaker) {
             let nukeProjectile: Projectile;

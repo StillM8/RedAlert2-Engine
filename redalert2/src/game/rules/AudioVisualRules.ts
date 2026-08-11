@@ -39,6 +39,11 @@ export class AudioVisualRules {
     private weatherConClouds: string[] = [];
     private weatherConBoltExplosion: string = '';
     private weatherConBolts: string[] = [];
+    /** Ares Firestorm presentation defaults from Antares 3.0p1. */
+    public firestormActiveAnim: string = 'GAFSDF_A';
+    public firestormIdleAnim: string = 'FSIDLE';
+    public firestormGroundAnim: string = 'FSGRND';
+    public firestormAirAnim: string = 'FSAIR';
     readIni(ini: any): AudioVisualRules {
         this.ini = ini;
         // YR's rulesmd.ini omits many [AudioVisual] keys that RA2's rules.ini
@@ -90,6 +95,10 @@ export class AudioVisualRules {
         this.weatherConClouds = arr("WeatherConClouds", ["WCCLOUD1", "WCCLOUD2", "WCCLOUD3"]);
         this.weatherConBoltExplosion = str("WeatherConBoltExplosion", "EXPLOLB");
         this.weatherConBolts = arr("WeatherConBolts", ["WCLBOLT1", "WCLBOLT2", "WCLBOLT3"]);
+        this.firestormActiveAnim = str("FirestormActiveAnim", "GAFSDF_A");
+        this.firestormIdleAnim = str("FirestormIdleAnim", "FSIDLE");
+        this.firestormGroundAnim = str("FirestormGroundAnim", "FSGRND");
+        this.firestormAirAnim = str("FirestormAirAnim", "FSAIR");
         return this;
     }
 }

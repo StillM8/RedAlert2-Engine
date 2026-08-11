@@ -10,6 +10,7 @@ import {
     applyAresSuperWeaponMoney,
     canAresSuperWeaponTransactMoney,
 } from '@/extensions/ares/AresSuperWeaponMoney';
+import { setAresFirestormActive } from '@/extensions/ares/AresFirestorm';
 export enum SuperWeaponStatus {
     Charging = 0,
     Paused = 1,
@@ -81,6 +82,7 @@ export class SuperWeapon {
         this.status = this.chargeTicks > 0 ? SuperWeaponStatus.Charging : SuperWeaponStatus.Ready;
     }
     resetTimer(): void {
+        setAresFirestormActiveForWeapon(this, false);
         this.chargeTicks = this.rechargeTicks;
         this.virtualChargeSinceTick = undefined;
         if (this.status === SuperWeaponStatus.Ready) {
@@ -108,6 +110,7 @@ export class SuperWeapon {
         const transition = startAresChargeDrain(this.rechargeTicks, this.chargeDrainRatio);
         this.chargeTicks = transition.timerTicks;
         this.status = SuperWeaponStatus.Draining;
+        setAresFirestormActiveForWeapon(this, true);
         return true;
     }
 
@@ -118,6 +121,14 @@ export class SuperWeapon {
         this.status = transition.state === "ready"
             ? SuperWeaponStatus.Ready
             : SuperWeaponStatus.Charging;
+        setAresFirestormActiveForWeapon(this, false);
+        return true;
+    }
+
+    /** Damage feedback used by Ares Firestorm walls. */
+    reduceChargeDrain(amount: number): boolean {
+        if (this.status !== SuperWeaponStatus.Draining) return false;
+        this.chargeTicks = Math.max(0, this.chargeTicks - Math.max(0, Math.floor(amount)));
         return true;
     }
 
@@ -140,6 +151,13 @@ export class SuperWeapon {
             // deactivation hook when that handler is implemented.
             this.chargeTicks = this.rechargeTicks;
             this.status = SuperWeaponStatus.Charging;
+            setAresFirestormActiveForWeapon(this, false);
         }
+    }
+}
+
+function setAresFirestormActiveForWeapon(weapon: SuperWeapon, active: boolean): void {
+    if (weapon.rules.ares?.extensionType === "Firestorm") {
+        setAresFirestormActive(weapon.owner, active);
     }
 }

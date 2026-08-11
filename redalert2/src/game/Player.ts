@@ -37,6 +37,8 @@ export class Player {
     public readonly isNeutral: boolean;
     public aiDifficulty?: any;
     public customBotId?: string;
+    /** Ares Firestorm handler state; kept on the owner for deterministic wall queries. */
+    public aresFirestormActive: boolean = false;
     public powerTrait?: any;
     public radarTrait?: any;
     public superWeaponsTrait?: any;
@@ -159,6 +161,7 @@ export class Player {
             this.credits,
             this.country?.id ?? "",
             this.country?.sideId ?? "",
+            this.aresFirestormActive ? 1 : 0,
             this.production?.getHash?.() ?? 0,
             ...this.traits.getAll().map(trait => trait.getHash?.() ?? 0),
         ]);
@@ -169,6 +172,7 @@ export class Player {
             credits: this.credits,
             countryId: this.country?.id,
             sideId: this.country?.sideId,
+            aresFirestormActive: this.aresFirestormActive,
             production: this.production?.debugGetState?.(),
             traits: this.traits.getAll().reduce((acc, trait) => {
                 const state = trait.debugGetState?.();

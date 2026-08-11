@@ -130,6 +130,9 @@ export class TileOccupation {
     getObjectsOnTile(tile: any): any[] {
         return [...(this.tileOccupation[tile.rx]?.[tile.ry] ?? [])];
     }
+    getTileByMapCoords(rx: number, ry: number): any {
+        return this.tiles.getByMapCoords(rx, ry);
+    }
     getGroundObjectsOnTile(tile: any): any[] {
         const objects: any[] = [];
         for (const obj of this.tileOccupation[tile.rx]?.[tile.ry] ?? []) {
