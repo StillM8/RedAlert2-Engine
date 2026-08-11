@@ -24,6 +24,8 @@ import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEff
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import { parseAresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
 import type { AresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
+import { resolveAresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
+import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 interface House {
     name: string;
 }
@@ -170,6 +172,8 @@ export class TechnoRules extends ObjectRules {
     declare aresAttachEffect?: AresAttachEffectDefinition;
     /** Optional Ares Chronoshift eligibility data authored on this TechnoType. */
     declare aresChronoshift?: AresChronoshiftRules;
+    /** Optional Ares damage-particle precedence resolved from this TechnoType. */
+    declare aresDamageParticles?: AresDamageParticleSelection;
     declare turret: boolean;
     declare turretCount: number;
     declare turretAnim: string;
@@ -764,6 +768,26 @@ export class TechnoRules extends ObjectRules {
         this.pitchSpeed = this.ini.getNumber("PitchSpeed", 0.25);
         this.pitchAngle = this.pitchSpeed >= 1 ? 0 : 20;
         this.damageParticleSystems = this.ini.getArray("DamageParticleSystems");
+        const hasAresDamageParticleFields = normalizedAresKeys.some((key: string) =>
+            key === "damagesparks" ||
+            key === "damagesmokeparticlesystems" ||
+            key === "damagesparksparticlesystems");
+        this.aresDamageParticles = hasAresDamageParticleFields
+            ? resolveAresDamageParticleSelection({
+                isInfantry: this.type === ObjectType.Infantry,
+                cyborg: this.ini.getBool("Cyborg"),
+                damageParticleSystems: this.damageParticleSystems,
+                damageSmokeParticleSystems: this.ini.has("DamageSmokeParticleSystems")
+                    ? this.ini.getArray("DamageSmokeParticleSystems")
+                    : undefined,
+                damageSparksParticleSystems: this.ini.has("DamageSparksParticleSystems")
+                    ? this.ini.getArray("DamageSparksParticleSystems")
+                    : undefined,
+                damageSparks: this.ini.has("DamageSparks")
+                    ? this.ini.getBool("DamageSparks")
+                    : undefined,
+            })
+            : undefined;
         const damageSmokeOffsetArray = this.ini.getNumberArray("DamageSmokeOffset", undefined, [0, 0, 0]);
         this.damageSmokeOffset = new Vector3(damageSmokeOffsetArray[0], damageSmokeOffsetArray[2] / Math.SQRT2, damageSmokeOffsetArray[1]);
         this.minDebris = this.ini.getNumber("MinDebris");

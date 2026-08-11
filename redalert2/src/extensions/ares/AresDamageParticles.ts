@@ -68,6 +68,13 @@ function fallbackSystems(
     systems: readonly AresDamageParticleSystem[],
     behavesLike: "smoke" | "spark",
 ): AresDamageParticleSystem[] {
+    // The current engine exposes DamageParticleSystems as authored IDs but
+    // does not yet retain ParticleSystem BehavesLike metadata. In that case
+    // keep the vanilla candidate list intact; once metadata is available,
+    // apply Ares' documented Smoke/Spark filter.
+    if (!systems.some(system => system.behavesLike !== undefined)) {
+        return systems.map(system => ({ ...system }));
+    }
     return systems
         .filter(system => system.behavesLike?.trim().toLocaleLowerCase("en-US") === behavesLike)
         .map(system => ({ ...system }));
