@@ -1,3 +1,5 @@
+import { ObjectType } from "@/engine/type/ObjectType";
+
 /**
  * Pure availability rules for Ares superweapons.
  *
@@ -32,6 +34,20 @@ export interface AresSuperWeaponAvailabilityContext {
     /** Provider building types currently owned for this superweapon. */
     ownedProviderBuildingTypes: Iterable<string>;
     shotsFired?: number;
+}
+
+export interface AresSuperWeaponOwnerLike {
+    country?: { id?: string; name?: string };
+    isAi?: boolean;
+    defeated?: boolean;
+    buildings?: Iterable<{
+        name?: string;
+        rules?: { name?: string; superWeapon?: string };
+    }>;
+    getOwnedObjectsByType?: (type: ObjectType) => Iterable<{
+        name?: string;
+        rules?: { name?: string; superWeapon?: string };
+    }>;
 }
 
 export type AresSuperWeaponAvailabilityFailure =
@@ -187,6 +203,38 @@ export function evaluateAresSuperWeaponAvailability(
         shotsLimit,
         shotsRemaining,
     };
+}
+
+/**
+ * Build the common availability context from a live owner without teaching
+ * the evaluator about Player or Building classes. This is the single runtime
+ * adapter used by grants, removal, UI-facing inventory, and activation gates.
+ */
+export function evaluateAresSuperWeaponAvailabilityForOwner(
+    rules: AresSuperWeaponAvailabilityRules,
+    owner: AresSuperWeaponOwnerLike,
+    superWeaponName: string,
+    shotsFired = 0,
+): AresSuperWeaponAvailabilityResult {
+    const buildings = owner.getOwnedObjectsByType
+        ? [...owner.getOwnedObjectsByType(ObjectType.Building)]
+        : [...(owner.buildings ?? [])];
+    const expectedSuperWeapon = normalize(superWeaponName);
+    const buildingName = (building: { name?: string; rules?: { name?: string } }): string | undefined =>
+        building.name ?? building.rules?.name;
+    const providerBuildings = buildings.filter((building) =>
+        normalize(building.rules?.superWeapon ?? "") === expectedSuperWeapon);
+
+    return evaluateAresSuperWeaponAvailability(rules, {
+        countryId: owner.country?.id ?? owner.country?.name,
+        isAi: owner.isAi === true,
+        defeated: owner.defeated === true,
+        ownedBuildingTypes: buildings.map(buildingName).filter((name): name is string => !!name),
+        ownedProviderBuildingTypes: providerBuildings
+            .map(buildingName)
+            .filter((name): name is string => !!name),
+        shotsFired,
+    });
 }
 
 /** Generic name for consumers that do not need the Ares-prefixed adapter name. */

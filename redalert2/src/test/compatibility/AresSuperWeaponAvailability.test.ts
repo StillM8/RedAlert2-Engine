@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
     evaluateAresSuperWeaponAvailability,
+    evaluateAresSuperWeaponAvailabilityForOwner,
     type AresSuperWeaponAvailabilityContext,
     type AresSuperWeaponAvailabilityRules,
 } from "@/extensions/ares/AresSuperWeaponAvailability";
@@ -114,6 +115,28 @@ describe("Ares superweapon availability", () => {
             failures: ["player-not-allowed"],
             shotsLimit: 2,
             providerBuildingPresent: false,
+        });
+    });
+
+    test("adapts live owner buildings without hardcoding a mod or country", () => {
+        const owner = {
+            country: { id: "CountryA" },
+            isAi: false,
+            buildings: [
+                { name: "AuxA", rules: { name: "AuxA" } },
+                { name: "ProviderA", rules: { name: "ProviderA", superWeapon: "MOBlast" } },
+            ],
+        };
+
+        const result = evaluateAresSuperWeaponAvailabilityForOwner(
+            { requiredHouses: "CountryA", auxBuildings: "AuxA" },
+            owner,
+            "MOBlast",
+        );
+
+        expect(result).toMatchObject({
+            available: true,
+            providerBuildingPresent: true,
         });
     });
 });
