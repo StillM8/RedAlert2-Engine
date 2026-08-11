@@ -17,17 +17,23 @@ function createFinder(files: string[], newTheaterChar = "U"): ImageFinder {
 
 describe("ImageFinder Ares theater art", () => {
     test("applies NewTheater to image prefixes outside the retail set", () => {
-        const finder = createFinder(["fucnst.shp"]);
+        const finder = createFinder(["fucybr.shp"]);
 
-        expect(finder.getFilename("FGCNST", false, true)).toBe("fucnst.shp");
-        expect(finder.find("FGCNST", false, true)).toEqual({ filename: "fucnst.shp" });
+        expect(finder.getFilename("FACYBR", false, true)).toBe("fucybr.shp");
+        expect(finder.find("FACYBR", false, true)).toEqual({ filename: "fucybr.shp" });
     });
 
     test("falls back to the generic G variant when the theater art is absent", () => {
+        const finder = createFinder(["fgcybr.shp"]);
+
+        expect(finder.getFilename("FACYBR", false, true)).toBe("fgcybr.shp");
+        expect(finder.find("FACYBR", false, true)).toEqual({ filename: "fgcybr.shp" });
+    });
+
+    test("does not rewrite an image ID that is already the generic G variant", () => {
         const finder = createFinder(["fgcnst.shp"]);
 
         expect(finder.getFilename("FGCNST", false, true)).toBe("fgcnst.shp");
-        expect(finder.find("FGCNST", false, true)).toEqual({ filename: "fgcnst.shp" });
     });
 
     test("keeps the retail heuristic for unmarked legacy art", () => {

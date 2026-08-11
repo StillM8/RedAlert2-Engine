@@ -46,7 +46,7 @@ export class ImageFinder {
         const firstChar = artName[0];
         const secondChar = artName[1];
         if (["G", "N", "C", "Y"].indexOf(firstChar) === -1 ||
-            ["A", "T", "U", "D", "L", "N"].indexOf(secondChar) === -1) {
+            ["A", "T"].indexOf(secondChar) === -1) {
             return filename;
         }
         return this.applyNewTheater(filename);
@@ -56,6 +56,10 @@ export class ImageFinder {
             return filename;
         }
         const firstChar = filename[0];
+        const secondChar = filename[1].toUpperCase();
+        if (!/^[a-z]$/i.test(firstChar) || !["A", "T"].includes(secondChar)) {
+            return filename;
+        }
         const rest = filename.substr(2);
         const newTheaterChar = this.theater.settings.newTheaterChar.toLowerCase();
         let newFilename = firstChar + newTheaterChar + rest;
