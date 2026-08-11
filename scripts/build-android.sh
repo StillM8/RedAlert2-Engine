@@ -81,6 +81,18 @@ else
   mkdir -p "$ASSETS/GameRes"
 fi
 
+# Large imported resource bundles make Android's asset compressor exceed the
+# default 2 GiB Gradle heap. Scale the packaging process from the staged
+# payload size rather than from a game/profile name; ordinary small builds
+# retain the repository defaults.
+if [[ $SKIP_GAMERES -eq 0 ]]; then
+  GAMERES_SIZE_KIB="$(du -sk "$ASSETS/GameRes" | awk '{print $1}')"
+  if [[ "$GAMERES_SIZE_KIB" -gt 524288 ]]; then
+    export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=1"
+    echo "Large game-resource bundle (${GAMERES_SIZE_KIB} KiB); using a 4 GiB Gradle heap and one asset-compression worker"
+  fi
+fi
+
 if [[ -n "${GRADLE_BIN:-}" ]]; then
   GRADLE=("$GRADLE_BIN")
 elif [[ -x "$ANDROID/gradlew" ]]; then
