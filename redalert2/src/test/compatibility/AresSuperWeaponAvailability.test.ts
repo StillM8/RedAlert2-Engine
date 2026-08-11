@@ -94,6 +94,14 @@ describe("Ares superweapon availability", () => {
         expect(evaluate({ shots: -1 }, { shotsFired: 999 }).available).toBe(true);
     });
 
+    test("ignores finite Shots for Charge/Drain handlers", () => {
+        expect(evaluate({ shots: 1, useChargeDrain: true }, { shotsFired: 99 })).toMatchObject({
+            available: true,
+            shotsLimit: -1,
+            shotsRemaining: undefined,
+        });
+    });
+
     test("AlwaysGranted bypasses only provider presence and preserves other gates", () => {
         expect(evaluate({ alwaysGranted: true }, { ownedProviderBuildingTypes: [] })).toMatchObject({
             available: true,

@@ -178,9 +178,11 @@ export class SuperWeaponsTrait {
             else {
                 a.resetTimer();
             }
-            a.shotsFired = (a.shotsFired ?? 0) + 1;
-            if (a.rules.ares) {
-                e.superWeaponsTrait?.recordAresSuperWeaponShot?.(a.name, a.shotsFired);
+            if (a.rules.ares?.useChargeDrain !== true) {
+                a.shotsFired = (a.shotsFired ?? 0) + 1;
+                if (a.rules.ares) {
+                    e.superWeaponsTrait?.recordAresSuperWeaponShot?.(a.name, a.shotsFired);
+                }
             }
             this.activateEffect(a.rules, e, i, r, s);
             return true;

@@ -167,6 +167,7 @@ UseChargeDrain=yes
         expect((trait as any).activateSuperWeapon(7, owner, game, {}, {})).toBe(true);
         expect(weapon.status).toBe(SuperWeaponStatus.Draining);
         expect(weapon.chargeTicks).toBe(20);
+        expect(weapon.shotsFired).toBe(0);
         expect((trait as any).deactivateSuperWeapon(7, owner)).toBe(true);
         expect(weapon.status).toBe(SuperWeaponStatus.Ready);
         expect(weapon.chargeTicks).toBe(0);

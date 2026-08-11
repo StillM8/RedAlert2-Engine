@@ -21,6 +21,8 @@ export interface AresSuperWeaponAvailabilityRules {
     allowAI?: boolean | string;
     shots?: number | string;
     alwaysGranted?: boolean | string;
+    /** Charge/Drain handlers do not support SW.Shots. */
+    useChargeDrain?: boolean;
 
     /** Raw parsed Ares entries, as retained by AresSuperWeaponDefinition. */
     extensionEntries?: ReadonlyMap<string, string | string[]>;
@@ -200,7 +202,9 @@ export function evaluateAresSuperWeaponAvailability(
     // Ares documents -1 as the unlimited sentinel. Treat other negative
     // values as the same safe unlimited fallback instead of inventing a
     // second, undocumented shot policy.
-    const shotsLimit = parsedShotsLimit < -1 ? -1 : parsedShotsLimit;
+    const shotsLimit = rules.useChargeDrain === true
+        ? -1
+        : parsedShotsLimit < -1 ? -1 : parsedShotsLimit;
     const shotsFired = Math.max(0, Math.trunc(context.shotsFired ?? 0));
     const shotsRemaining = shotsLimit >= 0 ? Math.max(0, shotsLimit - shotsFired) : undefined;
     const alwaysGranted = boolField(rules, rules.alwaysGranted, false, "SW.AlwaysGranted", "AlwaysGranted");
