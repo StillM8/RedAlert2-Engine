@@ -102,6 +102,7 @@ const EXTENSION_PREFIXES = [
     "firestorm.",
     "genericwarhead.",
     "chronowarp.",
+    "chronosphere.",
     "sonarpulse.",
     "eva.",
     "text.",
@@ -170,6 +171,8 @@ export interface AresSuperWeaponDefinition {
     swAnimation?: string;
     swAnimationHeight?: number;
     swSound?: string;
+    /** Chronosphere.ReconsiderBuildings; absent means the Ares default. */
+    chronosphereReconsiderBuildings?: boolean;
 
     /** Shared Ares availability/grant fields. */
     requiredHouses?: string[];
@@ -311,6 +314,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnimation: getString(section, "SW.Animation"),
         swAnimationHeight: getNumber(section, "SW.AnimationHeight"),
         swSound: getString(section, "SW.Sound"),
+        chronosphereReconsiderBuildings: getBool(section, "Chronosphere.ReconsiderBuildings"),
         requiredHouses: getArray(section, "SW.RequiredHouses"),
         forbiddenHouses: getArray(section, "SW.ForbiddenHouses"),
         auxBuildings: getArray(section, "SW.AuxBuildings"),

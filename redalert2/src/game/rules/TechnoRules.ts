@@ -22,6 +22,8 @@ import { parseAresUrbanCombatBuildingRules } from "@/extensions/ares/AresUrbanCo
 import type { AresUrbanCombatBuildingRules } from "@/extensions/ares/AresUrbanCombat";
 import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import { parseAresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
+import type { AresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
 interface House {
     name: string;
 }
@@ -166,6 +168,8 @@ export class TechnoRules extends ObjectRules {
     declare aresUrbanCombat?: AresUrbanCombatBuildingRules;
     /** Optional generic Ares AttachEffect data authored on this TechnoType. */
     declare aresAttachEffect?: AresAttachEffectDefinition;
+    /** Optional Ares Chronoshift eligibility data authored on this TechnoType. */
+    declare aresChronoshift?: AresChronoshiftRules;
     declare turret: boolean;
     declare turretCount: number;
     declare turretAnim: string;
@@ -544,6 +548,12 @@ export class TechnoRules extends ObjectRules {
             key.startsWith("attacheffect."));
         this.aresAttachEffect = hasAresAttachEffectFields
             ? parseAresAttachEffectDefinition(this.ini)
+            : undefined;
+        const hasAresChronoshiftFields = normalizedAresKeys.some((key: string) =>
+            key === "chronoshift.allow" ||
+            key === "chronoshift.isvehicle");
+        this.aresChronoshift = hasAresChronoshiftFields
+            ? parseAresChronoshiftRules(this.ini)
             : undefined;
         this.turret = this.ini.getBool("Turret");
         this.turretCount = this.ini.getNumber("TurretCount", this.turret ? 1 : 0);

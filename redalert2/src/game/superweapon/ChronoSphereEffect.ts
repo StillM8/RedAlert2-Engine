@@ -9,6 +9,10 @@ import {
     isAresSuperWeaponInRange,
     resolveAresSuperWeaponRange,
 } from "@/game/superweapon/AresSuperWeaponRange";
+import {
+    decideAresChronoshiftEligibility,
+    type AresChronosphereEligibilityRules,
+} from "@/extensions/ares/AresChronoshift";
 export class ChronoSphereEffect extends SuperWeaponEffect {
     private tile2: any;
     private objectsToTeleport: Array<{
@@ -16,13 +20,46 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         destTile: any;
     }> = [];
     private delayTicks: number = 0;
-    constructor(e: any, t: any, i: any, r: any, superWeaponRange?: readonly number[]) {
+    constructor(
+        e: any,
+        t: any,
+        i: any,
+        r: any,
+        superWeaponRange?: readonly number[],
+        chronosphereRules?: AresChronosphereEligibilityRules,
+    ) {
         super(e, t, i);
         this.tile2 = r;
         this.objectsToTeleport = [];
         this.superWeaponRange = superWeaponRange?.slice();
+        this.chronosphereRules = chronosphereRules;
     }
     private readonly superWeaponRange?: readonly number[];
+    private readonly chronosphereRules?: AresChronosphereEligibilityRules;
+
+    /**
+     * Filter only the unit candidates supported by the existing Chronosphere
+     * lifecycle. Building reclassification is still represented by the pure
+     * model, but buildings remain outside this effect's teleport seam.
+     */
+    private isAresChronoshiftEligible(object: any): boolean {
+        const objectCategory = object?.isBuilding?.()
+            ? "building"
+            : object?.isInfantry?.()
+                ? "infantry"
+                : object?.isAircraft?.()
+                    ? "aircraft"
+                    : object?.isVehicle?.()
+                        ? "vehicle"
+                        : object?.isUnit?.()
+                            ? "unit"
+                            : undefined;
+        return decideAresChronoshiftEligibility({
+            objectCategory,
+            techno: object?.rules?.aresChronoshift,
+            chronosphere: this.chronosphereRules,
+        }).eligible;
+    }
 
     onStart(t: any): void {
         this.delayTicks = t.rules.general.chronoDelay;
@@ -39,7 +76,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
             });
             for (const object of t.getWorld().getAllObjects()) {
                 const sourceTile = object.tile;
-                if (!object.isUnit?.() || !sourceTile || object.isDisposed ||
+                if (!object.isUnit?.() || !this.isAresChronoshiftEligible(object) || !sourceTile || object.isDisposed ||
                     object.onBridge !== !!sourceTile.onBridgeLandType ||
                     (object.isInfantry?.() && object.stance === StanceType.Paradrop && 2 < object.tileElevation) ||
                     object.invulnerableTrait?.isActive?.() ||
@@ -65,6 +102,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                     const destTile = i.getByMapCoords(this.tile2.rx + o, this.tile2.ry + e);
                     for (const object of t.map.getGroundObjectsOnTile(sourceTile)) {
                         if (!object.isUnit() ||
+                            !this.isAresChronoshiftEligible(object) ||
                             object.tile !== sourceTile ||
                             object.onBridge !== onBridge ||
                             (object.isInfantry() &&
