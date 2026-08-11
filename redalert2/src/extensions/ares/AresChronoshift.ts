@@ -16,6 +16,8 @@ export interface AresChronoshiftRules {
     allow: boolean;
     /** BuildingType.Chronoshift.IsVehicle; defaults to no. */
     isVehicle: boolean;
+    /** TechnoType.Chronoshift.Crushable; defaults to yes. */
+    crushable: boolean;
 }
 
 export interface AresChronosphereEligibilityRules {
@@ -47,6 +49,7 @@ export interface AresChronoshiftEligibility {
 const DEFAULT_RULES: AresChronoshiftRules = {
     allow: true,
     isVehicle: false,
+    crushable: true,
 };
 
 const DEFAULT_AFFECTED_TARGETS: readonly AresChronoshiftTargetCategory[] = [
@@ -96,6 +99,7 @@ export function parseAresChronoshiftRules(section: IniSection): AresChronoshiftR
     return {
         allow: parseBoolean(getValue(section, "Chronoshift.Allow"), DEFAULT_RULES.allow),
         isVehicle: parseBoolean(getValue(section, "Chronoshift.IsVehicle"), DEFAULT_RULES.isVehicle),
+        crushable: parseBoolean(getValue(section, "Chronoshift.Crushable"), DEFAULT_RULES.crushable),
     };
 }
 
@@ -107,7 +111,19 @@ function normalizeRules(value: Partial<AresChronoshiftRules> | null | undefined)
     return {
         allow: normalizeBoolean(value?.allow, DEFAULT_RULES.allow),
         isVehicle: normalizeBoolean(value?.isVehicle, DEFAULT_RULES.isVehicle),
+        crushable: normalizeBoolean(value?.crushable, DEFAULT_RULES.crushable),
     };
+}
+
+/**
+ * Resolve the optional runtime override without borrowing ObjectRules.Crushable.
+ * Undefined means no Ares value was authored and preserves the existing
+ * Chronosphere collision behavior.
+ */
+export function resolveAresChronoshiftCrushable(
+    value: Partial<AresChronoshiftRules> | null | undefined,
+): boolean | undefined {
+    return typeof value?.crushable === "boolean" ? value.crushable : undefined;
 }
 
 function normalizeObjectCategory(value: unknown): AresChronoshiftObjectCategory | undefined {

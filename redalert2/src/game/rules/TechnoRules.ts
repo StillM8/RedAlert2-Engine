@@ -555,7 +555,8 @@ export class TechnoRules extends ObjectRules {
             : undefined;
         const hasAresChronoshiftFields = normalizedAresKeys.some((key: string) =>
             key === "chronoshift.allow" ||
-            key === "chronoshift.isvehicle");
+            key === "chronoshift.isvehicle" ||
+            key === "chronoshift.crushable");
         this.aresChronoshift = hasAresChronoshiftFields
             ? parseAresChronoshiftRules(this.ini)
             : undefined;

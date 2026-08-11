@@ -11,6 +11,7 @@ import {
 } from "@/game/superweapon/AresSuperWeaponRange";
 import {
     decideAresChronoshiftEligibility,
+    resolveAresChronoshiftCrushable,
     type AresChronosphereEligibilityRules,
 } from "@/extensions/ares/AresChronoshift";
 export class ChronoSphereEffect extends SuperWeaponEffect {
@@ -187,6 +188,11 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                         !this.objectsToTeleport.some(({ obj: e }) => e === t) &&
                         !(t.onBridge !== !!r && t.tile === g) &&
                         !(2 < Math.abs(t.tileElevation - d.tileElevation))) {
+                        if (resolveAresChronoshiftCrushable(t.rules?.aresChronoshift) === false) {
+                            l.destroyObject(d, { player: this.owner });
+                            e = true;
+                            break;
+                        }
                         if (t.isInfantry() &&
                             t.stance !== StanceType.Paradrop) {
                             t.deathType = DeathType.Crush;
