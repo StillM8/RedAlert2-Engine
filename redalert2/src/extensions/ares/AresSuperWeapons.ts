@@ -103,6 +103,7 @@ const EXTENSION_PREFIXES = [
     "genericwarhead.",
     "chronowarp.",
     "chronosphere.",
+    "sidebarpcx",
     "sonarpulse.",
     "eva.",
     "text.",
@@ -171,6 +172,8 @@ export interface AresSuperWeaponDefinition {
     swAnimation?: string;
     swAnimationHeight?: number;
     swSound?: string;
+    /** Ares PCX sidebar asset; absent means the legacy SidebarImage is used. */
+    sidebarPcx?: string;
     /** Chronosphere.ReconsiderBuildings; absent means the Ares default. */
     chronosphereReconsiderBuildings?: boolean;
 
@@ -314,6 +317,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnimation: getString(section, "SW.Animation"),
         swAnimationHeight: getNumber(section, "SW.AnimationHeight"),
         swSound: getString(section, "SW.Sound"),
+        sidebarPcx: getString(section, "SidebarPCX"),
         chronosphereReconsiderBuildings: getBool(section, "Chronosphere.ReconsiderBuildings"),
         requiredHouses: getArray(section, "SW.RequiredHouses"),
         forbiddenHouses: getArray(section, "SW.ForbiddenHouses"),

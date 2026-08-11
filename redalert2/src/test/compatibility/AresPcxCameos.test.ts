@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+    createAresPcxCameoAssetManifest,
+    isAresPcxCameoSize,
     normalizeAresPcxCameos,
     resolveAresSidebarCameo,
     resolveAresTechnoCameo,
@@ -88,5 +90,31 @@ describe("Ares PCX cameo normalization and resolution", () => {
             assetName: "LegacyIcon",
         });
         expect(resolveAresSidebarCameo(normalizeAresPcxCameos({}))).toEqual({ source: "none" });
+    });
+
+    test("collects available PCXs separately while retaining legacy SHP names", () => {
+        const manifest = createAresPcxCameoAssetManifest(
+            ["unit.shp", "elite.shp"],
+            [
+                normalizeAresPcxCameos({
+                    cameoPcx: "UnitIcon.PCX",
+                    altCameoPcx: "EliteIcon.PCX",
+                    sidebarPcx: "SidebarIcon.PCX",
+                }),
+                normalizeAresPcxCameos({ cameoPcx: "uniticon.pcx" }),
+            ],
+            (filename) => filename !== "SidebarIcon.PCX",
+        );
+
+        expect(manifest).toEqual({
+            shpFilenames: ["unit.shp", "elite.shp"],
+            pcxFilenames: ["UnitIcon.PCX", "EliteIcon.PCX"],
+        });
+    });
+
+    test("accepts only the documented 60x48 cameo surface", () => {
+        expect(isAresPcxCameoSize(60, 48)).toBe(true);
+        expect(isAresPcxCameoSize(48, 60)).toBe(false);
+        expect(isAresPcxCameoSize(60, 47)).toBe(false);
     });
 });

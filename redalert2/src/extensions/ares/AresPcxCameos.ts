@@ -38,6 +38,24 @@ export interface AresPcxCameoResolution {
     readonly assetName?: string;
 }
 
+/**
+ * Asset names collected for the existing HUD path. SHPs remain the
+ * renderable aggregate; PCXs are retained separately because the current
+ * sidebar renderer consumes indexed SHP frames, not RGBA PCX surfaces.
+ */
+export interface AresPcxCameoAssetManifest {
+    readonly shpFilenames: readonly string[];
+    readonly pcxFilenames: readonly string[];
+}
+
+/** Ares' documented cameo surface size. No resize or dimension synthesis is performed. */
+export const ARES_PCX_CAMEO_WIDTH = 60;
+export const ARES_PCX_CAMEO_HEIGHT = 48;
+
+export function isAresPcxCameoSize(width: unknown, height: unknown): boolean {
+    return width === ARES_PCX_CAMEO_WIDTH && height === ARES_PCX_CAMEO_HEIGHT;
+}
+
 const NONE: AresPcxCameoResolution = { source: "none" };
 
 function trimString(value: unknown): string | undefined {
@@ -109,4 +127,48 @@ export function resolveAresSidebarCameo(
         ["SidebarPCX", "pcx", definition.sidebarPcx],
         ["SidebarImage", "legacy", definition.sidebarImage],
     ]);
+}
+
+/**
+ * Builds a non-mutating asset manifest while preserving authored PCX case.
+ * Availability is supplied by the caller so the adapter does not depend on
+ * a particular VFS or image implementation. A failed availability probe is
+ * treated as absent and leaves the legacy SHP fallback intact.
+ */
+export function createAresPcxCameoAssetManifest(
+    shpFilenames: readonly string[],
+    definitions: readonly AresPcxCameoDefinition[],
+    pcxAvailable: (filename: string) => boolean = () => true,
+): AresPcxCameoAssetManifest {
+    const pcxFilenames: string[] = [];
+    const seenPcxNames = new Set<string>();
+
+    for (const definition of definitions) {
+        for (const filename of [
+            definition.cameoPcx,
+            definition.altCameoPcx,
+            definition.sidebarPcx,
+        ]) {
+            if (filename === undefined) continue;
+
+            const key = filename.toLocaleLowerCase("en-US");
+            if (seenPcxNames.has(key)) continue;
+
+            let available = false;
+            try {
+                available = pcxAvailable(filename);
+            } catch {
+                available = false;
+            }
+            if (!available) continue;
+
+            seenPcxNames.add(key);
+            pcxFilenames.push(filename);
+        }
+    }
+
+    return {
+        shpFilenames: [...shpFilenames],
+        pcxFilenames,
+    };
 }

@@ -23,6 +23,7 @@ import { commandButtonConfigs } from "@/gui/screen/game/component/hud/commandBar
 import { isNotNullOrUndefined } from "@/util/typeGuard";
 import { DebugText } from "@/gui/screen/game/component/hud/DebugText";
 import { ReplayStatsOverlay } from "@/gui/screen/game/component/hud/ReplayStatsOverlay";
+import type { AresPcxCameoAssetManifest } from "@/extensions/ares/AresPcxCameos";
 declare const THREE: any;
 interface Viewport {
     x: number;
@@ -46,6 +47,7 @@ export class Hud extends UiObject {
     private images: Map<string, any>;
     private palettes: Map<string, any>;
     private cameoFilenames: string[];
+    private pcxCameoFilenames: string[] = [];
     private sidebarModel: SidebarModel;
     private messageList: any;
     private chatHistory: any;
@@ -95,7 +97,7 @@ export class Hud extends UiObject {
     private menuContentContainer?: any;
     private menuContentContainerInner?: any;
     private menuContent?: any;
-    constructor(sideType: SideType, viewport: Viewport, images: Map<string, any>, palettes: Map<string, any>, cameoFilenames: string[], sidebarModel: SidebarModel, messageList: any, chatHistory: any, debugTextValue: any, debugTextEnabled: any, localPlayer: any, players: any, stalemateDetectTrait: any, countdownTimer: any, jsxRenderer: any, strings: any, commandBarButtonTypes: CommandBarButtonType[], persistentHoverTags: any, useYuriArt: boolean = false, presentation?: SidePresentation) {
+    constructor(sideType: SideType, viewport: Viewport, images: Map<string, any>, palettes: Map<string, any>, cameoFilenames: string[] | AresPcxCameoAssetManifest, sidebarModel: SidebarModel, messageList: any, chatHistory: any, debugTextValue: any, debugTextEnabled: any, localPlayer: any, players: any, stalemateDetectTrait: any, countdownTimer: any, jsxRenderer: any, strings: any, commandBarButtonTypes: CommandBarButtonType[], persistentHoverTags: any, useYuriArt: boolean = false, presentation?: SidePresentation) {
         super(new THREE.Object3D(), new HtmlContainer());
         this.sideType = sideType;
         this.presentation = presentation ?? resolveSidePresentation(undefined, sideType, useYuriArt);
@@ -103,7 +105,13 @@ export class Hud extends UiObject {
         this.viewport = viewport;
         this.images = images;
         this.palettes = palettes;
-        this.cameoFilenames = cameoFilenames;
+        if (Array.isArray(cameoFilenames)) {
+            this.cameoFilenames = [...cameoFilenames];
+        }
+        else {
+            this.cameoFilenames = [...cameoFilenames.shpFilenames];
+            this.pcxCameoFilenames = [...cameoFilenames.pcxFilenames];
+        }
         this.sidebarModel = sidebarModel;
         this.messageList = messageList;
         this.chatHistory = chatHistory;
@@ -134,6 +142,13 @@ export class Hud extends UiObject {
     }
     get onDiploButtonClick() {
         return this._onDiploButtonClick.asEvent();
+    }
+    /**
+     * PCX names collected by the loader. The current SHP-only sidebar keeps
+     * them available as a future direct-surface rendering seam.
+     */
+    getCollectedPcxCameoFilenames(): readonly string[] {
+        return this.pcxCameoFilenames;
     }
     get onOptButtonClick() {
         return this._onOptButtonClick.asEvent();

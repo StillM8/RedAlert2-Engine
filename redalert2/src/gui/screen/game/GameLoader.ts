@@ -1,5 +1,6 @@
 import { DataStream } from '@/data/DataStream';
 import { Palette } from '@/data/Palette';
+import { PcxFile } from '@/data/PcxFile';
 import { OperationCanceledError } from '@puzzl/core/lib/async/cancellation';
 import { ResourceType, theaterSpecificResources } from '@/engine/resourceConfigs';
 import { Engine } from '@/engine/Engine';
@@ -28,6 +29,7 @@ import { DebugRenderable } from '@/engine/renderable/DebugRenderable';
 import { MixinRules } from '@/game/ini/MixinRules';
 import { isNotNullOrUndefined } from '@/util/typeGuard';
 import { resolveSideMixSelection, resolveSidePresentation, type SideDescriptor, type SidePresentation } from '@/extensions/ares/AresSides';
+import { createAresPcxCameoAssetManifest, isAresPcxCameoSize, normalizeAresPcxCameos, type AresPcxCameoAssetManifest, type AresPcxCameoDefinition } from '@/extensions/ares/AresPcxCameos';
 export class GameLoader {
     constructor(private appVersion: string, private workerHostApi: any, private cdnResourceLoader: any, private appResourceLoader: any, private rules: any, private gameModes: any, private sound: any, private iniLogger: any, private actionLogger: any, private speedCheat: any, private gameResConfig: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private debugBotIndex: any, private devMode: boolean) { }
     async load(gameId: string, timestamp: number, gameOptions: any, mapFile: any, playerName: string, isSinglePlayer: boolean, loadingScreenApi: any, cancellationToken?: any): Promise<any> {
@@ -164,8 +166,9 @@ export class GameLoader {
         await sleep(1);
         return { game, theater, hudSide, sideDescriptor, sidePresentation, useYuriArt, cameoFilenames };
     }
-    private collectCameoFileNames(game: any): string[] {
+    private collectCameoFileNames(game: any): AresPcxCameoAssetManifest {
         const filenames: string[] = [];
+        const pcxDefinitions: AresPcxCameoDefinition[] = [];
         const objects = [
             ...game.rules.buildingRules.values(),
             ...game.rules.infantryRules.values(),
@@ -177,15 +180,40 @@ export class GameLoader {
                 const artObj = game.art.getObject(obj.name, obj.type);
                 filenames.push(artObj.cameo + '.shp');
                 filenames.push(artObj.altCameo + '.shp');
+                pcxDefinitions.push(normalizeAresPcxCameos({
+                    cameoPcx: artObj.art?.getString?.('CameoPCX'),
+                    altCameoPcx: artObj.art?.getString?.('AltCameoPCX'),
+                    cameo: artObj.cameo,
+                    altCameo: artObj.altCameo,
+                }));
             }
         }
         for (const superWeapon of game.rules.superWeaponRules.values()) {
-            if (superWeapon.sidebarImage.length) {
+            if (superWeapon.sidebarImage?.length) {
                 filenames.push(superWeapon.sidebarImage + '.shp');
             }
+            // The current shared superweapon model does not retain SidebarPCX.
+            // Accept it when a caller already supplies the generic extension,
+            // without reaching into private rules/parser state here.
+            pcxDefinitions.push(normalizeAresPcxCameos({
+                sidebarPcx: superWeapon.sidebarPcx ?? superWeapon.ares?.sidebarPcx,
+                sidebarImage: superWeapon.sidebarImage,
+            }));
         }
         const filteredFilenames = filenames.filter(filename => Engine.getImages().has(filename));
-        return [...new Set(filteredFilenames)];
+        return createAresPcxCameoAssetManifest(
+            [...new Set(filteredFilenames)],
+            pcxDefinitions,
+            (filename) => {
+                try {
+                    if (!Engine.vfs.fileExists(filename)) return false;
+                    const pcx = new PcxFile(Engine.vfs.openFile(filename));
+                    return isAresPcxCameoSize(pcx.width, pcx.height);
+                } catch {
+                    return false;
+                }
+            },
+        );
     }
     private async prepareSounds(cancellationToken?: any, onProgress?: (percent: number) => void): Promise<void> {
         const soundFiles = new Set<any>();

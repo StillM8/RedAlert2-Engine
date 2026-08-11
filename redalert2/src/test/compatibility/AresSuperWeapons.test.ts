@@ -115,6 +115,20 @@ SW.AlwaysGranted=yes
         });
     });
 
+    test("retains SidebarPCX for generic cameo asset discovery", () => {
+        const ini = new IniFile(`
+[MapSuperWeapon]
+Type=MultiMissile
+SidebarImage=legacyicon
+SidebarPCX=MapIcon.PCX
+`);
+        const definition = parseAresSuperWeaponDefinition(ini.getSection("MapSuperWeapon")!);
+        const rules = new SuperWeaponRules(4).readIni(ini.getSection("MapSuperWeapon")!);
+
+        expect(definition?.sidebarPcx).toBe("MapIcon.PCX");
+        expect(rules.ares?.sidebarPcx).toBe("MapIcon.PCX");
+    });
+
     test("keeps vanilla type parsing compatible and ignores ordinary sections", () => {
         const ini = new IniFile(`
 [Nuke]
