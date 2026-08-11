@@ -108,7 +108,7 @@ describe("Ares Battery superweapon", () => {
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.parserImplemented).toBe(true);
         expect(usage?.support?.runtimeImplemented).toBe(true);
-        expect(report.unknownExtensionKeys).toBe(0);
+        expect(report.unclassifiedKeys).toBe(0);
     });
 
 });

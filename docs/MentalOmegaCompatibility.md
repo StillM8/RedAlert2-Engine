@@ -13,8 +13,8 @@ extension runtime identifier; vanilla `ra2` and `yr` profiles remain separate.
 - MO archive names such as `expandmo95.mix` are loaded through the profile-aware
   overlay path.
 - VFS resolution has explicit layers and provenance diagnostics.
-- The Ares scanner reports vanilla keys, known extension keys, and unknown
-  extension keys separately.
+- The Ares scanner reports `vanilla`, `ares-known`, `mo-content`, and
+  `unclassified` keys separately. An unknown key never implies Ares support.
 - Additional armor types and per-armor warhead verses are normalized through a
   shared armor registry.
 - Sides and countries are parsed from data-defined registries rather than
@@ -37,34 +37,41 @@ soundmo.ini
 ```
 
 The include graph resolved 5 roots with 0 missing includes, 0 cycles, and 0
-duplicate loads. It contains 14,104 sections and 214,282 key entries. The
-highest-impact identified Ares usage currently is:
+duplicate loads. The raw roots contain 14,137 section headers, 14,129 unique
+section names, and 214,282 key entries. The effective scanner representation
+contains 214,218 normalized key entries. The highest-impact identified Ares
+usage currently is:
 
 | Capability | Occurrences | Source files | Sections/definitions | Runtime status |
 | --- | ---: | ---: | ---: | --- |
-| Custom ArmorTypes / `Versus.*` | 8,917 | 1 | 640 / 877 | implemented, target integration open |
+| Custom ArmorTypes / `Versus.*` | 8,916 | 1 | 640 / 877 | implemented, target integration open |
 | Custom foundations / outlines | 2,671 | 1 | 79 / 79 | implemented, target integration open |
-| Custom superweapon fields/types | 552 | 1 | 141 / 141 | parser partial, runtime gaps remain |
+| Custom superweapon fields/types | 1,921 authored entries / 1,011 Ares-mapped | 1 | 96 custom types | parser partial, availability and handler gaps remain |
 | CustomPalette | 541 | 1 | 541 / 541 | implemented, render certification open |
 | EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
 | Projectile Airburst/Splits extensions | 614 | 1 | 232 / 232 | parser/runtime slice implemented; Proximity and target-content flight certification remain open |
 | VehicleThief / CanDrive | 271 | 1 | 263 / 263 | core runtime implemented, integration gaps remain |
+| Damage particle systems | 590 | 1 | 590 | parser inventory only; generic runtime gap remains |
+| PCX cameos | 708 | 1 | 525 | parser/presentation gap remains |
+| Reverse engineering | 515 | 1 | 515 | generic eligibility and production gap remains |
+| Chronoshift eligibility | 1,042 | 1 | 1,041 | generic object/building semantics remain |
 
-The scanner currently reports a broad unknown-key bucket because ordinary
-Mental Omega keys are not all classified as vanilla or Ares yet. That bucket
-is a diagnostic backlog, not a claim that every unknown entry is an Ares
-mechanic. Development now follows the identified capability counts and
-dependencies.
+The scanner currently reports a broad unclassified bucket because ordinary
+Mental Omega content is not all safely classifiable from INI spelling alone.
+That bucket is a diagnostic backlog, not a claim that every entry is an Ares
+mechanic. Development follows the report's measured MO usage and dependency
+order; only generic Ares capabilities exercised by MO are in scope.
 
 ## Compatibility status
 
 This is intentionally not a claim of complete runtime compatibility yet.
 The scanner and feature registry are the source of truth for the next phases:
 
-1. scan the target user's local MO INIs and generate a requirement report;
-2. implement each required Ares capability as a normalized parser/runtime
-   feature;
-3. verify each feature with a synthetic fixture and local MO integration test;
+1. keep the canonical profile roots and requirement report current;
+2. implement the next MO-used generic Ares capability, beginning with shared
+   superweapon availability/grant state;
+3. verify each capability with a synthetic fixture and local MO integration
+   test;
 4. validate skirmish, save/load, deterministic lockstep, LAN, and campaigns.
 
 Proprietary RA2, Yuri's Revenge, and Mental Omega files are not committed to

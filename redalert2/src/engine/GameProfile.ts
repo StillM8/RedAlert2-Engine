@@ -5,6 +5,8 @@ export type GameProfileId = "ra2" | "yr" | "mental-omega";
 
 export type ExtensionRuntimeId = "ares";
 
+export type ProfileFileAvailability = (filename: string) => boolean;
+
 export interface GameProfileDescriptor {
     id: GameProfileId;
     engine: EngineType;
@@ -19,22 +21,65 @@ export interface GameProfileDescriptor {
     optionalFileNameOverrides?: Readonly<Record<string, string>>;
     /** Additional CSF names loaded as profile-local string overrides. */
     stringFileCandidates?: readonly string[];
+    /**
+     * Resolve one of the engine's canonical filenames for this content
+     * profile.  The availability callback is optional so scanners can inspect
+     * the profile's preferred aliases without mounting a VFS first; runtime
+     * callers should provide it to allow optional aliases to fall back to the
+     * engine filename when the profile file is absent.
+     */
+    resolveCanonicalFile: (baseFileName: string, isAvailable?: ProfileFileAvailability) => string;
+}
+
+function normalizeProfileFileName(filename: string): string {
+    return filename.trim().toLocaleLowerCase("en-US");
+}
+
+function engineVariantFileName(profile: Pick<GameProfileDescriptor, "engine">, baseFileName: string): string {
+    if (profile.engine === EngineType.RedAlert2) {
+        return baseFileName;
+    }
+    if (profile.engine === EngineType.YurisRevenge) {
+        return baseFileName.replace(/\.([^.]+)$/, `md.$1`);
+    }
+    throw new Error(`Unsupported engine type ${EngineType[profile.engine]}`);
+}
+
+function createProfile(
+    descriptor: Omit<GameProfileDescriptor, "resolveCanonicalFile">,
+): GameProfileDescriptor {
+    const profile = descriptor as GameProfileDescriptor;
+    profile.resolveCanonicalFile = (baseFileName, isAvailable) => {
+        const normalizedBaseFileName = normalizeProfileFileName(baseFileName);
+        const requiredOverride = profile.fileNameOverrides?.[normalizedBaseFileName];
+        if (requiredOverride) {
+            return requiredOverride;
+        }
+
+        const optionalOverride = profile.optionalFileNameOverrides?.[normalizedBaseFileName];
+        if (optionalOverride && (!isAvailable || isAvailable(optionalOverride))) {
+            return optionalOverride;
+        }
+
+        return engineVariantFileName(profile, baseFileName);
+    };
+    return profile;
 }
 
 export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
-    ra2: {
+    ra2: createProfile({
         id: "ra2",
         engine: EngineType.RedAlert2,
         displayName: "Red Alert 2",
         requiredFiles: ["language.mix", "multi.mix", "ra2.mix"],
-    },
-    yr: {
+    }),
+    yr: createProfile({
         id: "yr",
         engine: EngineType.YurisRevenge,
         displayName: "Yuri's Revenge",
         requiredFiles: ["language.mix", "multi.mix", "ra2.mix", "langmd.mix", "multimd.mix", "ra2md.mix"],
-    },
-    "mental-omega": {
+    }),
+    "mental-omega": createProfile({
         id: "mental-omega",
         // Mental Omega is a Yuri's Revenge content profile.  Keeping the
         // simulation engine separate from the profile prevents MO-specific
@@ -51,10 +96,13 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
             "ai.ini": "aimo.ini",
         },
         optionalFileNameOverrides: {
-            // MO 3.3.6 uses the standard YR `md` UI filename.  It is packed
+            // MO 3.3.6 uses the standard YR `md` UI filename. It is packed
             // in expandmo##.mix, so this remains an optional profile alias
             // rather than a required loose file.
             "ui.ini": "uimd.ini",
+            // The official MO client selects this profile sound index. The
+            // file is packed in expandmo99.mix in the local 3.3.6 install.
+            "sound.ini": "soundmo.ini",
             "missions.pkt": "missionsmo.pkt",
         },
         // MO 3.3 language resources keep the YR base table in ra2md.csf and
@@ -66,7 +114,7 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
             "stringtable10.csf",
             "stringtable11.csf",
         ],
-    },
+    }),
 };
 
 export function getGameProfile(id: GameProfileId | undefined): GameProfileDescriptor {

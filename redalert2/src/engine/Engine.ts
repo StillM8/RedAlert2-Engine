@@ -463,24 +463,8 @@ export class Engine {
         return this.ai;
     }
     static getFileNameVariant(baseFileName: string): string {
-        const normalizedBaseFileName = baseFileName.toLocaleLowerCase("en-US");
-        const profileOverride = this.activeProfile.fileNameOverrides?.[normalizedBaseFileName];
-        if (profileOverride) {
-            return profileOverride;
-        }
-        const optionalProfileOverride = this.activeProfile.optionalFileNameOverrides?.[normalizedBaseFileName];
-        if (optionalProfileOverride && this.iniFiles.has(optionalProfileOverride)) {
-            return optionalProfileOverride;
-        }
-        const currentEngine = this.getActiveEngine();
-        let suffix = "";
-        if (currentEngine === EngineType.YurisRevenge) {
-            suffix = "md";
-        }
-        else if (currentEngine !== EngineType.RedAlert2) {
-            throw new Error("Unsupported engine type " + EngineType[currentEngine]);
-        }
-        return suffix ? baseFileName.replace(/\.([^.]+)$/, `${suffix}.$1`) : baseFileName;
+        return this.activeProfile.resolveCanonicalFile(baseFileName, (filename) =>
+            this.vfs?.fileExists(filename) || this.iniFiles.has(filename));
     }
     private static getEngineBaseFileName(baseFileName: string): string {
         const currentEngine = this.getActiveEngine();

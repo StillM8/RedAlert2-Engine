@@ -14,13 +14,16 @@ import { MemArchive } from "@/data/vfs/MemArchive";
 import { VirtualFileSystem } from "@/data/vfs/VirtualFileSystem";
 
 describe("Ares compatibility scanner", () => {
-    test("separates vanilla, known extension, and unknown extension keys", () => {
+    test("separates vanilla, Ares-known, and unclassified keys", () => {
         const report = scanMentalOmegaIniSources([
             {
                 name: "rulesmo.ini",
                 contents: `
 [ArmorTypes]
 magic=steel
+
+[TechnoTypes]
+0=FoehnUnit
 
 [PulseWarhead]
 Versus.magic=0.5
@@ -34,15 +37,16 @@ UnknownGameplayFlag=yes
         ]);
 
         expect(report.sourceCount).toBe(1);
-        expect(report.knownExtensionKeys).toBe(3);
-        expect(report.unknownExtensionKeys).toBe(1);
-        expect(report.vanillaKeys).toBe(1);
+        expect(report.aresKnownKeys).toBe(2);
+        expect(report.unclassifiedKeys).toBe(2);
+        expect(report.vanillaKeys).toBe(2);
         const armorUsage = report.featureUsage.find((item) => item.featureId === "ares.additional-armor-types");
-        expect(armorUsage?.occurrences).toBe(3);
+        expect(armorUsage?.occurrences).toBe(2);
         expect(armorUsage?.sourceCount).toBe(1);
         expect(armorUsage?.sectionCount).toBe(2);
         expect(armorUsage?.definitionCount).toBe(2);
-        expect(report.featureUsage.find((item) => item.featureId === "ares.unknown-key")?.occurrences).toBe(1);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.unknown-key")).toBeUndefined();
+        expect(report.unclassifiedUsage.find((item) => item.key === "Ares.CustomArmor")?.occurrences).toBe(1);
     });
 
     test("maps documented extension families to separate capabilities", () => {
@@ -57,8 +61,8 @@ Foundation.Y=3
 Foundation.0=0,0
 FoundationOutline.Length=4
 FoundationOutline.0=-1,-1
-Ares.ProjectilePalette=laser.pal
-Ares.PassengerDelete=yes
+CustomPalette=laser.pal
+PassengerDelete=yes
 `,
             },
         ]);
@@ -96,6 +100,128 @@ Proximity=yes
         expect(usage?.support?.runtimeImplemented).toBe(true);
     });
 
+    test("classifies documented Chronoshift eligibility fields as Ares requirements", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[ChronoTank]
+Chronoshift.Allow=no
+
+[ChronoBuilding]
+Chronoshift.IsVehicle=yes
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.chronoshift");
+        expect(usage?.occurrences).toBe(2);
+        expect(usage?.support?.implemented).toBe(false);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
+    test("classifies MO-used veterancy, insignia, and bounty fields as generic Ares requirements", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[TechnoTypes]
+0=MOUnit
+
+[MOUnit]
+Trainable=no
+Insignia.Elite=MOELITE
+InsigniaFrame.Veteran=2
+Bounty=yes
+Bounty.Display=yes
+Bounty.Value=100
+Bounty.RookieValue=100
+Bounty.VeteranValue=200
+Bounty.EliteValue=300
+
+[General]
+BountyEnablers=MOHQ
+
+[AudioVisual]
+BountyDisplay=yes
+
+[Countries]
+0=MOCountry
+
+[MOCountry]
+GivesBounty=no
+`,
+            },
+        ]);
+
+        expect(report.featureUsage.find((item) => item.featureId === "ares.customizable-veterancy")?.occurrences).toBe(1);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.customizable-insignia")?.occurrences).toBe(2);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.bounty")?.occurrences).toBe(9);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
+    test("classifies MO-used AttachEffect, IFVMode, and PoweredBy fields as generic Ares requirements", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[TechnoTypes]
+0=MOUnit
+
+[MOUnit]
+AttachEffect.Duration=120
+AttachEffect.Animation=MOEffect
+IFVMode=4
+PoweredBy=MOGenerator
+`,
+            },
+        ]);
+
+        expect(report.featureUsage.find((item) => item.featureId === "ares.status-effects")?.occurrences).toBe(2);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.ifv-modes")?.occurrences).toBe(1);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.powered-by")?.occurrences).toBe(1);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
+    test("keeps common YR object and projectile fields vanilla without inferring Ares", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[TechnoTypes]
+0=MOUnit
+
+[MOUnit]
+CanHideThings=yes
+DamageFireOffset1=10,20
+CrushSound=TankCrush
+VoiceAttack=MOAttack
+LeaveRubble=yes
+PrimaryFireFLH=10,0,20
+Turret=yes
+MoveSound=MOMove
+ZAdjust=-2
+Weight=3
+RadarInvisible=yes
+CrateGoodie=yes
+
+[ProjectileTypes]
+0=MOProjectile
+
+[MOProjectile]
+SubjectToElevation=yes
+SubjectToCliffs=no
+SubjectToWalls=yes
+Conventional=yes
+`,
+            },
+        ]);
+
+        expect(report.vanillaKeys).toBe(18);
+        expect(report.aresKnownKeys).toBe(0);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
     test("classifies documented Ares superweapon extensions", () => {
         const report = scanMentalOmegaIniSources([
             {
@@ -115,9 +241,10 @@ Deliver.Types=MOUnit
         ]);
 
         const usage = report.featureUsage.find((item) => item.featureId === "ares.custom-superweapons");
-        expect(usage?.occurrences).toBe(5);
+        expect(usage?.occurrences).toBe(4);
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.implemented).toBe(false);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.target-filters")?.occurrences).toBe(1);
     });
 
     test("tracks manual superweapon target requirements separately from effect handlers", () => {
@@ -156,7 +283,7 @@ SW.FireIntoShroud=no
         expect(usage?.occurrences).toBe(1);
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.runtimeImplemented).toBe(true);
-        expect(report.unknownExtensionKeys).toBe(0);
+        expect(report.unclassifiedKeys).toBe(0);
     });
 
     test("classifies AutoFire and ManualFire as one activation-policy capability", () => {
@@ -176,7 +303,7 @@ SW.ManualFire=no
         expect(usage?.occurrences).toBe(2);
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.runtimeImplemented).toBe(true);
-        expect(report.unknownExtensionKeys).toBe(0);
+        expect(report.unclassifiedKeys).toBe(0);
     });
 
     test("classifies EMPulse fields and launch-site flags as one capability", () => {
@@ -198,8 +325,8 @@ EMPulseCannon=yes
         ]);
 
         const usage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-empulse");
-        expect(usage?.occurrences).toBe(5);
-        expect(report.unknownExtensionKeys).toBe(0);
+        expect(usage?.occurrences).toBe(6);
+        expect(report.unclassifiedKeys).toBe(0);
         expect(usage?.support?.runtimeImplemented).toBe(true);
     });
 
@@ -250,7 +377,7 @@ FactoryOwners.Forbidden=BetaCountry
             },
         ]);
 
-        expect(report.unknownExtensionKeys).toBe(0);
+        expect(report.unclassifiedKeys).toBe(0);
         expect(report.featureUsage.find((usage) => usage.featureId === "ares.generic-prerequisites")?.occurrences).toBe(5);
         expect(report.featureUsage.find((usage) => usage.featureId === "ares.factory-owner-prerequisites")?.occurrences).toBe(2);
         expect(report.dependencyGraph.edges.filter((edge) => edge.kind === "country").map((edge) => edge.value)).toEqual([
@@ -354,7 +481,7 @@ ListIndex=11
     test("scans the effective INI graph instead of only the root file", () => {
         const archive = new MemArchive();
         archive.addFile(VirtualFile.fromBytes(new TextEncoder().encode(`[#include]\n1=rules_units.ini\n`), "rulesmo.ini"));
-        archive.addFile(VirtualFile.fromBytes(new TextEncoder().encode(`[FoehnUnit]\nAres.CustomArmor=yes\n`), "rules_units.ini"));
+        archive.addFile(VirtualFile.fromBytes(new TextEncoder().encode(`[PulseWarhead]\nVersus.magic=25%\n`), "rules_units.ini"));
         const vfs = new VirtualFileSystem(undefined as any, {
             info: () => undefined,
             warn: () => undefined,
@@ -363,8 +490,34 @@ ListIndex=11
         vfs.addArchive(archive, "expandmo95.mix");
         const report = scanMentalOmegaVfs(vfs, undefined, new IniSourceLoader(vfs));
 
-        expect(report.references.some((reference) => reference.source === "rulesmo.ini (effective)" && reference.key === "Ares.CustomArmor")).toBe(true);
+        expect(report.references.some((reference) => reference.source === "rulesmo.ini (effective)" && reference.key === "Versus.magic")).toBe(true);
         expect(report.featureUsage.find((usage) => usage.featureId === "ares.additional-armor-types")?.occurrences).toBe(1);
+    });
+
+    test("resolves the complete Mental Omega canonical INI set", () => {
+        const archive = new MemArchive();
+        const files: Record<string, string> = {
+            "rulesmo.ini": "[General]\nName=MentalOmegaRules\n",
+            "artmo.ini": "[MOArt]\nImage=MOART\n",
+            "aimo.ini": "[AI]\n0=MOAI\n",
+            "uimd.ini": "[UI]\nName=MentalOmegaUI\n",
+            "soundmo.ini": "[SoundList]\n0=MentalOmegaSound\n",
+        };
+        for (const [filename, contents] of Object.entries(files)) {
+            archive.addFile(VirtualFile.fromBytes(new TextEncoder().encode(contents), filename));
+        }
+        const vfs = new VirtualFileSystem(undefined as any, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+        vfs.addArchive(archive, "expandmo99.mix");
+
+        const report = scanMentalOmegaVfs(vfs);
+
+        expect(report.sourceCount).toBe(5);
+        expect(new Set(report.references.map((reference) => reference.source))).toEqual(new Set(Object.keys(files)));
+        expect(report.references.some((reference) => reference.source === "soundmo.ini")).toBe(true);
     });
 
     test("builds side/country and gameplay dependency coverage from effective sources", () => {
