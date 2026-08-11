@@ -5,6 +5,10 @@ import { VirtualFileSystem } from "@/data/vfs/VirtualFileSystem";
 import { ResourceLayer } from "@/data/vfs/ResourceLayer";
 import { FileNotFoundError } from "@/data/vfs/FileNotFoundError";
 import { GAME_PROFILES } from "@/engine/GameProfile";
+import { EngineType } from "@/engine/EngineType";
+import { DataStream } from "@/data/DataStream";
+import { MixEntry } from "@/data/MixEntry";
+import { MixFile } from "@/data/MixFile";
 
 function archiveWith(filename: string, contents: string): MemArchive {
     const archive = new MemArchive();
@@ -18,6 +22,30 @@ function createVfs(): VirtualFileSystem {
         warn: () => undefined,
         error: () => undefined,
     });
+}
+
+function createMixBytes(entries: Array<[string, Uint8Array]>): Uint8Array {
+    const headerSize = 6 + entries.length * MixEntry.size;
+    const totalSize = headerSize + entries.reduce((size, [, bytes]) => size + bytes.length, 0);
+    const buffer = new ArrayBuffer(totalSize);
+    const view = new DataView(buffer);
+    view.setUint16(0, entries.length, true);
+    view.setUint32(2, 0, true);
+    let offset = 0;
+    for (let index = 0; index < entries.length; index++) {
+        const [filename, bytes] = entries[index];
+        const entryOffset = 6 + index * MixEntry.size;
+        view.setUint32(entryOffset, MixEntry.hashFilename(filename), true);
+        view.setUint32(entryOffset + 4, offset, true);
+        view.setUint32(entryOffset + 8, bytes.length, true);
+        new Uint8Array(buffer, headerSize + offset, bytes.length).set(bytes);
+        offset += bytes.length;
+    }
+    return new Uint8Array(buffer);
+}
+
+function createMix(entries: Array<[string, Uint8Array]>): MixFile {
+    return new MixFile(new DataStream(createMixBytes(entries)));
 }
 
 describe("VirtualFileSystem resource precedence", () => {
@@ -131,6 +159,22 @@ describe("VirtualFileSystem resource precedence", () => {
 
         expect(vfs.openFile("RULESMO.INI").readAsString()).toBe("[Rules]");
         expect(vfs.openFile("rules/UNITS.INI").readAsString()).toBe("[Unit]");
+    });
+
+    test("discovers known nested MIX names and preserves parent provenance", async () => {
+        const nestedBytes = new TextEncoder().encode("[General]\nName=MO\n");
+        const nestedMixBytes = createMixBytes([["rulesmo.ini", nestedBytes]]);
+        const outerMix = createMix([["expandmo95.mix", nestedMixBytes]]);
+        const vfs = createVfs();
+        vfs.addArchive(outerMix, "ra2.mix", { layer: ResourceLayer.BaseGame, source: "game" });
+
+        await vfs.loadNestedMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.openFile("rulesmo.ini").readAsString()).toBe("[General]\nName=MO\n");
+        expect(vfs.explain("rulesmo.ini").winner?.provenance).toEqual([
+            "ra2.mix",
+            "expandmo95.mix",
+        ]);
     });
 
     test("fails loudly when a profile-required implicit MIX is unavailable", async () => {

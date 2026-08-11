@@ -329,6 +329,65 @@ export class VirtualFileSystem {
         }
         return { layer: ResourceLayer.BaseGame, source: "game" };
     }
+    private getExtraMixNames(engineType: EngineType, profile?: GameProfileDescriptor): string[] {
+        const names: string[] = [];
+        const seen = new Set<string>();
+        const add = (filename: string): void => {
+            const key = gamePathKey(filename);
+            if (!seen.has(key)) {
+                seen.add(key);
+                names.push(filename);
+            }
+        };
+        for (const prefix of ["ecache", "expand", "elocal"]) {
+            for (let i = 99; i >= 0; i--) {
+                const numStr = pad(i, "00");
+                if (profile?.id === "mental-omega") {
+                    add(`${prefix}mo${numStr}.mix`);
+                }
+                if (engineType === EngineType.YurisRevenge) {
+                    add(`${prefix}md${numStr}.mix`);
+                }
+                add(`${prefix}${numStr}.mix`);
+            }
+        }
+        return names;
+    }
+    private metadataForExtraMix(filename: string, profile?: GameProfileDescriptor): ArchiveMetadata {
+        const lower = filename.toLocaleLowerCase("en-US");
+        return {
+            layer: lower.includes("mo")
+                ? ResourceLayer.ModPatch
+                : lower.includes("md")
+                    ? ResourceLayer.ModCore
+                    : ResourceLayer.ModPatch,
+            source: "mod",
+            profile: profile?.id,
+            id: filename,
+        };
+    }
+    /**
+     * Discover known extra MIX names inside already mounted archives.
+     * Westwood MIX indexes contain hashes rather than filenames, so this
+     * candidate-driven pass is the only generic way to recover nested names.
+     * It runs to a small fixpoint so a MIX can contain another known MIX.
+     */
+    async loadNestedMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
+        const candidates = this.getExtraMixNames(engineType, profile);
+        for (let pass = 0; pass < 3; pass++) {
+            let loaded = false;
+            for (const filename of candidates) {
+                if (this.hasArchive(filename) || !this.fileExists(filename)) {
+                    continue;
+                }
+                const added = await this.addMixFile(filename, this.metadataForExtraMix(filename, profile));
+                loaded ||= added;
+            }
+            if (!loaded) {
+                break;
+            }
+        }
+    }
     async addMixFile(filename: string, metadata?: ArchiveMetadata, options?: { required?: boolean }): Promise<boolean> {
         return this.addArchiveByFilename(filename, async (fileStreamHolder) => {
             if (filename === "ra2.mix") {
@@ -421,39 +480,13 @@ export class VirtualFileSystem {
         const findEntryByLeaf = (filename: string): string | undefined => {
             return rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
         };
-        const prefixes = ["ecache", "expand", "elocal"];
-        for (const prefix of prefixes) {
-            for (let i = 99; i >= 0; i--) {
-                const numStr = pad(i, "00");
-                const baseFilename = `${prefix}${numStr}.mix`;
-                const mdFilename = `${prefix}md${numStr}.mix`;
-                const moFilename = `${prefix}mo${numStr}.mix`;
-                const filesToTry: string[] = [];
-                if (profile?.id === "mental-omega") {
-                    filesToTry.push(moFilename);
-                }
-                if (engineType === EngineType.YurisRevenge) {
-                    filesToTry.push(mdFilename);
-                }
-                filesToTry.push(baseFilename);
-                for (const fileToTry of filesToTry) {
-                    const rfsEntry = findEntryByLeaf(fileToTry);
-                    if (rfsEntry) {
-                        if (!this.hasArchive(fileToTry)) {
-                            await this.addMixFile(fileToTry, {
-                                layer: fileToTry.includes("mo")
-                                    ? ResourceLayer.ModPatch
-                                    : fileToTry.includes("md")
-                                        ? ResourceLayer.ModCore
-                                        : ResourceLayer.ModPatch,
-                                source: "mod",
-                                profile: profile?.id,
-                                id: fileToTry,
-                                provenance: [rfsEntry],
-                            });
-                        }
-                    }
-                }
+        for (const fileToTry of this.getExtraMixNames(engineType, profile)) {
+            const rfsEntry = findEntryByLeaf(fileToTry);
+            if (rfsEntry && !this.hasArchive(fileToTry)) {
+                await this.addMixFile(fileToTry, {
+                    ...this.metadataForExtraMix(fileToTry, profile),
+                    provenance: [rfsEntry],
+                });
             }
         }
         const mapExtensions = [".mmx"];
