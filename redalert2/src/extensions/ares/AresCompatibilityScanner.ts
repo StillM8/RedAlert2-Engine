@@ -188,7 +188,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     }
     if (/^foundation$/i.test(key) && /custom/i.test(value)) return "ares.custom-foundations";
     if (/^foundation\.(?:x|y|\d+|outline(?:\.length|\.\d+)?)$/i.test(key)) return "ares.custom-foundations";
-    if (/^(splits|airburst|cluster|proximity|retarget|homing)\b/i.test(key)) return "ares.projectile-extensions";
+    if (/^(splits|airburst(?:weapon|spread)?|cluster|proximity|aroundtarget|retarget(?:accuracy|self)?)\b/i.test(key)) {
+        return "ares.projectile-extensions";
+    }
     if (/^(stage|weaponstage|burstdelay|charge)\b/i.test(key)) return "ares.staged-weapons";
     if (/^(passengerdelete|passengerconsume|passengerslots?)\b/i.test(key)) return "ares.passenger-extensions";
     if (/^(palette|animpalette|projectilepalette)$/i.test(key) && /anim|projectile|weapon|warhead/i.test(section)) {

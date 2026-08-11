@@ -25,6 +25,13 @@ import { CollisionHelper } from './unit/CollisionHelper';
 import { CollisionType } from './unit/CollisionType';
 import { Vector2 } from '@/game/math/Vector2';
 import { Vector3 } from '@/game/math/Vector3';
+import { Box2 } from '@/game/math/Box2';
+import {
+    chooseAresSplitTargetIndex,
+    getAresAirburstCellOffsets,
+    hasAresProjectileSplitBehavior,
+    shouldRetargetAresSplit,
+} from '@/extensions/ares/AresProjectileExtensions';
 import {
     applyAresFirestormWallDamage,
     isAresActiveFirestormWall,
@@ -620,6 +627,16 @@ export class Projectile extends GameObject {
         const damage = this.computeBaseDamage(game);
         game.destroyObject(this);
         this.state = ProjectileState.Detonation;
+
+        // Antares replaces ordinary detonation for Airburst/Splits bullets:
+        // the configured AirburstWeapon projectiles carry the actual warhead.
+        // Keep this before the vanilla warhead path so the outer projectile
+        // cannot apply its placeholder damage as well.
+        if (hasAresProjectileSplitBehavior(this.rules)) {
+            this.spawnAresProjectileChildren(game, detonationTile);
+            return;
+        }
+
         const targetObj = this.target.obj;
         let parasiteSuccess = false;
         // Flag for a parasite warhead instantly killing infantry (distinct from vehicle parasitism; after an infantry kill the attacking unit must return to the map)
@@ -930,6 +947,124 @@ export class Projectile extends GameObject {
         shrapnel.position.moveToLeptons(this.position.getMapPosition());
         shrapnel.position.tileElevation = this.position.tileElevation;
         game.spawnObject(shrapnel, shrapnel.position.tile);
+    }
+
+    private spawnAresProjectileChildren(game: any, detonationTile: any): void {
+        const rules = this.rules;
+        const airburstWeaponName = rules.airburstWeapon;
+        if (!airburstWeaponName) return;
+
+        const airburstWeaponRules = game.rules.getWeapon(airburstWeaponName);
+        const airburstProjectileRules = game.rules.getProjectile(airburstWeaponRules.projectile);
+        const aroundTarget = rules.aroundTarget ?? rules.splits;
+        const anchorTile = aroundTarget ? (this.target?.tile ?? detonationTile) : detonationTile;
+        if (!anchorTile) return;
+
+        if (!rules.splits) {
+            for (const offset of getAresAirburstCellOffsets(rules.airburstSpread)) {
+                const tile = game.map.tiles.getByMapCoords(anchorTile.rx + offset.x, anchorTile.ry + offset.y);
+                if (tile) {
+                    this.createAresProjectileChild(game, airburstWeaponName, game.createTarget(undefined, tile));
+                }
+            }
+            return;
+        }
+
+        const targetPool = this.collectAresSplitTargets(
+            game,
+            airburstProjectileRules,
+            airburstWeaponRules.warhead,
+            aroundTarget && this.target
+                ? this.target.getWorldCoords()
+                : this.position.worldPosition,
+            anchorTile,
+        );
+        const cluster = Math.max(0, rules.cluster);
+        const targetRadius = 3;
+        let randomFillAttempts = 0;
+        while (targetPool.length < cluster && randomFillAttempts++ < cluster * 16 + 16) {
+            const tile = game.map.tiles.getByMapCoords(
+                anchorTile.rx + game.generateRandomInt(-targetRadius, targetRadius),
+                anchorTile.ry + game.generateRandomInt(-targetRadius, targetRadius),
+            );
+            if (tile) targetPool.push(game.createTarget(undefined, tile));
+        }
+        while (targetPool.length < cluster) {
+            targetPool.push(game.createTarget(undefined, anchorTile));
+        }
+
+        for (let i = 0; i < cluster; i++) {
+            let target = this.target;
+            if (shouldRetargetAresSplit(!!target, rules.retargetAccuracy, game.generateRandom())) {
+                const index = chooseAresSplitTargetIndex(targetPool.length, game.generateRandom());
+                if (index >= 0) {
+                    target = targetPool.splice(index, 1)[0];
+                    // Antares gives a self-selected target one deterministic
+                    // re-roll opportunity instead of making RetargetSelf a
+                    // hard exclusion from the random cell pool.
+                    if (target?.obj === this.fromObject && game.generateRandom() > 0.5 && targetPool.length) {
+                        const retryIndex = chooseAresSplitTargetIndex(targetPool.length, game.generateRandom());
+                        target = targetPool.splice(retryIndex, 1)[0];
+                    }
+                }
+            }
+            if (target) {
+                this.createAresProjectileChild(game, airburstWeaponName, target);
+            }
+        }
+    }
+
+    private collectAresSplitTargets(
+        game: any,
+        airburstProjectileRules: any,
+        airburstWarheadName: string,
+        anchor: any,
+        anchorTile: any,
+    ): any[] {
+        const warhead = new Warhead(game.rules.getWarhead(airburstWarheadName));
+        const range = 5;
+        const candidates = game.map.technosByTile?.queryRange?.(
+            new Box2(
+                new Vector2(anchorTile.rx - range, anchorTile.ry - range),
+                new Vector2(anchorTile.rx + range + 1, anchorTile.ry + range + 1),
+            ),
+        ) ?? [];
+        const rangeHelper = new RangeHelper(this.tileOccupation);
+        const sourceOwner = this.fromPlayer;
+        const source = this.fromObject ?? { owner: sourceOwner };
+        const targets: any[] = [];
+
+        for (const object of candidates) {
+            if (!object?.isSpawned || object.isDestroyed || object.isCrashing || object.healthTrait?.health <= 0) continue;
+            if (!this.rules.retargetSelf && object === this.fromObject) continue;
+            if (!airburstProjectileRules.isAntiAir && object.isUnit?.() && object.zone === ZoneType.Air) continue;
+
+            const objectZone = object.zone ?? game.map.getTileZone(object.tile);
+            if (!warhead.canDamage(object, object.tile, objectZone)) continue;
+            if (sourceOwner && object.owner) {
+                const friendly = object.owner === sourceOwner || game.alliances.areAllied(object.owner, sourceOwner);
+                if ((friendly && warhead.rules.affectsAllies === false) ||
+                    (!friendly && warhead.rules.affectsEnemies === false)) continue;
+            }
+            if (rangeHelper.distance3(anchor, object) / Coords.LEPTONS_PER_TILE >= range) continue;
+            targets.push(game.createTarget(object, object.tile));
+        }
+        return targets;
+    }
+
+    private createAresProjectileChild(game: any, weaponName: string, target: any): void {
+        let child: any;
+        if (this.fromObject) {
+            const weapon = Weapon.factory(weaponName, WeaponType.Primary, this.fromObject, game.rules);
+            child = game.createProjectile(weapon.projectileRules.name, this.fromObject, weapon, target, false);
+        }
+        else {
+            child = game.createLooseProjectile(weaponName, this.fromPlayer, target);
+        }
+        child.position.moveToLeptons(this.position.getMapPosition());
+        child.position.tileElevation = this.position.tileElevation;
+        child.direction = game.generateRandomInt(0, 359);
+        game.spawnObject(child, child.position.tile);
     }
     private computeAimPointVersusMovingTarget(target: any, projectileSpeed: number, projectilePos: Vector3, map: any): Vector3 {
         const targetPos = target.position.worldPosition;

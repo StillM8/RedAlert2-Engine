@@ -70,6 +70,32 @@ Ares.PassengerDelete=yes
         ]));
     });
 
+    test("classifies the complete MO Airburst/Splits field family", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[MOProjectile]
+Airburst=yes
+AirburstWeapon=MOFrag
+Cluster=2
+AirburstSpread=3
+AroundTarget=yes
+Splits=yes
+RetargetAccuracy=80%
+RetargetSelf=no
+Proximity=yes
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.projectile-extensions");
+        expect(usage?.occurrences).toBe(9);
+        expect(usage?.definitionCount).toBe(1);
+        expect(usage?.support?.parserImplemented).toBe(true);
+        expect(usage?.support?.runtimeImplemented).toBe(true);
+    });
+
     test("classifies documented Ares superweapon extensions", () => {
         const report = scanMentalOmegaIniSources([
             {
