@@ -51,7 +51,10 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
             "ai.ini": "aimo.ini",
         },
         optionalFileNameOverrides: {
-            "ui.ini": "uimo.ini",
+            // MO 3.3.6 uses the standard YR `md` UI filename.  It is packed
+            // in expandmo##.mix, so this remains an optional profile alias
+            // rather than a required loose file.
+            "ui.ini": "uimd.ini",
             "missions.pkt": "missionsmo.pkt",
         },
         // MO 3.3 language resources keep the YR base table in ra2md.csf and
@@ -130,7 +133,7 @@ export function validateMentalOmegaInstallation(paths: Iterable<string>): Mental
 
     const hasMoArchive = [...keys].some((key) => /^expandmo\d{2}\.mix$/i.test(key));
     const hasMoLooseContent = [...keys].some((key) =>
-        key === "uimo.ini" || /(?:^|\/)mapsmo\//i.test(key) || /(?:^|\/)missionsmo\//i.test(key));
+        key === "uimd.ini" || key === "uimo.ini" || /(?:^|\/)mapsmo\//i.test(key) || /(?:^|\/)missionsmo\//i.test(key));
     const modFilesValid = hasMoArchive || hasMoLooseContent;
     if (!modFilesValid) {
         missing.push("Mental Omega content archive or MapsMO/MissionsMO files");

@@ -60,7 +60,14 @@ export class GameResBoxApi {
                             try {
                                 const imported = await pickGameDirectoryFromShell();
                                 if (imported) {
-                                    handleResolve(undefined);
+                                    // The native importer has committed the
+                                    // files and the shell will expose them to
+                                    // the next boot.  Do not resolve the game
+                                    // resource prompt with `undefined`: that
+                                    // makes GameRes briefly interpret the
+                                    // successful import as a CDN selection and
+                                    // issue a spurious archive request before
+                                    // the reload takes over.
                                     window.location.reload();
                                 }
                             }

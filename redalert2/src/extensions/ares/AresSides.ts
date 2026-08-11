@@ -217,6 +217,21 @@ function indexedEntries(section: IniSectionLike | undefined): Array<{ index: num
         .sort((a, b) => a.index - b.index);
 }
 
+/**
+ * Ares accepts two [Sides] list encodings.  Synthetic/legacy fixtures often
+ * use the numbered form (`0=Allied`), while real Ares rules commonly use the
+ * authored side IDs as keys (`GDI=...`, `FourthSide=...`).  The right-hand
+ * value in the named form is the country list; the key is the side identity
+ * that the rest of the ruleset references.
+ */
+function sideEntries(section: IniSectionLike | undefined): Array<{ index: number; name: string }> {
+    const numbered = indexedEntries(section);
+    if (numbered.length || !section) return numbered;
+    return [...section.entries]
+        .filter(([key, value]) => !/^\d+$/.test(key) && typeof value === "string" && value.trim())
+        .map(([key], index) => ({ index, name: String(key).trim() }));
+}
+
 function inferLegacySide(id: string): SideType | undefined {
     switch (normalize(id)) {
         case "gdi":
@@ -242,7 +257,7 @@ export class AresSideRegistry {
 
     static fromIni(ini: IniReader): AresSideRegistry {
         const registry = new AresSideRegistry();
-        const list = indexedEntries(ini.getSection("Sides"));
+        const list = sideEntries(ini.getSection("Sides"));
         const names = list.length
             ? list
             : ["GDI", "Nod", "Civilian", "ThirdSide"].map((name, index) => ({ index, name }));

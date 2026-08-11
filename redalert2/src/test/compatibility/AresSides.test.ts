@@ -13,6 +13,28 @@ import { Player } from "@/game/Player";
 import { Production } from "@/game/player/production/Production";
 
 describe("Ares side presentation", () => {
+    test("parses Ares named [Sides] entries used by Mental Omega", () => {
+        const sections = new Map<string, IniSection>();
+        const sidesSection = new IniSection("Sides");
+        sidesSection.set("GDI", "UnitedStates,Europeans,Pacific");
+        sidesSection.set("Nod", "USSR,Latin,Chinese");
+        sidesSection.set("ThirdSide", "PsiCorps,ScorpionCell,Headquaters");
+        sidesSection.set("FourthSide", "Guild1,Guild2,Guild3");
+        sections.set("Sides", sidesSection);
+        const reader = { getSection: (name: string) => sections.get(name) };
+
+        const sides = AresSideRegistry.fromIni(reader);
+
+        expect(sides.list().map((side) => side.id)).toEqual([
+            "GDI",
+            "Nod",
+            "ThirdSide",
+            "FourthSide",
+        ]);
+        expect(sides.resolve("FourthSide")?.order).toBe(3);
+        expect(sides.resolve("FourthSide")?.legacySide).toBeUndefined();
+    });
+
     test("keeps four authored sides and their countries data-defined", () => {
         const sections = new Map<string, IniSection>();
         const add = (name: string, values: Record<string, string>) => {

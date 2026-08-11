@@ -65,7 +65,7 @@ describe('GameProfile detection', () => {
             'ai.ini': 'aimo.ini',
         });
         expect(getGameProfile('mental-omega').optionalFileNameOverrides).toEqual({
-            'ui.ini': 'uimo.ini',
+            'ui.ini': 'uimd.ini',
             'missions.pkt': 'missionsmo.pkt',
         });
     });

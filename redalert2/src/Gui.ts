@@ -186,6 +186,15 @@ export class Gui {
         }
     }
     private async getMainMenuVideoUrl(): Promise<string | File | undefined> {
+        // Mental Omega supplies its own shell artwork inside expandmo##.mix.
+        // The converted Yuri's Revenge intro video is a shared host asset and
+        // overlays the MO shell with the stock Yuri branding, so do not use it
+        // for the explicit MO profile.  The static mnscrnl.shp remains the
+        // profile-resolved background.
+        if (Engine.getActiveProfile().id === "mental-omega") {
+            console.log('[Gui] Mental Omega profile uses static shell artwork; skipping the Yuri menu video');
+            return undefined;
+        }
         console.log('[Gui] Getting main menu video URL');
         const videoFileName = Engine.getMenuVideoFileName();
         console.log('[Gui] Video file name:', videoFileName);

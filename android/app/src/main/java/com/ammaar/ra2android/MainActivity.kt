@@ -815,14 +815,22 @@ class MainActivity : Activity() {
             .toSet()
         val missing = REQUIRED_MO_PROFILE_FILES.filterNot { it in leafNames }
         val hasMoArchive = leafNames.any { MO_ARCHIVE_PATTERN.matches(it) }
+        // A normal Mental Omega installation keeps rulesmo.ini/artmo.ini in
+        // expandmo##.mix rather than as loose files.  The web VFS performs
+        // the authoritative hash lookup after import, so native validation
+        // only needs to recognize the archive container here.
+        val hasLooseMoRules = REQUIRED_MO_PROFILE_FILES.all { it in leafNames }
         val hasLooseMoContent = normalizedPaths.any {
             val lower = it.lowercase(Locale.ROOT)
-            lower == "uimo.ini" || Regex("(^|/)mapsmo/").containsMatchIn(lower) ||
+            lower == "uimd.ini" || lower == "uimo.ini" ||
+                Regex("(^|/)mapsmo/").containsMatchIn(lower) ||
                 Regex("(^|/)missionsmo/").containsMatchIn(lower)
         }
-        if (missing.isNotEmpty() || (!hasMoArchive && !hasLooseMoContent)) {
+        if ((!hasMoArchive && !hasLooseMoRules) || (!hasMoArchive && !hasLooseMoContent)) {
             val details = buildList {
-                addAll(missing.map { "missing $it" })
+                if (!hasMoArchive && !hasLooseMoRules) {
+                    addAll(missing.map { "missing $it" })
+                }
                 if (!hasMoArchive && !hasLooseMoContent) {
                     add("missing expandmo##.mix or MapsMO/MissionsMO content")
                 }

@@ -25,10 +25,17 @@ export class MenuVideo extends React.Component<MenuVideoProps, MenuVideoState> {
             // leave the WebView with a stale media source.
             url = this.videoUrl ?? "";
             mimeType = src.type || mimeTypeMap.get(src.name.split(".").pop()?.toLowerCase() ?? "") || "video/webm";
-        }
-        else {
-            url = "";
-            mimeType = "video/webm";
+    }
+    else {
+            // An empty <video> element renders a browser-specific gray media
+            // surface/play button in Android WebView.  Profiles without a
+            // menu video (for example Mental Omega, which uses its static
+            // shell artwork) must leave the background sprite unobstructed.
+            return React.createElement("div", {
+                className: "video-wrapper",
+                ref: (ref) => (this.el = ref as HTMLDivElement),
+                style: { display: "none" },
+            });
         }
         return React.createElement("div", {
             className: "video-wrapper",

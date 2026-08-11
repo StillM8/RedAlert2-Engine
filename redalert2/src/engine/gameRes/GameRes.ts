@@ -368,11 +368,20 @@ export class GameRes {
         const missing = this.getRequiredGameFiles().filter((fileName) =>
             !lowerEntries.has(fileName.toLowerCase()) && !leafEntries.has(fileName.toLowerCase()));
         if (this.profile === "mental-omega") {
-            if (!leafEntries.has("rulesmo.ini")) missing.push("rulesmo.ini");
-            if (!leafEntries.has("artmo.ini")) missing.push("artmo.ini");
             const hasMoArchive = [...leafEntries].some((entry) => /^expandmo\d{2}\.mix$/i.test(entry));
             const hasMoLooseContent = [...lowerEntries].some((entry) =>
-                /(?:^|\/)mapsmo\//i.test(entry) || /(?:^|\/)missionsmo\//i.test(entry) || entry.endsWith("/uimo.ini"));
+                /(?:^|\/)mapsmo\//i.test(entry) || /(?:^|\/)missionsmo\//i.test(entry) ||
+                entry === "uimd.ini" || entry.endsWith("/uimd.ini") ||
+                entry === "uimo.ini" || entry.endsWith("/uimo.ini"));
+            // MO 3.3 normally stores rulesmo.ini and artmo.ini inside an
+            // expandmo##.mix archive.  They are resolved by VFS hash lookup
+            // after the implicit/extra MIX layers are mounted, so requiring
+            // them as loose files here rejects valid installations.
+            const hasMoLooseRules = leafEntries.has("rulesmo.ini") && leafEntries.has("artmo.ini");
+            if (!hasMoArchive && !hasMoLooseRules) {
+                if (!leafEntries.has("rulesmo.ini")) missing.push("rulesmo.ini");
+                if (!leafEntries.has("artmo.ini")) missing.push("artmo.ini");
+            }
             if (!hasMoArchive && !hasMoLooseContent) {
                 missing.push("expandmo##.mix or MapsMO/MissionsMO content");
             }
