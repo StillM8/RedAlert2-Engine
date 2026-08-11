@@ -433,7 +433,10 @@ export class ObjectArt {
         return result;
     }
     get bibShape(): string | undefined {
-        return this.art.getString("BibShape");
+        const bibShape = this.art.getString("BibShape")?.trim();
+        return bibShape && bibShape.toLocaleLowerCase("en-US") !== "none"
+            ? bibShape
+            : undefined;
     }
     get foundation(): Foundation {
         return parseFoundation(this.art);

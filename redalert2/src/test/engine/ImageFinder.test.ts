@@ -59,4 +59,13 @@ describe("ImageFinder Ares theater art", () => {
         expect(art.useNewTheaterArt).toBe(true);
         expect(art.useTheaterExtension).toBe(false);
     });
+
+    test("treats BibShape=none as an intentional bib omission", () => {
+        const artSection = new IniSection("GASCPF");
+        artSection.set("BibShape", "none");
+        const rules = new ObjectRules(ObjectType.Building, new IniSection("GASCPF"));
+        const art = new ObjectArt(ObjectType.Building, rules, artSection);
+
+        expect(art.bibShape).toBeUndefined();
+    });
 });
