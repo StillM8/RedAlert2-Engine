@@ -22,6 +22,7 @@ import { HelipadTrait } from "@/game/gameobject/trait/HelipadTrait";
 import { UnitReloadTrait } from "@/game/gameobject/trait/UnitReloadTrait";
 import { WaitForBuildUpTask } from "@/game/gameobject/task/WaitForBuildUpTask";
 import { SuperWeaponTrait } from "@/game/gameobject/trait/SuperWeaponTrait";
+import { getAresSuperWeaponProviderNames } from "@/extensions/ares/AresSuperWeaponProviders";
 import { GapGeneratorTrait } from "@/game/gameobject/trait/GapGeneratorTrait";
 import { PsychicDetectorTrait } from "@/game/gameobject/trait/PsychicDetectorTrait";
 import { HospitalTrait } from "@/game/gameobject/trait/HospitalTrait";
@@ -52,6 +53,8 @@ export class Building extends Techno {
     public poweredTrait?: PoweredTrait;
     public factoryTrait?: FactoryTrait;
     public superWeaponTrait?: SuperWeaponTrait;
+    /** All ordered logical superweapon providers configured on this building. */
+    public superWeaponTraits: SuperWeaponTrait[] = [];
     public dockTrait?: DockTrait;
     public helipadTrait?: HelipadTrait;
     public unitRepairTrait?: UnitRepairTrait;
@@ -101,9 +104,11 @@ export class Building extends Techno {
             building.factoryTrait = new FactoryTrait(rules.cloning ? FactoryType.InfantryType : rules.factory, rules.cloning);
             building.traits.add(building.factoryTrait);
         }
-        if (rules.superWeapon) {
-            building.superWeaponTrait = new SuperWeaponTrait(rules.superWeapon);
-            building.traits.add(building.superWeaponTrait);
+        const superWeaponNames = getAresSuperWeaponProviderNames(rules);
+        if (superWeaponNames.length) {
+            building.superWeaponTraits = superWeaponNames.map(name => new SuperWeaponTrait(name));
+            building.superWeaponTrait = building.superWeaponTraits[0];
+            building.superWeaponTraits.forEach(trait => building.traits.add(trait));
         }
         if (rules.numberOfDocks) {
             building.dockTrait = new DockTrait(building as any, world, rules.numberOfDocks, art.dockingOffsets);

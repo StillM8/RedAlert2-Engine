@@ -10,6 +10,7 @@ import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { RadarEventType } from '@/game/rules/general/RadarRules';
 import { OrderFeedbackType } from '@/game/order/OrderFeedbackType';
 import { QueueType, QueueStatus } from '@/game/player/production/ProductionQueue';
+import { getAvailableBuildingSuperWeapon } from '@/game/gameobject/trait/SuperWeaponTrait';
 
 const detectedSuperWeaponEvaByType = new Map([
     [SuperWeaponType.MultiMissile, 'EVA_NuclearSiloDetected'],
@@ -301,7 +302,7 @@ export class SoundHandler {
         }
         else if ((event.radarEventType === RadarEventType.EnemyObjectSensed || event.radarEventType === 'EnemyObjectSensed') && event.target === this.player) {
             const building = this.game.map.getGroundObjectsOnTile(event.tile).find((object: any) => object.isBuilding() && object.superWeaponTrait);
-            const superWeaponType = building?.superWeaponTrait?.getSuperWeapon(building)?.rules.type;
+            const superWeaponType = getAvailableBuildingSuperWeapon(building)?.superWeapon?.rules.type;
             const eva = detectedSuperWeaponEvaByType.get(superWeaponType);
             if (eva) {
                 this.eva.play(eva);

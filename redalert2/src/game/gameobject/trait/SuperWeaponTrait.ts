@@ -4,7 +4,7 @@ import { NotifySpawn } from '@/game/gameobject/trait/interface/NotifySpawn';
 import { NotifyUnspawn } from '@/game/gameobject/trait/interface/NotifyUnspawn';
 import { evaluateAresSuperWeaponAvailabilityForOwner } from '@/extensions/ares/AresSuperWeaponAvailability';
 export class SuperWeaponTrait {
-    private name: string;
+    public readonly name: string;
     constructor(name: string) {
         this.name = name;
     }
@@ -42,7 +42,8 @@ export class SuperWeaponTrait {
             return;
         const hasBuildingWithSuperWeapon = player
             .getOwnedObjectsByType(ObjectType.Building)
-            .some(building => building.superWeaponTrait?.name === this.name);
+            .some(building => getBuildingSuperWeaponTraits(building)
+                .some(trait => trait.name === this.name));
         const superWeapon = superWeaponsTrait.get(this.name);
         if (!superWeapon || superWeapon.isGift) return;
         const rules = world?.rules?.getSuperWeapon?.(this.name);
@@ -60,4 +61,24 @@ export class SuperWeaponTrait {
             superWeaponsTrait.remove(this.name);
         }
     }
+}
+
+/** Compatibility view for callers written before Ares added provider slots. */
+export function getBuildingSuperWeaponTraits(building: any): SuperWeaponTrait[] {
+    if (Array.isArray(building?.superWeaponTraits) && building.superWeaponTraits.length) {
+        return building.superWeaponTraits;
+    }
+    return building?.superWeaponTrait ? [building.superWeaponTrait] : [];
+}
+
+/** First provider whose logical superweapon is currently available. */
+export function getAvailableBuildingSuperWeapon(building: any): {
+    trait: SuperWeaponTrait;
+    superWeapon: any;
+} | undefined {
+    for (const trait of getBuildingSuperWeaponTraits(building)) {
+        const superWeapon = trait.getSuperWeapon(building);
+        if (superWeapon) return { trait, superWeapon };
+    }
+    return undefined;
 }

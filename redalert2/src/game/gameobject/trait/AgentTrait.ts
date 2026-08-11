@@ -1,5 +1,6 @@
 import { FactoryType } from "@/game/rules/TechnoRules";
 import { clamp } from "@/util/math";
+import { getAvailableBuildingSuperWeapon } from "@/game/gameobject/trait/SuperWeaponTrait";
 export class AgentTrait {
     infiltrate(agent: any, target: any, game: any): void {
         if (target.rules.radar &&
@@ -10,9 +11,7 @@ export class AgentTrait {
             const blackoutTime = game.rules.general.spyPowerBlackout;
             target.owner.powerTrait?.setBlackoutFor(blackoutTime, game);
         }
-        if (target.superWeaponTrait) {
-            target.superWeaponTrait.getSuperWeapon(target)?.resetTimer();
-        }
+        getAvailableBuildingSuperWeapon(target)?.superWeapon.resetTimer();
         if (target.rules.storage > 0) {
             const stealPercent = clamp(game.rules.general.spyMoneyStealPercent, 0, 1);
             const stolenAmount = Math.floor(target.owner.credits * stealPercent);

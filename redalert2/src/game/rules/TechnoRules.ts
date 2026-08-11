@@ -26,6 +26,7 @@ import { parseAresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
 import type { AresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
 import { resolveAresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
+import { getAresSuperWeaponProviderNames, hasAresSuperWeaponProvider } from "@/extensions/ares/AresSuperWeaponProviders";
 interface House {
     name: string;
 }
@@ -121,6 +122,10 @@ export class TechnoRules extends ObjectRules {
     declare unitSell: boolean;
     declare isBaseDefense: boolean;
     declare superWeapon?: string;
+    /** Ares/vanilla second superweapon provider slot. */
+    declare superWeapon2?: string;
+    /** Ares ordered additional superweapon provider slots. */
+    declare superWeapons: string[];
     declare chargedAnimTime: number;
     declare naval: boolean;
     declare underwater: boolean;
@@ -464,6 +469,10 @@ export class TechnoRules extends ObjectRules {
         this.unitSell = this.ini.getBool("UnitSell");
         this.isBaseDefense = this.ini.getBool("IsBaseDefense");
         this.superWeapon = this.parseWeaponName(this.ini.getString("SuperWeapon"));
+        this.superWeapon2 = this.parseWeaponName(this.ini.getString("SuperWeapon2"));
+        this.superWeapons = getAresSuperWeaponProviderNames({
+            superWeapons: this.ini.getArray("SuperWeapons"),
+        });
         this.chargedAnimTime = this.ini.getNumber("ChargedAnimTime");
         const naval = this.ini.getBool("Naval");
         this.naval = naval;
@@ -879,7 +888,7 @@ export class TechnoRules extends ObjectRules {
             power: this.power,
             radar: this.radar,
             spySat: this.spySat,
-            hasSuperWeapon: !!this.superWeapon,
+            hasSuperWeapon: hasAresSuperWeaponProvider(this),
             undeploysInto: !!this.undeploysInto,
             powersUnit: !!this.powersUnit,
             gapGenerator: this.gapGenerator,

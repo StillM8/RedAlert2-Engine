@@ -1,4 +1,5 @@
 import { ObjectType } from "@/engine/type/ObjectType";
+import { buildingProvidesAresSuperWeapon } from "@/extensions/ares/AresSuperWeaponProviders";
 
 /**
  * Pure availability rules for Ares superweapons.
@@ -42,11 +43,11 @@ export interface AresSuperWeaponOwnerLike {
     defeated?: boolean;
     buildings?: Iterable<{
         name?: string;
-        rules?: { name?: string; superWeapon?: string };
+        rules?: { name?: string; superWeapon?: string; superWeapon2?: string; superWeapons?: string[] };
     }>;
     getOwnedObjectsByType?: (type: ObjectType) => Iterable<{
         name?: string;
-        rules?: { name?: string; superWeapon?: string };
+        rules?: { name?: string; superWeapon?: string; superWeapon2?: string; superWeapons?: string[] };
     }>;
 }
 
@@ -252,7 +253,7 @@ export function evaluateAresSuperWeaponAvailabilityForOwner(
     const buildingName = (building: { name?: string; rules?: { name?: string } }): string | undefined =>
         building.name ?? building.rules?.name;
     const providerBuildings = buildings.filter((building) =>
-        normalize(building.rules?.superWeapon ?? "") === expectedSuperWeapon);
+        buildingProvidesAresSuperWeapon(building, expectedSuperWeapon));
 
     return evaluateAresSuperWeaponAvailability(rules, {
         countryId: owner.country?.id ?? owner.country?.name,

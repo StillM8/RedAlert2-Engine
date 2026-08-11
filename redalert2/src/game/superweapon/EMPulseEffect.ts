@@ -1,6 +1,7 @@
 import { Coords } from "@/game/Coords";
 import { CollisionType } from "@/game/gameobject/unit/CollisionType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
+import { getAvailableBuildingSuperWeapon } from "@/game/gameobject/trait/SuperWeaponTrait";
 import type { AresSuperWeaponDefinition } from "@/extensions/ares/AresSuperWeapons";
 import { SuperWeaponEffect, type TileCoord } from "@/game/superweapon/SuperWeaponEffect";
 
@@ -27,6 +28,7 @@ interface EmpulseBuilding {
     warpedOutTrait?: { isActive?: () => boolean };
     poweredTrait?: { isPoweredOn?: () => boolean };
     superWeaponTrait?: { getSuperWeapon?: (building: any) => any };
+    superWeaponTraits?: Array<{ getSuperWeapon?: (building: any) => any }>;
     primaryWeapon?: EmpulseWeapon;
     armedTrait?: { getWeapons?: () => EmpulseWeapon[] };
 }
@@ -111,7 +113,7 @@ export function isAresEmpulseLaunchSite(
     if (!building.rules?.empulseCannon) return false;
     if (!options.superWeapon) return true;
 
-    const attached = building.superWeaponTrait?.getSuperWeapon?.(building);
+    const attached = getAvailableBuildingSuperWeapon(building)?.superWeapon;
     return attached === options.superWeapon;
 }
 

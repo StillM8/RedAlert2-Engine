@@ -38,6 +38,7 @@ import { SuperWeaponStatus } from '@/game/SuperWeapon';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { SuperWeaponsTrait } from '@/game/trait/SuperWeaponsTrait';
 import { TestToolSupport, type TestToolRuntimeContext } from '@/tools/TestToolSupport';
+import { getAvailableBuildingSuperWeapon } from '@/game/gameobject/trait/SuperWeaponTrait';
 
 type StringsLike = {
     get(key: string): string | undefined;
@@ -1747,7 +1748,7 @@ export class SceneSandboxTester {
     }
 
     private static makeBuildingSuperWeaponReady(building: any): void {
-        const superWeapon = building.superWeaponTrait?.getSuperWeapon?.(building);
+        const superWeapon = getAvailableBuildingSuperWeapon(building)?.superWeapon;
         if (superWeapon) {
             this.makeSuperWeaponReady(superWeapon);
         }

@@ -7,6 +7,7 @@ import { DebugLogger } from "./common/utils";
 import { EffectiveBotConfig } from "../../botProfiles";
 import { resolveAresSuperWeaponAITargeting } from "@/extensions/ares/AresSuperWeaponAI";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { hasAresSuperWeaponProvider } from "@/extensions/ares/AresSuperWeaponProviders";
 
 // How often the officer polls superweapon state.
 const SW_CHECK_INTERVAL_TICKS = 75;
@@ -348,7 +349,12 @@ export class SuperweaponOfficer {
                 break;
             case "self": {
                 const provider = game
-                    .getVisibleUnits(player.name, "self", (rules: any) => rules.superWeapon === superWeaponData?.name)
+                    .getVisibleUnits(player.name, "self", (rules: any) =>
+                        hasAresSuperWeaponProvider(rules) &&
+                        [rules.superWeapon, rules.superWeapon2, ...(rules.superWeapons ?? [])]
+                            .filter(Boolean)
+                            .some((provider: string) => provider.toLocaleLowerCase("en-US") ===
+                                String(superWeaponData?.name ?? "").toLocaleLowerCase("en-US")))
                     .map((id) => game.getUnitData(id))
                     .find((unit) => !!unit);
                 target = provider?.tile;

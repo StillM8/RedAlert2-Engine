@@ -34,6 +34,10 @@ import {
     evaluateAresSuperWeaponAvailabilityForOwner,
     hasAresSuperWeaponAvailabilityConfiguration,
 } from "@/extensions/ares/AresSuperWeaponAvailability";
+import {
+    getAvailableBuildingSuperWeapon,
+    getBuildingSuperWeaponTraits,
+} from "@/game/gameobject/trait/SuperWeaponTrait";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
     [NotifyTick.onTick](t: any) {
@@ -106,9 +110,9 @@ export class SuperWeaponsTrait {
     }
     [NotifyPower.onPowerChange](e: any, t: any) { }
     [NotifyWarpChange.onChange](e: any, t: any) {
-        const i = e.superWeaponTrait?.getSuperWeapon(e);
-        if (e.owner.powerTrait && e.isBuilding() && e.superWeaponTrait && i) {
-            this.updateTimer(i, !e.owner.powerTrait.isLowPower(), undefined, t);
+        const provider = getAvailableBuildingSuperWeapon(e);
+        if (e.owner.powerTrait && e.isBuilding() && provider) {
+            this.updateTimer(provider.superWeapon, !e.owner.powerTrait.isLowPower(), undefined, t);
         }
     }
     private updateTimer(e: any, t: boolean, currentTick?: number, world?: any) {
@@ -122,7 +126,7 @@ export class SuperWeaponsTrait {
     }
     private superWeaponHasValidBuilding(t: any) {
         return [...t.owner.buildings].find((e: any) =>
-            e.superWeaponTrait?.getSuperWeapon(e) === t &&
+            getBuildingSuperWeaponTraits(e).some(trait => trait.getSuperWeapon(e) === t) &&
             (!t.rules.isPowered || isAresEmpOperational(e)));
     }
     private addEffect(e: SuperWeaponEffect) {
@@ -158,9 +162,9 @@ export class SuperWeaponsTrait {
             if (a.oneTimeOnly) {
                 e.superWeaponsTrait.remove(a.name);
                 for (const n of e.buildings) {
-                    if (n.rules.superWeapon === a.name && n.superWeaponTrait) {
-                        n.superWeaponTrait.addSuperWeaponToPlayerIfNeeded(e, i);
-                    }
+                    getBuildingSuperWeaponTraits(n)
+                        .filter(trait => trait.name === a.name)
+                        .forEach(trait => trait.addSuperWeaponToPlayerIfNeeded(e, i));
                 }
             }
             else if (a.rules.ares?.useChargeDrain === true) {

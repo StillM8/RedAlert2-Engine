@@ -24,6 +24,7 @@ import * as FactoryTrait from "@/game/gameobject/trait/FactoryTrait";
 import * as UnitRepairTrait from "@/game/gameobject/trait/UnitRepairTrait";
 import * as DeathType from "@/game/gameobject/common/DeathType";
 import * as InvulnerableAnimRunner from "@/engine/renderable/entity/InvulnerableAnimRunner";
+import * as SuperWeaponTrait from "@/game/gameobject/trait/SuperWeaponTrait";
 import * as BuildingShpHelper from "@/engine/renderable/entity/building/BuildingShpHelper";
 import * as ExtraLightHelper from "@/engine/renderable/entity/unit/ExtraLightHelper";
 import * as AlphaRenderable from "@/engine/renderable/AlphaRenderable";
@@ -55,6 +56,7 @@ const C = FactoryTrait;
 const E = UnitRepairTrait;
 const n = DeathType;
 const B = InvulnerableAnimRunner;
+const q = SuperWeaponTrait;
 const N = BuildingShpHelper;
 const x = ExtraLightHelper;
 const o = AlphaRenderable;
@@ -545,7 +547,7 @@ export class Building {
                                 ? (this.repairStopRequested = true)
                                 : this.endCurrentAnimation(),
                                 (this.repairStartRequested = false))));
-            let e = this.gameObject.superWeaponTrait?.getSuperWeapon(this.gameObject);
+            let e = q.getAvailableBuildingSuperWeapon(this.gameObject)?.superWeapon;
             !e ||
                 !this.hasAnimation(A.AnimationType.SUPER_CHARGE_START) ||
                 this.gameObject.isDestroyed ||
