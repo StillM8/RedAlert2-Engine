@@ -77,6 +77,24 @@ describe("Ares effective INI source loading", () => {
         expect(effective.graph.diagnostics).toHaveLength(0);
     });
 
+    test("resolves each source file once while retaining per-key provenance", () => {
+        const vfs = createVfs({
+            "rulesmo.ini": `[Root]\nA=yes\nB=yes\n`,
+        });
+        const originalResolve = vfs.resolve.bind(vfs);
+        let resolveCalls = 0;
+        vfs.resolve = ((filename: string) => {
+            resolveCalls++;
+            return originalResolve(filename);
+        }) as typeof vfs.resolve;
+
+        const effective = new IniSourceLoader(vfs).loadEffectiveIni("rulesmo.ini")!;
+
+        expect(resolveCalls).toBe(1);
+        expect(effective.explain("Root", "A")?.winner?.resolution?.winner?.archive).toBe("expandmo95.mix");
+        expect(effective.explain("Root", "B")?.winner?.resolution?.winner?.archive).toBe("expandmo95.mix");
+    });
+
     test("reports missing includes with the VFS resolution", () => {
         const vfs = createVfs({
             "rulesmo.ini": `[#include]\n1=missing.ini\n`,

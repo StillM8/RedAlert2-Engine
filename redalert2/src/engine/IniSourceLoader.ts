@@ -121,6 +121,14 @@ export class IniSourceLoader {
         const sources = new Map<string, IniValueSource[]>();
         const visited = new Set<string>();
         const active = new Set<string>();
+        const resolutions = new Map<string, VfsResolution | undefined>();
+        const resolveSource = (filename: string): VfsResolution | undefined => {
+            const key = filename.toLocaleLowerCase("en-US");
+            if (!resolutions.has(key)) {
+                resolutions.set(key, this.vfs.resolve(filename));
+            }
+            return resolutions.get(key);
+        };
 
         const mergeSection = (target: IniSection, source: IniSection, context: SourceContext): void => {
             const numericTarget = target.isNumericIndexArray() && source.isNumericIndexArray();
@@ -138,7 +146,7 @@ export class IniSourceLoader {
                     section: target.name,
                     key: targetKey,
                     value: copiedValue,
-                    resolution: this.vfs.resolve(context.file),
+                    resolution: resolveSource(context.file),
                     includedBy: [...context.chain],
                 });
                 sources.set(provenanceKey, entries);
@@ -198,7 +206,7 @@ export class IniSourceLoader {
                 virtualFile = this.vfs.openFile(normalizedFile);
             }
             catch {
-                const resolution = this.vfs.resolve(normalizedFile);
+                const resolution = resolveSource(normalizedFile);
                 graph.diagnostics.push({
                     code: "ARES_INCLUDE_MISSING",
                     message: `Ares INI include "${normalizedFile}" was not found`,
@@ -216,7 +224,7 @@ export class IniSourceLoader {
             const node: IniSourceNode = {
                 file: normalizedFile,
                 includes: [],
-                resolution: this.vfs.resolve(normalizedFile),
+                resolution: resolveSource(normalizedFile),
             };
             graph.nodes.push(node);
             const parsed = new IniFile(virtualFile);
