@@ -11,6 +11,7 @@ import {
 } from "@/extensions/ares/AresAttachEffectRuntime";
 import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
+import { NotifyUnspawn } from "@/game/gameobject/trait/interface/NotifyUnspawn";
 
 export interface AresAttachEffectMultipliers {
     speed: number;
@@ -57,7 +58,7 @@ export interface AresAttachEffectTraitAdvanceResult extends AresAttachEffectAdva
  * register this trait and consume its state and decisions at the appropriate
  * shared hooks.
  */
-export class AresAttachEffectTrait implements NotifySpawn, NotifyTick {
+export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUnspawn {
     private instances: AresAttachEffectInstance[];
     private definitions: Map<AresAttachEffectId, AresAttachEffectDefinition>;
     private automaticEffect?: AresAttachEffectBinding;
@@ -134,7 +135,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick {
     discardOnEntry(): AresAttachEffectRemovalResult {
         const result = discardAresAttachEffectsOnEntry(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
-        if (this.automaticEffect && !this.hasAutomaticInstance()) {
+        if (this.automaticEffect &&
+            result.removedEffectIds.includes(this.automaticEffect.effectId)) {
             this.automaticPhase = "disabled";
             this.automaticRemainingDelay = 0;
         }
@@ -163,6 +165,15 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick {
     ): AresAttachEffectApplyResult | undefined {
         if (!this.automaticEffect || this.hasAutomaticInstance()) {
             if (this.automaticEffect && this.hasAutomaticInstance()) this.automaticPhase = "active";
+            return undefined;
+        }
+
+        // onSpawn also fires when a limboed object re-enters the map. The
+        // pending InitialDelay/Delay and a disabled lifecycle must survive
+        // that transport/re-entry boundary instead of restarting.
+        if (this.automaticPhase === "disabled" ||
+            this.automaticPhase === "waiting-initial" ||
+            this.automaticPhase === "waiting-renewal") {
             return undefined;
         }
 
@@ -210,6 +221,15 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick {
 
     [NotifyTick.onTick](): void {
         this.advance();
+    }
+
+    [NotifyUnspawn.onUnspawn](gameObject: { limboData?: unknown }): void {
+        // Game.limboObject sets limboData before dispatching onUnspawn. A
+        // regular removal has no limboData and must not trigger
+        // DiscardOnEntry.
+        if (gameObject?.limboData !== undefined) {
+            this.discardOnEntry();
+        }
     }
 
     private processAutomaticDelay(

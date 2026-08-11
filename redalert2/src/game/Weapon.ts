@@ -345,7 +345,13 @@ export class Weapon {
                 this.cooldownTicks = this.rules.iniSpeed;
             }
             else if (gameObject.isAircraft()) {
-                this.cooldownTicks = this.rules.rof;
+                // Keep the existing aircraft burst/veterancy behavior while
+                // applying the generic Ares ROF multiplier to this reload
+                // interval as well.
+                this.cooldownTicks = Math.floor(resolveAresAttachEffectCombat(
+                    { rof: this.rules.rof },
+                    gameObject.aresAttachEffectTrait?.getAggregateMultipliers(),
+                ).effective.rof);
             }
             else {
                 this.cooldownTicks =
