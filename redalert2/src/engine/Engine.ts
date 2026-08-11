@@ -439,7 +439,6 @@ export class Engine {
     static getRules(): IniFile {
         if (!this.rules)
             throw new Error("Rules must be loaded first");
-        console.log('current rules', this.rules);
         return this.rules;
     }
     static getArt(): IniFile {
