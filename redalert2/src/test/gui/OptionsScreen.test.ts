@@ -16,14 +16,14 @@ describe("OptionsScreen", () => {
         const screen = new OptionsScreen(
             { get: (key: string) => key },
             { render: () => [{}] },
-            { serialize: () => "" },
+            { serialize: () => "" } as any,
             { setItem: () => undefined },
             {},
             true,
             false,
         );
 
-        screen.setController(controller);
+        screen.setController(controller as any);
         screen.onEnter();
 
         expect(contentAreaVisible).toBe(true);
