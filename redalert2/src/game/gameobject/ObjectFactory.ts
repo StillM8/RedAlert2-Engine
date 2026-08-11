@@ -35,6 +35,7 @@ import { MagnetizedTrait } from "@/game/gameobject/trait/MagnetizedTrait";
 import { MindControllerTrait } from "@/game/gameobject/trait/MindControllerTrait";
 import { BerserkTrait } from "@/game/gameobject/trait/BerserkTrait";
 import { RobotControlTrait } from "@/game/gameobject/trait/RobotControlTrait";
+import { AresPoweredByTrait } from "@/game/gameobject/trait/AresPoweredByTrait";
 import { TemporalTrait } from "@/game/gameobject/trait/TemporalTrait";
 import { CloakableTrait } from "@/game/gameobject/trait/CloakableTrait";
 import { AirSpawnTrait } from "@/game/gameobject/trait/AirSpawnTrait";
@@ -198,7 +199,11 @@ export class ObjectFactory {
                 gameObject.berserkTrait = new BerserkTrait(gameObject);
                 gameObject.traits.add(gameObject.berserkTrait);
             }
-            if (gameObject.rules.poweredUnit && gameObject.isUnit()) {
+            if (gameObject.isUnit() && gameObject.rules.ares?.poweredBy?.providers?.length) {
+                gameObject.aresPoweredByTrait = new AresPoweredByTrait(gameObject);
+                gameObject.traits.add(gameObject.aresPoweredByTrait);
+            }
+            else if (gameObject.rules.poweredUnit && gameObject.isUnit()) {
                 gameObject.robotControlTrait = new RobotControlTrait(gameObject);
                 gameObject.traits.add(gameObject.robotControlTrait);
             }
