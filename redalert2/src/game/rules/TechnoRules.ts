@@ -31,6 +31,8 @@ import { parseAresInsigniaRules, resolveAresInsigniaShowEnemy } from "@/extensio
 import type { AresInsigniaRules } from "@/extensions/ares/AresInsignia";
 import { parseAresBountyTechnoRules } from "@/extensions/ares/AresBounty";
 import type { AresBountyTechnoRules } from "@/extensions/ares/AresBounty";
+import { parseAresVeterancyRules } from "@/extensions/ares/AresVeterancy";
+import type { AresVeterancyRules } from "@/extensions/ares/AresVeterancy";
 interface House {
     name: string;
 }
@@ -89,6 +91,8 @@ export class TechnoRules extends ObjectRules {
     declare insigniaShowEnemy: boolean;
     /** Optional generic Ares bounty behavior for this TechnoType. */
     declare aresBounty?: AresBountyTechnoRules;
+    /** Ares customizable-veterancy source attribution rules. */
+    declare aresVeterancy: AresVeterancyRules;
     /** Ares VehicleThief target-side opt-out. */
     declare hijackerAllowed: boolean;
     /** Ares VehicleThief: whether mind control may be broken during hijacking. */
@@ -471,6 +475,7 @@ export class TechnoRules extends ObjectRules {
         this.hijackerEnterSound = this.ini.getString("VehicleThief.EnterSound") || undefined;
         this.hijackerLeaveSound = this.ini.getString("VehicleThief.LeaveSound") || undefined;
         this.aresBounty = parseAresBountyTechnoRules(this.ini);
+        this.aresVeterancy = parseAresVeterancyRules(this.ini);
         const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
         this.prerequisiteLists = prerequisiteRules.alternativeLists;
         this.prerequisite = this.prerequisiteLists[0] ?? [];

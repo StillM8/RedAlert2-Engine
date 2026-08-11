@@ -25,6 +25,7 @@ import { NotifyOwnerChange } from "./trait/interface/NotifyOwnerChange";
 import { ObjectOwnerChangeEvent } from "./event/ObjectOwnerChangeEvent";
 import { ObjectUnspawnEvent } from "./event/ObjectUnspawnEvent";
 import { NotifyTargetDestroy } from "./trait/interface/NotifyTargetDestroy";
+import { createAresKillAttribution, resolveAresVeterancyRecipients } from "@/extensions/ares/AresVeterancy";
 import { VeteranLevel } from "./gameobject/unit/VeteranLevel";
 import { ObjectSpawnEvent } from "./event/ObjectSpawnEvent";
 import { OverlayTibType } from "../engine/type/OverlayTibType";
@@ -689,9 +690,16 @@ export class Game {
         this.traits.filter(NotifyDestroy).forEach((trait: NotifyDestroy) => {
             trait[NotifyDestroy.onDestroy](obj, this, killer);
         });
-        killer?.obj?.traits.filter(NotifyTargetDestroy).forEach((trait: NotifyTargetDestroy) => {
-            trait[NotifyTargetDestroy.onDestroy](killer.obj, obj, killer.weapon, this);
-        });
+        const killAttribution = createAresKillAttribution(killer);
+        const recipients = resolveAresVeterancyRecipients(killAttribution, this);
+        const dispatched = new Set<any>();
+        for (const recipient of recipients) {
+            if (dispatched.has(recipient.object)) continue;
+            dispatched.add(recipient.object);
+            recipient.object?.traits?.filter(NotifyTargetDestroy).forEach((trait: NotifyTargetDestroy) => {
+                trait[NotifyTargetDestroy.onDestroy](killer.obj, obj, killer.weapon, this, killAttribution);
+            });
+        }
         this.events.dispatch(new ObjectDestroyEvent(obj, killer, skipEvents));
         if (obj.isBuilding() && obj.rules.leaveRubble && obj.deathType !== DeathType.Temporal) {
             obj.owner.removeOwnedObject(obj);

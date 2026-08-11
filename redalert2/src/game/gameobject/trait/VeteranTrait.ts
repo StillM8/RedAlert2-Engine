@@ -6,6 +6,11 @@ import { SelfHealingTrait } from './SelfHealingTrait';
 import { CloakableTrait } from './CloakableTrait';
 import { ArmedTrait } from './ArmedTrait';
 import { SensorsTrait } from './SensorsTrait';
+import {
+    createAresKillAttribution,
+    resolveAresVeterancyRecipients,
+    type AresKillAttribution,
+} from '@/extensions/ares/AresVeterancy';
 interface GameObject {
     rules: {
         cost: number;
@@ -75,7 +80,7 @@ export class VeteranTrait implements NotifyTargetDestroy {
         this.xp = 0;
         this.promotionThresh = gameObject.rules.cost * veteranRules.veteranRatio + 1;
     }
-    [NotifyTargetDestroy.onDestroy](source: GameObject, target: GameObject, weapon?: Weapon, gameManager?: GameManager): void {
+    [NotifyTargetDestroy.onDestroy](source: GameObject, target: GameObject, weapon?: Weapon, gameManager?: GameManager, attribution?: AresKillAttribution): void {
         if (source.isDestroyed && !source.isCrashing)
             return;
         if (!target.isTechno())
@@ -84,13 +89,17 @@ export class VeteranTrait implements NotifyTargetDestroy {
             return;
         const isTemporalOrParasiteKill = weapon && (weapon.warhead.rules.temporal ||
             (weapon.warhead.rules.parasite && source.rules.organic));
-        if (!isTemporalOrParasiteKill && !gameManager?.areFriendly(source, target)) {
-            if (this.veteranLevel >= this.veteranRules.veteranCap)
-                return;
-            const xpGain = target.rules.cost * (target.veteranLevel + 1);
-            if (this.gainXP(xpGain) && gameManager) {
-                this.handlePromotion(source, gameManager);
-            }
+        if (isTemporalOrParasiteKill || gameManager?.areFriendly(source, target)) {
+            return;
+        }
+        const killAttribution = attribution ?? createAresKillAttribution({ obj: source, weapon });
+        const recipient = resolveAresVeterancyRecipients(killAttribution, gameManager)
+            .find(candidate => candidate.object === this.gameObject);
+        if (!recipient || this.veteranLevel >= this.veteranRules.veteranCap)
+            return;
+        const xpGain = target.rules.cost * (target.veteranLevel + 1) * recipient.multiplier;
+        if (this.gainXP(xpGain) && gameManager) {
+            this.handlePromotion(this.gameObject, gameManager);
         }
     }
     setRelativeXP(percentage: number): void {

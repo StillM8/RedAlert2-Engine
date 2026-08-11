@@ -11,6 +11,9 @@ export class GunnerTrait {
     private lastHadGunner: boolean = false;
     private lastPassenger: any;
     private lastIfvMode?: number;
+    getPassenger(): any | undefined {
+        return this.lastPassenger;
+    }
     [NotifyTick.onTick](unit: Unit): void {
         const passengers = unit.transportTrait.units;
         const passenger = passengers[0];

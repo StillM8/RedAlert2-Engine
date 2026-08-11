@@ -14,6 +14,7 @@ export class OpenToppedTrait implements NotifyTick {
     private lastSignature: string = "";
     private armedPassengerCount: number = 0;
     private passengerWeapon?: Weapon;
+    private armedPassenger?: any;
     private ownPrimaryWeapon?: Weapon;
     private attackDisabledByUs: boolean = false;
 
@@ -23,6 +24,10 @@ export class OpenToppedTrait implements NotifyTick {
 
     hasArmedPassengers(): boolean {
         return this.armedPassengerCount > 0;
+    }
+
+    getPassenger(): any | undefined {
+        return this.armedPassenger;
     }
 
     [NotifyTick.onTick](transport: any, game: any): void {
@@ -54,6 +59,7 @@ export class OpenToppedTrait implements NotifyTick {
 
     private arm(transport: any, game: any, armedPassengers: any[]): void {
         const strongest = armedPassengers.reduce((best: any, unit: any) => (unit.primaryWeapon.rules.damage > best.primaryWeapon.rules.damage ? unit : best));
+        this.armedPassenger = strongest;
         if (!transport.armedTrait) {
             transport.armedTrait = new ArmedTrait(transport, game.rules);
             transport.addTrait(transport.armedTrait);
@@ -81,6 +87,7 @@ export class OpenToppedTrait implements NotifyTick {
             transport.armedTrait.primaryWeapon = this.ownPrimaryWeapon;
         }
         this.passengerWeapon = undefined;
+        this.armedPassenger = undefined;
         this.ownPrimaryWeapon = undefined;
         if (transport.attackTrait &&
             !transport.primaryWeapon &&
@@ -93,6 +100,7 @@ export class OpenToppedTrait implements NotifyTick {
 
     dispose(): void {
         this.passengerWeapon = undefined;
+        this.armedPassenger = undefined;
         this.ownPrimaryWeapon = undefined;
     }
 }

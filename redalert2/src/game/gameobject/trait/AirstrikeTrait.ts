@@ -103,7 +103,7 @@ export class AirstrikeTrait implements NotifyTick {
                     rangeHelper.isInTileRange(plane.obj.tile, targetTile, 0, DROP_RANGE_TILES))) {
                 plane.startedDropping = true;
                 if (targetAlive) {
-                    this.dropBombs(gameObject, strike, game);
+                    this.dropBombs(gameObject, plane.obj, strike, game);
                 }
                 plane.dropsLeft--;
                 plane.dropCooldownTicks = BURST_INTERVAL_TICKS;
@@ -142,7 +142,7 @@ export class AirstrikeTrait implements NotifyTick {
             startedDropping: false,
         });
     }
-    private dropBombs(designator: any, strike: Strike, game: any): void {
+    private dropBombs(designator: any, plane: any, strike: Strike, game: any): void {
         const target = strike.target;
         const targetTile = target.centerTile ?? target.tile;
         const weaponRules = strike.weaponRules;
@@ -151,9 +151,10 @@ export class AirstrikeTrait implements NotifyTick {
         const warhead = new Warhead(game.rules.getWarhead(warheadName));
         const targetZone = game.map.getTileZone(targetTile);
         warhead.detonate(game, damage, targetTile, 0, target.position.worldPosition.clone(), targetZone, CollisionType.None, game.createTarget(target, targetTile), {
-            player: designator.owner,
-            obj: designator.isDestroyed ? undefined : designator,
+            player: plane.owner,
+            obj: plane.isDestroyed ? undefined : plane,
             weapon: undefined,
+            aresAttribution: { airstrikeDesignator: designator },
         } as any, false, undefined, undefined);
     }
     private chooseEntryPoint(targetTile: any, game: any): Vector2 | undefined {

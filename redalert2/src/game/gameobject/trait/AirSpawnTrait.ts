@@ -167,7 +167,7 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
                             const offset = Coords.vecGroundToWorld(FacingUtil.toMapCoords(missile.direction).multiplyScalar(1));
                             const detonationPos = launch.targetWorldPos.clone().add(offset);
                             const targetZone = world.map.getTileZone(launch.targetTile);
-                            launch.warhead.detonate(world, launch.damage, launch.targetTile, launch.targetBridge?.tileElevation ?? 0, detonationPos, targetZone, launch.targetBridge ? CollisionType.OnBridge : CollisionType.None, launch.target, { player: missile.owner, obj: gameObject, weapon: undefined } as any, false, undefined, undefined);
+                            launch.warhead.detonate(world, launch.damage, launch.targetTile, launch.targetBridge?.tileElevation ?? 0, detonationPos, targetZone, launch.targetBridge ? CollisionType.OnBridge : CollisionType.None, launch.target, { player: missile.owner, obj: missile, weapon: undefined, aresAttribution: { spawner: gameObject } } as any, false, undefined, undefined);
                         }
                     })).setCancellable(false));
                     const missileIndex = this.spawns.indexOf(missile);
