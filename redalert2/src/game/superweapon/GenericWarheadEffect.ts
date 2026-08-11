@@ -6,6 +6,8 @@ import type { Game } from "@/game/Game";
 import type { Player } from "@/game/Player";
 import { createAresSuperWeaponTargetFilter } from "@/extensions/ares/AresSuperWeaponFilters";
 
+export type GenericWarheadFactory = new (rules: any) => Pick<Warhead, "detonate">;
+
 /**
  * Ares Type=GenericWarhead. The configured warhead is detonated on the target
  * cell, not directly on a selected object. The common Ares house/target
@@ -20,6 +22,7 @@ export class GenericWarheadEffect extends SuperWeaponEffect {
         private readonly warheadName: string,
         private readonly affectsHouse?: string,
         private readonly affectsTarget?: string,
+        private readonly warheadFactory: GenericWarheadFactory = Warhead,
     ) {
         super(type, owner, tile);
     }
@@ -33,7 +36,7 @@ export class GenericWarheadEffect extends SuperWeaponEffect {
             console.warn(`GenericWarhead superweapon references missing warhead "${this.warheadName}"; skipped.`);
             return;
         }
-        const warhead = new Warhead(warheadRules);
+        const warhead = new this.warheadFactory(warheadRules);
         const tile = this.tile;
         const bridge = game.map.tileOccupation.getBridgeOnTile(tile);
         const elevation = bridge?.tileElevation ?? 0;

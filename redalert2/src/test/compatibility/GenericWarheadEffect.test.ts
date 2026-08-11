@@ -1,4 +1,5 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { GenericWarheadEffect, type GenericWarheadFactory } from "@/game/superweapon/GenericWarheadEffect";
 
 class TestWarhead {
     static calls: any[][] = [];
@@ -7,9 +8,6 @@ class TestWarhead {
         TestWarhead.calls.push(args);
     }
 }
-
-mock.module("@/game/Warhead", () => ({ Warhead: TestWarhead }));
-const { GenericWarheadEffect } = await import("@/game/superweapon/GenericWarheadEffect");
 
 describe("Ares GenericWarhead superweapon", () => {
     test("detonates the configured warhead on the target cell", () => {
@@ -24,7 +22,16 @@ describe("Ares GenericWarhead superweapon", () => {
             },
             createTarget: (object: any, targetTile: any) => ({ object, targetTile }),
         };
-        const effect = new GenericWarheadEffect("GenericWarhead", owner, tile, 750, "MOBlastWH");
+        const effect = new GenericWarheadEffect(
+            "GenericWarhead",
+            owner,
+            tile,
+            750,
+            "MOBlastWH",
+            undefined,
+            undefined,
+            TestWarhead as unknown as GenericWarheadFactory,
+        );
 
         effect.onStart(game);
 
