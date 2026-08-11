@@ -367,7 +367,8 @@ export class Gui {
             const { ReplayStorageMemStorage } = await import('./gui/replay/ReplayStorageMemStorage.js');
             replayManager = new ReplayManager(new ReplayStorageMemStorage());
         }
-        const mainMenuRootScreen = new MainMenuRootScreen(subScreens, this.uiScene, this.strings, Engine.images, this.jsxRenderer, this.messageBoxApi, this.appVersion, this.config, videoSrc, this.sound, this.music, this.generalOptions, this.localPrefs, this.fullScreen, this.mixer, this.keyBinds, this.rootController);
+        const rules = new Rules(Engine.getRules(), undefined);
+        const mainMenuRootScreen = new MainMenuRootScreen(subScreens, this.uiScene, this.strings, Engine.images, this.jsxRenderer, this.messageBoxApi, this.appVersion, this.config, videoSrc, this.sound, this.music, this.generalOptions, this.localPrefs, this.fullScreen, this.mixer, this.keyBinds, this.rootController, rules);
         (mainMenuRootScreen as any).replayManager = replayManager;
         this.rootController.addScreen(ScreenType.MainMenuRoot, mainMenuRootScreen);
         const { GameScreen } = await import('./gui/screen/game/GameScreen.js');
@@ -378,7 +379,6 @@ export class Gui {
         const gameResLoader = this.cdnResourceLoader ?? new ResourceLoader(gameResBaseUrl);
         const mapResLoader = new ResourceLoader(mapsBaseUrl);
         const mapFileLoader = new MapFileLoader(mapResLoader, (Engine as any).vfs);
-        const rules = new Rules(Engine.getRules(), undefined);
         const loadingScreenApiFactory = new LoadingScreenApiFactory(rules, this.strings, this.uiScene, this.jsxRenderer!, this.gameResConfig!, undefined as any);
         const gameModes = Engine.getMpModes();
         const speedCheat = new BoxedVar<boolean>(false);

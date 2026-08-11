@@ -52,7 +52,8 @@ export class MainMenuRootScreen extends RootScreen {
     private config: Config;
     private mainMenu?: MainMenu;
     private mainMenuCtrl?: MainMenuController;
-    constructor(subScreens: Map<MainMenuScreenType, any>, uiScene: UiScene, strings: Strings, images: LazyResourceCollection<ShpFile>, jsxRenderer: JsxRenderer, messageBoxApi: MessageBoxApi, appVersion: string, config: Config, videoSrc?: string | File, sound?: any, music?: any, generalOptions?: any, localPrefs?: any, fullScreen?: any, mixer?: any, keyBinds?: any, rootController?: any) {
+    private rules?: any;
+    constructor(subScreens: Map<MainMenuScreenType, any>, uiScene: UiScene, strings: Strings, images: LazyResourceCollection<ShpFile>, jsxRenderer: JsxRenderer, messageBoxApi: MessageBoxApi, appVersion: string, config: Config, videoSrc?: string | File, sound?: any, music?: any, generalOptions?: any, localPrefs?: any, fullScreen?: any, mixer?: any, keyBinds?: any, rootController?: any, rules?: any) {
         super();
         this.subScreens = subScreens;
         this.uiScene = uiScene;
@@ -71,6 +72,14 @@ export class MainMenuRootScreen extends RootScreen {
         this.mixer = mixer;
         this.keyBinds = keyBinds;
         this.rootController = rootController;
+        this.rules = rules;
+    }
+    private async getRules(): Promise<any> {
+        if (!this.rules) {
+            const { Rules } = await import('../../../game/rules/Rules.js');
+            this.rules = new Rules(Engine.getRules());
+        }
+        return this.rules;
     }
     private canAccessUserDirectories(): boolean {
         return !(isNativeShell() && typeof document !== 'undefined' && document.visibilityState === 'hidden');
@@ -155,11 +164,10 @@ export class MainMenuRootScreen extends RootScreen {
         else if (screenType === MainMenuScreenType.Skirmish) {
             console.log('[MainMenuRootScreen] Creating SkirmishScreen with real dependencies');
             const { ErrorHandler } = await import('../../../ErrorHandler.js');
-            const { Rules } = await import('../../../game/rules/Rules.js');
             const { MapFileLoader } = await import('../game/MapFileLoader.js');
             const { Engine } = await import('../../../engine/Engine.js');
             const errorHandler = new ErrorHandler(this.messageBoxApi, this.strings);
-            const rules = new Rules(Engine.getRules());
+            const rules = await this.getRules();
             const { ResourceLoader } = await import('../../../engine/ResourceLoader.js');
             const mapResourceLoader = new ResourceLoader(this.config.mapsBaseUrl ?? '');
             const mapFileLoader = new MapFileLoader(mapResourceLoader, Engine.vfs);
@@ -235,10 +243,9 @@ export class MainMenuRootScreen extends RootScreen {
         }
         else if (screenType === MainMenuScreenType.ReplaySelection) {
             const { ErrorHandler } = await import('../../../ErrorHandler.js');
-            const { Rules } = await import('../../../game/rules/Rules.js');
             const { Engine } = await import('../../../engine/Engine.js');
             const errorHandler = new ErrorHandler(this.messageBoxApi, this.strings);
-            const rules = new Rules(Engine.getRules());
+            const rules = await this.getRules();
             const replayManager = (this as any).replayManager;
             const engineVersion = this.appVersion;
             const engineModHash = Engine.getActiveMod?.() ?? '';
@@ -246,11 +253,10 @@ export class MainMenuRootScreen extends RootScreen {
         }
         else if (screenType === MainMenuScreenType.LanSetup) {
             const { ErrorHandler } = await import('../../../ErrorHandler.js');
-            const { Rules } = await import('../../../game/rules/Rules.js');
             const { MapFileLoader } = await import('../game/MapFileLoader.js');
             const { Engine } = await import('../../../engine/Engine.js');
             const errorHandler = new ErrorHandler(this.messageBoxApi, this.strings);
-            const rules = new Rules(Engine.getRules());
+            const rules = await this.getRules();
             const { ResourceLoader } = await import('../../../engine/ResourceLoader.js');
             const mapResourceLoader = new ResourceLoader(this.config.mapsBaseUrl ?? '');
             const mapFileLoader = new MapFileLoader(mapResourceLoader, Engine.vfs);
