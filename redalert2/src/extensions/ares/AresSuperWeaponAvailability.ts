@@ -61,6 +61,35 @@ export type AresSuperWeaponAvailabilityFailure =
     | "shot-limit"
     | "missing-provider-building";
 
+const AVAILABILITY_KEYS = new Set([
+    "sw.requiredhouses",
+    "sw.forbiddenhouses",
+    "sw.auxbuildings",
+    "sw.negbuildings",
+    "sw.allowplayer",
+    "sw.allowai",
+    "sw.shots",
+    "sw.alwaysgranted",
+]);
+
+/** Whether a definition explicitly opts into the shared availability layer. */
+export function hasAresSuperWeaponAvailabilityConfiguration(
+    rules: AresSuperWeaponAvailabilityRules,
+): boolean {
+    if (rules.requiredHouses !== undefined ||
+        rules.forbiddenHouses !== undefined ||
+        rules.auxBuildings !== undefined ||
+        rules.negBuildings !== undefined ||
+        rules.allowPlayer !== undefined ||
+        rules.allowAI !== undefined ||
+        rules.shots !== undefined ||
+        rules.alwaysGranted !== undefined) {
+        return true;
+    }
+    return [...(rules.extensionEntries?.keys() ?? [])]
+        .some((key) => AVAILABILITY_KEYS.has(normalize(key)));
+}
+
 export interface AresSuperWeaponAvailabilityResult {
     available: boolean;
     /** Stable reason list for callers that only need explainability. */
