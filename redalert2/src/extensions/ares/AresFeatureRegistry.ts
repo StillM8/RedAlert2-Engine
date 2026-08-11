@@ -303,10 +303,11 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     {
         id: "ares.custom-animation-palettes",
         description: "Custom animation and projectile palette selection",
-        implemented: false,
-        parserImplemented: false,
-        runtimeImplemented: false,
-        tests: [],
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresCustomPalette.test.ts"],
+        notes: "ObjectArt reads CustomPalette for animations/projectiles; Theater resolves complete .pal names and Ares's first ~~~ theater substitution while preserving legacy Palette= basename fallback.",
     },
     {
         id: "ares.passenger-extensions",

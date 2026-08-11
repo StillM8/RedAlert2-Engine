@@ -101,6 +101,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^(?:vehiclethief|vehiclethief\.(?:entersound|leavesound|killpilots|breakmindcontrol|allowed|onetime))$/i.test(key)) {
         return "ares.vehicle-thief";
     }
+    if (/^custompalette$/i.test(key)) {
+        return "ares.custom-animation-palettes";
+    }
     if (/^empulse\./i.test(key) || /^empulsecannon$/i.test(key)) {
         return "ares.superweapon-empulse";
     }

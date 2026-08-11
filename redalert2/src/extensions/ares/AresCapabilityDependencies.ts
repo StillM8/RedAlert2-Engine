@@ -17,6 +17,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.additional-armor-types", dependsOn: ["ares.effective-ini"], reason: "Armor IDs and Versus values are normalized from effective rules." },
     { capabilityId: "ares.generic-prerequisites", dependsOn: ["ares.effective-ini", "ares.dynamic-sides-countries"], reason: "Prerequisite expressions resolve objects, countries, and sides." },
     { capabilityId: "ares.custom-foundations", dependsOn: ["ares.effective-ini"], reason: "Foundation geometry is parsed from effective TechnoType art/rules." },
+    { capabilityId: "ares.custom-animation-palettes", dependsOn: ["ares.effective-ini"], reason: "Custom animation/projectile palettes are resolved from effective art data and the active theater." },
     { capabilityId: "ares.operator", dependsOn: ["ares.effective-ini"], reason: "Operator requirements are normalized from TechnoTypes and evaluated against existing passenger/garrison state." },
     { capabilityId: "ares.killing-drivers", dependsOn: ["ares.effective-ini", "ares.operator"], reason: "Driver removal uses normalized vehicle state and the Operator passenger rules when deciding which occupants are removed or ejected." },
     { capabilityId: "ares.vehicle-thief", dependsOn: ["ares.killing-drivers", "ares.operator"], reason: "VehicleThief/CanDrive consumes the normalized DriverKilled state and uses Operator passengers when a reclaimed vehicle needs a physical driver." },

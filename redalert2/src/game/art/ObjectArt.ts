@@ -291,6 +291,14 @@ export class ObjectArt {
             this.paletteType = PaletteType.Custom;
             this.customPaletteName = this.art.getString("Palette");
         }
+        // Ares CustomPalette is an explicit palette filename for animations
+        // and projectile art.  Unlike legacy Palette=, a value ending in
+        // .pal is already complete and must not receive another theater
+        // suffix.  Theater resolves the optional ~~~ placeholder.
+        if (this.art.getString("CustomPalette")) {
+            this.paletteType = PaletteType.Custom;
+            this.customPaletteName = this.art.getString("CustomPalette");
+        }
         if (this.art.getBool("AltPalette", false)) {
             this.paletteType = PaletteType.Unit;
         }
