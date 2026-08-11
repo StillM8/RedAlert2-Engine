@@ -30,6 +30,7 @@ import { MixinRules } from '@/game/ini/MixinRules';
 import { isNotNullOrUndefined } from '@/util/typeGuard';
 import { resolveSideMixSelection, resolveSidePresentation, type SideDescriptor, type SidePresentation } from '@/extensions/ares/AresSides';
 import { createAresPcxCameoAssetManifest, isAresPcxCameoSize, normalizeAresPcxCameos, type AresPcxCameoAssetManifest, type AresPcxCameoDefinition } from '@/extensions/ares/AresPcxCameos';
+import { TextureUtils } from '@/engine/gfx/TextureUtils';
 export class GameLoader {
     constructor(private appVersion: string, private workerHostApi: any, private cdnResourceLoader: any, private appResourceLoader: any, private rules: any, private gameModes: any, private sound: any, private iniLogger: any, private actionLogger: any, private speedCheat: any, private gameResConfig: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private debugBotIndex: any, private devMode: boolean) { }
     async load(gameId: string, timestamp: number, gameOptions: any, mapFile: any, playerName: string, isSinglePlayer: boolean, loadingScreenApi: any, cancellationToken?: any): Promise<any> {
@@ -579,5 +580,6 @@ export class GameLoader {
         DebugRenderable.clearCaches();
         CanvasSpriteBuilder.clearCaches();
         TrailerSmokeFx.clearTextureCache();
+        TextureUtils.clearCache();
     }
 }

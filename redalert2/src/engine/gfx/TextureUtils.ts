@@ -6,6 +6,12 @@ import { PalDrawable } from "./drawable/PalDrawable";
 import * as THREE from 'three';
 class TextureUtilsClass {
     static cache = new Map<number, THREE.Texture>();
+    static clearCache(): void {
+        for (const texture of TextureUtilsClass.cache.values()) {
+            texture.dispose();
+        }
+        TextureUtilsClass.cache.clear();
+    }
     static textureFromPalette(palette: Palette): THREE.Texture {
         const hash = palette.hash;
         let texture = TextureUtilsClass.cache.get(hash);
