@@ -47,11 +47,19 @@ export class SoundSpecs {
             };
             let soundListSection = this.ini.getSection("SoundList");
             if (soundListSection) {
-                for (let soundName of new Set(soundListSection.entries.values())) {
+                const soundNames = new Set<string>();
+                for (const value of soundListSection.entries.values()) {
+                    const values = Array.isArray(value) ? value : [value];
+                    for (const soundName of values) {
+                        const normalizedName = soundName.trim();
+                        if (normalizedName) soundNames.add(normalizedName);
+                    }
+                }
+                for (const soundName of soundNames) {
                     if (soundName) {
-                        let soundSection = this.ini.getSection(soundName);
+                        const soundSection = this.ini.getSection(soundName);
                         if (soundSection) {
-                            this.specs.set(soundName as string, new SoundSpec().read(soundSection, this.defaults));
+                            this.specs.set(soundName.toLocaleLowerCase("en-US"), new SoundSpec().read(soundSection, this.defaults));
                         }
                         else {
                             console.warn(`Missing sound section [${soundName}]`);
@@ -68,9 +76,21 @@ export class SoundSpecs {
         }
     }
     getSpec(name: string): SoundSpec | undefined {
-        return this.specs.get(name);
+        return this.specs.get(name.toLocaleLowerCase("en-US"));
     }
     getAll(): SoundSpec[] {
         return [...this.specs.values()];
+    }
+    getMissingAudioFiles(fileExists: (filename: string) => boolean): string[] {
+        const missing = new Set<string>();
+        for (const spec of this.specs.values()) {
+            for (const soundName of spec.sounds) {
+                const filename = /\.wav$/i.test(soundName) ? soundName : `${soundName}.wav`;
+                if (!fileExists(filename)) {
+                    missing.add(filename);
+                }
+            }
+        }
+        return [...missing].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
     }
 }

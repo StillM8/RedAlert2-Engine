@@ -196,7 +196,7 @@ export class Sound {
         return sequence;
     }
     private getWavFile(soundName: string): any {
-        const filename = soundName + ".wav";
+        const filename = /\.wav$/i.test(soundName) ? soundName : soundName + ".wav";
         const file = this.audioFiles.get(filename);
         if (file)
             return file;

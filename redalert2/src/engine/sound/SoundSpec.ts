@@ -34,9 +34,12 @@ export class SoundSpec {
         }
         this.name = section.name;
         this.control = new Set(section.getEnumArray("Control", SoundControl, /\s+/, [], true));
-        this.sounds = section
-            .getArray("Sounds", /\s+/)
-            .map((sound: string) => sound.replace(/^\$/, ""));
+        const soundsValue = section.get("Sounds");
+        const soundValues = Array.isArray(soundsValue) ? soundsValue : [soundsValue ?? ""];
+        this.sounds = soundValues
+            .flatMap((value: string) => value.split(/\s+/))
+            .map((sound: string) => sound.replace(/^\$/, ""))
+            .filter(Boolean);
         this.volume = section.has("Volume")
             ? section.getNumber("Volume", defaults.volume)
             : section.getNumber("volume", defaults.volume);

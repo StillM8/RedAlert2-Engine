@@ -519,6 +519,11 @@ export class Gui {
                 // RA2 file leaves every YR-added entry "not defined".
                 const soundIni = Engine.getIni(Engine.getFileNameVariant('sound.ini'));
                 const soundSpecs = new SoundSpecs(soundIni);
+                const audioFiles = Engine.getSounds();
+                const missingAudioFiles = soundSpecs.getMissingAudioFiles((filename) => audioFiles.has(filename));
+                if (missingAudioFiles.length) {
+                    console.warn(`[SoundPreflight] ${missingAudioFiles.length} referenced WAV file(s) are unavailable`, missingAudioFiles.slice(0, 100));
+                }
                 const audioVisualRules = {
                     ini: {
                         getString: (key: string) => {
@@ -553,7 +558,7 @@ export class Gui {
                     },
                     setMuted: (muted: boolean) => this.audioSystem!.setMuted(muted)
                 };
-                this.sound = new Sound(soundAudioSystemAdapter, Engine.getSounds(), soundSpecs, audioVisualRules, document);
+                this.sound = new Sound(soundAudioSystemAdapter, audioFiles, soundSpecs, audioVisualRules, document);
                 this.sound.initialize();
                 console.log('[Gui] Sound system initialized');
             }
