@@ -77,3 +77,29 @@ export function chooseAresSplitTargetIndex(
     const normalized = Math.max(0, Math.min(0.999999999999, randomValue));
     return Math.floor(normalized * targetCount);
 }
+
+/**
+ * QuadTree query order depends on insertion and movement history. Ares' split
+ * selection must see one stable candidate order in every lockstep peer.
+ */
+export function sortAresSplitCandidates<T extends {
+    id?: number | string;
+    name?: string;
+    tile?: { rx?: number; ry?: number; z?: number };
+}>(candidates: readonly T[]): T[] {
+    const key = (candidate: T): [number, number, string] => {
+        const numericId = Number(candidate.id);
+        if (Number.isFinite(numericId)) return [0, numericId, ""];
+        const tile = candidate.tile;
+        return [
+            1,
+            0,
+            `${String(candidate.name ?? "").toLocaleLowerCase("en-US")}|${tile?.rx ?? 0}|${tile?.ry ?? 0}|${tile?.z ?? 0}`,
+        ];
+    };
+    return [...candidates].sort((left, right) => {
+        const a = key(left);
+        const b = key(right);
+        return a[0] - b[0] || a[1] - b[1] || a[2].localeCompare(b[2]);
+    });
+}

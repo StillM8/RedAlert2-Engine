@@ -5,6 +5,7 @@ import {
     chooseAresSplitTargetIndex,
     getAresAirburstCellOffsets,
     hasAresProjectileSplitBehavior,
+    sortAresSplitCandidates,
     shouldRetargetAresSplit,
 } from "@/extensions/ares/AresProjectileExtensions";
 import { ProjectileRules } from "@/game/rules/ProjectileRules";
@@ -73,6 +74,15 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(chooseAresSplitTargetIndex(4, 0)).toBe(0);
         expect(chooseAresSplitTargetIndex(4, 0.999)).toBe(3);
         expect(chooseAresSplitTargetIndex(0, 0.5)).toBe(-1);
+    });
+
+    test("sorts split candidates independently of QuadTree query order", () => {
+        const candidates = [
+            { id: 20, name: "Late", tile: { rx: 1, ry: 1 } },
+            { id: 3, name: "Early", tile: { rx: 2, ry: 2 } },
+        ];
+        expect(sortAresSplitCandidates(candidates).map(candidate => candidate.id)).toEqual([3, 20]);
+        expect(candidates.map(candidate => candidate.id)).toEqual([20, 3]);
     });
 
     test("runtime creates one child at the impact cell for a half-cell Airburst", () => {

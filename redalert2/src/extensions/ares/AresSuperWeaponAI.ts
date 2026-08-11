@@ -173,7 +173,8 @@ function parsePreference(value: string | undefined): AresSuperWeaponAIPreference
 function defaultMode(input: AresSuperWeaponAITargetingInput): AresSuperWeaponAITargetingMode {
     const extension = compact(input.extensionType);
     if (extension === "genericwarhead") return "offensive";
-    if (extension === "unitdelivery" || extension === "droppod") return "paradrop";
+    if (extension === "unitdelivery") return "paradrop";
+    if (extension === "droppod") return "drop-pod";
     if (extension === "sonarpulse") return "stealth";
     if (extension === "hunterseeker") return "hunter-seeker";
     if (extension === "battery") return "low-power";

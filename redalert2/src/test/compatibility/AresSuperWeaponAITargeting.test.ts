@@ -55,6 +55,15 @@ SW.AITargeting.Constraints=Attacked,LowPower
             typeId: "EMPulse",
             extensionType: "EMPulse",
         }).supported).toBe(false);
+
+        expect(resolveAresSuperWeaponAITargeting({
+            typeId: "DropPod",
+            extensionType: "DropPod",
+        })).toMatchObject({
+            mode: "drop-pod",
+            constraints: ["enemy"],
+            supported: true,
+        });
     });
 
     test("does not silently enable an unknown Ares AI mode", () => {
