@@ -1,9 +1,62 @@
 import { SideType } from '../../SideType';
 import type { AresSideRegistry, SideId } from '@/extensions/ares/AresSides';
+
+interface IniSectionReader {
+    entries?: Map<string, string | string[]>;
+    getArray(key: string): string[];
+    getNumberArray(key: string): number[];
+    getNumber(key: string, defaultValue?: number): number;
+    getString(key: string, defaultValue?: string): string;
+}
+
+interface IniFileReader {
+    getSection(name: string): IniSectionReader | undefined;
+}
+
 interface ParadropSquad {
     inf: string;
     num: number;
 }
+
+/**
+ * Resolve the legacy paradrop aircraft without assuming a particular mod's
+ * object name.  Retail YR and Ares profiles commonly omit the old
+ * General->ParadropPlane key while still marking the aircraft in the shared
+ * AircraftTypes registry with Primary=ParaDropWeapon.
+ */
+export function resolveParadropAircraft(
+    general: IniSectionReader,
+    rootIni?: IniFileReader,
+): string {
+    const explicit = general.getString("ParadropPlane").trim();
+    if (explicit) {
+        return explicit;
+    }
+
+    const aircraftTypes = rootIni?.getSection("AircraftTypes");
+    if (!aircraftTypes?.entries) {
+        return "";
+    }
+
+    for (const [index, value] of aircraftTypes.entries) {
+        if (!/^\d+$/.test(index) || typeof value !== "string") {
+            continue;
+        }
+        const aircraftName = value.trim();
+        if (!aircraftName) {
+            continue;
+        }
+        const aircraft = rootIni.getSection(aircraftName);
+        if (aircraft?.getString("Primary").trim().toLocaleLowerCase("en-US") === "paradropweapon") {
+            return aircraftName;
+        }
+    }
+
+    // Ares custom paradrop superweapons can provide their own aircraft and
+    // therefore have no legacy plane to expose to the vanilla call sites.
+    return "";
+}
+
 export class ParadropRules {
     private allyParaDrop: ParadropSquad[] = [];
     private amerParaDrop: ParadropSquad[] = [];
@@ -13,7 +66,7 @@ export class ParadropRules {
     private paradropRadius: number = 0;
     private squadsBySideId = new Map<string, ParadropSquad[]>();
     private warnedUnknownSides = new Set<string>();
-    readIni(ini: any, sideRegistry?: AresSideRegistry): ParadropRules {
+    readIni(ini: IniSectionReader, sideRegistry?: AresSideRegistry, rootIni?: IniFileReader): ParadropRules {
         this.allyParaDrop = this.readParadropSquad(ini.getArray("AllyParaDropInf"), ini.getNumberArray("AllyParaDropNum"), "Ally");
         this.amerParaDrop = this.readParadropSquad(ini.getArray("AmerParaDropInf"), ini.getNumberArray("AmerParaDropNum"), "Amer");
         this.sovParaDrop = this.readParadropSquad(ini.getArray("SovParaDropInf"), ini.getNumberArray("SovParaDropNum"), "Sov");
@@ -43,10 +96,7 @@ export class ParadropRules {
             this.squadsBySideId.set("yuri", this.yuriParaDrop.length ? this.yuriParaDrop : this.sovParaDrop);
             this.squadsBySideId.set("thirdside", this.yuriParaDrop.length ? this.yuriParaDrop : this.sovParaDrop);
         }
-        this.paradropPlane = ini.getString("ParadropPlane");
-        if (!this.paradropPlane) {
-            throw new Error("Missing rules [General]->ParadropPlane");
-        }
+        this.paradropPlane = resolveParadropAircraft(ini, rootIni);
         this.paradropRadius = ini.getNumber("ParadropRadius");
         return this;
     }

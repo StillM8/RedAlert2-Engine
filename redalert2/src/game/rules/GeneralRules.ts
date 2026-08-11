@@ -23,12 +23,16 @@ export enum PrereqCategory {
 }
 interface IniReader {
     getNumber(key: string, defaultValue?: number): number;
+    getNumberArray(key: string): number[];
     getString(key: string): string;
     getArray(key: string): string[];
     getFixed(key: string, defaultValue?: number): number;
     getBool(key: string, defaultValue?: boolean): boolean;
     has(key: string): boolean;
     entries?: Map<string, string | string[]>;
+}
+interface IniFileReader {
+    getSection(name: string): any;
 }
 interface MissileRules {
     type: string;
@@ -134,7 +138,7 @@ export class GeneralRules {
     public threat!: ThreatRules;
     public v3Rocket!: V3RocketRules;
     public veteran!: VeteranRules;
-    public readIni(ini: IniReader, sideRegistry?: AresSideRegistry): void {
+    public readIni(ini: IniReader, sideRegistry?: AresSideRegistry, rootIni?: IniFileReader): void {
         this.bountyEnablers = parseAresBountyGeneralRules(ini).enablers;
         this.aircraftFogReveal = ini.getNumber('AircraftFogReveal');
         this.alliedDisguise = ini.getString('AlliedDisguise');
@@ -189,7 +193,7 @@ export class GeneralRules {
         this.normalTargetingDelay = ini.getNumber('NormalTargetingDelay');
         this.padAircraft = ini.getArray('PadAircraft');
         this.parachuteMaxFallRate = ini.getNumber('ParachuteMaxFallRate');
-        this.paradrop = new ParadropRules().readIni(ini, sideRegistry);
+        this.paradrop = new ParadropRules().readIni(ini, sideRegistry, rootIni);
         this.prism = new PrismRules().readIni(ini);
         this.purifierBonus = ini.getNumber('PurifierBonus');
         this.radar = new RadarRules().readIni(ini);

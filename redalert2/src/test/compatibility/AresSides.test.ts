@@ -7,7 +7,7 @@ import { CountryRules } from "@/game/rules/CountryRules";
 import { Country } from "@/game/Country";
 import { Rules } from "@/game/rules/Rules";
 import { TechnoRules } from "@/game/rules/TechnoRules";
-import { ParadropRules } from "@/game/rules/general/ParadropRules";
+import { ParadropRules, resolveParadropAircraft } from "@/game/rules/general/ParadropRules";
 import { sideTypeToTriggerSide } from "@/game/ai/thirdpartbot/builtIn/bot/logic/ai-ini/aiTriggerDb";
 import { Player } from "@/game/Player";
 import { Production } from "@/game/player/production/Production";
@@ -259,6 +259,45 @@ describe("Ares side presentation", () => {
 
         expect(paradrop.getParadropSquads("Alpha")).toEqual([]);
         expect(paradrop.getParadropSquads("Beta")).toEqual([]);
+    });
+
+    test("derives the legacy paradrop aircraft from the shared aircraft registry", () => {
+        const general = new IniSection("General");
+        const aircraftTypes = new IniSection("AircraftTypes");
+        aircraftTypes.set("0", "CUSTOM_TRANSPORT");
+        aircraftTypes.set("1", "CUSTOM_ATTACKER");
+        const transport = new IniSection("CUSTOM_TRANSPORT");
+        transport.set("Primary", "ParaDropWeapon");
+        const attacker = new IniSection("CUSTOM_ATTACKER");
+        attacker.set("Primary", "Maverick");
+        const sections = new Map<string, IniSection>([
+            ["AircraftTypes", aircraftTypes],
+            ["CUSTOM_TRANSPORT", transport],
+            ["CUSTOM_ATTACKER", attacker],
+        ]);
+        const rootIni = { getSection: (name: string) => sections.get(name) };
+
+        expect(resolveParadropAircraft(general, rootIni)).toBe("CUSTOM_TRANSPORT");
+        expect(new ParadropRules().readIni(general, undefined, rootIni)).toMatchObject({
+            paradropPlane: "CUSTOM_TRANSPORT",
+        });
+    });
+
+    test("allows Ares profiles with only custom paradrop aircraft", () => {
+        const general = new IniSection("General");
+        const aircraftTypes = new IniSection("AircraftTypes");
+        aircraftTypes.set("0", "CUSTOM_ATTACKER");
+        const attacker = new IniSection("CUSTOM_ATTACKER");
+        attacker.set("Primary", "Maverick");
+        const rootIni = {
+            getSection: (name: string) => new Map([
+                ["AircraftTypes", aircraftTypes],
+                ["CUSTOM_ATTACKER", attacker],
+            ]).get(name),
+        };
+
+        expect(() => new ParadropRules().readIni(general, undefined, rootIni as any)).not.toThrow();
+        expect(resolveParadropAircraft(general, rootIni as any)).toBe("");
     });
 
     test("does not give a custom side a vanilla AI trigger identity", () => {
