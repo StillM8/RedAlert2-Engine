@@ -46,6 +46,7 @@ import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { SensorsTrait } from "@/game/gameobject/trait/SensorsTrait";
 import { EmpTrait } from "@/game/gameobject/trait/EmpTrait";
 import { AresOperatorTrait } from "@/game/gameobject/trait/AresOperatorTrait";
+import { AresDriverTrait } from "@/extensions/ares/AresKillingDrivers";
 export class ObjectFactory {
     private tiles: any;
     private tileOccupation: any;
@@ -203,6 +204,13 @@ export class ObjectFactory {
             if (gameObject.rules.operatorAny || gameObject.rules.operator?.length) {
                 gameObject.operatorTrait = new AresOperatorTrait();
                 gameObject.traits.add(gameObject.operatorTrait);
+            }
+            if (gameObject.isVehicle() || gameObject.isAircraft()) {
+                // Antares stores DriverKilled as extension state on all
+                // vehicle/aircraft technos.  It is deliberately independent
+                // from owner identity so it survives the neutral transfer.
+                gameObject.aresDriverTrait = new AresDriverTrait();
+                gameObject.traits.add(gameObject.aresDriverTrait);
             }
             const weapons = [gameObject.primaryWeapon, gameObject.secondaryWeapon];
             if (weapons.some(weapon => weapon?.warhead.rules.mindControl)) {

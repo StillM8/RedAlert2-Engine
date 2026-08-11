@@ -21,6 +21,7 @@ import { ProjectileRules } from "@/game/rules/ProjectileRules";
 import { AnimTerrainEffect } from "@/game/gameobject/common/AnimTerrainEffect";
 import { ObjectAttackedEvent } from "@/game/event/ObjectAttackedEvent";
 import { aresEmpThresholdExceeded } from "@/extensions/ares/AresEMP";
+import { applyAresKillDriver } from "@/extensions/ares/AresKillingDrivers";
 interface GameObject {
     isSpawned: boolean;
     isDisposed: boolean;
@@ -100,6 +101,11 @@ interface WarheadRules {
     radiation: boolean;
     psychicDamage: boolean;
     proneDamage: number;
+    killDriver: boolean;
+    killDriverBelowPercent: number;
+    killDriverChance: number;
+    killDriverOwner: string;
+    killDriverRemoveVeterancy: boolean;
     verses: Map<ArmorType, number>;
     wallAbsoluteDestroyer: boolean;
     wall: boolean;
@@ -143,6 +149,12 @@ interface GameWorld {
     mapRadiationTrait: MapRadiationTrait;
     destroyObject(obj: GameObject, source?: WeaponInfo, cause?: any, isDirectHit?: boolean): void;
     generateRandomInt(min: number, max: number): number;
+    generateRandom?(): number;
+    changeObjectOwner?(obj: GameObject, newOwner: Player): void;
+    getCivilianPlayer?(): Player | undefined;
+    getAllPlayers?(): Player[];
+    areAllied?(player1: Player, player2: Player): boolean;
+    unlimboObject?(obj: GameObject, tile: Position, skipSelection?: boolean): void;
 }
 interface GameMap {
     tiles: Tile[][];
@@ -489,6 +501,23 @@ export class Warhead {
                     !!(obj as any).isParachuting?.() || !!(obj as any).parachuting,
                 )) {
                 gameWorld.destroyObject(obj, weaponInfo);
+                continue;
+            }
+            const killDriverApplied = this.rules.killDriver && obj.isTechno() &&
+                sourceObj &&
+                applyAresKillDriver(obj as any, sourceObj, gameWorld as any, {
+                    killDriver: this.rules.killDriver,
+                    killDriverBelowPercent: this.rules.killDriverBelowPercent,
+                    killDriverChance: this.rules.killDriverChance,
+                    killDriverOwner: this.rules.killDriverOwner,
+                    killDriverRemoveVeterancy: this.rules.killDriverRemoveVeterancy,
+                    affectsAllies: this.rules.affectsAllies,
+                    affectsEnemies: this.rules.affectsEnemies,
+                });
+            if (killDriverApplied) {
+                if (obj === target.obj) {
+                    directHitTarget = obj;
+                }
                 continue;
             }
             if (!damage && !empApplied)

@@ -279,6 +279,14 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         dependencies: ["ares.effective-ini"], targetModUsage: "unknown",
         notes: "Specific InfantryType operators and the _ANY_ sentinel are evaluated from transport/garrison passengers. Missing operators disable movement and weapons without disabling unrelated building services; full AI/presentation parity remains open.",
     },
+    "new/killingdrivers.rst": {
+        capabilityId: "ares.killing-drivers",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresKillingDrivers.test.ts"],
+        dependencies: ["ares.effective-ini", "ares.operator"], targetModUsage: "unknown",
+        notes: "KillDriver and ProtectedDriver are implemented through a generic driver-state trait and native owner/passenger handling. CanDrive parsing and driverless-state exposure are present; VehicleThief/reclaim interaction, full veterancy removal, and trigger/script entry points remain open.",
+    },
     "new/include.rst": {
         capabilityId: "ares.effective-ini",
         parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "complete",
