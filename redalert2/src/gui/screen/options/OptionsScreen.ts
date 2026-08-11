@@ -12,6 +12,7 @@ interface ScreenController {
     showSidebarButtons(): void;
     hideSidebarButtons(): Promise<void>;
     setMainComponent(component: any): void;
+    toggleContentAreaVisibility?(visible: boolean): void;
     leaveCurrentScreen?(): void;
     pushScreen(screenType: any, params?: any): void;
     toggleMainVideo?(enabled: boolean): void;
@@ -54,6 +55,11 @@ export class OptionsScreen {
     }
     onEnter(): void {
         this.initialOptionsStr = this.options.serialize();
+        // The in-game menu content area starts hidden.  Main-menu options are
+        // hosted by the main-menu scene, but the same screen is also pushed
+        // by GameMenuController, where the HtmlView would otherwise render
+        // into a hidden container.
+        this.controller.toggleContentAreaVisibility?.(true);
         if (this.controller instanceof MainMenuController) {
             this.controller.toggleMainVideo?.(false);
         }
