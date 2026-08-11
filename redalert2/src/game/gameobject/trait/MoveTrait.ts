@@ -1,4 +1,3 @@
-import { MoveTask } from "@/game/gameobject/task/move/MoveTask";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
 import { ZoneType, getZoneType } from "@/game/gameobject/unit/ZoneType";
@@ -90,7 +89,13 @@ export enum CollisionState {
     Resolved = 1
 }
 const isMoveTask = (task: Task): boolean => {
-    return task instanceof MoveTask || (task.children[0] && isMoveTask(task.children[0]));
+    // Keep movement-state tracking independent from the concrete MoveTask
+    // module. MoveTask depends on MoveTrait's state enums, so importing the
+    // class here creates an initialization cycle in test/runtime bundles.
+    // The marker is inherited by specialized movement tasks and preserves the
+    // previous recursive child-task behavior without coupling the modules.
+    return (task as any).isMoveTask === true ||
+        (!!task.children?.[0] && isMoveTask(task.children[0]));
 };
 export class MoveTrait {
     private gameObject: GameObject;

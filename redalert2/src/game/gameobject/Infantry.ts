@@ -11,8 +11,9 @@ import { AgentTrait } from '@/game/gameobject/trait/AgentTrait';
 import { CrateBonuses } from '@/game/gameobject/unit/CrateBonuses';
 import { HarvesterTrait } from '@/game/gameobject/trait/HarvesterTrait';
 import { DockableTrait } from '@/game/gameobject/trait/DockableTrait';
+import { INFANTRY_SUB_CELLS } from '@/game/gameobject/unit/InfantryConstants';
 export class Infantry extends Techno {
-    static SUB_CELLS = [2, 4, 3];
+    static SUB_CELLS = [...INFANTRY_SUB_CELLS];
     direction: number;
     onBridge: boolean;
     zone: ZoneType;

@@ -41,6 +41,9 @@ export class CrewedTrait {
         let survivorCount = context.sellTrait.computeRefundValue(target) / survivorDivisor;
         survivorCount = survivorCount > 0 && survivorCount < 1 ? 1 : Math.floor(survivorCount);
         survivorCount = target.isVehicle() ? Math.min(1, survivorCount) : Math.min(5, survivorCount);
+        if (target.isVehicle?.() || target.isAircraft?.()) {
+            survivorCount = target.aresVehicleHijackerTrait?.adjustSurvivorPilotCount?.(survivorCount) ?? survivorCount;
+        }
         const crewTypes: string[] = [];
         for (let i = 0; i < survivorCount; i++) {
             crewTypes.push(crewType);
