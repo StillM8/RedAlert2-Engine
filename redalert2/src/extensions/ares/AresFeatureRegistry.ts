@@ -183,7 +183,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresKillingDrivers.test.ts"],
-        notes: "KillDriver and ProtectedDriver use a normalized driver state, deterministic owner resolution, passenger/operator handling, and driverless movement/weapon suppression. CanDrive is parsed and exposed for the future VehicleThief/reclaim action path.",
+        notes: "KillDriver and ProtectedDriver use a normalized driver state, deterministic owner resolution, passenger/operator handling, driverless movement/weapon suppression, and optional veterancy reset on ownership transfer. CanDrive and TechnoType/Country CanBeDriven gates feed the generic VehicleThief reclaim path; broader Ares trigger/script, AI, presentation, save, and network parity remain open.",
     },
     {
         id: "ares.vehicle-thief",
@@ -192,7 +192,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresVehicleThief.test.ts"],
-        notes: "VehicleThief and CanDrive share a data-defined hijack action path. Enemy hijacks, neutral driverless reclaim, operator passengers, absorbed-hijacker recovery state, and target/task integration are wired; building hijacks, survivor pilot-count integration, sounds, and trigger/event parity remain open.",
+        notes: "VehicleThief and CanDrive share a data-defined hijack action path. Enemy hijacks, neutral DriverKilled reclaim, TechnoType/Country CanBeDriven gates, mind-control cleanup, absorbed-hijacker recovery/recycle state, and target/task integration are wired; building hijacks, survivor pilot-count integration, sounds, and trigger/event parity remain open.",
     },
     {
         id: "ares.emp",
@@ -201,7 +201,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresEMP.test.ts"],
-        notes: "EMP.Duration/Cap, EMP.Modifier, ImmuneToEMP, AffectsEnemies, veteran EMPIMMUNE, per-Techno counters, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and flying-aircraft crash entry are wired; sparkle presentation and full subsystem notifications remain separate.",
+        notes: "EMP.Duration/Cap, EMP.Modifier, default immunity including SuperWeapon2 providers, same-owner EMP-capable-weapon TypeImmune, ImmuneToEMP, AffectsEnemies, veteran EMPIMMUNE, per-Techno counters, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and flying-aircraft crash entry are wired; sparkle presentation and full subsystem notifications remain separate.",
     },
     {
         id: "ares.emp-threshold",

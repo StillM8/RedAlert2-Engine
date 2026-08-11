@@ -50,7 +50,7 @@ usage currently is:
 | CustomPalette | 541 | 1 | 541 / 541 | implemented, render certification open |
 | EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
 | Projectile Airburst/Splits extensions | 614 | 1 | 232 / 232 | parser/runtime slice implemented; Proximity and target-content flight certification remain open |
-| VehicleThief / CanDrive | 271 | 1 | 263 / 263 | core runtime implemented, integration gaps remain |
+| VehicleThief / CanDrive | 271 | 1 | 263 / 263 | generic enemy hijack and neutral DriverKilled reclaim are implemented; CanBeDriven, mind-control, and recovery/recycle semantics are wired, while integration gaps remain |
 | AttachEffect combat | 820 | 1 | 218 / 218 | parser/model complete; state, trait, and Speed/Armor/Firepower/ROF callsites wired; animation/cloak and transport/temporal lifecycle remain partial |
 | Bounty | 1,343 | 1 | 626 / 626 | parser/runtime missing; economy, combat, presentation, and country gates remain |
 | Chronoshift eligibility | 1,176 | 1 | 1,141 / 1,141 | parser/model complete; unit candidates filtered and non-crushable collision handling integrated; buildings, KillCargo, and transport integration remain partial |

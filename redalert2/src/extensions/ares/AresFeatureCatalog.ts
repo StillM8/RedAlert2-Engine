@@ -309,7 +309,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresKillingDrivers.test.ts"],
         dependencies: ["ares.effective-ini", "ares.operator"], targetModUsage: "unknown",
-        notes: "KillDriver and ProtectedDriver are implemented through a generic driver-state trait and native owner/passenger handling. CanDrive parsing and driverless-state exposure are present; VehicleThief/reclaim interaction, full veterancy removal, and trigger/script entry points remain open.",
+        notes: "KillDriver and ProtectedDriver are implemented through a generic driver-state trait and native owner/passenger handling. CanDrive and TechnoType/Country CanBeDriven gates feed the VehicleThief reclaim path, and RemoveVeterancy resets transferred vehicles; broader trigger/script, AI, presentation, save, and multiplayer parity remain open.",
     },
     "restored/vehicle-thief.rst": {
         capabilityId: "ares.vehicle-thief",
@@ -317,7 +317,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresVehicleThief.test.ts"],
         dependencies: ["ares.effective-ini", "ares.killing-drivers", "ares.operator"], targetModUsage: "required",
-        notes: "VehicleThief/CanDrive share a normalized hijack action path. Enemy hijack, neutral DriverKilled reclaim, operator passenger handling, survivor pilot-count semantics, and absorbed-hijacker recovery state are implemented; building hijacks, audio, and trigger/event parity remain open. The local Mental Omega 3.3.6 scan found 271 driver/thief entries across 263 definitions.",
+        notes: "VehicleThief/CanDrive share a normalized hijack action path. Enemy hijack, neutral DriverKilled reclaim, TechnoType/Country CanBeDriven gates, operator passenger handling, mind-control cleanup, and absorbed-hijacker recovery/recycle state are implemented; the survivor pilot-count adapter exists but full survivor integration, building hijacks, audio, and trigger/event parity remain open. The local Mental Omega 3.3.6 scan found 271 driver/thief entries across 263 definitions.",
     },
     "new/include.rst": {
         capabilityId: "ares.effective-ini",
@@ -365,7 +365,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresEMP.test.ts"],
         dependencies: ["ares.effective-ini", "ares.warhead-effects"], targetModUsage: "unknown",
-        notes: "Official EMP duration/cap counters, immunity defaults, EMP.Modifier, veteran EMPIMMUNE, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and aircraft crash entry are implemented. Sparkle presentation and full subsystem notifications remain separate.",
+        notes: "Official EMP duration/cap counters, immunity defaults including SuperWeapon2 providers, same-owner EMP-capable-weapon TypeImmune, EMP.Modifier, veteran EMPIMMUNE, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and aircraft crash entry are implemented. Sparkle presentation and full subsystem notifications remain separate.",
     },
     "new/destroyunitsbyemp.rst": {
         capabilityId: "ares.emp-threshold",
