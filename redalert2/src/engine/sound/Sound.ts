@@ -141,6 +141,8 @@ export class Sound {
             const wavFiles = sequence
                 .map((sound) => this.getWavFile(sound))
                 .filter(isNotNullOrUndefined);
+            if (!wavFiles.length)
+                return;
             handle = this.audioSystem.playWavLoop(wavFiles, channel, volume, pan, spec.delay, rate, hasAttack, hasDecay, loops);
         }
         else {
@@ -153,6 +155,8 @@ export class Sound {
                 const wavFiles = sequence
                     .map((sound) => this.getWavFile(sound))
                     .filter(isNotNullOrUndefined);
+                if (!wavFiles.length)
+                    return;
                 handle = this.audioSystem.playWavSequence(wavFiles, channel, volume, pan, delay, rate);
             }
             else {
@@ -186,7 +190,7 @@ export class Sound {
         if (isLoop) {
             sequence.push(...mainSounds);
         }
-        else {
+        else if (mainSounds.length) {
             sequence.push(mainSounds[getRandomInt(0, mainSounds.length - 1)]);
         }
         if (decayCount > 0) {
