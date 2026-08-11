@@ -49,39 +49,17 @@ export class MixFile {
     private parseTdHeader(e: DataStream): number {
         var t = e.readUint16();
         e.readUint32();
-        let successfulEntries = 0;
-        let failedEntries = 0;
-        let duplicateHashes = 0;
-        const seenHashes = new Set<number>();
         for (let r = 0; r < t; r++) {
             try {
                 if (e.position + 12 > e.byteLength) {
-                    console.log(`[Our] Entry ${r + 1}: Not enough data remaining. Position: ${e.position}, Remaining: ${e.byteLength - e.position}`);
-                    failedEntries++;
+                    console.warn(`[MixFile] Truncated index at entry ${r + 1}; stopping parse.`);
                     break;
                 }
                 var i = new MixEntry(e.readUint32(), e.readUint32(), e.readUint32());
-                if (r < 5) {
-                    console.log(`[Our] Entry ${r + 1}: hash=0x${i.hash.toString(16).toUpperCase()}, offset=${i.offset}, length=${i.length}`);
-                    const currentPos = e.position - 12;
-                    const rawBytes = new Uint8Array(e.buffer, e.byteOffset + currentPos, 12);
-                    console.log(`[Our] Entry ${r + 1} raw bytes:`, Array.from(rawBytes));
-                }
-                if (seenHashes.has(i.hash)) {
-                    duplicateHashes++;
-                    if (duplicateHashes <= 10) {
-                        console.log(`[Our] Duplicate hash detected at entry ${r + 1}: 0x${i.hash.toString(16).toUpperCase()}`);
-                    }
-                }
-                else {
-                    seenHashes.add(i.hash);
-                }
                 this.index.set(i.hash, i);
-                successfulEntries++;
             }
             catch (error) {
-                console.log(`[Our] Entry ${r + 1}: Error reading entry:`, error);
-                failedEntries++;
+                console.warn(`[MixFile] Failed to read index entry ${r + 1}; stopping parse.`, error);
                 break;
             }
         }
