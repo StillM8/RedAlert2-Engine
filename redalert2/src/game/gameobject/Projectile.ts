@@ -36,6 +36,10 @@ import {
     applyAresFirestormWallDamage,
     isAresActiveFirestormWall,
 } from '@/extensions/ares/AresFirestorm';
+import {
+    getAresUrbanCombatPassThroughChance,
+    resolveAresUrbanCombatHit,
+} from '@/extensions/ares/AresUrbanCombatRuntime';
 export enum ProjectileState {
     Travel = 0,
     Impact = 1,
@@ -616,6 +620,78 @@ export class Projectile extends GameObject {
         totalDamage *= this.veteranDamageMult;
         return totalDamage;
     }
+    /**
+     * Applies the optional generic Urban Combat building rule before ordinary
+     * warhead damage. The optional data is deliberately read from the live
+     * building rules so vanilla buildings and buildings without an Ares
+     * definition retain the existing warhead path.
+     */
+    private applyAresUrbanCombatOccupantHit(
+        game: any,
+        targetObj: any,
+        warhead: Warhead,
+        weapon: any,
+        damage: number,
+        detonationTile: any,
+        detonationZone: any,
+    ): boolean {
+        if (!targetObj?.isBuilding?.() || !targetObj.rules?.aresUrbanCombat) return false;
+        const garrisonTrait = targetObj.garrisonTrait;
+        const occupants = garrisonTrait?.units;
+        if (!Array.isArray(occupants) || occupants.length === 0) return false;
+        if (!warhead.canDamage(targetObj, detonationTile, detonationZone)) return false;
+        if (typeof game.generateRandom !== "function" || typeof game.generateRandomInt !== "function") return false;
+
+        const urbanRules = targetObj.rules.aresUrbanCombat;
+        // ProjectileRules predates this optional Ares field. Missing means the
+        // documented SubjectToTrenches=yes default, while an explicit false
+        // remains a generic projectile-side override.
+        const projectileUrbanRules = {
+            subjectToTrenches: (this.rules as any)?.subjectToTrenches !== false,
+        };
+        const passThroughRoll = game.generateRandom();
+        const passThroughChance = getAresUrbanCombatPassThroughChance(
+            urbanRules,
+            projectileUrbanRules,
+            true,
+        );
+        if (passThroughRoll >= passThroughChance) return false;
+
+        const occupantIndex = game.generateRandomInt(0, occupants.length - 1);
+        const occupant = occupants[Math.max(0, Math.min(occupants.length - 1, occupantIndex))];
+        if (!occupant?.healthTrait) return false;
+
+        const decision = resolveAresUrbanCombatHit(
+            urbanRules,
+            projectileUrbanRules,
+            {
+                hasOccupants: true,
+                passThroughRoll,
+                fatalRoll: game.generateRandom(),
+                weaponDamage: damage,
+            },
+        );
+        if (decision.kind === "building") return false;
+
+        const weaponInfo = {
+            player: this.fromPlayer,
+            weapon,
+            obj: this.fromObject,
+        };
+        if (decision.kind === "occupant-fatal") {
+            warhead.inflictDamage(Number.POSITIVE_INFINITY, occupant, weaponInfo, game, true);
+        }
+        else {
+            const occupantDamage = warhead.computeDamage(decision.damage, occupant, game);
+            warhead.inflictDamage(occupantDamage, occupant, weaponInfo, game, true);
+        }
+
+        if (occupant.isDestroyed || occupant.healthTrait.health <= 0) {
+            const index = occupants.indexOf(occupant);
+            if (index >= 0) occupants.splice(index, 1);
+        }
+        return true;
+    }
     private detonate(game: any, collisionType: CollisionType = CollisionType.None): void {
         const weapon = this.fromWeapon;
         let warhead = weapon.warhead;
@@ -810,20 +886,31 @@ export class Projectile extends GameObject {
             shouldDetonate = false;
         }
         if (shouldDetonate) {
-            warhead.detonate(game, damage, detonationTile, this.tileElevation, this.position.worldPosition, detonationZone, collisionType, this.target, {
-                player: this.fromPlayer,
-                weapon: weapon,
-                obj: this.fromObject,
-            }, this.isShrapnel, this.impactAnim, undefined, false, (object: any) => {
-                if (!isAresActiveFirestormWall(object, this.fromPlayer)) return true;
-                const coefficient = game.rules.general.damageToFirestormDamageCoefficient ?? 1;
-                applyAresFirestormWallDamage(
-                    object,
-                    warhead.computeDamage(damage, object, game),
-                    coefficient,
-                );
-                return false;
-            });
+            const occupantHit = this.applyAresUrbanCombatOccupantHit(
+                game,
+                targetObj,
+                warhead,
+                weapon,
+                damage,
+                detonationTile,
+                detonationZone,
+            );
+            if (!occupantHit) {
+                warhead.detonate(game, damage, detonationTile, this.tileElevation, this.position.worldPosition, detonationZone, collisionType, this.target, {
+                    player: this.fromPlayer,
+                    weapon: weapon,
+                    obj: this.fromObject,
+                }, this.isShrapnel, this.impactAnim, undefined, false, (object: any) => {
+                    if (!isAresActiveFirestormWall(object, this.fromPlayer)) return true;
+                    const coefficient = game.rules.general.damageToFirestormDamageCoefficient ?? 1;
+                    applyAresFirestormWallDamage(
+                        object,
+                        warhead.computeDamage(damage, object, game),
+                        coefficient,
+                    );
+                    return false;
+                });
+            }
         }
         if (warhead.rules.nukeMaker) {
             let nukeProjectile: Projectile;
