@@ -228,7 +228,7 @@ const DOCUMENTED_KEYS: Readonly<Record<string, readonly string[]>> = {
     "new/sidescountries.rst": ["File.Flag", "File.LoadScreen", "LoadScreenText.Name", "RandomSelectionWeight", "ListIndex", "AI.PowerPlants", "ParaDrop.Types", "DefaultDisguise", "Crew", "SurvivorDivisor", "AI.BaseDefenses", "Sidebar.MixFileIndex", "Sidebar.YuriFileNames", "EVA.Tag"],
     "new/solidbuildings.rst": ["[Projectile]SubjectToBuildings", "[BuildingArt]SolidHeight"],
     "new/spybehavior.rst": ["SpyEffect.Custom", "SpyEffect.ResetRadar", "SpyEffect.RevealRadar", "SpyEffect.PowerOutageDuration", "SpyEffect.StolenMoneyAmount", "SpyEffect.StolenMoneyPercentage", "SpyEffect.ResetSuperweapons", "SpyEffect.StolenTechIndex", "SpyEffect.UnitVeterancy", "SpyEffect.RevealProduction"],
-    "new/superweapons.rst": ["SW.FireIntoShroud", "SW.AutoFire", "SW.ManualFire", "UseChargeDrain", "ChargeToDrainRatio", "SW.ChargeToDrainRatio", "SW.Unstoppable", "SW.Range", "SW.CreateRadarEvent", "SW.Deferment", "SW.PostDependent", "SW.UseAITargeting", "SW.AITargeting", "SW.AITargeting.Constraints", "SW.AITargeting.Preference", "SW.AIRequiresTarget", "SW.AIRequiresHouse", "SW.InitialReady", "SW.VirtualCharge", "Money.Amount", "Money.DrainAmount", "Money.DrainDelay", "SW.Animation", "EVA.*", "Message.*", "Text.*", "Light.*", "Lightning.*", "Nuke.*", "Dominator.*", "Chronosphere.*", "Protect.*", "Mutate.*", "ParaDrop.*", "SpyPlane.*", "SonarPulse.Delay", "Deliver.Types", "DropPod.Types", "DropPod.Minimum", "DropPod.Maximum", "DropPod.Veterancy", "DropPodWeapon", "DropPodTrailer", "EMPulse.Linked", "EMPulse.TargetSelf", "EMPulse.PulseDelay", "EMPulse.PulseBall", "EMPulse.Cannons", "EMPulseCannon"],
+    "new/superweapons.rst": ["SW.RequiredHouses", "SW.ForbiddenHouses", "SW.AuxBuildings", "SW.NegBuildings", "SW.AllowPlayer", "SW.AllowAI", "SW.Shots", "SW.AlwaysGranted", "SW.ShowCameo", "SW.TimerVisibility", "SW.Group", "SW.FireIntoShroud", "SW.AutoFire", "SW.ManualFire", "UseChargeDrain", "ChargeToDrainRatio", "SW.ChargeToDrainRatio", "SW.Unstoppable", "SW.Range", "SW.CreateRadarEvent", "SW.Deferment", "SW.PostDependent", "SW.UseAITargeting", "SW.AITargeting", "SW.AITargeting.Constraints", "SW.AITargeting.Preference", "SW.AIRequiresTarget", "SW.AIRequiresHouse", "SW.InitialReady", "SW.VirtualCharge", "Money.Amount", "Money.DrainAmount", "Money.DrainDelay", "SW.Animation", "EVA.*", "Message.*", "Text.*", "Light.*", "Lightning.*", "Nuke.*", "Dominator.*", "Chronosphere.*", "Protect.*", "Mutate.*", "ParaDrop.*", "SpyPlane.*", "SonarPulse.Delay", "Deliver.Types", "DropPod.Types", "DropPod.Minimum", "DropPod.Maximum", "DropPod.Veterancy", "DropPodWeapon", "DropPodTrailer", "EMPulse.Linked", "EMPulse.TargetSelf", "EMPulse.PulseDelay", "EMPulse.PulseBall", "EMPulse.Cannons", "EMPulseCannon"],
     "new/survivors.rst": ["Survivor.PilotCount", "Survivor.RookiePilotChance", "Survivor.VeteranPilotChance", "Survivor.ElitePilotChance", "Survivor.VeteranPassengerChance", "Survivor.ElitePassengerChance"],
     "new/urbancombattrenches.rst": ["UC.PassThrough", "UC.FatalRate", "UC.DamageMultiplier", "SubjectToTrenches", "Bunker.Raidable", "Rubble.Destroyed", "Rubble.Intact", "IsTrench", "CanBeOccupiedBy"],
     "new/warheads.rst": ["IronCurtain.Duration", "IronCurtain.Cap", "IronCurtain.Modifier", "MindControl.Permanent", "Temporal.WarpAway", "Ripple.Radius", "Deployed.Damage", "AffectsAllies", "AffectsEnemies", "Malicious", "InfDeathAnim", "PreImpactAnim"],
@@ -334,7 +334,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         aiStatus: "missing", presentationStatus: "partial", saveLoadStatus: "missing", multiplayerStatus: "partial",
         verificationStatus: "synthetic", deterministic: true, tests: ["AresSuperWeapons.test.ts", "AresSuperWeaponTargeting.test.ts", "AresSuperWeaponCharge.test.ts", "AresSuperWeaponChargeDrain.test.ts", "AresSuperWeaponDeferment.test.ts", "AresSuperWeaponPostDependent.test.ts", "AresSuperWeaponRadar.test.ts", "AresSuperWeaponAITargeting.test.ts", "AresSuperWeaponRange.test.ts", "AresUnitDelivery.test.ts", "AresSonarPulse.test.ts", "AresDropPod.test.ts", "AresBattery.test.ts", "AresHunterSeeker.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters"], targetModUsage: "required",
-        notes: "Common fields, SW.Range for supported ranged effects, SW.Deferment for supported state machines, Money.Amount launch transactions, charge-drain timer/ratio/money scheduling, manual SW.RequiresTarget/SW.RequiresHouse gates, InitialReady/VirtualCharge timer state, PostDependent stage selection, common radar-event delivery, target filters, GenericWarhead, UnitDelivery, SonarPulse, the EMPulse launch state, the Antares DropPod core placement handler, the Antares Battery power/online/overpower core, and the Antares Hunter Seeker launch/target/detonation core are present; Firestorm presentation, Battery action/persistence, Hunter Seeker flight choreography, animation/presentation, AI, persistence, and the remaining handlers are not complete. Hunter Seeker is tracked here as an Antares 3.0p1 reference capability because it is not a leaf in the current official documentation inventory.",
+        notes: "The generic availability sub-capability has complete parser/model/runtime status for RequiredHouses, ForbiddenHouses, AuxBuildings, NegBuildings, AllowPlayer, AllowAI, Shots, AlwaysGranted, provider grant/revoke, and activation gating. The aggregate superweapon surface remains partial: cameo/timer/group presentation, AI breadth, charge-lifecycle edge coverage, persistence, network certification, and remaining handlers are not complete. Hunter Seeker is tracked here as an Antares 3.0p1 reference capability because it is not a leaf in the current official documentation inventory.",
     },
     "restored/firestormwall.rst": {
         capabilityId: "ares.firestorm-wall",
@@ -361,6 +361,40 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         notes: "EMP.Threshold is normalized as yes/no/inair/integer and positive/in-air counter crossings destroy non-aircraft Technos through the normal world destruction path. Full hover/aircraft edge coverage, parachute integration, persistence, and network certification remain open.",
     },
 };
+
+/**
+ * Runtime slices that span multiple official documentation sections. These
+ * entries are separate from the 127-leaf official document inventory so the
+ * report can distinguish a complete availability service from the still
+ * partial aggregate superweapon surface.
+ */
+export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
+    {
+        id: "ares.superweapon-availability",
+        title: "Generic Ares superweapon availability and grant/revoke",
+        category: "new",
+        sourceDocuments: ["new/superweapons.rst"],
+        documentedKeys: [
+            "SW.RequiredHouses", "SW.ForbiddenHouses", "SW.AuxBuildings", "SW.NegBuildings",
+            "SW.AllowPlayer", "SW.AllowAI", "SW.Shots", "SW.AlwaysGranted",
+            "SW.ShowCameo", "SW.TimerVisibility", "SW.Group",
+        ],
+        documentedSections: ["SuperWeapon"],
+        parserStatus: "complete",
+        normalizedModelStatus: "complete",
+        runtimeStatus: "complete",
+        aiStatus: "partial",
+        presentationStatus: "partial",
+        saveLoadStatus: "partial",
+        multiplayerStatus: "partial",
+        deterministic: true,
+        verificationStatus: "synthetic",
+        tests: ["AresSuperWeaponAvailability.test.ts", "AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts"],
+        dependencies: ["ares.effective-ini", "ares.target-filters"],
+        targetModUsage: "required",
+        notes: "Parser/evaluator, generic owner adapter, provider-based grant/revoke, AlwaysGranted, finite Shots, and activation-time shot gating are implemented. Cameo/timer/group presentation, broader AI certification, persistence, and multiplayer/network certification remain partial.",
+    },
+];
 
 function capabilityIdFor(path: string): string {
     return `ares.docs.${path.replace(/\.rst$/i, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
@@ -403,6 +437,10 @@ export const ARES_DOCUMENTATION_DOCUMENTS: readonly AresDocumentationDocument[] 
 
 export function getAresCapability(id: string): AresCapability | undefined {
     return ARES_FEATURE_CATALOG.find((feature) => feature.id === id);
+}
+
+export function getAresImplementationCapability(id: string): AresCapability | undefined {
+    return ARES_IMPLEMENTATION_CAPABILITIES.find((feature) => feature.id === id);
 }
 
 export function getAresCatalogSummary(): {

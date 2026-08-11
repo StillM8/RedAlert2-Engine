@@ -24,7 +24,10 @@ import {
     type MentalOmegaCompatibilityReport,
 } from "../redalert2/src/extensions/ares/AresCompatibilityScanner";
 import { createDefaultAresFeatureRegistry } from "../redalert2/src/extensions/ares/AresFeatureRegistry";
-import { getAresCapability } from "../redalert2/src/extensions/ares/AresFeatureCatalog";
+import {
+    getAresCapability,
+    getAresImplementationCapability,
+} from "../redalert2/src/extensions/ares/AresFeatureCatalog";
 
 const installRoot = resolve(process.argv[2] ?? process.env.MO_INSTALL_DIR ?? "");
 const shouldWrite = process.argv.includes("--write");
@@ -211,7 +214,9 @@ const CATALOG_ALIASES: Readonly<Record<string, string>> = {
 };
 
 function catalogForFeature(featureId: string) {
-    return getAresCapability(featureId) ?? getAresCapability(CATALOG_ALIASES[featureId] ?? "");
+    return getAresImplementationCapability(featureId) ??
+        getAresCapability(featureId) ??
+        getAresCapability(CATALOG_ALIASES[featureId] ?? "");
 }
 
 const ARES_CUSTOM_TYPES = new Set([
@@ -232,6 +237,17 @@ const COMMON_AVAILABILITY_FIELDS = [
     "SW.TimerVisibility",
     "SW.Group",
 ];
+
+const IMPLEMENTED_AVAILABILITY_FIELDS = new Set([
+    "SW.RequiredHouses",
+    "SW.ForbiddenHouses",
+    "SW.AuxBuildings",
+    "SW.NegBuildings",
+    "SW.AllowPlayer",
+    "SW.AllowAI",
+    "SW.Shots",
+    "SW.AlwaysGranted",
+]);
 
 function reportReferenceForSection(report: MentalOmegaCompatibilityReport, section: string): IniKeyReference[] {
     const expected = normalize(section);
@@ -274,7 +290,10 @@ function buildReport(
     }
     const commonAvailability = COMMON_AVAILABILITY_FIELDS.map((field) => {
         const count = report.references.filter((reference) => normalize(reference.key) === normalize(field)).length;
-        return { field, count };
+        const status = IMPLEMENTED_AVAILABILITY_FIELDS.has(field)
+            ? count > 0 ? "implemented" : "implemented; not observed in this scan"
+            : "parsed; presentation partial";
+        return { field, count, status };
     });
     const unclassified = report.unclassifiedUsage;
     const gaps = report.featureUsage.filter((usage) => !usage.support?.implemented);
@@ -340,6 +359,8 @@ function buildReport(
         const catalog = catalogForFeature(usage.featureId);
         const priority = !support?.implemented || catalog?.runtimeStatus === "missing"
             ? "P0"
+            : usage.featureId === "ares.superweapon-availability"
+                ? "P1"
             : catalog?.runtimeStatus === "partial"
                 ? "P1"
                 : "P2";
@@ -399,11 +420,11 @@ function buildReport(
         "|---|---:|---|",
     );
     for (const field of commonAvailability) {
-        lines.push(`| ${field.field} | ${field.count} | ${field.count ? "observed; shared availability/grant service still required" : "not observed in this scan"} |`);
+        lines.push(`| ${field.field} | ${field.count} | ${field.status} |`);
     }
     lines.push(
         "",
-        "Current P0 gap: the scanner recognizes these fields for measurement, but no shared parser/runtime service yet owns availability, grant, cameo, shots, group, and provider-building semantics. This must be implemented generically for Ares/YR and then exercised by the MO profile.",
+        "Core availability/grant behavior is implemented generically for Ares/YR: parser/evaluator, house and auxiliary gates, player/AI gates, provider-based grant/revoke, AlwaysGranted, finite Shots, and activation-time shot rejection. Remaining gaps are SW.ShowCameo, SW.TimerVisibility, and SW.Group presentation, plus broader AI coverage, persistence, and multiplayer/network certification.",
         "",
         "## 6. MO-content and unclassified key frequency",
         "",
@@ -444,7 +465,7 @@ function buildReport(
         "",
         "| Priority | Work item | Evidence | Required generic implementation boundary | Verification gate |",
         "|---|---|---|---|---|",
-        `| P0 | Shared superweapon availability/grant service | ${commonAvailability.filter((item) => item.count > 0).map((item) => `${item.field}=${item.count}`).join(", ") || "no observed fields"} | Parse and apply RequiredHouses, ForbiddenHouses, AuxBuildings, NegBuildings, AllowPlayer, AllowAI, Shots, AlwaysGranted, ShowCameo, TimerVisibility, and Group for every Ares-compatible profile | Unit tests plus MO fixture; no MO-only branch |`,
+        `| P1 | Superweapon availability presentation and certification | ${commonAvailability.filter((item) => item.count > 0).map((item) => `${item.field}=${item.count}`).join(", ") || "no observed fields"} | Keep the implemented generic availability/grant/activation service; finish ShowCameo, TimerVisibility, and Group presentation, then certify persistence and multiplayer/network state | Presentation tests, save/load replay, and host/client deterministic checks; no MO-only branch |`,
         `| P0 | Complete custom handler coverage | ${customTypes.length} custom definitions; ${gaps.filter((usage) => usage.featureId.includes("superweapon") || usage.featureId === "ares.custom-superweapons").length} used superweapon feature(s) remain unimplemented/partial | Keep type dispatch and data parsing generic; add handlers by Ares capability, not by MO unit name | Per-type deterministic tests, target filters, AI, UI, save/load |`,
         `| P0 | AI and target integration | ${report.featureUsage.filter((usage) => usage.featureId.includes("ai-targeting") || usage.featureId.includes("target")).reduce((sum, usage) => sum + usage.occurrences, 0)} relevant occurrences | Share eligibility/activation rules between human and AI paths; preserve house/target/shroud semantics | Skirmish liveness, target-selection, and lockstep tests |`,
         `| P0 | State persistence and determinism | ${customTypes.filter((item) => /^(?:battery|firestorm|hunterseeker|empulse|droppod)$/i.test(item.type)).length} stateful custom-type definitions | Serialize charge, active effects, launched entities, and grants through the generic save/network state model | Save/load replay and host/client deterministic hashes |`,

@@ -233,11 +233,11 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     {
         id: "ares.superweapon-availability",
         description: "Common Ares superweapon availability and grant-state fields",
-        implemented: false,
+        implemented: true,
         parserImplemented: true,
-        runtimeImplemented: false,
-        tests: ["AresSuperWeaponAvailability.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "The shared pure evaluator normalizes RequiredHouses, ForbiddenHouses, AuxBuildings, NegBuildings, AllowPlayer, AllowAI, Shots, AlwaysGranted, provider presence, defeated state, and stable reason codes. Runtime grant/removal, sidebar, AI, charge lifecycle, save/load, and network synchronization remain open.",
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponAvailability.test.ts", "AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts"],
+        notes: "The generic parser/evaluator, owner adapter, provider-based grant/revoke lifecycle, AlwaysGranted handling, finite Shots tracking, and activation-time shot gate are implemented. Cameo/timer/group presentation, full AI certification, charge-lifecycle edge coverage, persistence, and multiplayer/network certification remain partial.",
     },
     {
         id: "ares.superweapon-target-requirements",
