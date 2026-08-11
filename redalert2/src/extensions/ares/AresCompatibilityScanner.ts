@@ -111,6 +111,10 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.(?:initialready|virtualcharge)$/i.test(key)) {
         return "ares.superweapon-charge-state";
     }
+    if (/^(?:usechargedrain|chargetodrainratio)$/i.test(key) ||
+        /^sw\.(?:chargetodrainratio|unstoppable)$/i.test(key)) {
+        return "ares.superweapon-charge-drain";
+    }
     if (/^sw\.deferment$/i.test(key)) {
         return "ares.superweapon-deferment";
     }
@@ -126,7 +130,10 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^sw\.(?:aitargeting|aitargeting\.constraints|aitargeting\.preference|airequirestarget|airequireshouse|useaitargeting)$/i.test(key)) {
         return "ares.superweapon-ai-targeting";
     }
-    if (/^money\.(?:amount|drainamount|draindelay)$/i.test(key)) {
+    if (/^money\.(?:drainamount|draindelay)$/i.test(key)) {
+        return "ares.superweapon-charge-drain";
+    }
+    if (/^money\.amount$/i.test(key)) {
         return "ares.superweapon-money";
     }
     if (/^superweapons$/i.test(key) ||

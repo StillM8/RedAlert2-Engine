@@ -123,6 +123,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Auto-only superweapons reject human click actions while allowing AI-created actions; ManualFire remains ignored when AutoFire is disabled, matching Antares. Human automatic target selection is a separate host/AI integration task.",
     },
     {
+        id: "ares.superweapon-charge-drain",
+        description: "Ares charge-drain timers, ratio conversion, and Money.Drain* scheduling",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSuperWeaponChargeDrain.test.ts"],
+        notes: "The shared timer implements Antares' Ready/Draining/Charging conversion, per-SW/global charge-to-drain ratio, scheduled money transactions, insufficient-funds stop, and Unstoppable-aware deactivation API. Firewall wall behavior, active-effect teardown, and full UI/action serialization remain separate.",
+    },
+    {
         id: "ares.superweapon-charge-state",
         description: "Ares SW.InitialReady and SW.VirtualCharge timer semantics",
         implemented: false,
@@ -174,7 +183,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresSuperWeaponMoney.test.ts"],
-        notes: "Money.Amount is validated before charge consumption and applied once after launch acceptance; Money.DrainAmount/DrainDelay remain parsed diagnostics until the Firewall charge-drain state machine is implemented.",
+        notes: "Money.Amount is validated before charge consumption and applied once after launch acceptance; recurring Money.DrainAmount/DrainDelay are tracked by the separate charge-drain capability.",
     },
     {
         id: "ares.superweapon-range",

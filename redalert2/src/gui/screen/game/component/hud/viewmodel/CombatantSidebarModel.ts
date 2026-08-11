@@ -29,6 +29,7 @@ type SidebarSpecialItem = {
 const superWeaponStatusToSidebarStatus = new Map<SuperWeaponStatus, SidebarItemStatus>()
     .set(SuperWeaponStatus.Charging, SidebarItemStatus.Started)
     .set(SuperWeaponStatus.Paused, SidebarItemStatus.OnHold)
+    .set(SuperWeaponStatus.Draining, SidebarItemStatus.Started)
     .set(SuperWeaponStatus.Ready, SidebarItemStatus.Ready);
 export class CombatantSidebarModel extends SidebarModel {
     player: any;
