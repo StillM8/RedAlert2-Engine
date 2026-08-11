@@ -58,6 +58,12 @@ export class TechnoRules extends ObjectRules {
     /** Ares Operator= accepts specific InfantryTypes or the _ANY_ sentinel. */
     declare operator?: string[];
     declare operatorAny: boolean;
+    /** Ares Killing Drivers: this vehicle/aircraft cannot lose its driver. */
+    declare protectedDriver: boolean;
+    /** Antares extension: health fraction below which a protected driver may be killed. */
+    declare protectedDriverMinHealth?: number;
+    /** Ares Killing Drivers: infantry can reclaim a driverless vehicle. */
+    declare canDrive: boolean;
     declare prerequisite: string[];
     /** Ares alternative prerequisite lists; list entries are ANDed. */
     declare prerequisiteLists: string[][];
@@ -385,6 +391,11 @@ export class TechnoRules extends ObjectRules {
         const operatorTypes = this.ini.getArray("Operator");
         this.operatorAny = operatorTypes.some((value) => value.trim().toLocaleLowerCase("en-US") === "_any_");
         this.operator = operatorTypes.filter((value) => value.trim() && value.trim().toLocaleLowerCase("en-US") !== "_any_");
+        this.protectedDriver = this.ini.getBool("ProtectedDriver");
+        this.protectedDriverMinHealth = this.ini.has("ProtectedDriver.MinHealth")
+            ? this.ini.getNumber("ProtectedDriver.MinHealth")
+            : undefined;
+        this.canDrive = this.ini.getBool("CanDrive");
         const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
         this.prerequisiteLists = prerequisiteRules.alternativeLists;
         this.prerequisite = this.prerequisiteLists[0] ?? [];

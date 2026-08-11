@@ -38,6 +38,16 @@ export class WarheadRules {
     public rocker!: boolean;
     public sonic!: boolean;
     public temporal!: boolean;
+    /** Ares KillDriver: replace vehicle damage with driver removal/neutralization. */
+    public killDriver!: boolean;
+    /** Antares extension; fraction of maximum health at which the driver may die. */
+    public killDriverBelowPercent!: number;
+    /** Antares extension; chance in the normalized 0..1 range. */
+    public killDriverChance!: number;
+    /** Antares extension; OwnerHouseKind selector. */
+    public killDriverOwner!: string;
+    /** Antares extension; parsed for diagnostics until veterancy reset is integrated. */
+    public killDriverRemoveVeterancy!: boolean;
     public wallAbsoluteDestroyer!: boolean;
     public wall!: boolean;
     public wood!: boolean;
@@ -86,6 +96,11 @@ export class WarheadRules {
         this.rocker = this.rules.getBool("Rocker");
         this.sonic = this.rules.getBool("Sonic");
         this.temporal = this.rules.getBool("Temporal");
+        this.killDriver = this.rules.getBool("KillDriver");
+        this.killDriverBelowPercent = this.rules.getNumber("KillDriver.KillBelowPercent", 1);
+        this.killDriverChance = this.rules.getNumber("KillDriver.Chance", 1);
+        this.killDriverOwner = this.rules.getString("KillDriver.Owner", "special");
+        this.killDriverRemoveVeterancy = this.rules.getBool("KillDriver.RemoveVeterancy");
         this.wallAbsoluteDestroyer = this.rules.getBool("WallAbsoluteDestroyer");
         this.wall = this.rules.getBool("Wall");
         this.wood = this.rules.getBool("Wood");

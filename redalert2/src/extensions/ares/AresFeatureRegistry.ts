@@ -78,6 +78,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Specific InfantryType operators and _ANY_ are normalized and evaluated from transport/garrison passengers; missing operators disable only movement and weapons while preserving building services. Save/load is derived from passenger state; AI and presentation integration remain open.",
     },
     {
+        id: "ares.killing-drivers",
+        description: "KillDriver, ProtectedDriver, and CanDrive vehicle-driver semantics",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresKillingDrivers.test.ts"],
+        notes: "KillDriver and ProtectedDriver use a normalized driver state, deterministic owner resolution, passenger/operator handling, and driverless movement/weapon suppression. CanDrive is parsed and exposed for the future VehicleThief/reclaim action path.",
+    },
+    {
         id: "ares.emp",
         description: "Ares EMP duration/cap counters, immunity, and Techno paralysis state",
         implemented: true,

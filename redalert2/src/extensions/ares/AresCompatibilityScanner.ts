@@ -94,6 +94,10 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^operator$/i.test(key)) {
         return "ares.operator";
     }
+    if (/^(?:killdriver|killdriver\.(?:killbelowpercent|chance|owner|removeveterancy))$/i.test(key) ||
+        /^(?:protecteddriver|protecteddriver\.minhealth|candrive)$/i.test(key)) {
+        return "ares.killing-drivers";
+    }
     if (/^empulse\./i.test(key) || /^empulsecannon$/i.test(key)) {
         return "ares.superweapon-empulse";
     }
