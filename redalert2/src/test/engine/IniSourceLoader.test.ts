@@ -4,6 +4,7 @@ import { VirtualFile } from "@/data/vfs/VirtualFile";
 import { MemArchive } from "@/data/vfs/MemArchive";
 import { VirtualFileSystem } from "@/data/vfs/VirtualFileSystem";
 import { ResourceLayer } from "@/data/vfs/ResourceLayer";
+import { IniFile } from "@/data/IniFile";
 
 function createVfs(files: Record<string, string>): VirtualFileSystem {
     const archive = new MemArchive();
@@ -24,6 +25,17 @@ function createVfs(files: Record<string, string>): VirtualFileSystem {
 }
 
 describe("Ares effective INI source loading", () => {
+    test("treats section and key casing as one canonical identity across layers", () => {
+        const retail = new IniFile(`[Building]\nHealth=100\n[AudioVisual]\nConditionYellow=.5\n`);
+        const profile = new IniFile(`[building]\nhealth=200\n[AUDIOVISUAL]\nconditionyellow=.7\n`);
+
+        retail.mergeWith(profile);
+
+        expect(retail.getSection("BUILDING")?.getNumber("HEALTH")).toBe(200);
+        expect(retail.getSection("audiovisual")?.getNumber("CONDITIONYELLOW")).toBe(.7);
+        expect(retail.getOrderedSections().filter((section) => section.name !== "__ROOT__")).toHaveLength(2);
+    });
+
     test("merges root and nested includes depth-first with later values winning", () => {
         const vfs = createVfs({
             "rulesmo.ini": `[ #include ]\n1=rules/units.ini\n2=rules/buildings.ini\n[Test]\nValue=root\n`,

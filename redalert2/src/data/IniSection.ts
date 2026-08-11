@@ -15,11 +15,27 @@ export class IniSection {
                     this.set(key, value);
                 }
                 else {
-                    this.sections.set(key, new IniSection(key).fromJson(value));
+                    this.getOrCreateSection(key).fromJson(value);
                 }
             }
         }
         return this;
+    }
+    private findEntryKey(key: string): string | undefined {
+        if (this.entries.has(key)) {
+            return key;
+        }
+        const normalized = key.toLocaleLowerCase("en-US");
+        return [...this.entries.keys()].find((existingKey) =>
+            existingKey.toLocaleLowerCase("en-US") === normalized);
+    }
+    private findSectionKey(sectionName: string): string | undefined {
+        if (this.sections.has(sectionName)) {
+            return sectionName;
+        }
+        const normalized = sectionName.toLocaleLowerCase("en-US");
+        return [...this.sections.keys()].find((existingName) =>
+            existingName.toLocaleLowerCase("en-US") === normalized);
     }
     public clone(): IniSection {
         const newSection = new IniSection(this.name);
@@ -32,13 +48,14 @@ export class IniSection {
         return newSection;
     }
     public set(key: string, value: string | string[]): void {
-        this.entries.set(key, value);
+        this.entries.set(this.findEntryKey(key) ?? key, value);
     }
     public get(key: string): string | string[] | undefined {
-        return this.entries.get(key);
+        const existingKey = this.findEntryKey(key);
+        return existingKey === undefined ? undefined : this.entries.get(existingKey);
     }
     public has(key: string): boolean {
-        return this.entries.has(key);
+        return this.findEntryKey(key) !== undefined;
     }
     public getString(key: string, defaultValue: string = ""): string {
         const value = this.get(key);
@@ -276,7 +293,8 @@ export class IniSection {
         });
     }
     public getOrCreateSection(sectionName: string): IniSection {
-        let section = this.sections.get(sectionName);
+        const existingSectionName = this.findSectionKey(sectionName);
+        let section = existingSectionName === undefined ? undefined : this.sections.get(existingSectionName);
         if (!section) {
             section = new IniSection(sectionName);
             this.sections.set(sectionName, section);
@@ -284,7 +302,8 @@ export class IniSection {
         return section;
     }
     public getSection(sectionName: string): IniSection | undefined {
-        return this.sections.get(sectionName);
+        const existingSectionName = this.findSectionKey(sectionName);
+        return existingSectionName === undefined ? undefined : this.sections.get(existingSectionName);
     }
     public getOrderedSections(): IniSection[] {
         return [...this.sections.values()];

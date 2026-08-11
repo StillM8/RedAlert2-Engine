@@ -35,12 +35,17 @@ export class IniFile {
             if (sectionsObject.hasOwnProperty(sectionName)) {
                 const sectionData = sectionsObject[sectionName];
                 if (sectionData instanceof IniSection) {
-                    this.sections.set(sectionName, sectionData);
+                    const existing = this.getSection(sectionName);
+                    if (existing) {
+                        existing.mergeWith(sectionData);
+                    }
+                    else {
+                        this.sections.set(sectionName, sectionData);
+                    }
                 }
                 else if (typeof sectionData === 'object' && sectionData !== null) {
-                    const newSection = new IniSection(sectionName);
+                    const newSection = this.getOrCreateSection(sectionName);
                     newSection.fromJson(sectionData);
-                    this.sections.set(sectionName, newSection);
                 }
                 else {
                     console.warn(`IniFile.fromJson: Section data for "${sectionName}" is not a valid object or IniSection instance.`);
@@ -64,7 +69,9 @@ export class IniFile {
         return newIniFile;
     }
     public getOrCreateSection(sectionName: string): IniSection {
-        let section = this.sections.get(sectionName);
+        const existingSectionName = [...this.sections.keys()].find((existingName) =>
+            existingName.toLocaleLowerCase('en-US') === sectionName.toLocaleLowerCase('en-US'));
+        let section = existingSectionName === undefined ? undefined : this.sections.get(existingSectionName);
         if (!section) {
             section = new IniSection(sectionName);
             this.sections.set(sectionName, section);
@@ -72,7 +79,10 @@ export class IniFile {
         return section;
     }
     public getSection(sectionName: string): IniSection | undefined {
-        return this.sections.get(sectionName);
+        const normalized = sectionName.toLocaleLowerCase('en-US');
+        const existingName = [...this.sections.keys()].find((name) =>
+            name.toLocaleLowerCase('en-US') === normalized);
+        return existingName === undefined ? undefined : this.sections.get(existingName);
     }
     public getOrderedSections(): IniSection[] {
         return Array.from(this.sections.values());
