@@ -47,7 +47,7 @@ highest-impact identified Ares usage currently is:
 | Custom superweapon fields/types | 552 | 1 | 141 / 141 | parser partial, runtime gaps remain |
 | CustomPalette | 541 | 1 | 541 / 541 | implemented, render certification open |
 | EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
-| Projectile extensions | 385 | 1 | 232 / 232 | not implemented |
+| Projectile Airburst/Splits extensions | 614 | 1 | 232 / 232 | parser/runtime slice implemented; Proximity and target-content flight certification remain open |
 | VehicleThief / CanDrive | 271 | 1 | 263 / 263 | core runtime implemented, integration gaps remain |
 
 The scanner currently reports a broad unknown-key bucket because ordinary

@@ -2,6 +2,19 @@ import { ObjectRules } from './ObjectRules';
 import { ObjectType } from '@/engine/type/ObjectType';
 export class ProjectileRules extends ObjectRules {
     public acceleration!: number;
+    /** Vanilla/Ares projectile proximity detonation flag. */
+    public proximity!: boolean;
+    /** Antares legacy cell-fanout behavior. */
+    public airburst!: boolean;
+    public airburstWeapon?: string;
+    public cluster!: number;
+    public airburstSpread!: number;
+    /** If omitted, Antares defaults this to Splits. */
+    public aroundTarget?: boolean;
+    /** Antares target-retargeting fanout behavior. */
+    public splits!: boolean;
+    public retargetAccuracy!: number;
+    public retargetSelf!: boolean;
     public arcing!: boolean;
     public courseLockDuration!: number;
     public detonationAltitude!: number;
@@ -36,6 +49,17 @@ export class ProjectileRules extends ObjectRules {
         }
         acceleration = acceleration || 3;
         this.acceleration = acceleration;
+        this.proximity = this.ini.getBool("Proximity");
+        this.airburst = this.ini.getBool("Airburst");
+        this.airburstWeapon = this.ini.getString("AirburstWeapon") || undefined;
+        this.cluster = Math.max(0, Math.floor(this.ini.getNumber("Cluster")));
+        this.airburstSpread = Math.max(0, this.ini.getNumber("AirburstSpread", 1.5));
+        this.aroundTarget = this.ini.has("AroundTarget")
+            ? this.ini.getBool("AroundTarget")
+            : undefined;
+        this.splits = this.ini.getBool("Splits");
+        this.retargetAccuracy = Math.max(0, Math.min(1, this.ini.getNumber("RetargetAccuracy")));
+        this.retargetSelf = this.ini.getBool("RetargetSelf", true);
         this.arcing = this.ini.getBool("Arcing");
         this.courseLockDuration = this.ini.getNumber("CourseLockDuration");
         this.detonationAltitude = this.ini.getNumber("DetonationAltitude");
