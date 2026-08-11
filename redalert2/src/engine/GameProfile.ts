@@ -100,6 +100,10 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
             // in expandmo##.mix, so this remains an optional profile alias
             // rather than a required loose file.
             "ui.ini": "uimd.ini",
+            // MO ships its own EVA table in the same profile archives. Keep
+            // the canonical `eva.ini` lookup profile-aware while retaining
+            // Yuri's `evamd.ini` as the fallback for incomplete imports.
+            "eva.ini": "evamo.ini",
             // The official MO client selects this profile sound index. The
             // file is packed in expandmo99.mix in the local 3.3.6 install.
             "sound.ini": "soundmo.ini",

@@ -374,7 +374,7 @@ export class ReplayScreen extends RootScreen {
     private onGameStart(game: Game, minimap: Minimap, messageList: MessageList, worldScene: any, worldSound: any, renderableManager: any): void {
         this.loadingScreenApi?.dispose();
         this.music?.play(MusicType.Normal);
-        const evaSpecs = new EvaSpecs(SideType.GDI).readIni(Engine.getIni("eva.ini"));
+        const evaSpecs = new EvaSpecs(SideType.GDI).readIni(Engine.getIni(Engine.getFileNameVariant("eva.ini")));
         const eva = new Eva(evaSpecs, this.sound as any, this.renderer as any);
         eva.init();
         this.disposables.add(eva);

@@ -66,13 +66,16 @@ describe('GameProfile detection', () => {
         });
         expect(getGameProfile('mental-omega').optionalFileNameOverrides).toEqual({
             'ui.ini': 'uimd.ini',
+            'eva.ini': 'evamo.ini',
             'sound.ini': 'soundmo.ini',
             'missions.pkt': 'missionsmo.pkt',
         });
         expect(getGameProfile('mental-omega').resolveCanonicalFile('rules.ini')).toBe('rulesmo.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('ui.ini')).toBe('uimd.ini');
+        expect(getGameProfile('mental-omega').resolveCanonicalFile('eva.ini')).toBe('evamo.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('sound.ini')).toBe('soundmo.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('sound.ini', () => false)).toBe('soundmd.ini');
+        expect(getGameProfile('mental-omega').resolveCanonicalFile('eva.ini', () => false)).toBe('evamd.ini');
     });
 
     test('validates Mental Omega only when its own content signatures are present', () => {
