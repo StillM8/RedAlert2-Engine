@@ -46,7 +46,7 @@ usage currently is:
 | --- | ---: | ---: | ---: | --- |
 | Custom ArmorTypes / `Versus.*` | 8,916 | 1 | 640 / 877 | implemented, target integration open |
 | Custom foundations / outlines | 2,671 | 1 | 79 / 79 | implemented, target integration open |
-| Custom superweapon fields/types | 1,921 authored entries / 1,011 Ares-mapped | 1 | 96 custom types | parser partial, availability and handler gaps remain |
+| Custom superweapon fields/types | 1,921 authored entries / 1,011 Ares-mapped | 1 | 96 custom types | bounded host/AI slices cover representative handlers; aggregate parser, handler, presentation, persistence, and multiplayer gaps remain |
 | CustomPalette | 541 | 1 | 541 / 541 | implemented, render certification open |
 | EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
 | Projectile Airburst/Splits extensions | 614 | 1 | 232 / 232 | parser/runtime slice implemented; Proximity and target-content flight certification remain open |
@@ -58,13 +58,13 @@ usage currently is:
 | Damage particle systems | 590 | 1 | 590 | parser/model complete; TechnoRules selection and legacy vehicle smoke gate wired; BehavesLike fallback remains metadata-aware, while ParticleSystem spawn, sparks, and non-vehicle coverage remain partial |
 | Customizable insignia | 855 | 1 | 401 | parser/model complete; generic SHP/frame selection and enemy/observer visibility are wired; render-host, missing-asset, save/mod-hash, and multiplayer certification remain |
 | Reverse engineering | 515 | 1 | 515 | parser/model complete; grinder entry, production unlocks, prerequisite exceptions, spy reset, and extension persistence are wired; EVA, AI, full-game save/load, and lockstep certification remain |
-| Customizable veterancy | 427 | 1 | 427 / 427 | experience-source and Trainable semantics remain |
+| Customizable veterancy | 427 | 1 | 427 / 427 | generic source/passenger/spawn-owner/mind-controller attribution and Trainable=no routing are wired; official modifier variants, lifecycle, persistence, AI, and multiplayer gaps remain |
 
 ## Remaining MO-used P0 Ares backlog
 
 The official Ares pages define these as separate generic capabilities: [AttachEffect](https://ares-developers.github.io/Ares-docs/new/attacheffect.html), [Chronoshift](https://ares-developers.github.io/Ares-docs/new/chronoshift.html), [PCX Cameos](https://ares-developers.github.io/Ares-docs/new/pcxcameos.html), [Damage Particle Systems](https://ares-developers.github.io/Ares-docs/new/damageparticlesystems.html), [Reverse Engineer logic](https://ares-developers.github.io/Ares-docs/new/reverseengineerlogic.html), [Bounty](https://ares-developers.github.io/Ares-docs/new/bounty.html), and [Customizable Veterancy](https://ares-developers.github.io/Ares-docs/new/customizableveterancy.html).
 
-The local scan records **1,176 Chronoshift occurrences across 1,141 definitions**, second only to Bounty's 1,343 occurrences. The current generic slice covers unit eligibility and Chronosphere filtering. Customizable Veterancy remains the largest unimplemented cross-cutting capability; Bounty and Reverse Engineer now have bounded generic runtime slices but still require presentation, AI, persistence, and target-content certification.
+The local scan records **1,176 Chronoshift occurrences across 1,141 definitions**, second only to Bounty's 1,343 occurrences. The current generic slice covers unit eligibility and Chronosphere filtering. Customizable Veterancy, ChronoWarp/PostDependent, and the MO custom-superweapon host/AI paths now have bounded generic slices; none is a claim of complete Ares or Mental Omega compatibility.
 
 | Capability | Exact scan evidence | Official generic boundary | Current gap |
 | --- | --- | --- | --- |
@@ -75,7 +75,9 @@ The local scan records **1,176 Chronoshift occurrences across 1,141 definitions*
 | PCX cameos | 708 occurrences; 525 definitions | `CameoPCX`, `AltCameoPCX`, `SidebarPCX` with Ares's 60x48 256-color asset contract | VFS discovery/validation is wired; SHP-only sidebar display, palette/display certification, save/mod-hash, and multiplayer certification remain |
 | Damage particle systems | 590 occurrences; 590 definitions | `DamageSparks`, `DamageSmokeParticleSystems`, `DamageSparksParticleSystems` | TechnoRules selection and legacy vehicle smoke gating are wired; BehavesLike fallback filters only when metadata is supplied, while current TechnoRules lacks metadata lookup. Health-threshold spawning/random selection, complete sparks rendering, non-vehicle coverage, save/load, and multiplayer certification remain |
 | Reverse engineering | 515 occurrences; 515 definitions | `ReverseEngineersVictims`, `CanBeReversed`, `ReversedAs`, and reverse-engineering reset | EVA, AI/build-limit certification, full-game save/load, lockstep, and target-content verification |
-| Customizable veterancy | 427 occurrences; 427 definitions | `Trainable` plus passenger, airstrike, mind-control, and spawn experience modifiers | Kill-credit routing, modifier application, occupier/passenger behavior, persistence |
+| Customizable veterancy | 427 occurrences; 427 definitions | `Trainable`, `Experience.FromAirstrike`, `Experience.PromotePassengers`, `Experience.SpawnOwnerModifier`, and `Experience.MindControlSelfModifier` | Generic kill-credit attribution is wired for the MO-authored fields; official passenger/airstrike modifier variants not used by this slice, complete occupier/passenger lifecycle, presentation, AI, persistence, multiplayer, and target-content verification remain |
+| ChronoWarp / `SW.PostDependent` | 3 authored ChronoWarp definitions; 3 `PostClick`/`PreDependent` definitions | Source ChronoSphere selection followed by a dependent ChronoWarp destination | Case-insensitive dependent resolution, ChronoWarp fallback, and the source/destination host path are covered; full dependent graphs, AI, cursor/presentation, persistence, multiplayer, and target-content verification remain |
+| MO custom-superweapon host/AI coverage | 96 custom-type definitions; representative handlers covered by focused host fixtures | Generic host dispatch for GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, and ChronoWarp destination; bounded AI targeting for EMPulse, UnitDelivery, and DropPod | Unsupported custom handlers, complete AI selector parity, presentation, persistence, multiplayer, and target-content certification remain |
 
 The scanner currently reports a broad unclassified bucket because ordinary
 Mental Omega content is not all safely classifiable from INI spelling alone.
