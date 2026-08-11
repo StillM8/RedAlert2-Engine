@@ -55,6 +55,9 @@ export class TechnoRules extends ObjectRules {
     declare powered: boolean;
     declare poweredUnit: boolean;
     declare powersUnit?: string;
+    /** Ares Operator= accepts specific InfantryTypes or the _ANY_ sentinel. */
+    declare operator?: string[];
+    declare operatorAny: boolean;
     declare prerequisite: string[];
     /** Ares alternative prerequisite lists; list entries are ANDed. */
     declare prerequisiteLists: string[][];
@@ -379,6 +382,9 @@ export class TechnoRules extends ObjectRules {
         // Retail YR: [ROBO] PoweredUnit=yes, [GAROBO] PowersUnit=ROBO.
         this.poweredUnit = this.ini.getBool("PoweredUnit");
         this.powersUnit = this.ini.getString("PowersUnit") || undefined;
+        const operatorTypes = this.ini.getArray("Operator");
+        this.operatorAny = operatorTypes.some((value) => value.trim().toLocaleLowerCase("en-US") === "_any_");
+        this.operator = operatorTypes.filter((value) => value.trim() && value.trim().toLocaleLowerCase("en-US") !== "_any_");
         const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
         this.prerequisiteLists = prerequisiteRules.alternativeLists;
         this.prerequisite = this.prerequisiteLists[0] ?? [];

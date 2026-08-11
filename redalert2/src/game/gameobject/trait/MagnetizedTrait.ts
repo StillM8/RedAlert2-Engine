@@ -51,7 +51,8 @@ export class MagnetizedTrait {
         }
         this.active = false;
         // Don't wake a robot tank that is shut down (no control center).
-        if (!gameObject.robotControlTrait?.isOffline()) {
+        if (!gameObject.robotControlTrait?.isOffline() &&
+            !gameObject.operatorTrait?.isOffline()) {
             gameObject.moveTrait?.setDisabled(false);
             gameObject.attackTrait?.setDisabled(false);
         }

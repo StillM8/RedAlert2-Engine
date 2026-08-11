@@ -32,7 +32,8 @@ export class RobotControlTrait implements NotifyTick {
             else {
                 // Don't clobber another suppressor (squid grab, magnetron pin).
                 if (!obj.parasiteableTrait?.isParalyzed() &&
-                    !obj.magnetizedTrait?.isActive()) {
+                    !obj.magnetizedTrait?.isActive() &&
+                    !obj.operatorTrait?.isOffline()) {
                     obj.moveTrait?.setDisabled(false);
                     obj.attackTrait?.setDisabled(false);
                 }
