@@ -101,6 +101,14 @@ export class GeneralRules {
     public dropPodMaximum!: number;
     /** Ares DropPod trailer animation; presentation support is separate. */
     public dropPodTrailer!: string;
+    /** Ares Hunter Seeker global launch/flight fallbacks. */
+    public hunterSeekerDetonateProximity!: number;
+    public hunterSeekerDescendProximity!: number;
+    public hunterSeekerAscentSpeed!: number;
+    public hunterSeekerDescentSpeed!: number;
+    public hunterSeekerEmergeSpeed!: number;
+    /** [SpecialWeapons]HSBuilding launch-site fallback list. */
+    public hunterSeekerBuildings!: string[];
     public refundPercent!: number;
     public returnStructures!: boolean;
     public unitsUnsellable!: boolean;
@@ -146,6 +154,11 @@ export class GeneralRules {
         this.dropPodMinimum = Math.max(0, Math.floor(ini.getNumber('DropPodMinimum')));
         this.dropPodMaximum = Math.max(0, Math.floor(ini.getNumber('DropPodMaximum')));
         this.dropPodTrailer = ini.getString('DropPodTrailer');
+        this.hunterSeekerDetonateProximity = ini.getNumber('HunterSeekerDetonateProximity');
+        this.hunterSeekerDescendProximity = ini.getNumber('HunterSeekerDescendProximity');
+        this.hunterSeekerAscentSpeed = ini.getNumber('HunterSeekerAscentSpeed');
+        this.hunterSeekerDescentSpeed = ini.getNumber('HunterSeekerDescentSpeed');
+        this.hunterSeekerEmergeSpeed = ini.getNumber('HunterSeekerEmergeSpeed');
         this.engineer = ini.getString('Engineer');
         this.engineerCaptureLevel = ini.getFixed('EngineerCaptureLevel', 0.25);
         this.engineerDamage = ini.getFixed('EngineerDamage', 0.437);
@@ -190,6 +203,10 @@ export class GeneralRules {
         this.wallBuildSpeedCoefficient = ini.getFixed('WallBuildSpeedCoefficient');
         this.readPrereqCategories(ini);
         this.readGenericPrerequisiteAlternates(ini);
+    }
+    /** Read the Ares [SpecialWeapons] launch-building fallback separately. */
+    public readAresSpecialWeapons(ini?: IniReader): void {
+        this.hunterSeekerBuildings = ini?.getArray('HSBuilding') ?? [];
     }
     private readPrereqCategories(ini: IniReader): void {
         for (const [category, key] of prereqCategoryMap) {

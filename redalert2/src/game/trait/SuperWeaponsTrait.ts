@@ -21,6 +21,7 @@ import { UnitDeliveryEffect } from "@/game/superweapon/UnitDeliveryEffect";
 import { SonarPulseEffect } from "@/game/superweapon/SonarPulseEffect";
 import { EMPulseEffect } from "@/game/superweapon/EMPulseEffect";
 import { DropPodEffect } from "@/game/superweapon/DropPodEffect";
+import { HunterSeekerEffect } from "@/game/superweapon/HunterSeekerEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
@@ -215,6 +216,14 @@ export class SuperWeaponsTrait {
             }
             if (extensionType === "DropPod") {
                 t.push(new DropPodEffect(
+                    eventType,
+                    i,
+                    s,
+                    e.ares,
+                ));
+            }
+            if (extensionType === "HunterSeeker") {
+                t.push(new HunterSeekerEffect(
                     eventType,
                     i,
                     s,

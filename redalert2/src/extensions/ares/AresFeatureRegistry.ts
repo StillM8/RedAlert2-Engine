@@ -159,6 +159,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Battery.Power, Battery.KeepOnline, Battery.Overpower, duplicate-preserving activation/deactivation, low-power radar retention, and charge-drain lifecycle are wired from Antares 3.0p1 semantics. Full sidebar/action, AI, save/load, and network presentation remain open.",
     },
     {
+        id: "ares.superweapon-hunter-seeker",
+        description: "Antares Hunter Seeker launch, target acquisition, pursuit, and detonation",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresHunterSeeker.test.ts"],
+        notes: "Per-superweapon/side/global launch configuration, deterministic eligible-building selection, data-defined aircraft launch, enemy target acquisition, pursuit, and weapon/warhead detonation are wired. Antares ascent/descent speed choreography, specialized target preference edge cases, AI auto-fire, presentation, and in-flight persistence remain open.",
+    },
+    {
         id: "ares.superweapon-deferment",
         description: "Ares SW.Deferment delay for supported superweapon state machines",
         implemented: true,

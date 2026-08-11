@@ -256,6 +256,13 @@ export class TechnoRules extends ObjectRules {
     declare eliteAirstrikeTeam: number;
     declare airstrikeTeamType: string;
     declare eliteAirstrikeTeamType: string;
+    /** Ares Hunter Seeker per-Aircraft flight/targeting controls. */
+    declare hunterSeekerDetonateProximity: number;
+    declare hunterSeekerDescendProximity: number;
+    declare hunterSeekerAscentSpeed: number;
+    declare hunterSeekerDescentSpeed: number;
+    declare hunterSeekerEmergeSpeed: number;
+    declare hunterSeekerIgnore: boolean;
     declare spawnsNumber: number;
     declare spawnRegenRate: number;
     declare spawnReloadRate: number;
@@ -617,6 +624,12 @@ export class TechnoRules extends ObjectRules {
         this.eliteAirstrikeTeam = this.ini.getNumber("EliteAirstrikeTeam", this.airstrikeTeam);
         this.airstrikeTeamType = this.ini.getString("AirstrikeTeamType");
         this.eliteAirstrikeTeamType = this.ini.getString("EliteAirstrikeTeamType") || this.airstrikeTeamType;
+        this.hunterSeekerDetonateProximity = this.ini.getNumber("HunterSeeker.DetonateProximity");
+        this.hunterSeekerDescendProximity = this.ini.getNumber("HunterSeeker.DescendProximity");
+        this.hunterSeekerAscentSpeed = this.ini.getNumber("HunterSeeker.AscentSpeed");
+        this.hunterSeekerDescentSpeed = this.ini.getNumber("HunterSeeker.DescentSpeed");
+        this.hunterSeekerEmergeSpeed = this.ini.getNumber("HunterSeeker.EmergeSpeed");
+        this.hunterSeekerIgnore = this.ini.getBool("HunterSeeker.Ignore");
         this.spawnsNumber = this.ini.getNumber("SpawnsNumber");
         this.spawnRegenRate = this.ini.getNumber("SpawnRegenRate");
         this.spawnReloadRate = this.ini.getNumber("SpawnReloadRate");

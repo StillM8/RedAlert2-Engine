@@ -143,6 +143,16 @@ function featureForKey(section: string, key: string, value: string): string | un
         (/^type$/i.test(key) && /^battery$/i.test(value))) {
         return "ares.superweapon-battery";
     }
+    if (/^hunterseeker\./i.test(key) ||
+        (/^specialweapons$/i.test(section) && /^hsbuilding$/i.test(key)) ||
+        (/^general$/i.test(section) && /^hunterseeker(?:detonateproximity|descendproximity|ascentspeed|descentspeed|emergespeed)$/i.test(key)) ||
+        // Antares reads the side-level HunterSeeker value from the authored
+        // side section itself; side names are data-defined, so do not restrict
+        // this to literal [Side]/[Sides] section names.
+        (/^hunterseeker$/i.test(key) && !/^(?:general|specialweapons)$/i.test(section)) ||
+        (/^type$/i.test(key) && /^hunterseeker$/i.test(value))) {
+        return "ares.superweapon-hunter-seeker";
+    }
     if (/^superweapons$/i.test(key) ||
         /^(?:SW|Deliver|DropPod|Battery|HunterSeeker|Firestorm|GenericWarhead|ChronoWarp|SonarPulse)\./i.test(key) ||
         (/^type$/i.test(key) && /^(?:GenericWarhead|UnitDelivery|Firestorm|HunterSeeker|DropPod|EMPulse|Battery|SonarPulse|ChronoWarp)$/i.test(value))) {
