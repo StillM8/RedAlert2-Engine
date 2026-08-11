@@ -5,9 +5,9 @@ import { EngineType } from "../../engine/EngineType";
 import { pad } from "../../util/string";
 import { FileNotFoundError } from "./FileNotFoundError";
 import { MemArchive } from "./MemArchive";
-import type { VirtualFile } from "./VirtualFile";
+import { VirtualFile } from "./VirtualFile";
 import type { RealFileSystem } from "./RealFileSystem";
-import { normalizeGamePath } from "../../engine/GamePath";
+import { gamePathKey, gamePathLeaf, normalizeGamePath, tryNormalizeGamePath } from "../../engine/GamePath";
 import type { GameProfileDescriptor, GameProfileId } from "../../engine/GameProfile";
 import { ResourceLayer, type ResourceSource } from "./ResourceLayer";
 interface VfsLogger {
@@ -27,6 +27,8 @@ export interface ArchiveMetadata {
     priority?: number;
     source?: ResourceSource;
     profile?: GameProfileId;
+    /** Resource path(s) used to reach this archive, including nested MIX parents. */
+    provenance?: readonly string[];
 }
 
 export interface ArchiveDescriptor {
@@ -36,6 +38,7 @@ export interface ArchiveDescriptor {
     priority: number;
     source: ResourceSource;
     profile?: GameProfileId;
+    provenance: readonly string[];
 }
 
 export interface VfsResolutionCandidate {
@@ -44,6 +47,7 @@ export interface VfsResolutionCandidate {
     priority: number;
     source: ResourceSource;
     profile?: GameProfileId;
+    provenance: readonly string[];
 }
 
 export interface VfsResolution {
@@ -60,13 +64,26 @@ interface ArchiveRecord {
     order: number;
 }
 
+interface RfsEntryIndex {
+    byPath: Map<string, string[]>;
+    byLeaf: Map<string, string[]>;
+}
+
+function compareResourcePaths(a: string, b: string): number {
+    if (a.length !== b.length) {
+        return a.length - b.length;
+    }
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export class VirtualFileSystem {
-    private rfs: RealFileSystem;
+    private rfs?: RealFileSystem;
     private logger: VfsLogger;
     private allArchives: Map<string, ArchiveRecord>;
     private archivesByPriority: ArchiveRecord[];
     private nextArchiveOrder = 0;
-    constructor(rfs: RealFileSystem, logger: VfsLogger) {
+    private rfsEntryIndex?: Promise<RfsEntryIndex>;
+    constructor(rfs: RealFileSystem | undefined, logger: VfsLogger) {
         this.rfs = rfs;
         this.logger = logger;
         this.allArchives = new Map<string, ArchiveRecord>();
@@ -97,21 +114,27 @@ export class VirtualFileSystem {
         throw new FileNotFoundError(`File "${filename}" not found in VFS`);
     }
     addArchive(archive: Archive, name: string, metadata: ArchiveMetadata = {}): void {
-        const key = name.toLocaleLowerCase("en-US");
+        const normalizedName = normalizeGamePath(name);
+        const key = gamePathKey(normalizedName);
         if (!this.allArchives.has(key)) {
             const layer = metadata.layer ?? ResourceLayer.BaseGame;
+            const provenance = [
+                ...(metadata.provenance ?? []),
+                normalizedName,
+            ];
             const record: ArchiveRecord = {
                 archive,
                 order: this.nextArchiveOrder++,
                 descriptor: {
-                    id: metadata.id ?? name,
-                    filename: name,
+                    id: metadata.id ?? normalizedName,
+                    filename: normalizedName,
                     layer,
                     // Unannotated archives retain the historical insertion
                     // order. Annotated archives use their explicit layer.
                     priority: metadata.priority ?? (metadata.layer === undefined ? 0 : layer),
                     source: metadata.source ?? "game",
                     profile: metadata.profile,
+                    provenance,
                 },
             };
             this.allArchives.set(key, record);
@@ -122,13 +145,13 @@ export class VirtualFileSystem {
         }
     }
     hasArchive(name: string): boolean {
-        return this.allArchives.has(name.toLocaleLowerCase("en-US"));
+        return this.allArchives.has(gamePathKey(name));
     }
     getArchive(name: string): Archive | undefined {
-        return this.allArchives.get(name.toLocaleLowerCase("en-US"))?.archive;
+        return this.allArchives.get(gamePathKey(name))?.archive;
     }
     removeArchive(name: string): void {
-        const key = name.toLocaleLowerCase("en-US");
+        const key = gamePathKey(name);
         const record = this.allArchives.get(key);
         if (record) {
             this.allArchives.delete(key);
@@ -163,6 +186,7 @@ export class VirtualFileSystem {
                         priority: record.descriptor.priority,
                         source: record.descriptor.source,
                         profile: record.descriptor.profile,
+                        provenance: record.descriptor.provenance,
                     });
                 }
             }
@@ -189,14 +213,62 @@ export class VirtualFileSystem {
             ...resolution.shadowed.map((candidate) => candidate.archive),
         ];
     }
-    private async openFileWithRfs(filename: string): Promise<VirtualFile | undefined> {
-        let file: VirtualFile | undefined;
-        try {
-            file = await this.rfs.openFile(filename);
+    private async getRfsEntryIndex(): Promise<RfsEntryIndex> {
+        if (!this.rfs) {
+            return { byPath: new Map(), byLeaf: new Map() };
         }
-        catch (e) {
-            if (!(e instanceof FileNotFoundError)) {
-                throw e;
+        if (!this.rfsEntryIndex) {
+            this.rfsEntryIndex = (async () => {
+                const byPath = new Map<string, string[]>();
+                const byLeaf = new Map<string, string[]>();
+                for await (const entry of this.rfs!.getEntriesRecursive()) {
+                    const normalized = tryNormalizeGamePath(entry);
+                    if (!normalized) {
+                        this.logger.warn(`Ignoring unsafe real-file-system entry "${entry}".`);
+                        continue;
+                    }
+                    const pathKey = gamePathKey(normalized);
+                    const leafKey = gamePathKey(gamePathLeaf(normalized));
+                    const pathEntries = byPath.get(pathKey) ?? [];
+                    pathEntries.push(normalized);
+                    byPath.set(pathKey, pathEntries);
+                    const leafEntries = byLeaf.get(leafKey) ?? [];
+                    leafEntries.push(normalized);
+                    byLeaf.set(leafKey, leafEntries);
+                }
+                const sortEntries = (entries: string[]): void => entries.sort(compareResourcePaths);
+                for (const entries of byPath.values()) sortEntries(entries);
+                for (const entries of byLeaf.values()) sortEntries(entries);
+                return { byPath, byLeaf };
+            })();
+        }
+        return this.rfsEntryIndex;
+    }
+    private async findRfsEntry(filename: string): Promise<string | undefined> {
+        const normalized = normalizeGamePath(filename);
+        const index = await this.getRfsEntryIndex();
+        return index.byPath.get(gamePathKey(normalized))?.[0] ??
+            index.byLeaf.get(gamePathKey(gamePathLeaf(normalized)))?.[0];
+    }
+    private async resolveFileWithRfs(filename: string): Promise<{ file: VirtualFile; provenance: string[] } | undefined> {
+        let file: VirtualFile | undefined;
+        let provenance: string[] = [];
+        if (this.rfs) {
+            try {
+                file = await this.rfs.openFile(filename);
+                provenance = [normalizeGamePath(filename)];
+            }
+            catch (e) {
+                if (!(e instanceof FileNotFoundError)) {
+                    throw e;
+                }
+            }
+            if (!file) {
+                const fallbackEntry = await this.findRfsEntry(filename);
+                if (fallbackEntry) {
+                    file = await this.rfs.openFile(fallbackEntry);
+                    provenance = [fallbackEntry];
+                }
             }
         }
         if (!file) {
@@ -205,27 +277,44 @@ export class VirtualFileSystem {
                 return undefined;
             }
             file = this.openFile(filename);
+            const resolution = this.resolve(filename);
+            provenance = resolution.winner?.provenance ? [...resolution.winner.provenance] : [];
         }
-        return file;
+        return { file, provenance };
     }
-    private async addArchiveByFilename(filename: string, createArchive: (file: VirtualFile) => Archive | Promise<Archive>, metadata?: ArchiveMetadata): Promise<void> {
+    /** Open a loose or mounted resource using the same precedence as loaders. */
+    async openFileWithRfs(filename: string): Promise<VirtualFile | undefined> {
+        return (await this.resolveFileWithRfs(filename))?.file;
+    }
+    private async addArchiveByFilename(filename: string, createArchive: (file: VirtualFile) => Archive | Promise<Archive>, metadata?: ArchiveMetadata, required = false): Promise<boolean> {
         if (this.hasArchive(filename)) {
             this.logger.info(`Archive "${filename}" already loaded, skipping.`);
-            return;
+            return true;
         }
-        const virtualFile = await this.openFileWithRfs(filename);
-        if (virtualFile) {
+        const resolvedFile = await this.resolveFileWithRfs(filename);
+        if (resolvedFile) {
             try {
-                const archive = await createArchive(virtualFile);
-                this.addArchive(archive, filename, metadata ?? this.metadataForMix(filename));
+                const archive = await createArchive(resolvedFile.file);
+                this.addArchive(archive, filename, {
+                    ...(metadata ?? this.metadataForMix(filename)),
+                    provenance: metadata?.provenance ?? resolvedFile.provenance,
+                });
+                return true;
             }
             catch (error) {
                 this.logger.error(`Failed to create archive from "${filename}":`, error);
+                if (required) {
+                    throw error;
+                }
             }
         }
         else {
             this.logger.warn(`Could not open "${filename}" via RFS to add as archive.`);
+            if (required) {
+                throw new FileNotFoundError(`Required archive "${filename}" not found in imported storage or mounted archives.`);
+            }
         }
+        return false;
     }
     private metadataForMix(filename: string): ArchiveMetadata {
         const lower = filename.toLocaleLowerCase("en-US");
@@ -240,8 +329,8 @@ export class VirtualFileSystem {
         }
         return { layer: ResourceLayer.BaseGame, source: "game" };
     }
-    async addMixFile(filename: string, metadata?: ArchiveMetadata): Promise<void> {
-        await this.addArchiveByFilename(filename, async (fileStreamHolder) => {
+    async addMixFile(filename: string, metadata?: ArchiveMetadata, options?: { required?: boolean }): Promise<boolean> {
+        return this.addArchiveByFilename(filename, async (fileStreamHolder) => {
             if (filename === "ra2.mix") {
                 this.logger.info(`Testing original MixFile implementation for ${filename}...`);
                 try {
@@ -253,80 +342,84 @@ export class VirtualFileSystem {
                 fileStreamHolder.stream.seek(0);
             }
             return new MixFile(fileStreamHolder.stream);
-        }, metadata);
+        }, metadata, options?.required ?? false);
     }
     async addBagFile(filename: string): Promise<void> {
         const idxFilename = filename.replace(/\.bag$/i, ".idx");
         try {
-            const idxFile = await this.openFileWithRfs(idxFilename);
-            if (!idxFile) {
+            const resolvedIdxFile = await this.resolveFileWithRfs(idxFilename);
+            if (!resolvedIdxFile) {
                 this.logger.error(`IDX file "${idxFilename}" not found for BAG file "${filename}".`);
                 return;
             }
             await this.addArchiveByFilename(filename, async (bagVirtualFile) => {
-                const idxData = new IdxFile(idxFile.stream);
+                const idxData = new IdxFile(resolvedIdxFile.file.stream);
                 const audioBag = new AudioBagFile();
                 await audioBag.fromVirtualFile(bagVirtualFile, idxData);
                 return audioBag;
-            }, this.metadataForMix(filename));
+        }, this.metadataForMix(filename));
         }
         catch (error) {
             this.logger.error(`Failed to add BAG file "${filename}":`, error);
         }
     }
-    async loadImplicitMixFiles(engineType: EngineType): Promise<void> {
+    async loadImplicitMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
         this.logger.info("Initializing implicit mix files...");
         const YR = engineType === EngineType.YurisRevenge;
+        const required = new Set((profile?.requiredFiles ?? []).map((file) => gamePathKey(file)));
+        const addImplicit = async (filename: string): Promise<void> => {
+            await this.addMixFile(filename, undefined, { required: required.has(gamePathKey(filename)) });
+        };
         if (YR)
-            await this.addMixFile("langmd.mix");
-        await this.addMixFile("language.mix");
+            await addImplicit("langmd.mix");
+        await addImplicit("language.mix");
         if (YR)
-            await this.addMixFile("ra2md.mix");
-        await this.addMixFile("ra2.mix");
+            await addImplicit("ra2md.mix");
+        await addImplicit("ra2.mix");
         if (YR)
-            await this.addMixFile("cachemd.mix");
-        await this.addMixFile("cache.mix");
+            await addImplicit("cachemd.mix");
+        await addImplicit("cache.mix");
         if (YR)
-            await this.addMixFile("loadmd.mix");
-        await this.addMixFile("load.mix");
+            await addImplicit("loadmd.mix");
+        await addImplicit("load.mix");
         if (YR)
-            await this.addMixFile("localmd.mix");
-        await this.addMixFile("local.mix");
+            await addImplicit("localmd.mix");
+        await addImplicit("local.mix");
         if (YR)
-            await this.addMixFile("ntrlmd.mix");
-        await this.addMixFile("neutral.mix");
+            await addImplicit("ntrlmd.mix");
+        await addImplicit("neutral.mix");
         if (YR)
-            await this.addMixFile("audiomd.mix");
-        await this.addMixFile("audio.mix");
+            await addImplicit("audiomd.mix");
+        await addImplicit("audio.mix");
         await this.addBagFile("audio.bag");
-        await this.addMixFile("conquer.mix");
+        await addImplicit("conquer.mix");
         if (YR) {
-            await this.addMixFile("conqmd.mix");
-            await this.addMixFile("genermd.mix");
+            await addImplicit("conqmd.mix");
+            await addImplicit("genermd.mix");
         }
-        await this.addMixFile("generic.mix");
+        await addImplicit("generic.mix");
         if (YR)
-            await this.addMixFile("isogenmd.mix");
-        await this.addMixFile("isogen.mix");
+            await addImplicit("isogenmd.mix");
+        await addImplicit("isogen.mix");
         if (YR)
-            await this.addMixFile("cameomd.mix");
-        await this.addMixFile("cameo.mix");
-        await this.addMixFile("cameocd.mix");
+            await addImplicit("cameomd.mix");
+        await addImplicit("cameo.mix");
+        await addImplicit("cameocd.mix");
         if (YR)
-            await this.addMixFile("multimd.mix");
-        await this.addMixFile("multi.mix");
+            await addImplicit("multimd.mix");
+        await addImplicit("multi.mix");
         this.logger.info("Finished initializing implicit mix files.");
     }
     async loadExtraMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
         this.logger.info("Loading extra mix files...");
-        const rfsEntries = new Set<string>();
-        for await (const entry of this.rfs.getEntriesRecursive()) {
-            rfsEntries.add(entry.toLowerCase());
+        if (!this.rfs) {
+            this.logger.info("No real file system is mounted; skipping loose extra MIX discovery.");
+            return;
         }
+        const rfsIndex = await this.getRfsEntryIndex();
+        const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
         const findEntryByLeaf = (filename: string): string | undefined => {
-            const expected = filename.toLocaleLowerCase("en-US");
-            const matches = [...rfsEntries].filter((entry) => entry.split("/").pop() === expected);
-            return matches.sort((a, b) => a.length - b.length)[0];
+            return rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
         };
         const prefixes = ["ecache", "expand", "elocal"];
         for (const prefix of prefixes) {
@@ -346,8 +439,8 @@ export class VirtualFileSystem {
                 for (const fileToTry of filesToTry) {
                     const rfsEntry = findEntryByLeaf(fileToTry);
                     if (rfsEntry) {
-                        if (!this.hasArchive(rfsEntry)) {
-                            await this.addMixFile(rfsEntry, {
+                        if (!this.hasArchive(fileToTry)) {
+                            await this.addMixFile(fileToTry, {
                                 layer: fileToTry.includes("mo")
                                     ? ResourceLayer.ModPatch
                                     : fileToTry.includes("md")
@@ -356,6 +449,7 @@ export class VirtualFileSystem {
                                 source: "mod",
                                 profile: profile?.id,
                                 id: fileToTry,
+                                provenance: [rfsEntry],
                             });
                         }
                     }
@@ -368,7 +462,7 @@ export class VirtualFileSystem {
         }
         for (const ext of mapExtensions) {
             for (const rfsFile of rfsEntries) {
-                if (rfsFile.endsWith(ext)) {
+                if (rfsFile.toLocaleLowerCase("en-US").endsWith(ext)) {
                     if (!this.hasArchive(rfsFile)) {
                         const fileData = await this.rfs.openFile(rfsFile);
                         if (fileData) {
@@ -376,6 +470,7 @@ export class VirtualFileSystem {
                                 layer: ResourceLayer.MapOverride,
                                 source: "map",
                                 profile: profile?.id,
+                                provenance: [rfsFile],
                             });
                         }
                         else {
@@ -391,17 +486,34 @@ export class VirtualFileSystem {
         exclude?: string[];
     }): Promise<void> {
         this.logger.info("Loading standalone files into mem.archive...");
+        if (!this.rfs) {
+            this.logger.info("No real file system is mounted; skipping standalone file loading.");
+            return;
+        }
         const extensionsToLoad = ["ini", "csf"];
-        const excludeSet = new Set<string>((options?.exclude || []).map(f => f.toLowerCase()));
+        const excludeSet = new Set<string>((options?.exclude || []).map((file) => gamePathKey(file)));
         const filesForMemArchive: VirtualFile[] = [];
-        for await (const entryName of this.rfs.getEntriesRecursive()) {
-            const lowerEntryName = entryName.toLowerCase();
-            if (extensionsToLoad.some((ext) => lowerEntryName.endsWith("." + ext)) &&
-                !excludeSet.has(lowerEntryName)) {
+        const rfsIndex = await this.getRfsEntryIndex();
+        const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
+        for (const entryName of rfsEntries) {
+            const normalizedEntryName = normalizeGamePath(entryName);
+            const lowerEntryName = normalizedEntryName.toLocaleLowerCase("en-US");
+            const excluded = excludeSet.has(gamePathKey(normalizedEntryName)) ||
+                excludeSet.has(gamePathKey(gamePathLeaf(normalizedEntryName)));
+            if (extensionsToLoad.some((ext) => lowerEntryName.endsWith("." + ext)) && !excluded) {
                 try {
                     const file = await this.rfs.openFile(entryName);
                     if (file) {
-                        filesForMemArchive.push(file);
+                        const normalizedSegments = normalizedEntryName.split("/");
+                        // Imported archives are often stored below a picker
+                        // folder (for example `Install/MIX/rulesmo.ini`).
+                        // Engine lookups use the game-relative name, so keep
+                        // every suffix alias while retaining nested include
+                        // paths such as `rules/units.ini`.
+                        for (let aliasStart = 0; aliasStart < normalizedSegments.length; aliasStart++) {
+                            const alias = normalizedSegments.slice(aliasStart).join("/");
+                            filesForMemArchive.push(VirtualFile.fromBytes(file.getBytes(), alias));
+                        }
                     }
                 }
                 catch (e) {
@@ -423,6 +535,7 @@ export class VirtualFileSystem {
                 layer: ResourceLayer.LooseOverride,
                 source: "mod",
                 profile: undefined,
+                provenance: ["real-file-system"],
             });
             this.logger.info(`Added ${filesForMemArchive.length} standalone files to mem.archive`);
         }

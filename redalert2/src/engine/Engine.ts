@@ -367,24 +367,14 @@ export class Engine {
         const baseRulesFileName = this.getEngineBaseFileName("rules.ini");
         const baseArtFileName = this.getEngineBaseFileName("art.ini");
         const baseAiFileName = this.getEngineBaseFileName("ai.ini");
-        const rulesBase = this.getIni(baseRulesFileName);
-        const artBase = this.getIni(baseArtFileName);
-        const aiBase = this.getIni(baseAiFileName);
-        const rulesProfile = this.getIni(rulesFileName);
-        const artProfile = this.getIni(artFileName);
-        const aiProfile = this.getIni(aiFileName);
-        if (!rulesBase || !rulesProfile)
-            throw new Error(`Rules "${rulesFileName}" or base "${baseRulesFileName}" not found`);
-        if (!artBase || !artProfile)
-            throw new Error(`Art "${artFileName}" or base "${baseArtFileName}" not found`);
-        if (!aiBase || !aiProfile)
-            throw new Error(`AI "${aiFileName}" or base "${baseAiFileName}" not found`);
-        const rulesCustom = this.getIni(this.customRulesFileName);
-        const artCustom = this.getIni(this.customArtFileName);
-        if (!rulesCustom)
-            throw new Error(`Rules "${this.customRulesFileName}" not found`);
-        if (!artCustom)
-            throw new Error(`Art "${this.customArtFileName}" not found`);
+        const rulesBase = this.getRequiredIni(baseRulesFileName);
+        const artBase = this.getRequiredIni(baseArtFileName);
+        const aiBase = this.getRequiredIni(baseAiFileName);
+        const rulesProfile = this.getRequiredIni(rulesFileName);
+        const artProfile = this.getRequiredIni(artFileName);
+        const aiProfile = this.getRequiredIni(aiFileName);
+        const rulesCustom = this.getRequiredIni(this.customRulesFileName);
+        const artCustom = this.getRequiredIni(this.customArtFileName);
         // A profile such as Mental Omega supplies an override INI while still
         // depending on the retail YR definitions. Merge in this order so
         // profile content wins without making vanilla RA2/YR pay for it.
@@ -494,6 +484,16 @@ export class Engine {
             return new IniFile();
         }
         return iniFile;
+    }
+    static getRequiredIni(fileName: string): IniFile {
+        if (!this.vfs?.fileExists(fileName)) {
+            const resolution = this.vfs?.explain(fileName);
+            const owners = resolution?.shadowed.length
+                ? ` Shadowed candidates: ${resolution.shadowed.map((candidate) => candidate.archive).join(", ")}.`
+                : "";
+            throw new Error(`Required INI file "${fileName}" is not available in the mounted resource layers.${owners}`);
+        }
+        return this.getIni(fileName);
     }
     static getIniSourceLoader(): IniSourceLoader | undefined {
         return this.iniSourceLoader;

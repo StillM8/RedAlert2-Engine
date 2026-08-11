@@ -627,7 +627,7 @@ export class GameRes {
             }
         }
         else {
-            await vfs.loadImplicitMixFiles(Engine.getActiveEngine());
+            await vfs.loadImplicitMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile]);
             const cacheDirHandle = await Engine.getCacheDir();
             if (cacheDirHandle) {
                 try {

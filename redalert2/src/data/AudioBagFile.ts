@@ -1,5 +1,6 @@
 import { DataStream } from "./DataStream";
 import { VirtualFile } from "./vfs/VirtualFile";
+import { gamePathKey } from "../engine/GamePath";
 import type { IdxFile } from "./IdxFile";
 import type { IdxEntry } from "./IdxEntry";
 export class AudioBagFile {
@@ -11,7 +12,7 @@ export class AudioBagFile {
         for (const [filename, entry] of idx.entries) {
             const wavDataStream = this.buildWavData(bagFile.stream, entry);
             wavDataStream.dynamicSize = false;
-            this.fileData.set(filename, wavDataStream);
+            this.fileData.set(gamePathKey(filename), wavDataStream);
         }
         return this;
     }
@@ -19,13 +20,18 @@ export class AudioBagFile {
         return [...this.fileData.keys()];
     }
     public containsFile(filename: string): boolean {
-        return this.fileData.has(filename);
+        try {
+            return this.fileData.has(gamePathKey(filename));
+        }
+        catch {
+            return false;
+        }
     }
     public openFile(filename: string): VirtualFile {
         if (!this.containsFile(filename)) {
             throw new Error(`File "${filename}" not found in AudioBagFile`);
         }
-        const dataStream = this.fileData.get(filename)!;
+        const dataStream = this.fileData.get(gamePathKey(filename))!;
         dataStream.seek(0);
         return new VirtualFile(dataStream, filename);
     }
