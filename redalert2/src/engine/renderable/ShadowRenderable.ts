@@ -69,7 +69,15 @@ export class ShadowRenderable {
         this.builder?.setFrameOffset(offset);
     }
     computeShadowFrameNo(frameNo: number): number {
-        return frameNo < this.shpFile.numImages ? this.shpFile.numImages / 2 + frameNo : 1;
+        const imageCount = Math.min(this.shpFile.numImages, this.shpFile.images.length);
+        const shadowFrameBase = Math.floor(imageCount / 2);
+        if (shadowFrameBase <= 0) {
+            return 0;
+        }
+        const baseFrameNo = Math.trunc(frameNo);
+        return baseFrameNo >= 0 && baseFrameNo < shadowFrameBase
+            ? shadowFrameBase + baseFrameNo
+            : Math.min(1, imageCount - 1);
     }
     create3DObject(): void {
         if (!this.object3d) {
@@ -113,7 +121,8 @@ export class ShadowRenderable {
         if (imageIndex < 0 || imageIndex >= imageCount) {
             return false;
         }
-        return !!this.shpFile.getImage(imageIndex).imageData.length;
+        const image = this.shpFile.images?.[imageIndex];
+        return !!image?.imageData?.length;
     }
     get3DObject(): THREE.Object3D | undefined {
         return this.object3d;
