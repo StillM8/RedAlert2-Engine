@@ -37,6 +37,8 @@ export interface SideDescriptor {
     technician?: string;
     survivorDivisor?: number;
     defaultDisguise?: string;
+    /** Antares side-level Hunter Seeker TechnoType fallback. */
+    hunterSeeker?: string;
     /** Preserve unmodeled side fields for diagnostics and later capability parsing. */
     properties?: Readonly<Record<string, string>>;
 }
@@ -275,6 +277,7 @@ export class AresSideRegistry {
                     ? undefined
                     : sectionNumber(section, "SurvivorDivisor", 0),
                 defaultDisguise: sectionValue(section, "DefaultDisguise"),
+                hunterSeeker: sectionValue(section, "HunterSeeker"),
                 properties: sectionProperties(section),
             });
         });

@@ -387,6 +387,7 @@ export class Rules {
             throw new Error("Missing [General] section");
         }
         this.general.readIni(section as any, this.sideRegistry);
+        this.general.readAresSpecialWeapons(this.ini.getSection("SpecialWeapons") as any);
     }
     private readAi(): void {
         const section = this.ini.getSection("AI");
