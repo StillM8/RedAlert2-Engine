@@ -271,6 +271,14 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         dependencies: ["ares.effective-ini"], targetModUsage: "unknown",
         notes: "Occupied cells and outline cells are distinct; exact placement/occupation paths are covered.",
     },
+    "new/operator.rst": {
+        capabilityId: "ares.operator",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "complete", multiplayerStatus: "complete",
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresOperator.test.ts"],
+        dependencies: ["ares.effective-ini"], targetModUsage: "unknown",
+        notes: "Specific InfantryType operators and the _ANY_ sentinel are evaluated from transport/garrison passengers. Missing operators disable movement and weapons without disabling unrelated building services; full AI/presentation parity remains open.",
+    },
     "new/include.rst": {
         capabilityId: "ares.effective-ini",
         parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "complete",

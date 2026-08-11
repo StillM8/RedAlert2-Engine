@@ -45,6 +45,7 @@ import { DebrisRules } from "@/game/rules/DebrisRules";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { SensorsTrait } from "@/game/gameobject/trait/SensorsTrait";
 import { EmpTrait } from "@/game/gameobject/trait/EmpTrait";
+import { AresOperatorTrait } from "@/game/gameobject/trait/AresOperatorTrait";
 export class ObjectFactory {
     private tiles: any;
     private tileOccupation: any;
@@ -198,6 +199,10 @@ export class ObjectFactory {
             if (gameObject.rules.poweredUnit && gameObject.isUnit()) {
                 gameObject.robotControlTrait = new RobotControlTrait(gameObject);
                 gameObject.traits.add(gameObject.robotControlTrait);
+            }
+            if (gameObject.rules.operatorAny || gameObject.rules.operator?.length) {
+                gameObject.operatorTrait = new AresOperatorTrait();
+                gameObject.traits.add(gameObject.operatorTrait);
             }
             const weapons = [gameObject.primaryWeapon, gameObject.secondaryWeapon];
             if (weapons.some(weapon => weapon?.warhead.rules.mindControl)) {

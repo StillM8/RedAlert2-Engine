@@ -91,6 +91,9 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^armortypes$/i.test(section) || /^versus\./i.test(key)) {
         return "ares.additional-armor-types";
     }
+    if (/^operator$/i.test(key)) {
+        return "ares.operator";
+    }
     if (/^empulse\./i.test(key) || /^empulsecannon$/i.test(key)) {
         return "ares.superweapon-empulse";
     }

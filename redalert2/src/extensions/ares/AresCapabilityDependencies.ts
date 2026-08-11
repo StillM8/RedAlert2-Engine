@@ -17,6 +17,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.additional-armor-types", dependsOn: ["ares.effective-ini"], reason: "Armor IDs and Versus values are normalized from effective rules." },
     { capabilityId: "ares.generic-prerequisites", dependsOn: ["ares.effective-ini", "ares.dynamic-sides-countries"], reason: "Prerequisite expressions resolve objects, countries, and sides." },
     { capabilityId: "ares.custom-foundations", dependsOn: ["ares.effective-ini"], reason: "Foundation geometry is parsed from effective TechnoType art/rules." },
+    { capabilityId: "ares.operator", dependsOn: ["ares.effective-ini"], reason: "Operator requirements are normalized from TechnoTypes and evaluated against existing passenger/garrison state." },
     { capabilityId: "ares.target-filters", dependsOn: ["ares.dynamic-sides-countries", "ares.additional-armor-types"], reason: "Target relations and armor suitability are data-defined." },
     { capabilityId: "ares.warhead-effects", dependsOn: ["ares.additional-armor-types"], reason: "Warhead effects consume normalized Versus/armor and target semantics." },
     { capabilityId: "ares.emp", dependsOn: ["ares.effective-ini", "ares.warhead-effects"], reason: "EMP is a generic warhead effect with persistent Techno state." },

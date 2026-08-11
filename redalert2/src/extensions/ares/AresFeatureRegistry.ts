@@ -69,6 +69,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Foundation=Custom cells are parsed with their optional outline and used by placement preview, build validation, and tile occupation; factory-specific exit behavior remains a separate compatibility task.",
     },
     {
+        id: "ares.operator",
+        description: "Data-defined infantry operators for vehicles and buildings",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresOperator.test.ts"],
+        notes: "Specific InfantryType operators and _ANY_ are normalized and evaluated from transport/garrison passengers; missing operators disable only movement and weapons while preserving building services. Save/load is derived from passenger state; AI and presentation integration remain open.",
+    },
+    {
         id: "ares.emp",
         description: "Ares EMP duration/cap counters, immunity, and Techno paralysis state",
         implemented: true,
