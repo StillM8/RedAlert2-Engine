@@ -11,6 +11,18 @@ interface SoundDefaults {
     type: SoundType[];
     priority: SoundPriority;
 }
+
+function parseSoundNames(value: string): string[] {
+    const tokens = value.split(/\s+/).filter(Boolean);
+    const controlTokenIndex = tokens.findIndex((token, index) =>
+        /^control\s*=/i.test(token) ||
+        (/^control$/i.test(token) && tokens[index + 1] === "="));
+    const soundTokens = controlTokenIndex === -1 ? tokens : tokens.slice(0, controlTokenIndex);
+    return soundTokens
+        .map((sound) => sound.replace(/^\$/, ""))
+        .filter(Boolean);
+}
+
 export class SoundSpec {
     name!: string;
     control!: Set<SoundControl>;
@@ -37,9 +49,7 @@ export class SoundSpec {
         const soundsValue = section.get("Sounds");
         const soundValues = Array.isArray(soundsValue) ? soundsValue : [soundsValue ?? ""];
         this.sounds = soundValues
-            .flatMap((value: string) => value.split(/\s+/))
-            .map((sound: string) => sound.replace(/^\$/, ""))
-            .filter(Boolean);
+            .flatMap((value: string) => parseSoundNames(value));
         this.volume = section.has("Volume")
             ? section.getNumber("Volume", defaults.volume)
             : section.getNumber("volume", defaults.volume);
