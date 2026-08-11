@@ -36,6 +36,7 @@ import { MindControllerTrait } from "@/game/gameobject/trait/MindControllerTrait
 import { BerserkTrait } from "@/game/gameobject/trait/BerserkTrait";
 import { RobotControlTrait } from "@/game/gameobject/trait/RobotControlTrait";
 import { AresPoweredByTrait } from "@/game/gameobject/trait/AresPoweredByTrait";
+import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { TemporalTrait } from "@/game/gameobject/trait/TemporalTrait";
 import { CloakableTrait } from "@/game/gameobject/trait/CloakableTrait";
 import { AirSpawnTrait } from "@/game/gameobject/trait/AirSpawnTrait";
@@ -206,6 +207,15 @@ export class ObjectFactory {
             else if (gameObject.rules.poweredUnit && gameObject.isUnit()) {
                 gameObject.robotControlTrait = new RobotControlTrait(gameObject);
                 gameObject.traits.add(gameObject.robotControlTrait);
+            }
+            if (gameObject.rules.aresAttachEffect) {
+                gameObject.aresAttachEffectTrait = new AresAttachEffectTrait({
+                    automaticEffect: {
+                        effectId: gameObject.name,
+                        definition: gameObject.rules.aresAttachEffect,
+                    },
+                });
+                gameObject.traits.add(gameObject.aresAttachEffectTrait);
             }
             if (gameObject.rules.operatorAny || gameObject.rules.operator?.length) {
                 gameObject.operatorTrait = new AresOperatorTrait();
