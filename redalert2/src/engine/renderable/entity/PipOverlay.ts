@@ -29,10 +29,13 @@ const SELECTION_LEVEL_MAP: Record<number, SelectionLevel> = {
     4: SelectionLevel.Selected,
     5: SelectionLevel.Selected,
 };
-const HEALTH_LEVEL_TO_IMAGE = new Map<HealthLevel, number>()
-    .set(HealthLevel.Green, 15)
-    .set(HealthLevel.Yellow, 16)
-    .set(HealthLevel.Red, 17);
+// Unit health uses the small pip frames at the end of pips.shp. Frame 15 is
+// the elite/veteran insignia-sized image; using it as the green health pip
+// shifts every health color by one frame (and makes red health use yellow).
+export const HEALTH_LEVEL_TO_IMAGE = new Map<HealthLevel, number>()
+    .set(HealthLevel.Green, 16)
+    .set(HealthLevel.Yellow, 17)
+    .set(HealthLevel.Red, 18);
 interface SpriteGeometryConfig {
     texture: THREE.Texture;
     textureArea: {
