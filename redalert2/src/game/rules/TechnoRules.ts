@@ -534,6 +534,24 @@ export class TechnoRules extends ObjectRules {
         this.ares = hasAresTechnoFields ? parseAresTechnoExtensions(this.ini) : undefined;
         const normalizedAresKeys = [...this.ini.entries.keys()].map((key: string) =>
             key.trim().toLocaleLowerCase("en-US"));
+        const findAresEntryKey = (key: string): string | undefined => {
+            const expected = key.trim().toLocaleLowerCase("en-US");
+            let matched: string | undefined;
+            for (const entryKey of this.ini.entries.keys()) {
+                if (entryKey.trim().toLocaleLowerCase("en-US") === expected) {
+                    matched = entryKey;
+                }
+            }
+            return matched;
+        };
+        const getAresArray = (key: string): string[] | undefined => {
+            const entryKey = findAresEntryKey(key);
+            return entryKey === undefined ? undefined : this.ini.getArray(entryKey);
+        };
+        const getAresBool = (key: string): boolean | undefined => {
+            const entryKey = findAresEntryKey(key);
+            return entryKey === undefined ? undefined : this.ini.getBool(entryKey);
+        };
         const hasAresUrbanCombatFields = normalizedAresKeys.some((key: string) =>
             key === "uc.passthrough" ||
             key === "uc.fatalrate" ||
@@ -778,15 +796,9 @@ export class TechnoRules extends ObjectRules {
                 isInfantry: this.type === ObjectType.Infantry,
                 cyborg: this.ini.getBool("Cyborg"),
                 damageParticleSystems: this.damageParticleSystems,
-                damageSmokeParticleSystems: this.ini.has("DamageSmokeParticleSystems")
-                    ? this.ini.getArray("DamageSmokeParticleSystems")
-                    : undefined,
-                damageSparksParticleSystems: this.ini.has("DamageSparksParticleSystems")
-                    ? this.ini.getArray("DamageSparksParticleSystems")
-                    : undefined,
-                damageSparks: this.ini.has("DamageSparks")
-                    ? this.ini.getBool("DamageSparks")
-                    : undefined,
+                damageSmokeParticleSystems: getAresArray("DamageSmokeParticleSystems"),
+                damageSparksParticleSystems: getAresArray("DamageSparksParticleSystems"),
+                damageSparks: getAresBool("DamageSparks"),
             })
             : undefined;
         const damageSmokeOffsetArray = this.ini.getNumberArray("DamageSmokeOffset", undefined, [0, 0, 0]);

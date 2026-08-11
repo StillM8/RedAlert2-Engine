@@ -42,4 +42,36 @@ describe("Ares damage-particle TechnoRules integration", () => {
             { id: "SparkBase" },
         ]);
     });
+
+    test("reads mixed-case DamageSparks without falling back to the Cyborg default", () => {
+        const section = new IniSection("MixedCaseDamageSparks");
+        section.set("Cyborg", "yes");
+        section.set("DamageSparks", "yes");
+        section.set("dAmAgEsPaRkS", "no");
+
+        const rules = new TechnoRules(ObjectType.Infantry, section, 0, {}, new ArmorRegistry());
+        expect(rules.aresDamageParticles?.damageSparksEnabled).toBe(false);
+    });
+
+    test("reads mixed-case DamageSmokeParticleSystems overrides", () => {
+        const section = new IniSection("MixedCaseDamageSmoke");
+        section.set("DamageParticleSystems", "SmokeBase");
+        section.set("dAmAgEsMoKePaRtIcLeSyStEmS", "SmokeOverride");
+
+        const rules = new TechnoRules(ObjectType.Vehicle, section, 0, {}, new ArmorRegistry());
+        expect(rules.aresDamageParticles?.damageSmokeParticleSystems).toEqual([
+            { id: "SmokeOverride" },
+        ]);
+    });
+
+    test("preserves mixed-case explicit empty Ares lists", () => {
+        const section = new IniSection("MixedCaseEmptyDamageLists");
+        section.set("DamageParticleSystems", "SmokeBase,SparkBase");
+        section.set("dAmAgEsMoKePaRtIcLeSyStEmS", "");
+        section.set("dAmAgEsPaRkSpArTiClEsYsTeMs", "");
+
+        const rules = new TechnoRules(ObjectType.Vehicle, section, 0, {}, new ArmorRegistry());
+        expect(rules.aresDamageParticles?.damageSmokeParticleSystems).toEqual([]);
+        expect(rules.aresDamageParticles?.damageSparksParticleSystems).toEqual([]);
+    });
 });
