@@ -25,6 +25,8 @@ interface SidebarCardProps extends UiComponentProps {
     cameoImages: any;
     cameoPalette: string;
     sidebarModel: any;
+    cameoPcxImages?: any[];
+    cameoPcxNameToIdMap?: Map<string, number>;
     onSlotClick?: (event: any) => void;
     textColor: string;
     cameoNameToIdMap: Map<string, number>;
@@ -49,6 +51,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
     static readonly quantityImageCache = new Map<string, any[]>();
     private slotContainers: any[] = [];
     private slotObjects: any[] = [];
+    private pcxSlotObjects: any[] = [];
     private progressOverlays: any[] = [];
     private visible: boolean = true;
     private labelObjects: any[] = [];
@@ -106,7 +109,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
         return uiObject;
     }
     defineChildren(): any[] {
-        const { slots, cameoImages, cameoPalette, sidebarModel, onSlotClick, zIndex, } = this.props;
+        const { slots, cameoImages, cameoPalette, cameoPcxImages, sidebarModel, onSlotClick, zIndex, } = this.props;
         const slotSize = this.getSlotSize();
         const horizontalSpacing = 3;
         const verticalSpacing = 2;
@@ -177,7 +180,13 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
                 image: cameoImages,
                 palette: cameoPalette,
                 ref: (element: any) => this.slotObjects.push(element),
-            })));
+            }), cameoPcxImages?.length
+                ? jsx.jsx("sprite", {
+                    images: cameoPcxImages,
+                    hidden: true,
+                    ref: (element: any) => this.pcxSlotObjects.push(element),
+                })
+                : []));
         }
         return children;
     }
@@ -222,6 +231,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             const labelObject = this.labelObjects[slotIndex];
             const quantityObject = this.quantityObjects[slotIndex];
             const tagObject = this.tagObjects[slotIndex];
+            const pcxSlotObject = this.pcxSlotObjects[slotIndex];
             if (items.length - this.pagingOffset <= slotIndex) {
                 slotObject.get3DObject().visible = false;
                 progressOverlay.get3DObject().visible = false;
@@ -230,7 +240,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
                 tagObject.get3DObject().visible = false;
             }
             else {
-                this.updateCameo(item, slotObject);
+                this.updateCameo(item, slotObject, pcxSlotObject);
                 this.updatePersistentTag(item, tagObject);
                 this.updateProgressOverlay(item, progressOverlay);
                 this.updateStatusText(item, labelObject);
@@ -239,8 +249,16 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             }
         }
     }
-    updateCameo(item: any, slotObject: any): void {
+    updateCameo(item: any, slotObject: any, pcxSlotObject?: any): void {
         const cameoNameToIdMap = this.props.cameoNameToIdMap;
+        const pcxFrameId = this.getPcxFrameId(item.cameoPcx);
+        if (pcxFrameId !== undefined && pcxSlotObject) {
+            pcxSlotObject.setFrame(pcxFrameId);
+            pcxSlotObject.setOpacity(item.disabled ? 0.5 : 1);
+            pcxSlotObject.setVisible(true);
+            slotObject.setVisible(false);
+            return;
+        }
         let cameoName = item.cameo + ".shp";
         let frameId = cameoNameToIdMap.get(cameoName);
         if (frameId === undefined) {
@@ -251,8 +269,15 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             throw new Error(`Missing cameo placeholder image "${(ObjectArt as any).MISSING_CAMEO}.shp"`);
         }
         slotObject.setFrame(frameId);
-        slotObject.get3DObject().visible = true;
+        slotObject.setVisible(true);
         slotObject.setLightMult(item.disabled ? 0.5 : 1);
+        pcxSlotObject?.setVisible(false);
+    }
+    private getPcxFrameId(cameoName: unknown): number | undefined {
+        if (typeof cameoName !== "string") {
+            return undefined;
+        }
+        return this.props.cameoPcxNameToIdMap?.get(cameoName.toLocaleLowerCase("en-US"));
     }
     updateProgressOverlay(item: any, progressOverlay: any): void {
         let frame = 0;

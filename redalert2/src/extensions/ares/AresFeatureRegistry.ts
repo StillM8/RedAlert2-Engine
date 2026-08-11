@@ -93,7 +93,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresPcxCameos.test.ts", "AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during VFS discovery, and legacy fallback precedence. GameLoader carries a validated manifest to the HUD, but the SHP-frame sidebar still does not display PCX surfaces; palette/display, save/mod-hash coverage, and multiplayer certification remain open.",
+        notes: "CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during VFS discovery, and legacy fallback precedence. GameLoader carries the validated manifest to the HUD, which decodes direct PCX surfaces and selects them per sidebar item with a legacy SHP fallback; save/mod-hash coverage and multiplayer certification remain open.",
     },
     {
         id: "ares.reverse-engineer",

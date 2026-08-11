@@ -607,7 +607,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresPcxCameos.test.ts", "AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during GameLoader VFS discovery, and legacy fallback precedence. The validated manifest reaches the HUD, but the existing SHP-frame sidebar does not yet display PCX surfaces; palette/display, save/mod-hash coverage, and multiplayer certification remain open.",
+        notes: "CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during GameLoader VFS discovery, and legacy fallback precedence. The validated manifest reaches the HUD, which decodes direct PCX surfaces and selects them per sidebar item with a legacy SHP fallback; save/mod-hash coverage and multiplayer certification remain open.",
     },
     {
         id: "ares.damage-particle-systems",

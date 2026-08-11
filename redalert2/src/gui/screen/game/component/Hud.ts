@@ -1,5 +1,7 @@
 import * as jsx from "@/gui/jsx/jsx";
 import { ShpFile } from "@/data/ShpFile";
+import { PcxFile } from "@/data/PcxFile";
+import { Engine } from "@/engine/Engine";
 import { SideType } from "@/game/SideType";
 import { resolveSidePresentation, type SidePresentation } from "@/extensions/ares/AresSides";
 import { SidebarCard } from "@/gui/screen/game/component/hud/SidebarCard";
@@ -23,7 +25,7 @@ import { commandButtonConfigs } from "@/gui/screen/game/component/hud/commandBar
 import { isNotNullOrUndefined } from "@/util/typeGuard";
 import { DebugText } from "@/gui/screen/game/component/hud/DebugText";
 import { ReplayStatsOverlay } from "@/gui/screen/game/component/hud/ReplayStatsOverlay";
-import type { AresPcxCameoAssetManifest } from "@/extensions/ares/AresPcxCameos";
+import { isAresPcxCameoSize, type AresPcxCameoAssetManifest } from "@/extensions/ares/AresPcxCameos";
 declare const THREE: any;
 interface Viewport {
     x: number;
@@ -48,6 +50,8 @@ export class Hud extends UiObject {
     private palettes: Map<string, any>;
     private cameoFilenames: string[];
     private pcxCameoFilenames: string[] = [];
+    private pcxCameoImages: any[] = [];
+    private pcxCameoNameToIdMap = new Map<string, number>();
     private sidebarModel: SidebarModel;
     private messageList: any;
     private chatHistory: any;
@@ -111,6 +115,7 @@ export class Hud extends UiObject {
         else {
             this.cameoFilenames = [...cameoFilenames.shpFilenames];
             this.pcxCameoFilenames = [...cameoFilenames.pcxFilenames];
+            this.loadPcxCameoImages();
         }
         this.sidebarModel = sidebarModel;
         this.messageList = messageList;
@@ -143,10 +148,7 @@ export class Hud extends UiObject {
     get onDiploButtonClick() {
         return this._onDiploButtonClick.asEvent();
     }
-    /**
-     * PCX names collected by the loader. The current SHP-only sidebar keeps
-     * them available as a future direct-surface rendering seam.
-     */
+    /** PCX names collected by the loader and made available to the sidebar. */
     getCollectedPcxCameoFilenames(): readonly string[] {
         return this.pcxCameoFilenames;
     }
@@ -346,6 +348,8 @@ export class Hud extends UiObject {
             cameoImages: cameoImages,
             cameoPalette: cameoPalette,
             cameoNameToIdMap: cameoNameToIdMap,
+            cameoPcxImages: this.pcxCameoImages,
+            cameoPcxNameToIdMap: this.pcxCameoNameToIdMap,
             sidebarModel: this.sidebarModel,
             slots: 2 * this.repeaterCount,
             onSlotClick: (event: any) => this._onSidebarSlotClick.dispatch(this, event),
@@ -632,6 +636,29 @@ export class Hud extends UiObject {
             map.set(this.cameoFilenames[i], i);
         }
         return map;
+    }
+    private loadPcxCameoImages(): void {
+        for (const filename of this.pcxCameoFilenames) {
+            const key = filename.toLocaleLowerCase("en-US");
+            if (this.pcxCameoNameToIdMap.has(key)) {
+                continue;
+            }
+            try {
+                if (!Engine.vfs?.fileExists(filename)) {
+                    continue;
+                }
+                const pcx = new PcxFile(Engine.vfs.openFile(filename));
+                if (!isAresPcxCameoSize(pcx.width, pcx.height)) {
+                    console.warn(`[Hud] Ignoring invalid Ares PCX cameo size for "${filename}" (${pcx.width}x${pcx.height})`);
+                    continue;
+                }
+                this.pcxCameoNameToIdMap.set(key, this.pcxCameoImages.length);
+                this.pcxCameoImages.push(pcx.toCanvas());
+            }
+            catch (error) {
+                console.warn(`[Hud] Failed to load Ares PCX cameo "${filename}"`, error);
+            }
+        }
     }
     private destroySidebarMenu(): void {
         if (this.sidebarMenu) {

@@ -4,12 +4,14 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import { DockTrait } from "@/game/gameobject/trait/DockTrait";
 import { SidebarModel, SidebarItemTargetType, SidebarItemStatus, SidebarCategory } from "./SidebarModel";
 import { SuperWeapon, SuperWeaponStatus } from "@/game/SuperWeapon";
+import { normalizeAresPcxCameos, resolveAresSidebarCameo, resolveAresTechnoCameo } from "@/extensions/ares/AresPcxCameos";
 type SidebarTechnoItem = {
     target: {
         type: SidebarItemTargetType.Techno;
         rules: any;
     };
     cameo: any;
+    cameoPcx?: string;
     disabled: boolean;
     progress: number;
     quantity: number;
@@ -21,6 +23,7 @@ type SidebarSpecialItem = {
         rules: any;
     };
     cameo: any;
+    cameoPcx?: string;
     disabled: boolean;
     progress: number;
     quantity: number;
@@ -62,14 +65,20 @@ export class CombatantSidebarModel extends SidebarModel {
             const tab = this.tabs[this.getSidebarCategoryForQueueType(this.player.production.getQueueTypeForObject(obj))];
             const queue = this.player.production.getQueueForObject(obj);
             const factoryType = this.player.production.getFactoryTypeForQueueType(queue.type);
+            const promoted = this.player.production.hasVeteranType(factoryType) && obj.trainable;
+            const cameoResolution = resolveAresTechnoCameo(normalizeAresPcxCameos({
+                cameoPcx: objRules.art?.getString?.("CameoPCX"),
+                altCameoPcx: objRules.art?.getString?.("AltCameoPCX"),
+                cameo: objRules.cameo,
+                altCameo: objRules.altCameo,
+            }), promoted);
             const item: SidebarTechnoItem = {
                 target: {
                     type: SidebarItemTargetType.Techno,
                     rules: obj,
                 },
-                cameo: this.player.production.hasVeteranType(factoryType) && obj.trainable
-                    ? objRules.altCameo
-                    : objRules.cameo,
+                cameo: promoted ? objRules.altCameo : objRules.cameo,
+                cameoPcx: cameoResolution.source === "pcx" ? cameoResolution.assetName : undefined,
                 disabled: false,
                 progress: 0,
                 quantity: 0,
@@ -135,6 +144,13 @@ export class CombatantSidebarModel extends SidebarModel {
                     rules: sw.rules,
                 },
                 cameo: sw.rules.sidebarImage,
+                cameoPcx: (() => {
+                    const resolution = resolveAresSidebarCameo(normalizeAresPcxCameos({
+                        sidebarPcx: sw.rules.sidebarPcx ?? sw.rules.ares?.sidebarPcx,
+                        sidebarImage: sw.rules.sidebarImage,
+                    }));
+                    return resolution.source === "pcx" ? resolution.assetName : undefined;
+                })(),
                 disabled: false,
                 progress: sw.getChargeProgress(),
                 quantity: 1,

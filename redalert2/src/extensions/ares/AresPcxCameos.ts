@@ -39,9 +39,8 @@ export interface AresPcxCameoResolution {
 }
 
 /**
- * Asset names collected for the existing HUD path. SHPs remain the
- * renderable aggregate; PCXs are retained separately because the current
- * sidebar renderer consumes indexed SHP frames, not RGBA PCX surfaces.
+ * Asset names collected for the HUD. Legacy SHPs and direct PCX surfaces are
+ * kept separate because they use different renderer/material paths.
  */
 export interface AresPcxCameoAssetManifest {
     readonly shpFilenames: readonly string[];
