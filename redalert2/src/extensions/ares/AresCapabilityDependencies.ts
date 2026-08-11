@@ -19,6 +19,7 @@ export const ARES_CAPABILITY_DEPENDENCIES: readonly AresCapabilityDependency[] =
     { capabilityId: "ares.custom-foundations", dependsOn: ["ares.effective-ini"], reason: "Foundation geometry is parsed from effective TechnoType art/rules." },
     { capabilityId: "ares.operator", dependsOn: ["ares.effective-ini"], reason: "Operator requirements are normalized from TechnoTypes and evaluated against existing passenger/garrison state." },
     { capabilityId: "ares.killing-drivers", dependsOn: ["ares.effective-ini", "ares.operator"], reason: "Driver removal uses normalized vehicle state and the Operator passenger rules when deciding which occupants are removed or ejected." },
+    { capabilityId: "ares.vehicle-thief", dependsOn: ["ares.killing-drivers", "ares.operator"], reason: "VehicleThief/CanDrive consumes the normalized DriverKilled state and uses Operator passengers when a reclaimed vehicle needs a physical driver." },
     { capabilityId: "ares.target-filters", dependsOn: ["ares.dynamic-sides-countries", "ares.additional-armor-types"], reason: "Target relations and armor suitability are data-defined." },
     { capabilityId: "ares.warhead-effects", dependsOn: ["ares.additional-armor-types"], reason: "Warhead effects consume normalized Versus/armor and target semantics." },
     { capabilityId: "ares.emp", dependsOn: ["ares.effective-ini", "ares.warhead-effects"], reason: "EMP is a generic warhead effect with persistent Techno state." },

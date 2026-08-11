@@ -4,6 +4,8 @@ import { PointerType } from "@/engine/type/PointerType";
 import { RangeHelper } from "@/game/gameobject/unit/RangeHelper";
 import { CaptureBuildingTask } from "@/game/gameobject/task/CaptureBuildingTask";
 import { OrderFeedbackType } from "./OrderFeedbackType";
+import { HijackVehicleTask } from "@/game/gameobject/task/HijackVehicleTask";
+import { getAresVehicleHijackAction } from "@/extensions/ares/AresVehicleThief";
 export class CaptureOrder extends Order {
     private game: any;
     constructor(game: any) {
@@ -16,6 +18,9 @@ export class CaptureOrder extends Order {
     getPointerType(isMini: boolean): PointerType {
         if (!this.isAllowed()) {
             return isMini ? PointerType.NoActionMini : PointerType.NoOccupy;
+        }
+        if (this.isVehicleHijack()) {
+            return isMini ? PointerType.OccupyMini : PointerType.Occupy;
         }
         if (isMini) {
             return PointerType.OccupyMini;
@@ -31,6 +36,9 @@ export class CaptureOrder extends Order {
         return PointerType.Occupy;
     }
     isValid(): boolean {
+        if (this.isVehicleHijack()) {
+            return true;
+        }
         return (!(this.target.obj?.isDestroyed ||
             !this.target.obj?.isBuilding() ||
             !this.sourceObject.isInfantry()) &&
@@ -41,8 +49,10 @@ export class CaptureOrder extends Order {
     isAllowed(): boolean {
         return true;
     }
-    process(): CaptureBuildingTask[] {
-        return [new CaptureBuildingTask(this.game, this.target.obj)];
+    process(): (CaptureBuildingTask | HijackVehicleTask)[] {
+        return this.isVehicleHijack()
+            ? [new HijackVehicleTask(this.game, this.target.obj)]
+            : [new CaptureBuildingTask(this.game, this.target.obj)];
     }
     onAdd(tasks: any[], isQueued: boolean): boolean {
         if (!isQueued) {
@@ -58,5 +68,11 @@ export class CaptureOrder extends Order {
             }
         }
         return true;
+    }
+
+    private isVehicleHijack(): boolean {
+        return !!this.sourceObject?.isInfantry?.() &&
+            !!(this.target.obj?.isVehicle?.() || this.target.obj?.isAircraft?.()) &&
+            getAresVehicleHijackAction(this.sourceObject, this.target.obj, this.game) !== "none";
     }
 }

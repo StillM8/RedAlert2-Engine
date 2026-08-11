@@ -64,6 +64,18 @@ export class TechnoRules extends ObjectRules {
     declare protectedDriverMinHealth?: number;
     /** Ares Killing Drivers: infantry can reclaim a driverless vehicle. */
     declare canDrive: boolean;
+    /** Ares restored Vehicle Thief: infantry can take eligible enemy vehicles. */
+    declare vehicleThief: boolean;
+    /** Ares VehicleThief target-side opt-out. */
+    declare hijackerAllowed: boolean;
+    /** Ares VehicleThief: whether mind control may be broken during hijacking. */
+    declare hijackerBreakMindControl: boolean;
+    /** Ares VehicleThief: consume the thief permanently instead of recovering it. */
+    declare hijackerOneTime: boolean;
+    /** Ares VehicleThief: number of crew/pilots removed before survivor handling. */
+    declare hijackerKillPilots: number;
+    declare hijackerEnterSound?: string;
+    declare hijackerLeaveSound?: string;
     declare prerequisite: string[];
     /** Ares alternative prerequisite lists; list entries are ANDed. */
     declare prerequisiteLists: string[][];
@@ -396,6 +408,13 @@ export class TechnoRules extends ObjectRules {
             ? this.ini.getNumber("ProtectedDriver.MinHealth")
             : undefined;
         this.canDrive = this.ini.getBool("CanDrive");
+        this.vehicleThief = this.ini.getBool("VehicleThief");
+        this.hijackerAllowed = this.ini.getBool("VehicleThief.Allowed", true);
+        this.hijackerBreakMindControl = this.ini.getBool("VehicleThief.BreakMindControl", true);
+        this.hijackerOneTime = this.ini.getBool("VehicleThief.OneTime");
+        this.hijackerKillPilots = this.ini.getNumber("VehicleThief.KillPilots", 0);
+        this.hijackerEnterSound = this.ini.getString("VehicleThief.EnterSound") || undefined;
+        this.hijackerLeaveSound = this.ini.getString("VehicleThief.LeaveSound") || undefined;
         const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
         this.prerequisiteLists = prerequisiteRules.alternativeLists;
         this.prerequisite = this.prerequisiteLists[0] ?? [];

@@ -47,6 +47,7 @@ import { SensorsTrait } from "@/game/gameobject/trait/SensorsTrait";
 import { EmpTrait } from "@/game/gameobject/trait/EmpTrait";
 import { AresOperatorTrait } from "@/game/gameobject/trait/AresOperatorTrait";
 import { AresDriverTrait } from "@/extensions/ares/AresKillingDrivers";
+import { AresVehicleHijackerTrait } from "@/extensions/ares/AresVehicleThief";
 export class ObjectFactory {
     private tiles: any;
     private tileOccupation: any;
@@ -211,6 +212,11 @@ export class ObjectFactory {
                 // from owner identity so it survives the neutral transfer.
                 gameObject.aresDriverTrait = new AresDriverTrait();
                 gameObject.traits.add(gameObject.aresDriverTrait);
+                // A stolen vehicle retains its absorbed VehicleThief in
+                // extension state so the infantry can be recovered when the
+                // vehicle is destroyed, matching Antares' hijacker lifecycle.
+                gameObject.aresVehicleHijackerTrait = new AresVehicleHijackerTrait();
+                gameObject.traits.add(gameObject.aresVehicleHijackerTrait);
             }
             const weapons = [gameObject.primaryWeapon, gameObject.secondaryWeapon];
             if (weapons.some(weapon => weapon?.warhead.rules.mindControl)) {

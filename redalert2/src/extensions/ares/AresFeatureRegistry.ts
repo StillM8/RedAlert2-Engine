@@ -87,6 +87,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "KillDriver and ProtectedDriver use a normalized driver state, deterministic owner resolution, passenger/operator handling, and driverless movement/weapon suppression. CanDrive is parsed and exposed for the future VehicleThief/reclaim action path.",
     },
     {
+        id: "ares.vehicle-thief",
+        description: "VehicleThief/CanDrive hijack and driverless-vehicle reclaim actions",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresVehicleThief.test.ts"],
+        notes: "VehicleThief and CanDrive share a data-defined hijack action path. Enemy hijacks, neutral driverless reclaim, operator passengers, absorbed-hijacker recovery state, and target/task integration are wired; building hijacks, survivor pilot-count integration, sounds, and trigger/event parity remain open.",
+    },
+    {
         id: "ares.emp",
         description: "Ares EMP duration/cap counters, immunity, and Techno paralysis state",
         implemented: true,

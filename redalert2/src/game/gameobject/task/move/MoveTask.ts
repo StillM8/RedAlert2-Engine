@@ -1,9 +1,9 @@
 import { Task } from "@/game/gameobject/task/system/Task";
-import { Infantry } from "@/game/gameobject/Infantry";
+import { INFANTRY_SUB_CELLS } from "@/game/gameobject/unit/InfantryConstants";
 import { MovementZone } from "@/game/type/MovementZone";
 import { findIndexReverse, findReverse } from "@/util/array";
 import { SpeedType } from "@/game/type/SpeedType";
-import { MoveState, CollisionState, MoveResult, MoveTrait } from "@/game/gameobject/trait/MoveTrait";
+import { MoveState, CollisionState, MoveResult } from "@/game/gameobject/trait/MoveTrait";
 import { WaitTicksTask } from "@/game/gameobject/task/system/WaitTicksTask";
 import { MoveAsideTask } from "@/game/gameobject/task/move/MoveAsideTask";
 import { MovePositionHelper } from "@/game/gameobject/unit/MovePositionHelper";
@@ -68,6 +68,8 @@ interface UnreachableTarget {
     toBridge: boolean;
 }
 export class MoveTask extends Task {
+    /** Used by MoveTrait without importing this module back into its state tracker. */
+    public readonly isMoveTask = true;
     protected game: Game;
     protected targetTile: Tile;
     protected toBridge: boolean;
@@ -994,7 +996,7 @@ export class MoveTask extends Task {
             .map((terrain) => terrain.rules.getOccupiedSubCells(this.game.map.getTheaterType()))
             .flat();
         const allOccupied = [...occupiedByInfantry, ...occupiedByTerrain];
-        return Infantry.SUB_CELLS.find((subCell) => !allOccupied.includes(subCell));
+        return INFANTRY_SUB_CELLS.find((subCell) => !allOccupied.includes(subCell));
     }
     private relocateToSubCell(unit: Unit, subCell: number): void {
         unit.position.desiredSubCell = subCell;

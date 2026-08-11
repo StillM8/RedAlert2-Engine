@@ -215,6 +215,7 @@ const DOCUMENTED_KEYS: Readonly<Record<string, readonly string[]>> = {
     "new/killingdrivers.rst": ["[Warhead]KillDriver", "[TechnoType]ProtectedDriver", "[TechnoType]CanDrive"],
     "new/lightningrods.rst": ["[BuildingType]LightningRod", "LightningRod.Modifier"],
     "restored/firestormwall.rst": ["Firestorm.Wall", "SubjectToFirestorm", "FirestormActiveAnim", "FirestormIdleAnim", "FirestormGroundAnim", "FirestormAirAnim", "FirestormWarhead", "DamageToFirestormDamageCoefficient"],
+    "restored/vehicle-thief.rst": ["[InfantryType]VehicleThief", "VehicleThief.EnterSound", "VehicleThief.LeaveSound", "VehicleThief.KillPilots", "VehicleThief.BreakMindControl", "VehicleThief.Allowed", "VehicleThief.OneTime"],
     "new/makeinfantryowner.rst": ["MakeInfantryOwner"],
     "new/newpoweredunitlogic.rst": ["[UnitType]PoweredBy"],
     "new/operator.rst": ["[TechnoType]Operator"],
@@ -286,6 +287,14 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         verificationStatus: "synthetic", deterministic: true, tests: ["AresKillingDrivers.test.ts"],
         dependencies: ["ares.effective-ini", "ares.operator"], targetModUsage: "unknown",
         notes: "KillDriver and ProtectedDriver are implemented through a generic driver-state trait and native owner/passenger handling. CanDrive parsing and driverless-state exposure are present; VehicleThief/reclaim interaction, full veterancy removal, and trigger/script entry points remain open.",
+    },
+    "restored/vehicle-thief.rst": {
+        capabilityId: "ares.vehicle-thief",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        aiStatus: "partial", presentationStatus: "partial", saveLoadStatus: "partial", multiplayerStatus: "partial",
+        verificationStatus: "synthetic", deterministic: true, tests: ["AresVehicleThief.test.ts"],
+        dependencies: ["ares.effective-ini", "ares.killing-drivers", "ares.operator"], targetModUsage: "unknown",
+        notes: "VehicleThief/CanDrive share a normalized hijack action path. Enemy hijack, neutral DriverKilled reclaim, operator passenger handling, and absorbed-hijacker recovery state are implemented; building hijacks, pilot-count survivor integration, audio, and trigger/event parity remain open.",
     },
     "new/include.rst": {
         capabilityId: "ares.effective-ini",
