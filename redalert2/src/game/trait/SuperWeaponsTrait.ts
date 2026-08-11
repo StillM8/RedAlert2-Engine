@@ -35,7 +35,7 @@ export class SuperWeaponsTrait {
         for (const e of t.getCombatants()) {
             for (const i of e.superWeaponsTrait.getAll()) {
                 if (i.rules.isPowered) {
-                    this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.(), t.currentTick);
+                    this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.(), t.currentTick, t);
                 }
                 i.update(t);
             }
@@ -61,7 +61,7 @@ export class SuperWeaponsTrait {
             ?.getAll()
             ?.filter((e: any) => e.rules.isPowered)
             .forEach((e: any) => {
-            this.updateTimer(e, false);
+            this.updateTimer(e, false, undefined, t);
         });
     }
     [NotifyPower.onPowerRestore](e: any, t: any) {
@@ -69,23 +69,23 @@ export class SuperWeaponsTrait {
             ?.getAll()
             ?.filter((e: any) => e.rules.isPowered)
             .forEach((e: any) => {
-            this.updateTimer(e, true);
+            this.updateTimer(e, true, undefined, t);
         });
     }
     [NotifyPower.onPowerChange](e: any, t: any) { }
     [NotifyWarpChange.onChange](e: any, t: any) {
         const i = e.superWeaponTrait?.getSuperWeapon(e);
         if (e.owner.powerTrait && e.isBuilding() && e.superWeaponTrait && i) {
-            this.updateTimer(i, !e.owner.powerTrait.isLowPower());
+            this.updateTimer(i, !e.owner.powerTrait.isLowPower(), undefined, t);
         }
     }
-    private updateTimer(e: any, t: boolean, currentTick?: number) {
+    private updateTimer(e: any, t: boolean, currentTick?: number, world?: any) {
         const i = this.superWeaponHasValidBuilding(e);
         if (t && i) {
             e.resumeTimer(currentTick);
         }
         else {
-            e.pauseTimer(currentTick);
+            e.pauseTimer(currentTick, world);
         }
     }
     private superWeaponHasValidBuilding(t: any) {
@@ -126,7 +126,7 @@ export class SuperWeaponsTrait {
                 const ratio = a.rules.ares.swChargeToDrainRatio ??
                     i.rules.general?.chargeToDrainRatio ??
                     1;
-                if (!a.startChargeDrain(ratio)) {
+                if (!a.startChargeDrain(ratio, i)) {
                     return false;
                 }
             }

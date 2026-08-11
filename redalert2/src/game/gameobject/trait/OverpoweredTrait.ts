@@ -9,6 +9,9 @@ export class OverpoweredTrait {
         this.chargers = new Set();
     }
     isOverpowered(): boolean {
+        if (this.obj?.owner?.powerTrait?.isAresBatteryOverpowering?.(this.obj)) {
+            return true;
+        }
         let requiredChargers = 1;
         if (!this.obj?.poweredTrait?.isPoweredOn(true)) {
             requiredChargers += 2;
