@@ -473,6 +473,15 @@ export class Engine {
         const uiIniFileName = this.getFileNameVariant("ui.ini");
         return this.getIni(uiIniFileName);
     }
+    static getSoundIni(): IniFile {
+        const profileSoundFileName = this.getFileNameVariant("sound.ini");
+        const engineSoundFileName = this.getEngineBaseFileName("sound.ini");
+        const profileSoundIni = this.getIni(profileSoundFileName);
+        if (profileSoundFileName === engineSoundFileName) {
+            return profileSoundIni;
+        }
+        return this.getIni(engineSoundFileName).clone().mergeWith(profileSoundIni);
+    }
     static getIni(fileName: string): IniFile {
         const effective = this.iniSourceLoader?.loadEffectiveIni(fileName);
         if (effective) {

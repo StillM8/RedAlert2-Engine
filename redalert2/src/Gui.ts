@@ -515,9 +515,11 @@ export class Gui {
             debugRoot.audioSystem = this.audioSystem;
             debugRoot.mixer = this.mixer;
             if (Engine.vfs) {
-                // YR ships its full sound index as soundmd.ini; loading the
-                // RA2 file leaves every YR-added entry "not defined".
-                const soundIni = Engine.getIni(Engine.getFileNameVariant('sound.ini'));
+                // Profile sound indexes extend the engine sound index. The
+                // engine helper layers the profile file over soundmd.ini for
+                // profiles that provide an override, while leaving RA2/YR
+                // canonical lookups unchanged.
+                const soundIni = Engine.getSoundIni();
                 const soundSpecs = new SoundSpecs(soundIni);
                 const audioFiles = Engine.getSounds();
                 const missingAudioFiles = soundSpecs.getMissingAudioFiles((filename) => audioFiles.has(filename));
