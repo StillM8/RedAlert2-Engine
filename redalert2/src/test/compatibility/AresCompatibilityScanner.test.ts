@@ -107,6 +107,7 @@ Proximity=yes
                 contents: `
 [ChronoTank]
 Chronoshift.Allow=no
+Chronoshift.Crushable=no
 
 [ChronoBuilding]
 Chronoshift.IsVehicle=yes
@@ -115,7 +116,7 @@ Chronoshift.IsVehicle=yes
         ]);
 
         const usage = report.featureUsage.find((item) => item.featureId === "ares.chronoshift");
-        expect(usage?.occurrences).toBe(2);
+        expect(usage?.occurrences).toBe(3);
         expect(usage?.support?.implemented).toBe(false);
         expect(report.unclassifiedKeys).toBe(0);
     });

@@ -25,12 +25,12 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     },
     {
         id: "ares.chronoshift",
-        description: "Chronoshift.Allow and Chronoshift.IsVehicle eligibility rules",
+        description: "Chronoshift.Allow, Chronoshift.IsVehicle, and Chronoshift.Crushable eligibility rules",
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresChronoshift.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "Chronoshift.Allow and Chronoshift.IsVehicle are parsed and evaluated through a pure generic eligibility slice; unit candidates are filtered through Chronosphere with ReconsiderBuildings and SW.AffectsTarget defaults. Buildings remain outside the existing teleport lifecycle, while Crushable, KillCargo, transport side effects, save/load, and multiplayer/lockstep certification remain open.",
+        notes: "Chronoshift.Allow, Chronoshift.IsVehicle, and Chronoshift.Crushable are parsed and evaluated through a pure generic eligibility slice; unit candidates are filtered through Chronosphere with ReconsiderBuildings and SW.AffectsTarget defaults, and an explicit non-crushable unit collision destroys the chronoshifting unit. Buildings remain outside the existing teleport lifecycle, while KillCargo, transport side effects, save/load, and multiplayer/lockstep certification remain open.",
     },
     {
         id: "ares.chrono-prisons",

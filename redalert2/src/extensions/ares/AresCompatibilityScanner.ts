@@ -328,7 +328,7 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     if (/^trainable$/i.test(key) && /^(?:techno|infantry|vehicle|aircraft|building)$/i.test(sectionKind)) {
         return "ares.customizable-veterancy";
     }
-    if (/^chronoshift\.(?:allow|isvehicle)$/i.test(key)) {
+    if (/^chronoshift\.(?:allow|isvehicle|crushable)$/i.test(key)) {
         return "ares.chronoshift";
     }
     if (/^(?:damageparticlesystems|damagesparks|damagesmokeparticlesystems|damagesparksparticlesystems)$/i.test(key)) {
