@@ -30,10 +30,15 @@ import {
     applyAresSuperWeaponMoney,
     canAresSuperWeaponTransactMoney,
 } from "@/extensions/ares/AresSuperWeaponMoney";
+import {
+    evaluateAresSuperWeaponAvailabilityForOwner,
+    hasAresSuperWeaponAvailabilityConfiguration,
+} from "@/extensions/ares/AresSuperWeaponAvailability";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
     [NotifyTick.onTick](t: any) {
         for (const e of t.getCombatants()) {
+            this.reconcileAresAvailability(e, t);
             for (const i of e.superWeaponsTrait.getAll()) {
                 if (i.rules.isPowered) {
                     this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.(), t.currentTick, t);
@@ -56,6 +61,32 @@ export class SuperWeaponsTrait {
             }
         }
         this.effects = this.effects.filter((e) => e.status !== EffectStatus.Finished);
+    }
+    private reconcileAresAvailability(player: any, world: any): void {
+        const rules = world?.rules?.superWeaponRules?.values?.();
+        if (!rules || !player.superWeaponsTrait) return;
+        for (const superWeaponRules of rules) {
+            if (!superWeaponRules.ares) continue;
+            const current = player.superWeaponsTrait.get(superWeaponRules.name);
+            const result = evaluateAresSuperWeaponAvailabilityForOwner(
+                superWeaponRules.ares,
+                player,
+                superWeaponRules.name,
+                current?.shotsFired ?? player.superWeaponsTrait.getAresShotsFired?.(superWeaponRules.name) ?? 0,
+            );
+            if (result.available) {
+                if (!current) {
+                    const superWeapon = world.createSuperWeapon(superWeaponRules.name, player);
+                    player.superWeaponsTrait.add(superWeapon);
+                    if (superWeapon.rules.isPowered && player.powerTrait?.isLowPower()) {
+                        superWeapon.pauseTimer(world.currentTick);
+                    }
+                }
+            }
+            else if (current && !current.isGift) {
+                player.superWeaponsTrait.remove(superWeaponRules.name);
+            }
+        }
     }
     [NotifyPower.onPowerLow](e: any, t: any) {
         e.superWeaponsTrait
@@ -102,6 +133,15 @@ export class SuperWeaponsTrait {
             ?.getAll()
             .find((e: any) => e.rules.index === t);
         if (a && a.status === SuperWeaponStatus.Ready) {
+            if (a.rules.ares && hasAresSuperWeaponAvailabilityConfiguration(a.rules.ares) &&
+                !evaluateAresSuperWeaponAvailabilityForOwner(
+                a.rules.ares,
+                e,
+                a.name,
+                a.shotsFired ?? e.superWeaponsTrait?.getAresShotsFired?.(a.name) ?? 0,
+            ).available) {
+                return false;
+            }
             const moneyAmount = a.rules.ares?.moneyAmount;
             if (!canAresSuperWeaponTransactMoney(e.credits, moneyAmount)) {
                 // Antares aborts before consuming the charge or dispatching
@@ -133,6 +173,10 @@ export class SuperWeaponsTrait {
             }
             else {
                 a.resetTimer();
+            }
+            a.shotsFired = (a.shotsFired ?? 0) + 1;
+            if (a.rules.ares) {
+                e.superWeaponsTrait?.recordAresSuperWeaponShot?.(a.name, a.shotsFired);
             }
             this.activateEffect(a.rules, e, i, r, s);
             return true;

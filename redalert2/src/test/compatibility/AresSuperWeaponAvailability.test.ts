@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
+import { NotifyTick as WorldNotifyTick } from "@/game/trait/interface/NotifyTick";
+import { SuperWeapon } from "@/game/SuperWeapon";
+import { SuperWeaponStatus } from "@/game/SuperWeapon";
+import { SuperWeaponTrait } from "@/game/gameobject/trait/SuperWeaponTrait";
+import { SuperWeaponsTrait as WorldSuperWeaponsTrait } from "@/game/trait/SuperWeaponsTrait";
+import { SuperWeaponsTrait as PlayerSuperWeaponsTrait } from "@/game/player/trait/SuperWeaponsTrait";
 import {
     evaluateAresSuperWeaponAvailability,
     evaluateAresSuperWeaponAvailabilityForOwner,
+    hasAresSuperWeaponAvailabilityConfiguration,
     type AresSuperWeaponAvailabilityContext,
     type AresSuperWeaponAvailabilityRules,
 } from "@/extensions/ares/AresSuperWeaponAvailability";
@@ -138,5 +146,133 @@ describe("Ares superweapon availability", () => {
             available: true,
             providerBuildingPresent: true,
         });
+    });
+
+    test("detects only the common availability keys, not unrelated Ares fields", () => {
+        expect(hasAresSuperWeaponAvailabilityConfiguration({
+            extensionEntries: new Map([["SW.Damage", "10"]]),
+        })).toBe(false);
+        expect(hasAresSuperWeaponAvailabilityConfiguration({
+            extensionEntries: new Map([["SW.AllowAI", "no"]]),
+        })).toBe(true);
+    });
+
+    test("grants and revokes an Ares superweapon from generic building state", () => {
+        const superWeaponRules: any = {
+            name: "MOBlast",
+            index: 7,
+            rechargeTime: 1,
+            isPowered: false,
+            ares: { auxBuildings: "AuxA" },
+        };
+        const playerSuperWeapons = new PlayerSuperWeaponsTrait();
+        const owner: any = {
+            country: { id: "CountryA" },
+            isAi: false,
+            defeated: false,
+            credits: 0,
+            superWeaponsTrait: playerSuperWeapons,
+            buildings: [],
+            getOwnedObjectsByType: () => owner.buildings,
+        };
+        const world: any = {
+            currentTick: 0,
+            rules: {
+                getSuperWeapon: () => superWeaponRules,
+                superWeaponRules: new Map([[superWeaponRules.name, superWeaponRules]]),
+            },
+            createSuperWeapon: (name: string, player: any) => new SuperWeapon(name, superWeaponRules, player),
+            getCombatants: () => [owner],
+            events: { dispatch: () => undefined },
+            traits: { filter: () => [] },
+        };
+        const worldSuperWeapons = new WorldSuperWeaponsTrait();
+        const provider = {
+            name: "ProviderA",
+            rules: { name: "ProviderA", superWeapon: "MOBlast" },
+            owner,
+        };
+        const auxiliary = { name: "AuxA", rules: { name: "AuxA" } };
+        owner.buildings.push(provider);
+
+        const providerTrait = new SuperWeaponTrait("MOBlast");
+        providerTrait[NotifySpawn.onSpawn](provider, world);
+        expect(playerSuperWeapons.has("MOBlast")).toBe(false);
+
+        owner.buildings.push(auxiliary);
+        worldSuperWeapons[WorldNotifyTick.onTick](world);
+        expect(playerSuperWeapons.has("MOBlast")).toBe(true);
+
+        owner.buildings = [provider];
+        worldSuperWeapons[WorldNotifyTick.onTick](world);
+        expect(playerSuperWeapons.has("MOBlast")).toBe(false);
+    });
+
+    test("AlwaysGranted can create a superweapon without a provider building", () => {
+        const superWeaponRules: any = {
+            name: "AlwaysSW",
+            index: 8,
+            rechargeTime: 1,
+            isPowered: false,
+            ares: { alwaysGranted: true },
+        };
+        const playerSuperWeapons = new PlayerSuperWeaponsTrait();
+        const owner: any = {
+            country: { id: "CountryA" },
+            isAi: false,
+            defeated: false,
+            credits: 0,
+            superWeaponsTrait: playerSuperWeapons,
+            buildings: [],
+            getOwnedObjectsByType: () => owner.buildings,
+        };
+        const world: any = {
+            currentTick: 0,
+            rules: { superWeaponRules: new Map([[superWeaponRules.name, superWeaponRules]]) },
+            createSuperWeapon: (name: string, player: any) => new SuperWeapon(name, superWeaponRules, player),
+            getCombatants: () => [owner],
+            events: { dispatch: () => undefined },
+            traits: { filter: () => [] },
+        };
+
+        const worldSuperWeapons = new WorldSuperWeaponsTrait();
+        worldSuperWeapons[WorldNotifyTick.onTick](world);
+        expect(playerSuperWeapons.has("AlwaysSW")).toBe(true);
+    });
+
+    test("finite Shots rejects the next launch after the configured count", () => {
+        const superWeaponRules: any = {
+            name: "LimitedSW",
+            index: 9,
+            rechargeTime: 1,
+            isPowered: false,
+            ares: { shots: 1, alwaysGranted: true },
+        };
+        const playerSuperWeapons = new PlayerSuperWeaponsTrait();
+        const owner: any = {
+            country: { id: "CountryA" },
+            isAi: false,
+            defeated: false,
+            credits: 0,
+            superWeaponsTrait: playerSuperWeapons,
+            buildings: [],
+            getOwnedObjectsByType: () => owner.buildings,
+        };
+        const weapon = new SuperWeapon("LimitedSW", superWeaponRules, owner);
+        weapon.status = SuperWeaponStatus.Ready;
+        playerSuperWeapons.add(weapon);
+        const trait = new WorldSuperWeaponsTrait();
+
+        expect((trait as any).activateSuperWeapon(9, owner, {
+            rules: { general: {} },
+            traits: { filter: () => [] },
+            events: { dispatch: () => undefined },
+        }, {}, {})).toBe(true);
+        weapon.status = SuperWeaponStatus.Ready;
+        expect((trait as any).activateSuperWeapon(9, owner, {
+            rules: { general: {} },
+            traits: { filter: () => [] },
+            events: { dispatch: () => undefined },
+        }, {}, {})).toBe(false);
     });
 });

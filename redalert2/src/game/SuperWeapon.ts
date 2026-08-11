@@ -39,6 +39,7 @@ export class SuperWeapon {
         this.oneTimeOnly = oneTimeOnly;
         this.status = SuperWeaponStatus.Charging;
         this.isGift = false;
+        this.shotsFired = owner?.superWeaponsTrait?.getAresShotsFired?.(name, owner) ?? 0;
         this.rechargeTicks = 60 * rules.rechargeTime * GameSpeed.BASE_TICKS_PER_SECOND;
         this.chargeTicks = this.rechargeTicks;
         // Antares grants a newly acquired SW.InitialReady superweapon its
@@ -50,6 +51,8 @@ export class SuperWeapon {
             this.chargeTicks = 0;
         }
     }
+    /** Ares SW.Shots history, retained when a temporary grant disappears. */
+    public shotsFired: number;
     update(game: any): void {
         if (this.status === SuperWeaponStatus.Draining) {
             this.updateChargeDrain(game);
