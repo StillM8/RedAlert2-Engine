@@ -51,10 +51,29 @@ usage currently is:
 | EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
 | Projectile Airburst/Splits extensions | 614 | 1 | 232 / 232 | parser/runtime slice implemented; Proximity and target-content flight certification remain open |
 | VehicleThief / CanDrive | 271 | 1 | 263 / 263 | core runtime implemented, integration gaps remain |
-| Damage particle systems | 590 | 1 | 590 | parser inventory only; generic runtime gap remains |
-| PCX cameos | 708 | 1 | 525 | parser/presentation gap remains |
+| AttachEffect combat | 820 | 1 | 218 / 218 | parser/model complete; state, trait, and Speed/Armor/Firepower/ROF callsites wired; animation/cloak and transport/temporal lifecycle remain partial |
+| Bounty | 1,343 | 1 | 626 / 626 | parser/runtime missing; economy, combat, presentation, and country gates remain |
+| Chronoshift eligibility | 1,042 | 1 | 1,041 / 1,041 | parser/model complete; unit candidates filtered through Chronosphere; buildings, Crushable, KillCargo, and transport integration remain partial |
+| PCX cameos | 708 | 1 | 525 / 525 | parser/model complete; 60x48 VFS discovery and validated manifest present; SHP-only sidebar display remains partial |
+| Damage particle systems | 590 | 1 | 590 | parser/model complete; TechnoRules selection and legacy vehicle smoke gate wired; ParticleSystem spawn, sparks, and non-vehicle coverage remain partial |
 | Reverse engineering | 515 | 1 | 515 | generic eligibility and production gap remains |
-| Chronoshift eligibility | 1,042 | 1 | 1,041 | generic object/building semantics remain |
+| Customizable veterancy | 427 | 1 | 427 / 427 | experience-source and Trainable semantics remain |
+
+## Remaining MO-used P0 Ares backlog
+
+The official Ares pages define these as separate generic capabilities: [AttachEffect](https://ares-developers.github.io/Ares-docs/new/attacheffect.html), [Chronoshift](https://ares-developers.github.io/Ares-docs/new/chronoshift.html), [PCX Cameos](https://ares-developers.github.io/Ares-docs/new/pcxcameos.html), [Damage Particle Systems](https://ares-developers.github.io/Ares-docs/new/damageparticlesystems.html), [Reverse Engineer logic](https://ares-developers.github.io/Ares-docs/new/reverseengineerlogic.html), [Bounty](https://ares-developers.github.io/Ares-docs/new/bounty.html), and [Customizable Veterancy](https://ares-developers.github.io/Ares-docs/new/customizableveterancy.html).
+
+The local scan records **1,042 Chronoshift occurrences across 1,041 definitions**, second only to Bounty's 1,343 occurrences. The current generic slice covers unit eligibility and Chronosphere filtering, while Bounty remains the largest unimplemented capability and crosses economy, combat attribution, presentation, global enablers, country gates, and veterancy-specific values.
+
+| Capability | Exact scan evidence | Official generic boundary | Current gap |
+| --- | --- | --- | --- |
+| AttachEffect combat | 820 occurrences; 218 definitions | `AttachEffect.SpeedMultiplier`, `ArmorMultiplier`, `FirepowerMultiplier`, `ROFMultiplier` plus existing duration/protection fields | Speed, armor, firepower, and ROF callsites are wired; animation/cloak hooks, transport/temporal lifecycle, save/load, and lockstep replay remain |
+| Chronoshift eligibility | 1,042 occurrences; 1,041 definitions | `Chronoshift.Allow`, `Chronoshift.IsVehicle` | Building placement, `Crushable`, `KillCargo`, transport side effects, save/load, and lockstep certification |
+| Bounty | 1,343 occurrences; 626 definitions | `BountyEnablers`, `Bounty`, `Bounty.Display`, value tiers, `BountyDisplay`, `GivesBounty` | Economy attribution, combat/crush hooks, presentation, country gates, persistence |
+| PCX cameos | 708 occurrences; 525 definitions | `CameoPCX`, `AltCameoPCX`, `SidebarPCX` with Ares's 60x48 256-color asset contract | VFS discovery/validation is wired; SHP-only sidebar display, palette/display certification, save/mod-hash, and multiplayer certification remain |
+| Damage particle systems | 590 occurrences; 590 definitions | `DamageSparks`, `DamageSmokeParticleSystems`, `DamageSparksParticleSystems` | TechnoRules selection and legacy vehicle smoke gating are wired; ParticleSystem metadata lookup, health-threshold spawning/random selection, complete sparks rendering, non-vehicle coverage, save/load, and multiplayer certification remain |
+| Reverse engineering | 515 occurrences; 515 definitions | `ReverseEngineersVictims`, `CanBeReversed`, `ReversedAs`, and reverse-engineering reset | Production unlocks, AI/build limits, spy reset, persistence |
+| Customizable veterancy | 427 occurrences; 427 definitions | `Trainable` plus passenger, airstrike, mind-control, and spawn experience modifiers | Kill-credit routing, modifier application, occupier/passenger behavior, persistence |
 
 The scanner currently reports a broad unclassified bucket because ordinary
 Mental Omega content is not all safely classifiable from INI spelling alone.
@@ -68,8 +87,7 @@ This is intentionally not a claim of complete runtime compatibility yet.
 The scanner and feature registry are the source of truth for the next phases:
 
 1. keep the canonical profile roots and requirement report current;
-2. implement the next MO-used generic Ares capability, beginning with shared
-   superweapon availability/grant state;
+2. continue by capability boundary: complete the highest-value missing generic features and the remaining runtime slices documented in the registry;
 3. verify each capability with a synthetic fixture and local MO integration
    test;
 4. validate skirmish, save/load, deterministic lockstep, LAN, and campaigns.

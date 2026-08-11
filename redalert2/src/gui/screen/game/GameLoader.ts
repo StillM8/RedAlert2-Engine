@@ -118,8 +118,10 @@ export class GameLoader {
             Engine.vfs.addArchive(new MixFile(new DataStream(cdnResources.pop(ResourceType.Cameo))), this.cdnResourceLoader.getResourceFileName(ResourceType.Cameo));
             await Engine.vfs.addMixFile('cameocd.mix');
         }
-        const cameoFilenames = this.collectCameoFileNames(game);
         await this.loadHudSideImages(cdnResources, hudSide, sideDescriptor, useYuriArt);
+        // Side mixes may contain both legacy SHP cameos and Ares PCX assets;
+        // collect after mounting them so optional PCXs are not missed.
+        const cameoFilenames = this.collectCameoFileNames(game);
         loadingScreenApi.onLoadProgress(40);
         await sleep(1);
         if (cdnResources) {
@@ -192,9 +194,6 @@ export class GameLoader {
             if (superWeapon.sidebarImage?.length) {
                 filenames.push(superWeapon.sidebarImage + '.shp');
             }
-            // The current shared superweapon model does not retain SidebarPCX.
-            // Accept it when a caller already supplies the generic extension,
-            // without reaching into private rules/parser state here.
             pcxDefinitions.push(normalizeAresPcxCameos({
                 sidebarPcx: superWeapon.sidebarPcx ?? superWeapon.ares?.sidebarPcx,
                 sidebarImage: superWeapon.sidebarImage,
