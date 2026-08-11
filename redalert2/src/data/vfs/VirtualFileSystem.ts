@@ -528,6 +528,37 @@ export class VirtualFileSystem {
                 });
             }
         }
+        // Imported installations can contain profile containers that are not
+        // part of the numbered expand/ecache/elocal families (for example
+        // mapsmo##.mix, movmo##.mix, or multimo.mix). Keep the importer
+        // generic by mounting every remaining root MIX, while leaving the
+        // implicit retail set to loadImplicitMixFiles in its normal order.
+        const implicitMixes = new Set([
+            "language.mix", "langmd.mix", "ra2.mix", "ra2md.mix", "multi.mix", "multimd.mix",
+            "cache.mix", "cachemd.mix", "load.mix", "loadmd.mix", "local.mix", "localmd.mix",
+            "neutral.mix", "ntrlmd.mix", "audio.mix", "audiomd.mix", "conquer.mix", "conqmd.mix",
+            "generic.mix", "genermd.mix", "isogen.mix", "isogenmd.mix", "cameo.mix", "cameomd.mix",
+            "cameocd.mix",
+        ].map(gamePathKey));
+        const remainingMixes = new Map<string, string>();
+        for (const rfsFile of rfsEntries) {
+            const filename = gamePathLeaf(rfsFile);
+            const key = gamePathKey(filename);
+            if (!/\.mix$/i.test(filename) || implicitMixes.has(key) || remainingMixes.has(key)) {
+                continue;
+            }
+            remainingMixes.set(key, rfsFile);
+        }
+        for (const [key, rfsFile] of remainingMixes) {
+            const filename = key;
+            if (this.hasArchive(filename)) {
+                continue;
+            }
+            await this.addMixFile(filename, {
+                ...this.metadataForExtraMix(filename, profile),
+                provenance: [rfsFile],
+            });
+        }
         const mapExtensions = [".mmx"];
         if (engineType === EngineType.YurisRevenge) {
             mapExtensions.push(".yro");

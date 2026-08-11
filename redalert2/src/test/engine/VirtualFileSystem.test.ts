@@ -298,4 +298,31 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.hasArchive("audio01.bag")).toBe(true);
         expect(vfs.openFile("nestedvoice.wav").getSize()).toBeGreaterThan(4);
     });
+
+    test("mounts non-numbered profile MIX containers from imported storage", async () => {
+        const files = new Map<string, Uint8Array>([
+            ["mapsmo03.mix", createEmptyMixBytes()],
+            ["multimo.mix", createEmptyMixBytes()],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) throw new FileNotFoundError(filename);
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("mapsmo03.mix")).toBe(true);
+        expect(vfs.hasArchive("multimo.mix")).toBe(true);
+    });
 });
