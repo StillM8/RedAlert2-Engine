@@ -4,6 +4,7 @@ import { VirtualFile } from './vfs/VirtualFile';
 export { IniSection } from './IniSection';
 export class IniFile {
     public sections: Map<string, IniSection>;
+    private sectionKeys = new Map<string, string>();
     constructor(source?: VirtualFile | Record<string, any> | string) {
         this.sections = new Map();
         if (source instanceof VirtualFile) {
@@ -31,17 +32,12 @@ export class IniFile {
     }
     public fromJson(sectionsObject: Record<string, any>): this {
         this.sections.clear();
+        this.sectionKeys.clear();
         for (const sectionName in sectionsObject) {
             if (sectionsObject.hasOwnProperty(sectionName)) {
                 const sectionData = sectionsObject[sectionName];
                 if (sectionData instanceof IniSection) {
-                    const existing = this.getSection(sectionName);
-                    if (existing) {
-                        existing.mergeWith(sectionData);
-                    }
-                    else {
-                        this.sections.set(sectionName, sectionData);
-                    }
+                    this.getOrCreateSection(sectionName).mergeWith(sectionData);
                 }
                 else if (typeof sectionData === 'object' && sectionData !== null) {
                     const newSection = this.getOrCreateSection(sectionName);
@@ -64,24 +60,45 @@ export class IniFile {
     public clone(): IniFile {
         const newIniFile = new IniFile();
         this.sections.forEach((section, sectionName) => {
-            newIniFile.sections.set(sectionName, section.clone());
+            newIniFile.getOrCreateSection(sectionName).mergeWith(section);
         });
         return newIniFile;
     }
+    private canonicalSectionName(sectionName: string): string {
+        return sectionName.toLocaleLowerCase('en-US');
+    }
+    private findSectionKey(sectionName: string): string | undefined {
+        const normalized = this.canonicalSectionName(sectionName);
+        const indexedSectionName = this.sectionKeys.get(normalized);
+        if (indexedSectionName !== undefined && this.sections.has(indexedSectionName)) {
+            return indexedSectionName;
+        }
+        if (this.sections.has(sectionName)) {
+            this.sectionKeys.set(normalized, sectionName);
+            return sectionName;
+        }
+        if (this.sectionKeys.size !== this.sections.size) {
+            const existingSectionName = [...this.sections.keys()].find((candidate) =>
+                this.canonicalSectionName(candidate) === normalized);
+            if (existingSectionName !== undefined) {
+                this.sectionKeys.set(normalized, existingSectionName);
+            }
+            return existingSectionName;
+        }
+        return undefined;
+    }
     public getOrCreateSection(sectionName: string): IniSection {
-        const existingSectionName = [...this.sections.keys()].find((existingName) =>
-            existingName.toLocaleLowerCase('en-US') === sectionName.toLocaleLowerCase('en-US'));
+        const existingSectionName = this.findSectionKey(sectionName);
         let section = existingSectionName === undefined ? undefined : this.sections.get(existingSectionName);
         if (!section) {
             section = new IniSection(sectionName);
             this.sections.set(sectionName, section);
+            this.sectionKeys.set(this.canonicalSectionName(sectionName), sectionName);
         }
         return section;
     }
     public getSection(sectionName: string): IniSection | undefined {
-        const normalized = sectionName.toLocaleLowerCase('en-US');
-        const existingName = [...this.sections.keys()].find((name) =>
-            name.toLocaleLowerCase('en-US') === normalized);
+        const existingName = this.findSectionKey(sectionName);
         return existingName === undefined ? undefined : this.sections.get(existingName);
     }
     public getOrderedSections(): IniSection[] {

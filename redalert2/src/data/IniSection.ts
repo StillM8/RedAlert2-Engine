@@ -2,6 +2,8 @@ export class IniSection {
     public entries: Map<string, string | string[]>;
     public sections: Map<string, IniSection>;
     public name: string;
+    private entryKeys = new Map<string, string>();
+    private sectionKeys = new Map<string, string>();
     constructor(name: string) {
         this.entries = new Map();
         this.sections = new Map();
@@ -21,21 +23,48 @@ export class IniSection {
         }
         return this;
     }
+    private canonicalName(name: string): string {
+        return name.toLocaleLowerCase("en-US");
+    }
     private findEntryKey(key: string): string | undefined {
+        const normalized = this.canonicalName(key);
+        const indexedKey = this.entryKeys.get(normalized);
+        if (indexedKey !== undefined && this.entries.has(indexedKey)) {
+            return indexedKey;
+        }
         if (this.entries.has(key)) {
+            this.entryKeys.set(normalized, key);
             return key;
         }
-        const normalized = key.toLocaleLowerCase("en-US");
-        return [...this.entries.keys()].find((existingKey) =>
-            existingKey.toLocaleLowerCase("en-US") === normalized);
+        if (this.entryKeys.size !== this.entries.size) {
+            const existingKey = [...this.entries.keys()].find((candidate) =>
+                this.canonicalName(candidate) === normalized);
+            if (existingKey !== undefined) {
+                this.entryKeys.set(normalized, existingKey);
+            }
+            return existingKey;
+        }
+        return undefined;
     }
     private findSectionKey(sectionName: string): string | undefined {
+        const normalized = this.canonicalName(sectionName);
+        const indexedSectionName = this.sectionKeys.get(normalized);
+        if (indexedSectionName !== undefined && this.sections.has(indexedSectionName)) {
+            return indexedSectionName;
+        }
         if (this.sections.has(sectionName)) {
+            this.sectionKeys.set(normalized, sectionName);
             return sectionName;
         }
-        const normalized = sectionName.toLocaleLowerCase("en-US");
-        return [...this.sections.keys()].find((existingName) =>
-            existingName.toLocaleLowerCase("en-US") === normalized);
+        if (this.sectionKeys.size !== this.sections.size) {
+            const existingName = [...this.sections.keys()].find((candidate) =>
+                this.canonicalName(candidate) === normalized);
+            if (existingName !== undefined) {
+                this.sectionKeys.set(normalized, existingName);
+            }
+            return existingName;
+        }
+        return undefined;
     }
     public clone(): IniSection {
         const newSection = new IniSection(this.name);
@@ -43,12 +72,14 @@ export class IniSection {
             newSection.set(key, Array.isArray(value) ? [...value] : value);
         });
         this.sections.forEach((section, key) => {
-            newSection.sections.set(key, section.clone());
+            newSection.getOrCreateSection(key).mergeWith(section);
         });
         return newSection;
     }
     public set(key: string, value: string | string[]): void {
-        this.entries.set(this.findEntryKey(key) ?? key, value);
+        const entryKey = this.findEntryKey(key) ?? key;
+        this.entries.set(entryKey, value);
+        this.entryKeys.set(this.canonicalName(entryKey), entryKey);
     }
     public get(key: string): string | string[] | undefined {
         const existingKey = this.findEntryKey(key);
@@ -298,6 +329,7 @@ export class IniSection {
         if (!section) {
             section = new IniSection(sectionName);
             this.sections.set(sectionName, section);
+            this.sectionKeys.set(this.canonicalName(sectionName), sectionName);
         }
         return section;
     }
