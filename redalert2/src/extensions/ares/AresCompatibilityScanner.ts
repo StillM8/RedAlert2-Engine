@@ -306,6 +306,19 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     if (/^poweredby$/i.test(key)) {
         return "ares.powered-by";
     }
+    if (/^(?:abductor(?:\.(?:temporal|anim|changeowner|abductbelowpercent|maxhealth))?)$/i.test(key) &&
+        sectionKind === "Weapon") {
+        return "ares.chrono-prisons";
+    }
+    if (/^(?:passengerturret|immunetoabduction)$/i.test(key) &&
+        ["Techno", "Infantry", "Vehicle", "Aircraft", "Building"].includes(sectionKind)) {
+        return "ares.chrono-prisons";
+    }
+    if ((/^(?:uc\.(?:passthrough|fatalrate|damagemultiplier)|bunker\.raidable|rubble\.(?:destroyed|intact)(?:\.(?:remove|owner|strength|anim))?|istrench|canbeoccupiedby)$/i.test(key) &&
+            sectionKind === "Building") ||
+        (/^subjecttotrenches$/i.test(key) && sectionKind === "Projectile")) {
+        return "ares.urban-combat";
+    }
     if (/^(?:insignia\.(?:rookie|veteran|elite)|insigniaframe\.(?:rookie|veteran|elite)|insignia\.showenemy|enemyinsignia)$/i.test(key)) {
         return "ares.customizable-insignia";
     }

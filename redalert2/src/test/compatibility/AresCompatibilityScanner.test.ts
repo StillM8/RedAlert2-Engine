@@ -183,6 +183,53 @@ PoweredBy=MOGenerator
         expect(report.unclassifiedKeys).toBe(0);
     });
 
+    test("classifies MO-used Chrono Prison and Urban Combat fields as generic Ares requirements", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[WeaponTypes]
+0=MOAbductorWeapon
+
+[MOAbductorWeapon]
+Abductor=yes
+Abductor.Temporal=yes
+Abductor.AbductBelowPercent=75%
+
+[BuildingTypes]
+0=MOTrench
+
+[MOTrench]
+UC.PassThrough=50%
+UC.FatalRate=10%
+UC.DamageMultiplier=125%
+Bunker.Raidable=yes
+Rubble.Destroyed=MOTrenchRubble
+Rubble.Intact=MOTrench
+IsTrench=MOTrenchType
+CanBeOccupiedBy=MOInfantry
+
+[ProjectileTypes]
+0=MOProjectile
+
+[MOProjectile]
+SubjectToTrenches=no
+
+[VehicleTypes]
+0=MOAbductable
+
+[MOAbductable]
+PassengerTurret=yes
+ImmuneToAbduction=no
+`,
+            },
+        ]);
+
+        expect(report.featureUsage.find((item) => item.featureId === "ares.chrono-prisons")?.occurrences).toBe(5);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.urban-combat")?.occurrences).toBe(9);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
     test("keeps common YR object and projectile fields vanilla without inferring Ares", () => {
         const report = scanMentalOmegaIniSources([
             {
