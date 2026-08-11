@@ -593,7 +593,10 @@ export class VirtualFileSystem {
             this.logger.info("No real file system is mounted; skipping standalone file loading.");
             return;
         }
-        const extensionsToLoad = ["ini", "csf", "wav"];
+        // Ares/RA2 installations may overlay artwork outside MIX files too.
+        // Keep the loose-resource set explicit so maps and large auxiliary
+        // payloads are still handled by their dedicated loaders.
+        const extensionsToLoad = ["ini", "csf", "shp", "pal", "pcx"];
         const excludeSet = new Set<string>((options?.exclude || []).map((file) => gamePathKey(file)));
         const filesForMemArchive: VirtualFile[] = [];
         const rfsIndex = await this.getRfsEntryIndex();
@@ -604,10 +607,9 @@ export class VirtualFileSystem {
             const excluded = excludeSet.has(gamePathKey(normalizedEntryName)) ||
                 excludeSet.has(gamePathKey(gamePathLeaf(normalizedEntryName)));
             const isLooseRootWav = lowerEntryName.endsWith(".wav") && !normalizedEntryName.includes("/");
-            const isStandaloneConfig = extensionsToLoad
-                .filter((extension) => extension !== "wav")
+            const isStandaloneResource = extensionsToLoad
                 .some((extension) => lowerEntryName.endsWith("." + extension));
-            if ((isStandaloneConfig || isLooseRootWav) && !excluded) {
+            if ((isStandaloneResource || isLooseRootWav) && !excluded) {
                 try {
                     const file = await this.rfs.openFile(entryName);
                     if (file) {

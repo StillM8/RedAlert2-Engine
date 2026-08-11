@@ -160,11 +160,15 @@ describe("VirtualFileSystem resource precedence", () => {
         const files = new Map([
             ["Install/MIX/rulesmo.ini", VirtualFile.fromBytes(new TextEncoder().encode("[Rules]"), "rulesmo.ini")],
             ["Install/MIX/rules/units.ini", VirtualFile.fromBytes(new TextEncoder().encode("[Unit]"), "units.ini")],
+            ["Install/MIX/sidebar.pal", VirtualFile.fromBytes(new Uint8Array([1, 2, 3]), "sidebar.pal")],
+            ["Install/MIX/radar.shp", VirtualFile.fromBytes(new Uint8Array([4, 5, 6]), "radar.shp")],
         ]);
         const rfs = {
             async *getEntriesRecursive() {
                 yield "Install/MIX/rulesmo.ini";
                 yield "Install/MIX/rules/units.ini";
+                yield "Install/MIX/sidebar.pal";
+                yield "Install/MIX/radar.shp";
             },
             async openFile(filename: string) {
                 const file = files.get(filename);
@@ -182,6 +186,8 @@ describe("VirtualFileSystem resource precedence", () => {
 
         expect(vfs.openFile("RULESMO.INI").readAsString()).toBe("[Rules]");
         expect(vfs.openFile("rules/UNITS.INI").readAsString()).toBe("[Unit]");
+        expect(vfs.openFile("SIDEBAR.PAL").getBytes()).toEqual(new Uint8Array([1, 2, 3]));
+        expect(vfs.openFile("radar.shp").getBytes()).toEqual(new Uint8Array([4, 5, 6]));
     });
 
     test("reuses the imported-storage index across resource consumers", async () => {
