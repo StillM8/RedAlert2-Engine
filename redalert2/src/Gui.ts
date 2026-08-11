@@ -283,11 +283,11 @@ export class Gui {
         this.rootEl.appendChild(this.uiScene.getHtmlContainer().getElement()!);
         console.log('[Gui] Added UiScene HTML container to DOM');
         let hasShownDialog = false;
-        if (this.music && this.audioSystem?.isSuspended() && isNativeShell()) {
+        if (this.audioSystem?.isSuspended() && isNativeShell()) {
             // The native shell allows media playback without a user gesture, but
             // WebKit may leave resume() pending until one arrives — so never
             // await it on the boot path. Kick it off, and retry on first touch.
-            const tryResume = () => this.audioSystem!.initMusicLoop()
+            const tryResume = () => this.audioSystem!.resume()
                 .then(() => console.log('[Gui] Audio auto-resumed (native shell)'))
                 .catch((error) => console.warn('[Gui] Shell audio auto-resume failed:', error));
             void tryResume();
@@ -300,16 +300,16 @@ export class Gui {
             document.addEventListener('pointerdown', onFirstInteraction);
             hasShownDialog = true;
         }
-        if (this.music && !hasShownDialog && this.audioSystem?.isSuspended()) {
+        if (!hasShownDialog && this.audioSystem?.isSuspended()) {
             console.log('[Gui] Audio system is suspended, requesting permission');
             await new Promise<void>((resolve) => {
                 this.messageBoxApi!.show(this.strings.get("GUI:RequestAudioPermission"), this.strings.get("GUI:OK"), async () => {
                     try {
-                        await this.audioSystem!.initMusicLoop();
-                        console.log('[Gui] Audio permission granted and music loop initialized');
+                        await this.audioSystem!.resume();
+                        console.log('[Gui] Audio permission granted');
                     }
                     catch (error) {
-                        console.error('[Gui] Failed to initialize music loop:', error);
+                        console.error('[Gui] Failed to resume audio:', error);
                     }
                     resolve();
                 });

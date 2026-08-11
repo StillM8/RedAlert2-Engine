@@ -52,6 +52,19 @@ export class AudioSystem {
         this.disposables.add(() => this.mixer.onVolumeChange.unsubscribe(this.handleVolumeChange));
         this.createChannels(this.audioContext, this.mixer);
     }
+    async resume(): Promise<void> {
+        if (!this.audioContext) {
+            throw new Error("Can't resume audio system because it is not initialized");
+        }
+        if (this.audioContext.state === 'running') {
+            return;
+        }
+        if (this.audioContext.state === 'closed') {
+            throw new Error("Can't resume audio system because its AudioContext is closed");
+        }
+        await this.audioContext.resume();
+        console.log('[AudioSystem] AudioContext resumed successfully');
+    }
     dispose(): void {
         this.disposables.dispose();
         if (this.audioContext) {
@@ -234,16 +247,7 @@ export class AudioSystem {
         if (!this.isInitialized()) {
             throw new Error("Can't initialize music loop because audio system is not initialized");
         }
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            try {
-                await this.audioContext.resume();
-                console.log('[AudioSystem] AudioContext resumed successfully');
-            }
-            catch (error) {
-                console.error('[AudioSystem] Failed to resume AudioContext:', error);
-                throw error;
-            }
-        }
+        await this.resume();
         if (!this.musicState) {
             this.initMusicNode();
         }
