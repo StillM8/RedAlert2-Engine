@@ -3,6 +3,7 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import {
     aresEmpThresholdExceeded,
     defaultAresEmpImmunity,
+    isAresEmpTypeImmune,
     parseAresEmpThreshold,
     resolveAresEmpCounter,
 } from "@/extensions/ares/AresEMP";
@@ -149,6 +150,20 @@ describe("Ares EMP rules", () => {
         })).toBe(true);
     });
 
+    test("TypeImmune protects same-owner technos that can fire EMP", () => {
+        const owner = {};
+        const empWeapon = { warhead: { rules: { empDuration: 30 } } };
+        const target: any = {
+            owner,
+            rules: { typeImmune: true },
+            armedTrait: { getWeapons: () => [empWeapon] },
+        };
+        expect(isAresEmpTypeImmune(target, owner)).toBe(true);
+        expect(isAresEmpTypeImmune(target, {})).toBe(false);
+        target.armedTrait.getWeapons = () => [{ warhead: { rules: { empDuration: 0 } } }];
+        expect(isAresEmpTypeImmune(target, owner)).toBe(false);
+    });
+
     test("parses warhead EMP duration and cap independently of legacy EMEffect", () => {
         const section = new IniSection("EMPWH");
         section.set("EMEffect", "yes");
@@ -160,6 +175,18 @@ describe("Ares EMP rules", () => {
         expect(rules.empDuration).toBe(150);
         expect(rules.empCap).toBe(300);
         expect(rules.affectsEnemies).toBe(false);
+    });
+
+    test("uses Ares warhead effect gate defaults and overrides", () => {
+        const defaults = new WarheadRules(new IniSection("Defaults"));
+        expect(defaults.effectsRequireDamage).toBe(false);
+        expect(defaults.effectsRequireVerses).toBe(true);
+        const section = new IniSection("Overrides");
+        section.set("EffectsRequireDamage", "yes");
+        section.set("EffectsRequireVerses", "no");
+        const overrides = new WarheadRules(section);
+        expect(overrides.effectsRequireDamage).toBe(true);
+        expect(overrides.effectsRequireVerses).toBe(false);
     });
 
     test("paralyzes movement and attack, counts down, and restores prior disable state", () => {

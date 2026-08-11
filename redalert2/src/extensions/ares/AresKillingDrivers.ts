@@ -95,6 +95,22 @@ function allPlayers(game: AresKillingDriverGame): any[] {
     return game.getAllPlayers?.() ?? [];
 }
 
+/** Ares treats a passive-neutral owner as the reclaimable neutral side. */
+export function isAresNeutralOwner(owner: any): boolean {
+    return owner?.isNeutral === true ||
+        owner?.multiplayPassive === true ||
+        owner?.rules?.multiplayPassive === true ||
+        owner?.country?.multiplayPassive === true ||
+        owner?.country?.rules?.multiplayPassive === true;
+}
+
+/** Resolve the TechnoType/Country CanBeDriven opt-outs on a target. */
+export function canAresTargetBeDriven(target: AresDriverTarget): boolean {
+    if (target.rules?.canBeDriven === false) return false;
+    const country = target.owner?.country?.rules ?? target.owner?.country;
+    return country?.canBeDriven !== false && target.owner?.rules?.canBeDriven !== false;
+}
+
 /**
  * Antares' IsDriverKillable predicate translated to the standalone object
  * model.  The checks deliberately operate on capabilities/flags rather than
@@ -169,9 +185,12 @@ function operatorPassengers(target: AresDriverTarget): any[] {
     const rules = target.rules ?? {};
     if (!passengers.length) return [];
 
-    if (rules.operatorAny) return [...passengers];
+    // `_ANY_` means an unrestricted physical driver, not that every
+    // passenger is a driver. Ares removes the first passenger only.
+    if (rules.operatorAny) return [passengers[0]];
     const required = new Set((rules.operator ?? []).map((value: unknown) => normalize(value)).filter(Boolean));
-    if (!required.size) return [];
+    // With no Operator list the first passenger is the physical driver.
+    if (!required.size) return [passengers[0]];
     const driver = passengers.find((passenger) => required.has(passengerName(passenger)));
     return driver ? [driver] : [];
 }
@@ -309,6 +328,14 @@ export function applyAresKillDriver(
 
     game.changeObjectOwner?.(target, newOwner);
     if (!game.changeObjectOwner) target.owner = newOwner;
+    if (rules.killDriverRemoveVeterancy) {
+        target.veteranTrait?.resetToRookie?.();
+        // Keep the generic adapter useful for lightweight hosts that expose
+        // the level as a plain field rather than VeteranTrait.
+        if (target.veteranTrait && typeof target.veteranTrait.resetToRookie !== "function") {
+            target.veteranTrait.veteranLevel = 0;
+        }
+    }
     state.markDriverKilled();
     disableDriverlessTarget(target);
     return true;
@@ -319,5 +346,7 @@ export function canAresDriverReclaim(driver: any, target: AresDriverTarget): boo
     return driver?.isInfantry?.() === true &&
         driver?.rules?.canDrive === true &&
         (target.isVehicle?.() === true || target.isAircraft?.() === true) &&
+        isAresNeutralOwner(target.owner) &&
+        canAresTargetBeDriven(target) &&
         target.aresDriverTrait?.isDriverKilled?.() === true;
 }

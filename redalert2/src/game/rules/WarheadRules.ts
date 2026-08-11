@@ -9,6 +9,9 @@ export class WarheadRules {
     public aresAttachEffect?: AresAttachEffectDefinition;
     public affectsAllies!: boolean;
     public affectsEnemies!: boolean;
+    /** Ares warhead effect gates. */
+    public effectsRequireDamage!: boolean;
+    public effectsRequireVerses!: boolean;
     public airstrike!: boolean;
     public psychedelic!: boolean;
     public animList!: string[];
@@ -74,6 +77,8 @@ export class WarheadRules {
     private parse(): void {
         this.affectsAllies = this.rules.getBool("AffectsAllies", true);
         this.affectsEnemies = this.rules.getBool("AffectsEnemies", true);
+        this.effectsRequireDamage = this.rules.getBool("EffectsRequireDamage", false);
+        this.effectsRequireVerses = this.rules.getBool("EffectsRequireVerses", true);
         this.airstrike = this.rules.getBool("Airstrike");
         this.psychedelic = this.rules.getBool("Psychedelic");
         this.animList = this.rules.getArray("AnimList");

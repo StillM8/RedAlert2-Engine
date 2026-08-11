@@ -75,6 +75,8 @@ export class TechnoRules extends ObjectRules {
     declare protectedDriverMinHealth?: number;
     /** Ares Killing Drivers: infantry can reclaim a driverless vehicle. */
     declare canDrive: boolean;
+    /** Ares Killing Drivers: this vehicle/aircraft can be reclaimed. */
+    declare canBeDriven: boolean;
     /** Ares restored Vehicle Thief: infantry can take eligible enemy vehicles. */
     declare vehicleThief: boolean;
     /** Ares VehicleThief target-side opt-out. */
@@ -433,6 +435,7 @@ export class TechnoRules extends ObjectRules {
             ? this.ini.getNumber("ProtectedDriver.MinHealth")
             : undefined;
         this.canDrive = this.ini.getBool("CanDrive");
+        this.canBeDriven = this.ini.getBool("CanBeDriven", true);
         this.vehicleThief = this.ini.getBool("VehicleThief");
         this.hijackerAllowed = this.ini.getBool("VehicleThief.Allowed", true);
         this.hijackerBreakMindControl = this.ini.getBool("VehicleThief.BreakMindControl", true);

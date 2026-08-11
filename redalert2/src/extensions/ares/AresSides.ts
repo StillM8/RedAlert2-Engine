@@ -83,6 +83,8 @@ export interface CountryDescriptor {
     loadScreenTextColor?: string;
     multiplayerSelectable: boolean;
     multiplayerPassive?: boolean;
+    /** Ares country-level CanBeDriven override. */
+    canBeDriven?: boolean;
     randomSelectionWeight: number;
     listIndex: number;
     loadScreen?: string;
@@ -385,6 +387,9 @@ export class AresCountryRegistry {
                 loadScreenTextColor: sectionValue(section, "LoadScreenText.Color"),
                 multiplayerSelectable: sectionBool(section, "Multiplay"),
                 multiplayerPassive: sectionBool(section, "MultiplayPassive"),
+                canBeDriven: sectionValue(section, "CanBeDriven") !== undefined
+                    ? sectionBool(section, "CanBeDriven")
+                    : sectionBool(section, "MultiplayPassive"),
                 randomSelectionWeight: sectionNumber(section, "RandomSelectionWeight", 1),
                 listIndex: sectionNumber(section, "ListIndex", 100),
                 loadScreen: sectionValue(section, "File.LoadScreen") ?? sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),

@@ -20,7 +20,7 @@ import { IniSection } from "@/data/IniSection";
 import { ProjectileRules } from "@/game/rules/ProjectileRules";
 import { AnimTerrainEffect } from "@/game/gameobject/common/AnimTerrainEffect";
 import { ObjectAttackedEvent } from "@/game/event/ObjectAttackedEvent";
-import { aresEmpThresholdExceeded } from "@/extensions/ares/AresEMP";
+import { aresEmpThresholdExceeded, isAresEmpTypeImmune } from "@/extensions/ares/AresEMP";
 import { applyAresKillDriver } from "@/extensions/ares/AresKillingDrivers";
 import {
     resolveAresAttachEffectCombat,
@@ -127,6 +127,8 @@ interface WarheadRules {
     infDeath: DeathType;
     affectsAllies: boolean;
     affectsEnemies?: boolean;
+    effectsRequireDamage: boolean;
+    effectsRequireVerses: boolean;
     causesDelayKill: boolean;
     delayKillAtMax: number;
     delayKillFrames: number;
@@ -522,7 +524,10 @@ export class Warhead {
                 continue;
             }
             const attachEffectApplied = this.applyAresAttachEffect(obj, gameWorld);
-            const killDriverApplied = this.rules.killDriver && obj.isTechno() &&
+            const verses = obj.isTechno() ? (this.rules.verses.get(obj.rules.armor) ?? 1) : 1;
+            const aresEffectsAllowed = (!this.rules.effectsRequireVerses || verses !== 0) &&
+                (!this.rules.effectsRequireDamage || damage > 0);
+            const killDriverApplied = aresEffectsAllowed && this.rules.killDriver && obj.isTechno() &&
                 sourceObj &&
                 applyAresKillDriver(obj as any, sourceObj, gameWorld as any, {
                     killDriver: this.rules.killDriver,
@@ -648,7 +653,8 @@ export class Warhead {
             return false;
         }
         const techno = target as TechnoObject;
-        if (!techno.empTrait || techno.rules.immuneToEMP) {
+        const sourcePlayer = weaponInfo?.player ?? weaponInfo?.obj?.owner;
+        if (!techno.empTrait || techno.rules.immuneToEMP || isAresEmpTypeImmune(techno, sourcePlayer)) {
             return false;
         }
         const verses = this.rules.verses.get(target.rules.armor);
@@ -656,7 +662,6 @@ export class Warhead {
             return false;
         }
 
-        const sourcePlayer = weaponInfo?.player ?? weaponInfo?.obj?.owner;
         if (sourcePlayer) {
             const isFriendly = target.owner === sourcePlayer || gameWorld.alliances.areAllied(target.owner, sourcePlayer);
             if ((isFriendly && !this.rules.affectsAllies) ||

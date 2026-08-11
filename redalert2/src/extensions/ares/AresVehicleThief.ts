@@ -1,6 +1,6 @@
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
-import { AresDriverTrait } from "./AresKillingDrivers";
+import { AresDriverTrait, canAresDriverReclaim } from "./AresKillingDrivers";
 import { fnv32aStrings } from "@/util/math";
 
 /** The two actions exposed by Antares' shared vehicle-hijack path. */
@@ -9,6 +9,7 @@ export type AresVehicleHijackAction = "none" | "drive" | "hijack";
 export interface AresVehicleThiefRules {
     vehicleThief?: boolean;
     canDrive?: boolean;
+    canBeDriven?: boolean;
     hijackerAllowed?: boolean;
     hijackerBreakMindControl?: boolean;
     hijackerOneTime?: boolean;
@@ -128,7 +129,7 @@ export function getAresVehicleHijackAction(
 
     // CanDrive is the generic driver/reclaim capability.  It is intentionally
     // limited to the neutral, driverless object produced by KillDriver.
-    if (canDrive && isNeutral(target.owner) && isDriverless(target)) {
+    if (canDrive && canAresDriverReclaim(driver, target)) {
         return "drive";
     }
 
@@ -215,6 +216,17 @@ export class AresVehicleHijackerTrait implements NotifyDestroy {
         const refund = game.sellTrait?.computeRefundValue?.(hijacker) ??
             Math.max(0, hijacker.purchaseValue ?? hijacker.rules?.cost ?? 0);
         if (refund > 0) grinderOwner.credits += refund;
+        if (!hijacker.isDestroyed) {
+            if (game.destroyObject) {
+                game.destroyObject(hijacker, undefined, true);
+            }
+            else {
+                hijacker.isDestroyed = true;
+                hijacker.isSpawned = false;
+                hijacker.limboData = undefined;
+                hijacker.owner?.removeOwnedObject?.(hijacker);
+            }
+        }
         this.clear();
         return refund;
     }

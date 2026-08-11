@@ -15,6 +15,7 @@ interface CountryRules {
     loadScreenPalette?: string;
     multiplay: boolean;
     isMultiplayerPassive: boolean;
+    canBeDriven: boolean;
     legacySideFallback: boolean;
     order: number;
     networkIndex: number;
@@ -91,6 +92,9 @@ export class Country {
     }
     get isMultiplayerPassive(): boolean {
         return this.rules.isMultiplayerPassive;
+    }
+    get canBeDriven(): boolean {
+        return this.rules.canBeDriven;
     }
     get name(): string {
         return this.rules.name;

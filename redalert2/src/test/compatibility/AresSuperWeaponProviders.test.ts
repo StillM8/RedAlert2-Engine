@@ -38,6 +38,13 @@ describe("Ares multi-slot superweapon providers", () => {
         ]);
     });
 
+    test("counts SuperWeapon2 as an EMP-sensitive building function", () => {
+        const section = new IniSection("SecondProviderOnly");
+        section.set("SuperWeapon2", "MOBlast");
+        const rules = new TechnoRules(ObjectType.Building, section, 0, {}, new ArmorRegistry());
+        expect(rules.immuneToEMP).toBe(false);
+    });
+
     test("availability sees any provider slot and retains logical-SW ownership semantics", () => {
         const owner: any = {
             country: { id: "CountryA" },

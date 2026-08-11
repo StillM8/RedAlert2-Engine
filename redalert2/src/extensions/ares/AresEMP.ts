@@ -25,6 +25,18 @@ export interface AresEmpImmunityInputs {
     organic: boolean;
 }
 
+/** Ares TypeImmune only protects a same-owner techno that can fire EMP. */
+export function isAresEmpTypeImmune(target: any, sourceOwner: any): boolean {
+    if (!target?.rules?.typeImmune || !sourceOwner || target.owner !== sourceOwner) {
+        return false;
+    }
+    const weapons = target.armedTrait?.getWeapons?.() ?? [
+        target.primaryWeapon,
+        target.secondaryWeapon,
+    ];
+    return weapons.some((weapon: any) => (weapon?.warhead?.rules?.empDuration ?? 0) !== 0);
+}
+
 /** Implements Ares' documented default ImmuneToEMP decision. */
 export function defaultAresEmpImmunity(input: AresEmpImmunityInputs): boolean {
     if (input.type === ObjectType.Building) {

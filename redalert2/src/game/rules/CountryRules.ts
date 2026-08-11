@@ -37,6 +37,8 @@ export class CountryRules {
     /** Legacy/network country index retained as an adapter, not the identity. */
     public networkIndex = -1;
     public randomSelectionWeight = 1;
+    /** Ares country-level override for whether neutral-owned units can be reclaimed. */
+    public canBeDriven = false;
     public multiplay: boolean;
     private multiplayPassive: boolean;
     private veteranAircraft: string[];
@@ -81,6 +83,12 @@ export class CountryRules {
         this.networkIndex = metadata?.networkIndex ?? this.networkIndex;
         this.randomSelectionWeight = ini.getNumber("RandomSelectionWeight", 1);
         this.multiplayPassive = ini.getBool("MultiplayPassive");
+        // Ares defaults this to the country's passive-neutral status. An
+        // explicit override is needed by Mental Omega's Neutral/Special
+        // country definitions.
+        this.canBeDriven = ini.has("CanBeDriven")
+            ? ini.getBool("CanBeDriven")
+            : this.multiplayPassive;
         this.veteranAircraft = ini.getArray("VeteranAircraft");
         this.veteranInfantry = ini.getArray("VeteranInfantry");
         this.veteranUnits = ini.getArray("VeteranUnits");

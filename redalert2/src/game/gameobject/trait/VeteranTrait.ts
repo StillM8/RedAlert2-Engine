@@ -122,6 +122,12 @@ export class VeteranTrait implements NotifyTargetDestroy {
     isElite(): boolean {
         return this.veteranLevel === VeteranLevel.Elite;
     }
+    /** Reset rank and accumulated experience when Ares transfers a unit. */
+    resetToRookie(): void {
+        this.veteranLevel = VeteranLevel.None;
+        this.xp = 0;
+        this.gameObject.armedTrait?.toggleEliteWeapons?.(false);
+    }
     private setVeteranLevel(level: VeteranLevel): void {
         this.veteranLevel = level;
         if (this.veteranLevel === VeteranLevel.Elite) {

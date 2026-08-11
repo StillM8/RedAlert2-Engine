@@ -218,7 +218,7 @@ const DOCUMENTED_KEYS: Readonly<Record<string, readonly string[]>> = {
     "new/destroyunitsbyemp.rst": ["[TechnoType]EMP.Threshold"],
     "new/gunner.rst": ["IFVMode", "WeaponTurretIndexX", "WeaponUINameX", "[VehicleType]VoiceIFVRepair"],
     "new/include.rst": ["[#include]"],
-    "new/killingdrivers.rst": ["[Warhead]KillDriver", "[TechnoType]ProtectedDriver", "[TechnoType]CanDrive"],
+    "new/killingdrivers.rst": ["[Warhead]KillDriver", "[TechnoType]ProtectedDriver", "[TechnoType]CanDrive", "[TechnoType]CanBeDriven", "[Country]CanBeDriven"],
     "new/lightningrods.rst": ["[BuildingType]LightningRod", "LightningRod.Modifier"],
     "restored/firestormwall.rst": ["Firestorm.Wall", "SubjectToFirestorm", "FirestormActiveAnim", "FirestormIdleAnim", "FirestormGroundAnim", "FirestormAirAnim", "FirestormWarhead", "DamageToFirestormDamageCoefficient"],
     "restored/vehicle-thief.rst": ["[InfantryType]VehicleThief", "VehicleThief.EnterSound", "VehicleThief.LeaveSound", "VehicleThief.KillPilots", "VehicleThief.BreakMindControl", "VehicleThief.Allowed", "VehicleThief.OneTime"],

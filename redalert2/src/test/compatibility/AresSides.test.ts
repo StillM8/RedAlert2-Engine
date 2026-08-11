@@ -173,6 +173,7 @@ describe("Ares side presentation", () => {
         country.set("LoadScreenText.Name", "Name:EPSILON");
         country.set("LoadScreenText.Color", "EpsilonLoad");
         country.set("Multiplay", "yes");
+        country.set("CanBeDriven", "no");
         country.set("ListIndex", "12");
         const sections = new Map([
             ["Sides", (() => {
@@ -207,6 +208,8 @@ describe("Ares side presentation", () => {
         expect(runtimeCountry.order).toBe(7);
         expect(runtimeCountry.networkIndex).toBe(3);
         expect(runtimeCountry.legacySideFallback).toBe(true);
+        expect(runtimeCountry.canBeDriven).toBe(false);
+        expect(countries.resolve("epsiloncountry")?.canBeDriven).toBe(false);
     });
 
     test("matches dynamic country ownership fields case-insensitively", () => {

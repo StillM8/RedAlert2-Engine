@@ -370,7 +370,7 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
         return "ares.operator";
     }
     if (/^(?:killdriver|killdriver\.(?:killbelowpercent|chance|owner|removeveterancy))$/i.test(key) ||
-        /^(?:protecteddriver|protecteddriver\.minhealth|candrive)$/i.test(key)) {
+        /^(?:protecteddriver|protecteddriver\.minhealth|candrive|canbedriven)$/i.test(key)) {
         return "ares.killing-drivers";
     }
     if (/^(?:vehiclethief|vehiclethief\.(?:entersound|leavesound|killpilots|breakmindcontrol|allowed|onetime))$/i.test(key)) {

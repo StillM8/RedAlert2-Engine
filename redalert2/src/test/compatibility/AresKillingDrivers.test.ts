@@ -83,10 +83,12 @@ describe("Ares Killing Drivers", () => {
         technoSection.set("ProtectedDriver", "yes");
         technoSection.set("ProtectedDriver.MinHealth", "25%");
         technoSection.set("CanDrive", "yes");
+        technoSection.set("CanBeDriven", "no");
         const techno = new TechnoRules(ObjectType.Vehicle, technoSection, 0, {}, new ArmorRegistry());
         expect(techno.protectedDriver).toBe(true);
         expect(techno.protectedDriverMinHealth).toBe(0.25);
         expect(techno.canDrive).toBe(true);
+        expect(techno.canBeDriven).toBe(false);
 
         const warheadSection = new IniSection("DriverWarhead");
         warheadSection.set("KillDriver", "yes");
@@ -148,7 +150,7 @@ describe("Ares Killing Drivers", () => {
         expect(target.healthTrait.health).toBe(100);
     });
 
-    test("the _ANY_ operator case removes all passengers", () => {
+    test("the _ANY_ operator case removes only the first physical driver", () => {
         const owner = player("Alpha", "alpha");
         const civilian = player("Civilian", "civilian", false);
         const target = vehicle(owner, { operatorAny: true });
@@ -163,8 +165,40 @@ describe("Ares Killing Drivers", () => {
             gameFor(target, civilian, destroyed),
             { killDriver: true },
         )).toBe(true);
-        expect(destroyed).toEqual([first, second]);
+        expect(destroyed).toEqual([first]);
         expect(target.transportTrait.units).toHaveLength(0);
+    });
+
+    test("an unrestricted vehicle also removes only its first passenger", () => {
+        const owner = player("Alpha", "alpha");
+        const civilian = player("Civilian", "civilian", false);
+        const target = vehicle(owner);
+        const first = infantry("First", owner);
+        const second = infantry("Second", owner);
+        target.transportTrait.units = [first, second];
+        const destroyed: any[] = [];
+        const ejected: any[] = [];
+
+        expect(applyAresKillDriver(target, { owner }, gameFor(target, civilian, destroyed, ejected), { killDriver: true })).toBe(true);
+        expect(destroyed).toEqual([first]);
+        expect(ejected).toEqual([second]);
+    });
+
+    test("RemoveVeterancy resets rank only after ownership changes", () => {
+        const owner = player("Alpha", "alpha");
+        const civilian = player("Civilian", "civilian", false);
+        const target = vehicle(owner);
+        target.veteranTrait = {
+            veteranLevel: 2,
+            resetToRookie() { this.veteranLevel = 0; },
+        };
+        expect(applyAresKillDriver(
+            target,
+            { owner },
+            gameFor(target, civilian),
+            { killDriver: true, killDriverRemoveVeterancy: true },
+        )).toBe(true);
+        expect(target.veteranTrait.veteranLevel).toBe(0);
     });
 
     test("protected or failed chance targets fall through without driver state changes", () => {
@@ -183,19 +217,23 @@ describe("Ares Killing Drivers", () => {
 
     test("CanDrive is exposed as a generic reclaim predicate", () => {
         const owner = player("Alpha", "alpha");
-        const target = vehicle(owner);
+        const civilian = player("Civilian", "civilian", false);
+        civilian.isNeutral = true;
+        const target = vehicle(civilian);
         target.aresDriverTrait.markDriverKilled();
         expect(canAresDriverReclaim({ isInfantry: () => true, rules: { canDrive: true } }, target)).toBe(true);
         expect(canAresDriverReclaim({ isInfantry: () => true, rules: { canDrive: false } }, target)).toBe(false);
+        target.rules.canBeDriven = false;
+        expect(canAresDriverReclaim({ isInfantry: () => true, rules: { canDrive: true } }, target)).toBe(false);
     });
 
     test("scanner classifies all driver keys as one capability", () => {
         const report = scanMentalOmegaIniSources([{
             name: "rules-drivers.ini",
-            contents: "[DriverVehicle]\nProtectedDriver=yes\nCanDrive=yes\n[DriverWarhead]\nKillDriver=yes\n",
+            contents: "[DriverVehicle]\nProtectedDriver=yes\nCanDrive=yes\nCanBeDriven=no\n[DriverWarhead]\nKillDriver=yes\n",
         }]);
         const usage = report.featureUsage.find(item => item.featureId === "ares.killing-drivers");
-        expect(usage?.occurrences).toBe(3);
+        expect(usage?.occurrences).toBe(4);
         expect(usage?.support?.parserImplemented).toBe(true);
         expect(usage?.support?.runtimeImplemented).toBe(true);
     });

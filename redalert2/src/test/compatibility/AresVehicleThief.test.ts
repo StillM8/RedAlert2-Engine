@@ -142,6 +142,26 @@ describe("Ares Vehicle Thief", () => {
         expect(infantry.isDestroyed).toBe(false);
     });
 
+    test("CanBeDriven opt-outs reject TechnoType and country-level neutral targets", () => {
+        const owner = player("Driver");
+        const special = player("Special", true);
+        special.country = { canBeDriven: true };
+        const neutral = player("Neutral", true);
+        neutral.country = { canBeDriven: false };
+        const infantry = driver(owner, { canDrive: true });
+        const specialTarget = vehicle(special);
+        specialTarget.aresDriverTrait.markDriverKilled();
+        expect(getAresVehicleHijackAction(infantry, specialTarget, gameFor(specialTarget))).toBe("drive");
+
+        const blockedCountry = vehicle(neutral);
+        blockedCountry.aresDriverTrait.markDriverKilled();
+        expect(getAresVehicleHijackAction(infantry, blockedCountry, gameFor(blockedCountry))).toBe("none");
+
+        const blockedType = vehicle(special, { canBeDriven: false });
+        blockedType.aresDriverTrait.markDriverKilled();
+        expect(getAresVehicleHijackAction(infantry, blockedType, gameFor(blockedType))).toBe("none");
+    });
+
     test("operator hijacks retain the driver as a passenger while generic thieves are recoverable", () => {
         const thiefOwner = player("Thief");
         const enemyOwner = player("Enemy");
