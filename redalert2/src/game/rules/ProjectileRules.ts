@@ -33,6 +33,8 @@ export class ProjectileRules extends ObjectRules {
     public subjectToCliffs!: boolean;
     /** Ares projectile flag; defaults to being blocked by active Firestorm walls. */
     public subjectToFirestorm!: boolean;
+    /** Ares Urban Combat projectile flag; defaults to participating in trenches. */
+    public subjectToTrenches!: boolean;
     public subjectToElevation!: boolean;
     public subjectToWalls!: boolean;
     public vertical!: boolean;
@@ -77,6 +79,7 @@ export class ProjectileRules extends ObjectRules {
         this.shrapnelCount = this.ini.getNumber("ShrapnelCount");
         this.subjectToCliffs = this.ini.getBool("SubjectToCliffs");
         this.subjectToFirestorm = this.ini.getBool("SubjectToFirestorm", true);
+        this.subjectToTrenches = this.ini.getBool("SubjectToTrenches", true);
         this.subjectToElevation = this.ini.getBool("SubjectToElevation");
         this.subjectToWalls = this.ini.getBool("SubjectToWalls");
         this.vertical = this.ini.getBool("Vertical");

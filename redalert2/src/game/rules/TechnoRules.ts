@@ -18,6 +18,10 @@ import { parseAresPrerequisiteRules } from "@/extensions/ares/AresPrerequisites"
 import { defaultAresEmpImmunity, parseAresEmpThreshold } from "@/extensions/ares/AresEMP";
 import { parseAresTechnoExtensions } from "@/extensions/ares/AresTechnoExtensions";
 import type { AresTechnoExtensions } from "@/extensions/ares/AresTechnoExtensions";
+import { parseAresUrbanCombatBuildingRules } from "@/extensions/ares/AresUrbanCombat";
+import type { AresUrbanCombatBuildingRules } from "@/extensions/ares/AresUrbanCombat";
+import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 interface House {
     name: string;
 }
@@ -158,6 +162,10 @@ export class TechnoRules extends ObjectRules {
     declare turretIndexesByIfvMode: Map<number, number>;
     /** Optional Ares TechnoType data; absent when no Ares Techno fields are authored. */
     declare ares?: AresTechnoExtensions;
+    /** Optional generic Ares Urban Combat and advanced-rubble data. */
+    declare aresUrbanCombat?: AresUrbanCombatBuildingRules;
+    /** Optional generic Ares AttachEffect data authored on this TechnoType. */
+    declare aresAttachEffect?: AresAttachEffectDefinition;
     declare turret: boolean;
     declare turretCount: number;
     declare turretAnim: string;
@@ -516,6 +524,27 @@ export class TechnoRules extends ObjectRules {
                 /^weaponuiname\d+$/.test(normalized);
         });
         this.ares = hasAresTechnoFields ? parseAresTechnoExtensions(this.ini) : undefined;
+        const normalizedAresKeys = [...this.ini.entries.keys()].map((key: string) =>
+            key.trim().toLocaleLowerCase("en-US"));
+        const hasAresUrbanCombatFields = normalizedAresKeys.some((key: string) =>
+            key === "uc.passthrough" ||
+            key === "uc.fatalrate" ||
+            key === "uc.damagemultiplier" ||
+            key === "bunker.raidable" ||
+            key === "istrench" ||
+            key === "canbeoccupiedby" ||
+            key === "rubble.destroyed" ||
+            key.startsWith("rubble.destroyed.") ||
+            key === "rubble.intact" ||
+            key.startsWith("rubble.intact."));
+        this.aresUrbanCombat = hasAresUrbanCombatFields
+            ? parseAresUrbanCombatBuildingRules(this.ini)
+            : undefined;
+        const hasAresAttachEffectFields = normalizedAresKeys.some((key: string) =>
+            key.startsWith("attacheffect."));
+        this.aresAttachEffect = hasAresAttachEffectFields
+            ? parseAresAttachEffectDefinition(this.ini)
+            : undefined;
         this.turret = this.ini.getBool("Turret");
         this.turretCount = this.ini.getNumber("TurretCount", this.turret ? 1 : 0);
         this.turretAnim = this.ini.getString("TurretAnim");
