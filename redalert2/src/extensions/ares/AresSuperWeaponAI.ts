@@ -32,6 +32,9 @@ export type AresSuperWeaponAITargetingMode =
 
 export type AresSuperWeaponAIPreference = "none" | "offensive" | "defensive";
 
+/** Houses accepted by SW.AIRequiresHouse. */
+export type AresSuperWeaponAIHouse = "none" | "owner" | "allies" | "team" | "enemies" | "others" | "all" | "unknown";
+
 /**
  * Antares' bit flags that gate automatic targeting before a selector runs.
  * Keep them as stable semantic IDs instead of exposing the native bit mask.
@@ -73,6 +76,7 @@ export interface AresSuperWeaponAITargetingInput extends Pick<
     | "swAffectsHouse"
     | "extensionType"
     | "typeId"
+    | "empulseTargetSelf"
 > {
     type?: SuperWeaponType;
 }
@@ -167,6 +171,27 @@ function parsePreference(value: string | undefined): AresSuperWeaponAIPreference
         case "defensive": return "defensive";
         case "none": return "none";
         default: return undefined;
+    }
+}
+
+/**
+ * Normalizes the house relation used by the host bot's visible-object API.
+ * Ares accepts both `others` and `enemies`; the latter is the usual spelling
+ * in Mental Omega rules, while `others` is retained for generic Ares rules.
+ */
+export function normalizeAresSuperWeaponAIHouse(value: string | undefined): AresSuperWeaponAIHouse {
+    switch (compact(value)) {
+        case "none": return "none";
+        case "owner":
+        case "self": return "owner";
+        case "allies":
+        case "ally": return "allies";
+        case "team": return "team";
+        case "enemies":
+        case "enemy": return "enemies";
+        case "others": return "others";
+        case "all": return "all";
+        default: return "unknown";
     }
 }
 

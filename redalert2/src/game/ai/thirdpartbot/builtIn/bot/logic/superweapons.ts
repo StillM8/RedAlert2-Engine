@@ -5,7 +5,11 @@ import { AttackMission, AttackMissionState } from "./mission/missions/attackMiss
 import { DefenceMission } from "./mission/missions/defenceMission";
 import { DebugLogger } from "./common/utils";
 import { EffectiveBotConfig } from "../../botProfiles";
-import { resolveAresSuperWeaponAITargeting } from "@/extensions/ares/AresSuperWeaponAI";
+import {
+    normalizeAresSuperWeaponAIHouse,
+    resolveAresSuperWeaponAITargeting,
+} from "@/extensions/ares/AresSuperWeaponAI";
+import { selectAresEmpulseLaunchSites } from "@/game/superweapon/EMPulseEffect";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { hasAresSuperWeaponProvider } from "@/extensions/ares/AresSuperWeaponProviders";
 
@@ -15,6 +19,16 @@ const SW_CHECK_INTERVAL_TICKS = 75;
 // Enemy units are bucketed into cells this wide when hunting for the juiciest
 // blast centroid.
 const CLUSTER_CELL_TILES = 8;
+
+// Ares' ParaDrop-style AI looks for a usable 5x5 landing area.  The bot does
+// not own the full engine placement solver, so it searches a deterministic
+// five-cell neighborhood and leaves final placement legality to the action
+// processor.
+const DELIVERY_AREA_RADIUS = 2;
+const DROP_POD_RING_OFFSETS = [
+    [-12, -12], [12, -12], [-12, 12], [12, 12],
+    [0, -16], [16, 0], [0, 16], [-16, 0],
+] as const;
 
 // Ready-to-fire delay by difficulty (deliberation time, in ticks).
 // Retail fires on ready at every difficulty (RA1 Super_Weapon_Handler checks
@@ -293,6 +307,13 @@ export class SuperweaponOfficer {
             return undefined;
         }
 
+        // Firestorm changes the owner's wall state and has no target cell.
+        // Keep it out of the generic cell-targeting path even if a malformed
+        // or future ruleset supplies an explicit AI mode.
+        if (String(ares.extensionType ?? "").toLocaleLowerCase("en-US") === "firestorm") {
+            return false;
+        }
+
         const profile = resolveAresSuperWeaponAITargeting({
             ...ares,
             type: superWeaponData?.type,
@@ -319,13 +340,23 @@ export class SuperweaponOfficer {
         }
         const requiredTarget = (unit: UnitData): boolean =>
             this.matchesAresAITarget(unit, profile.requiredTarget);
+        const extension = String(ares.extensionType ?? "").toLocaleLowerCase("en-US");
         let target: any;
         switch (profile.mode) {
             case "nuke":
             case "lightning-storm":
             case "psychic-dominator":
             case "offensive":
-                target = this.bestEnemyCluster(game, playerData.name, false, requiredTarget);
+                target = extension === "empulse"
+                    ? this.bestEnemyCluster(
+                        game,
+                        playerData.name,
+                        false,
+                        requiredTarget,
+                        (cluster) => this.hasEmpulseCannonInRange(game, playerData.name, ares, cluster),
+                        profile.requiredHouse,
+                    )
+                    : this.bestEnemyCluster(game, playerData.name, false, requiredTarget);
                 break;
             case "genetic-mutator":
                 target = this.bestEnemyCluster(game, playerData.name, true, requiredTarget);
@@ -335,10 +366,18 @@ export class SuperweaponOfficer {
                     !!unit.isCloaked && requiredTarget(unit));
                 break;
             case "paradrop":
+                target = extension === "unitdelivery"
+                    ? this.findUnitDeliveryTarget(game, playerData.name, matchAwareness)
+                    : this.findArmoredPushCenter(game, missionController, 1) ??
+                      matchAwareness.getMainRallyPoint() ??
+                      this.firstEnemy(game, playerData.name)?.startLocation;
+                break;
             case "drop-pod":
-                target = this.findArmoredPushCenter(game, missionController, 1) ??
-                    matchAwareness.getMainRallyPoint() ??
-                    this.firstEnemy(game, playerData.name)?.startLocation;
+                target = extension === "droppod"
+                    ? this.findDropPodTarget(game, playerData.name)
+                    : this.findArmoredPushCenter(game, missionController, 1) ??
+                      matchAwareness.getMainRallyPoint() ??
+                      this.firstEnemy(game, playerData.name)?.startLocation;
                 break;
             case "force-shield":
                 target = this.bestOwnBuildingCluster(game, playerData.name);
@@ -372,7 +411,9 @@ export class SuperweaponOfficer {
             case "low-power":
             case "low-power-attack":
             case "lightning-random":
-                target = matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
+                target = extension === "empulse" && ares.empulseTargetSelf === true
+                    ? this.findEmpulseCannonCell(game, playerData.name, ares)
+                    : matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
                 break;
             case "none":
                 return false;
@@ -535,8 +576,10 @@ export class SuperweaponOfficer {
         playerName: string,
         infantryOnly: boolean,
         extraFilter?: (unit: UnitData) => boolean,
+        clusterFilter?: (cluster: Cluster) => boolean,
+        requiredHouse?: string,
     ): Cluster | null {
-        const enemyIds = game.getVisibleUnits(playerName, "enemy");
+        const enemyIds = this.getAresHouseUnitIds(game, playerName, requiredHouse);
         const buckets = new Map<number, Cluster>();
         for (const id of enemyIds) {
             const unit = game.getUnitData(id);
@@ -584,8 +627,16 @@ export class SuperweaponOfficer {
             if (infantryOnly && bucket.infantry < 3) {
                 continue;
             }
-            if (!best || bucket.score > best.score) {
-                best = bucket;
+            const candidate = {
+                ...bucket,
+                x: Math.round(bucket.x / bucket.count),
+                y: Math.round(bucket.y / bucket.count),
+            };
+            if (clusterFilter && !clusterFilter(candidate)) {
+                continue;
+            }
+            if (!best || candidate.score > best.score) {
+                best = candidate;
             }
         }
         if (!best || best.count === 0) {
@@ -593,9 +644,169 @@ export class SuperweaponOfficer {
         }
         return {
             ...best,
-            x: Math.round(best.x / best.count),
-            y: Math.round(best.y / best.count),
+            x: best.x,
+            y: best.y,
         };
+    }
+
+    /** Maps Ares' AI-required house relation onto the standalone bot API. */
+    private getAresHouseUnitIds(game: GameApi, playerName: string, rawHouse?: string): any[] {
+        const house = normalizeAresSuperWeaponAIHouse(rawHouse);
+        const relations = house === "owner"
+            ? ["self"]
+            : house === "allies" || house === "team"
+              ? ["allied"]
+              : house === "all"
+                ? ["self", "allied", "enemy"]
+                : ["enemy"];
+        const ids = relations.flatMap((relation) => game.getVisibleUnits(playerName, relation as any));
+        return [...new Set(ids)].sort((a, b) => String(a).localeCompare(String(b)));
+    }
+
+    /**
+     * Ares UnitDelivery uses the ParaDrop targeter by default, but delivery
+     * is not an attack centroid: it needs a free landing area near the
+     * favorite enemy base.  The action/runtime placement code remains the
+     * final authority for exact object footprints.
+     */
+    private findUnitDeliveryTarget(
+        game: GameApi,
+        playerName: string,
+        matchAwareness: SupabotContext["matchAwareness"],
+    ): Vector2 | null {
+        const anchor = this.firstEnemy(game, playerName)?.startLocation ??
+            matchAwareness.getMainRallyPoint() ??
+            game.getPlayerData(playerName).startLocation;
+        return anchor ? this.findBestDeliveryArea(game, anchor) : null;
+    }
+
+    /** DropPod's default is a land cell in an outer sector around own base. */
+    private findDropPodTarget(game: GameApi, playerName: string): Vector2 | null {
+        const anchor = game.getPlayerData(playerName).startLocation;
+        if (!anchor) return null;
+        const randomIndex = typeof (game as any).generateRandomInt === "function"
+            ? (game as any).generateRandomInt(0, DROP_POD_RING_OFFSETS.length - 1)
+            : 0;
+        for (let i = 0; i < DROP_POD_RING_OFFSETS.length; i++) {
+            const offset = DROP_POD_RING_OFFSETS[(randomIndex + i) % DROP_POD_RING_OFFSETS.length];
+            const sector = new Vector2(anchor.x + offset[0], anchor.y + offset[1]);
+            const target = this.findBestDeliveryArea(game, sector);
+            if (target) return target;
+        }
+        return this.findBestDeliveryArea(game, anchor);
+    }
+
+    private findBestDeliveryArea(game: GameApi, anchor: { x: number; y: number }): Vector2 | null {
+        let best: { score: number; x: number; y: number } | null = null;
+        for (let dy = -DELIVERY_AREA_RADIUS; dy <= DELIVERY_AREA_RADIUS; dy++) {
+            for (let dx = -DELIVERY_AREA_RADIUS; dx <= DELIVERY_AREA_RADIUS; dx++) {
+                const x = Math.round(anchor.x + dx);
+                const y = Math.round(anchor.y + dy);
+                const tile = game.mapApi.getTile(x, y);
+                if (!tile || !this.isDeliveryLand(tile)) continue;
+
+                let occupied = 0;
+                for (let ay = -DELIVERY_AREA_RADIUS; ay <= DELIVERY_AREA_RADIUS; ay++) {
+                    for (let ax = -DELIVERY_AREA_RADIUS; ax <= DELIVERY_AREA_RADIUS; ax++) {
+                        const areaTile = game.mapApi.getTile(x + ax, y + ay);
+                        if (!areaTile) {
+                            occupied += 25;
+                            continue;
+                        }
+                        occupied += this.objectsOnDeliveryTile(game, areaTile).length;
+                    }
+                }
+                // Prefer an actually empty area, then the closest stable
+                // candidate.  Coordinates provide deterministic tie breaks.
+                const distance = dx * dx + dy * dy;
+                const score = occupied * 10000 + distance * 100 + y * 2 + x;
+                if (!best || score < best.score) {
+                    best = { score, x, y };
+                }
+            }
+        }
+        return best ? new Vector2(best.x, best.y) : null;
+    }
+
+    private objectsOnDeliveryTile(game: GameApi, tile: any): any[] {
+        try {
+            return typeof game.mapApi.getObjectsOnTile === "function"
+                ? game.mapApi.getObjectsOnTile(tile) ?? []
+                : [];
+        } catch (err) {
+            return [];
+        }
+    }
+
+    private isDeliveryLand(tile: any): boolean {
+        const landType = tile.landType ?? tile.onBridgeLandType;
+        return landType === undefined || (
+            landType !== LandType.Water &&
+            landType !== LandType.Wall &&
+            landType !== LandType.Cliff
+        );
+    }
+
+    private empulseCannonRulesMatch(rules: any, ares: any): boolean {
+        const configured = Array.isArray(ares?.empulseCannons)
+            ? ares.empulseCannons.map((name: string) => name.toLocaleLowerCase("en-US"))
+            : [];
+        if (configured.length > 0) {
+            return configured.includes(String(rules?.name ?? "").toLocaleLowerCase("en-US"));
+        }
+        return rules?.empulseCannon === true;
+    }
+
+    private getEmpulseCannons(game: GameApi, playerName: string, ares: any): UnitData[] {
+        return game
+            .getVisibleUnits(playerName, "self", (rules: any) => this.empulseCannonRulesMatch(rules, ares))
+            .map((id) => game.getUnitData(id))
+            .filter((unit): unit is UnitData => !!unit);
+    }
+
+    private findEmpulseCannonCell(game: GameApi, playerName: string, ares: any): Vector2 | null {
+        const cannon = selectAresEmpulseLaunchSites(
+            this.toAresEmpulseBuildings(game, playerName, ares),
+            { ...ares, extensionType: "EMPulse", empulseTargetSelf: true },
+            { rx: 0, ry: 0 },
+        )[0];
+        return cannon?.tile ? new Vector2(cannon.tile.rx, cannon.tile.ry) : null;
+    }
+
+    private toAresEmpulseBuildings(game: GameApi, playerName: string, ares: any): any[] {
+        const playerData = game.getPlayerData(playerName);
+        return this.getEmpulseCannons(game, playerName, ares).map((cannon) => ({
+            id: cannon.id,
+            name: cannon.name,
+            tile: cannon.tile,
+            hitPoints: cannon.hitPoints,
+            rules: cannon.rules,
+            isPoweredOn: cannon.isPoweredOn,
+            poweredTrait: { isPoweredOn: () => cannon.isPoweredOn !== false },
+            owner: { powerTrait: { isLowPower: () => playerData.power.isLowPower } },
+            primaryWeapon: cannon.primaryWeapon
+                ? {
+                    rules: {
+                        minimumRange: cannon.primaryWeapon.minRange ?? cannon.primaryWeapon.rules?.minimumRange,
+                        range: cannon.primaryWeapon.maxRange ?? cannon.primaryWeapon.rules?.range,
+                    },
+                }
+                : undefined,
+        }));
+    }
+
+    private hasEmpulseCannonInRange(
+        game: GameApi,
+        playerName: string,
+        ares: any,
+        target: Cluster,
+    ): boolean {
+        return selectAresEmpulseLaunchSites(
+            this.toAresEmpulseBuildings(game, playerName, ares),
+            ares,
+            { rx: target.x, ry: target.y },
+            { superWeapon: undefined },
+        ).length > 0;
     }
 
     /** Center of our biggest currently-attacking squad with >= minVehicles vehicles. */
