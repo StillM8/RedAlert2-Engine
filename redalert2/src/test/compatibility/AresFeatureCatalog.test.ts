@@ -3,6 +3,7 @@ import {
     ARES_DOCUMENTATION_DOCUMENTS,
     ARES_DOCUMENTATION_ROOTS,
     ARES_FEATURE_CATALOG,
+    getAresImplementationCapability,
     getAresCatalogSummary,
 } from "@/extensions/ares/AresFeatureCatalog";
 import { resolveAresCapabilityOrder } from "@/extensions/ares/AresCapabilityDependencies";
@@ -10,9 +11,10 @@ import { resolveAresCapabilityOrder } from "@/extensions/ares/AresCapabilityDepe
 describe("Ares documentation catalog", () => {
     test("contains the complete official leaf-document inventory", () => {
         const paths = ARES_DOCUMENTATION_DOCUMENTS.map((document) => document.path);
-        expect(paths.length).toBe(129);
+        expect(paths.length).toBe(130);
         expect(new Set(paths).size).toBe(paths.length);
         expect(paths.every((path) => path.endsWith(".rst"))).toBe(true);
+        expect(paths).toContain("new/damageparticlesystems.rst");
         expect(ARES_DOCUMENTATION_ROOTS).toContain("new/index.rst");
         expect(ARES_DOCUMENTATION_ROOTS).toContain("restored/index.rst");
     });
@@ -29,12 +31,20 @@ describe("Ares documentation catalog", () => {
 
     test("reports a stable category summary", () => {
         const summary = getAresCatalogSummary();
-        expect(summary.documents).toBe(129);
-        expect(summary.capabilities).toBe(129);
+        expect(summary.documents).toBe(130);
+        expect(summary.capabilities).toBe(130);
         expect(summary.categories.new).toBeGreaterThan(0);
         expect(summary.categories.restored).toBeGreaterThan(0);
         expect(summary.categories.bugfix).toBeGreaterThan(0);
         expect(summary.categories.ui).toBeGreaterThan(0);
+    });
+
+    test("tracks damage-particle implementation metadata separately from the leaf inventory", () => {
+        const damageParticles = getAresImplementationCapability("ares.damage-particle-systems");
+        expect(damageParticles?.sourceDocuments).toContain("new/damageparticlesystems.rst");
+        expect(damageParticles?.documentedKeys).toContain("DamageParticleSystems");
+        expect(damageParticles?.runtimeStatus).toBe("partial");
+        expect(damageParticles?.tests).toContain("AresDamageParticlesTechnoIntegration.test.ts");
     });
 });
 

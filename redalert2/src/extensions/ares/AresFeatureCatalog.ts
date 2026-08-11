@@ -68,6 +68,7 @@ const DOCUMENTATION_PATHS: readonly string[] = [
     "new/customizableinsignia.rst",
     "new/customizableparachuteanimations.rst",
     "new/customizableveterancy.rst",
+    "new/damageparticlesystems.rst",
     "new/destroyunitsbyemp.rst",
     "new/gunner.rst",
     "new/hardcodedunitproperties.rst",
@@ -206,13 +207,14 @@ const DOCUMENTED_KEYS: Readonly<Record<string, readonly string[]>> = {
     "new/additionalarmortypesandverses.rst": ["[ArmorTypes]", "[Warhead]Versus.*", "Versus.*.ForceFire", "Versus.*.Retaliate", "Versus.*.PassiveAcquire"],
     "new/attacheffect.rst": ["AttachEffect.Animation", "AttachEffect.Duration", "AttachEffect.TemporalHidesAnim", "AttachEffect.SpeedMultiplier", "AttachEffect.ArmorMultiplier", "AttachEffect.FirepowerMultiplier", "AttachEffect.ROFMultiplier", "AttachEffect.Cloakable", "AttachEffect.ForceDecloak", "AttachEffect.DiscardOnEntry", "AttachEffect.PenetratesIronCurtain", "AttachEffect.Delay", "AttachEffect.InitialDelay", "AttachEffect.Cumulative", "AttachEffect.AnimResetOnReapply"],
     "new/chronoprisons.rst": ["[Weapon]Abductor", "[TechnoType]PassengerTurret"],
-    "new/chronoshift.rst": ["[TechnoType]Chronoshift.Allow", "[BuildingType]Chronoshift.IsVehicle"],
+    "new/chronoshift.rst": ["[TechnoType]Chronoshift.Allow", "[BuildingType]Chronoshift.IsVehicle", "[TechnoType]Chronoshift.Crushable"],
     "new/customanimationandprojectilepalettes.rst": ["[Animation]CustomPalette"],
     "new/custombuildingfoundations.rst": ["Foundation=Custom", "Foundation.N", "FoundationOutline.Length", "FoundationOutline.N"],
     "new/customcameopalettes.rst": ["[UnitArt]CameoPalette", "[SuperWeapon]SidebarPalette"],
     "new/customizableinsignia.rst": ["Insignia.Rookie", "Insignia.Veteran", "Insignia.Elite"],
     "new/customizableparachuteanimations.rst": ["Parachute.Anim"],
     "new/customizableveterancy.rst": ["Experience.FromPassengers", "Experience.PromotePassengers", "Experience.PassengerModifier", "Experience.FromAirstrike", "Experience.AirstrikeModifier", "Experience.MindControlSelfModifier"],
+    "new/damageparticlesystems.rst": ["[TechnoType]DamageSparks", "[TechnoType]DamageSmokeParticleSystems", "[TechnoType]DamageSparksParticleSystems", "DamageParticleSystems"],
     "new/destroyunitsbyemp.rst": ["[TechnoType]EMP.Threshold"],
     "new/gunner.rst": ["IFVMode", "WeaponTurretIndexX", "WeaponUINameX", "[VehicleType]VoiceIFVRepair"],
     "new/include.rst": ["[#include]"],
@@ -413,7 +415,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
 
 /**
  * Runtime slices that span multiple official documentation sections. These
- * entries are separate from the 127-leaf official document inventory so the
+ * entries are separate from the 130-leaf official document inventory so the
  * report can distinguish a complete availability service from the still
  * partial aggregate superweapon surface.
  */
@@ -423,7 +425,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         title: "Generic Ares Chronoshift eligibility",
         category: "new",
         sourceDocuments: ["new/chronoshift.rst"],
-        documentedKeys: ["[TechnoType]Chronoshift.Allow", "[BuildingType]Chronoshift.IsVehicle"],
+        documentedKeys: ["[TechnoType]Chronoshift.Allow", "[BuildingType]Chronoshift.IsVehicle", "[TechnoType]Chronoshift.Crushable"],
         documentedSections: ["Chronoshift"],
         parserStatus: "complete",
         normalizedModelStatus: "complete",
@@ -437,7 +439,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresChronoshift.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "Chronoshift.Allow and Chronoshift.IsVehicle are parsed and pure eligibility decisions cover ReconsiderBuildings and SW.AffectsTarget defaults; unit candidates are filtered through the existing Chronosphere path. Buildings remain outside that lifecycle, while Crushable, KillCargo, transport side effects, save/load, and multiplayer/lockstep certification remain open.",
+        notes: "Chronoshift.Allow, Chronoshift.IsVehicle, and Chronoshift.Crushable are parsed; pure eligibility decisions cover ReconsiderBuildings and SW.AffectsTarget defaults, unit candidates are filtered through the existing Chronosphere path, and non-crushable collision handling is integrated. Buildings remain outside that lifecycle, while KillCargo, transport side effects, save/load, and multiplayer/lockstep certification remain open.",
     },
     {
         id: "ares.pcx-cameos",
@@ -479,7 +481,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults and BehavesLike fallback selection; the resolved smoke list reaches the existing vehicle render gate. The legacy plugin still renders SGRYSMK1, and ParticleSystem metadata lookup, health-threshold spawning/random selection, sparks, infantry/building/aircraft coverage, save/load, and multiplayer certification remain open.",
+        notes: "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. BehavesLike fallback is metadata-aware: the pure adapter filters when ParticleSystem metadata is supplied, while the current TechnoRules path lacks that metadata lookup and preserves the vanilla candidate list. The resolved smoke list reaches the existing vehicle render gate; ParticleSystem metadata lookup, health-threshold spawning/random selection, sparks, infantry/building/aircraft coverage, save/load, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-availability",

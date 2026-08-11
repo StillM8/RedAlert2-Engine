@@ -249,6 +249,11 @@ const IMPLEMENTED_AVAILABILITY_FIELDS = new Set([
     "SW.AlwaysGranted",
 ]);
 
+const REPORT_NOTE_OVERRIDES: Readonly<Record<string, string>> = {
+    "ares.chronoshift": "Chronoshift.Allow, Chronoshift.IsVehicle, and Chronoshift.Crushable are parsed; pure eligibility decisions cover ReconsiderBuildings and SW.AffectsTarget defaults, unit candidates are filtered through the existing Chronosphere path, and non-crushable collision handling is integrated. Buildings remain outside that lifecycle, while KillCargo, transport side effects, save/load, and multiplayer/lockstep certification remain open.",
+    "ares.damage-particle-systems": "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. BehavesLike fallback is metadata-aware: the pure adapter filters when ParticleSystem metadata is supplied, while the current TechnoRules path lacks that metadata lookup and preserves the vanilla candidate list. The resolved smoke list reaches the existing vehicle render gate; ParticleSystem metadata lookup, health-threshold spawning/random selection, sparks, infantry/building/aircraft coverage, save/load, and multiplayer certification remain open.",
+};
+
 function reportReferenceForSection(report: MentalOmegaCompatibilityReport, section: string): IniKeyReference[] {
     const expected = normalize(section);
     return report.references.filter((reference) => normalize(reference.section) === expected);
@@ -364,7 +369,7 @@ function buildReport(
             : catalog?.runtimeStatus === "partial"
                 ? "P1"
                 : "P2";
-        lines.push(`| ${markdown(usage.featureId)} | ${priority} | ${usage.occurrences} | ${usage.definitionCount} | ${catalog?.parserStatus ?? (support?.parserImplemented ? "complete" : "missing")} | ${catalog?.normalizedModelStatus ?? "untracked"} | ${catalog?.runtimeStatus ?? (support?.runtimeImplemented ? "complete" : "missing")} | ${catalog?.aiStatus ?? "untracked"} | ${catalog?.presentationStatus ?? "untracked"} | ${catalog?.saveLoadStatus ?? "untracked"} | ${catalog?.multiplayerStatus ?? "untracked"} | ${catalog ? (catalog.deterministic ? "yes" : "no") : "untracked"} | ${catalog?.verificationStatus ?? "unverified"} | ${catalog?.targetModUsage ?? "unknown"} | ${markdown(catalog?.dependencies.join(", ") ?? "untracked")} | ${markdown(support?.tests.join(", ") ?? "unregistered")} | ${markdown(support?.notes ?? catalog?.notes ?? "No registry entry; implementation status must be resolved.")} |`);
+        lines.push(`| ${markdown(usage.featureId)} | ${priority} | ${usage.occurrences} | ${usage.definitionCount} | ${catalog?.parserStatus ?? (support?.parserImplemented ? "complete" : "missing")} | ${catalog?.normalizedModelStatus ?? "untracked"} | ${catalog?.runtimeStatus ?? (support?.runtimeImplemented ? "complete" : "missing")} | ${catalog?.aiStatus ?? "untracked"} | ${catalog?.presentationStatus ?? "untracked"} | ${catalog?.saveLoadStatus ?? "untracked"} | ${catalog?.multiplayerStatus ?? "untracked"} | ${catalog ? (catalog.deterministic ? "yes" : "no") : "untracked"} | ${catalog?.verificationStatus ?? "unverified"} | ${catalog?.targetModUsage ?? "unknown"} | ${markdown(catalog?.dependencies.join(", ") ?? "untracked")} | ${markdown(support?.tests.join(", ") ?? "unregistered")} | ${markdown(REPORT_NOTE_OVERRIDES[usage.featureId] ?? support?.notes ?? catalog?.notes ?? "No registry entry; implementation status must be resolved.")} |`);
     }
     lines.push(
         "",
@@ -526,7 +531,7 @@ const customTypes = superWeaponNames.flatMap((name) => {
 
 const output = buildReport(report, rawRoots, archives, customTypes);
 if (shouldWrite) {
-    writeFileSync(reportPath, output + "\n", "utf8");
+    writeFileSync(reportPath, output.endsWith("\n") ? output : output + "\n", "utf8");
     console.log(output.split("\n").slice(0, 18).join("\n"));
     console.error(`Wrote ${reportPath}`);
 }

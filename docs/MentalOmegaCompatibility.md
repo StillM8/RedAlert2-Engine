@@ -53,9 +53,9 @@ usage currently is:
 | VehicleThief / CanDrive | 271 | 1 | 263 / 263 | core runtime implemented, integration gaps remain |
 | AttachEffect combat | 820 | 1 | 218 / 218 | parser/model complete; state, trait, and Speed/Armor/Firepower/ROF callsites wired; animation/cloak and transport/temporal lifecycle remain partial |
 | Bounty | 1,343 | 1 | 626 / 626 | parser/runtime missing; economy, combat, presentation, and country gates remain |
-| Chronoshift eligibility | 1,042 | 1 | 1,041 / 1,041 | parser/model complete; unit candidates filtered through Chronosphere; buildings, Crushable, KillCargo, and transport integration remain partial |
+| Chronoshift eligibility | 1,176 | 1 | 1,141 / 1,141 | parser/model complete; unit candidates filtered and non-crushable collision handling integrated; buildings, KillCargo, and transport integration remain partial |
 | PCX cameos | 708 | 1 | 525 / 525 | parser/model complete; 60x48 VFS discovery and validated manifest present; SHP-only sidebar display remains partial |
-| Damage particle systems | 590 | 1 | 590 | parser/model complete; TechnoRules selection and legacy vehicle smoke gate wired; ParticleSystem spawn, sparks, and non-vehicle coverage remain partial |
+| Damage particle systems | 590 | 1 | 590 | parser/model complete; TechnoRules selection and legacy vehicle smoke gate wired; BehavesLike fallback remains metadata-aware, while ParticleSystem spawn, sparks, and non-vehicle coverage remain partial |
 | Reverse engineering | 515 | 1 | 515 | generic eligibility and production gap remains |
 | Customizable veterancy | 427 | 1 | 427 / 427 | experience-source and Trainable semantics remain |
 
@@ -63,15 +63,15 @@ usage currently is:
 
 The official Ares pages define these as separate generic capabilities: [AttachEffect](https://ares-developers.github.io/Ares-docs/new/attacheffect.html), [Chronoshift](https://ares-developers.github.io/Ares-docs/new/chronoshift.html), [PCX Cameos](https://ares-developers.github.io/Ares-docs/new/pcxcameos.html), [Damage Particle Systems](https://ares-developers.github.io/Ares-docs/new/damageparticlesystems.html), [Reverse Engineer logic](https://ares-developers.github.io/Ares-docs/new/reverseengineerlogic.html), [Bounty](https://ares-developers.github.io/Ares-docs/new/bounty.html), and [Customizable Veterancy](https://ares-developers.github.io/Ares-docs/new/customizableveterancy.html).
 
-The local scan records **1,042 Chronoshift occurrences across 1,041 definitions**, second only to Bounty's 1,343 occurrences. The current generic slice covers unit eligibility and Chronosphere filtering, while Bounty remains the largest unimplemented capability and crosses economy, combat attribution, presentation, global enablers, country gates, and veterancy-specific values.
+The local scan records **1,176 Chronoshift occurrences across 1,141 definitions**, second only to Bounty's 1,343 occurrences. The current generic slice covers unit eligibility and Chronosphere filtering, while Bounty remains the largest unimplemented capability and crosses economy, combat attribution, presentation, global enablers, country gates, and veterancy-specific values.
 
 | Capability | Exact scan evidence | Official generic boundary | Current gap |
 | --- | --- | --- | --- |
 | AttachEffect combat | 820 occurrences; 218 definitions | `AttachEffect.SpeedMultiplier`, `ArmorMultiplier`, `FirepowerMultiplier`, `ROFMultiplier` plus existing duration/protection fields | Speed, armor, firepower, and ROF callsites are wired; animation/cloak hooks, transport/temporal lifecycle, save/load, and lockstep replay remain |
-| Chronoshift eligibility | 1,042 occurrences; 1,041 definitions | `Chronoshift.Allow`, `Chronoshift.IsVehicle` | Building placement, `Crushable`, `KillCargo`, transport side effects, save/load, and lockstep certification |
+| Chronoshift eligibility | 1,176 occurrences; 1,141 definitions | `Chronoshift.Allow`, `Chronoshift.IsVehicle`, `Chronoshift.Crushable` | Building placement, `KillCargo`, transport side effects, save/load, and lockstep certification |
 | Bounty | 1,343 occurrences; 626 definitions | `BountyEnablers`, `Bounty`, `Bounty.Display`, value tiers, `BountyDisplay`, `GivesBounty` | Economy attribution, combat/crush hooks, presentation, country gates, persistence |
 | PCX cameos | 708 occurrences; 525 definitions | `CameoPCX`, `AltCameoPCX`, `SidebarPCX` with Ares's 60x48 256-color asset contract | VFS discovery/validation is wired; SHP-only sidebar display, palette/display certification, save/mod-hash, and multiplayer certification remain |
-| Damage particle systems | 590 occurrences; 590 definitions | `DamageSparks`, `DamageSmokeParticleSystems`, `DamageSparksParticleSystems` | TechnoRules selection and legacy vehicle smoke gating are wired; ParticleSystem metadata lookup, health-threshold spawning/random selection, complete sparks rendering, non-vehicle coverage, save/load, and multiplayer certification remain |
+| Damage particle systems | 590 occurrences; 590 definitions | `DamageSparks`, `DamageSmokeParticleSystems`, `DamageSparksParticleSystems` | TechnoRules selection and legacy vehicle smoke gating are wired; BehavesLike fallback filters only when metadata is supplied, while current TechnoRules lacks metadata lookup. Health-threshold spawning/random selection, complete sparks rendering, non-vehicle coverage, save/load, and multiplayer certification remain |
 | Reverse engineering | 515 occurrences; 515 definitions | `ReverseEngineersVictims`, `CanBeReversed`, `ReversedAs`, and reverse-engineering reset | Production unlocks, AI/build limits, spy reset, persistence |
 | Customizable veterancy | 427 occurrences; 427 definitions | `Trainable` plus passenger, airstrike, mind-control, and spawn experience modifiers | Kill-credit routing, modifier application, occupier/passenger behavior, persistence |
 
