@@ -1,9 +1,12 @@
 import { InfDeathType } from '../gameobject/infantry/InfDeathType';
 import { ArmorRegistry, parseAresWarheadVerses, type ArmorVersusBehavior } from '@/extensions/ares/AresArmor';
+import { parseAresAttachEffectDefinition, type AresAttachEffectDefinition } from '@/extensions/ares/AresAttachEffect';
 export class WarheadRules {
     private rules: any;
     private verses: Map<number, number>;
     public armorVersusBehavior: Map<number, ArmorVersusBehavior>;
+    /** Optional Ares AttachEffect delivered by this Warhead on hit. */
+    public aresAttachEffect?: AresAttachEffectDefinition;
     public affectsAllies!: boolean;
     public affectsEnemies!: boolean;
     public airstrike!: boolean;
@@ -59,6 +62,11 @@ export class WarheadRules {
         const parsed = parseAresWarheadVerses(rules, armorRegistry);
         this.verses = parsed.verses;
         this.armorVersusBehavior = parsed.behavior;
+        const hasAresAttachEffectFields = [...rules.entries.keys()].some((key: string) =>
+            key.trim().toLocaleLowerCase("en-US").startsWith("attacheffect."));
+        this.aresAttachEffect = hasAresAttachEffectFields
+            ? parseAresAttachEffectDefinition(rules)
+            : undefined;
     }
     get name(): string {
         return this.rules.name;

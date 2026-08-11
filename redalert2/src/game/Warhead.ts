@@ -26,6 +26,8 @@ import {
     resolveAresAttachEffectCombat,
     type AresAttachEffectAggregateInput,
 } from "@/extensions/ares/AresAttachEffectCombat";
+import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import type { AresAttachEffectApplyResult } from "@/extensions/ares/AresAttachEffectRuntime";
 interface GameObject {
     isSpawned: boolean;
     isDisposed: boolean;
@@ -60,6 +62,11 @@ interface TechnoObject extends GameObject {
     veteranTrait?: VeteranTrait;
     aresAttachEffectTrait?: {
         getAggregateMultipliers(): AresAttachEffectAggregateInput;
+        apply(
+            effectId: string,
+            definition: AresAttachEffectDefinition,
+            options?: { protectedByIronCurtainOrForceShield?: boolean },
+        ): AresAttachEffectApplyResult;
     };
     moveTrait: MoveTrait;
     unitOrderTrait: UnitOrderTrait;
@@ -514,6 +521,7 @@ export class Warhead {
                 gameWorld.destroyObject(obj, weaponInfo);
                 continue;
             }
+            const attachEffectApplied = this.applyAresAttachEffect(obj, gameWorld);
             const killDriverApplied = this.rules.killDriver && obj.isTechno() &&
                 sourceObj &&
                 applyAresKillDriver(obj as any, sourceObj, gameWorld as any, {
@@ -531,7 +539,7 @@ export class Warhead {
                 }
                 continue;
             }
-            if (!damage && !empApplied)
+            if (!damage && !empApplied && !attachEffectApplied)
                 continue;
             for (const distance of damage ? objectDistances.get(obj)! : []) {
                 let finalDamage = damage;
@@ -602,6 +610,33 @@ export class Warhead {
                 terrainEffect.spawnSmudges(animation, centerTile, gameWorld);
         }
         gameWorld.events.dispatch(new WarheadDetonateEvent(this, centerCoords, animation, isWeatherStorm));
+    }
+
+    /** Apply a Warhead-owned AttachEffect through the target's live trait. */
+    private applyAresAttachEffect(target: GameObject, gameWorld: GameWorld): AresAttachEffectApplyResult | undefined {
+        const definition = this.rules.aresAttachEffect;
+        if (!definition || !target.isTechno() || target.isDestroyed || target.isCrashing) {
+            return undefined;
+        }
+
+        const techno = target as TechnoObject;
+        const verses = this.rules.verses.get(target.rules.armor) ?? 1;
+        if (!techno.aresAttachEffectTrait || verses === 0) {
+            return undefined;
+        }
+
+        const result = techno.aresAttachEffectTrait.apply(
+            this.rules.name,
+            definition,
+            { protectedByIronCurtainOrForceShield: techno.invulnerableTrait.isActive() },
+        );
+        if (result.forceDecloak) {
+            (techno as any).cloakableTrait?.uncloak?.(gameWorld);
+        }
+        // The current renderer has no AttachEffect animation owner yet. Keep
+        // the reset signal on the real trait result for the presentation hook
+        // to consume without changing vanilla objects.
+        return result;
     }
     /**
      * Ares delivers EMP independently from ordinary weapon damage.  In
