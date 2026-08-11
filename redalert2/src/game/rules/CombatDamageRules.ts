@@ -3,6 +3,8 @@ export class CombatDamageRules {
     private bridgeStrength: number = 0;
     private c4Delay: number = 0;
     private c4Warhead: string = '';
+    /** Ares Firestorm contact warhead; defaults to the retail C4 warhead. */
+    public firestormWarhead: string = '';
     private deathWeapon: string = '';
     private dMislEliteWarhead: string = '';
     private dMislWarhead: string = '';
@@ -21,6 +23,7 @@ export class CombatDamageRules {
         this.bridgeStrength = ini.getNumber("BridgeStrength");
         this.c4Delay = ini.getNumber("C4Delay");
         this.c4Warhead = ini.getString("C4Warhead");
+        this.firestormWarhead = ini.getString("FirestormWarhead") || this.c4Warhead;
         this.deathWeapon = ini.getString("DeathWeapon");
         this.dMislEliteWarhead = ini.getString("DMislEliteWarhead");
         this.dMislWarhead = ini.getString("DMislWarhead");

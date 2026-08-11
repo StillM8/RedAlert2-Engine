@@ -29,6 +29,7 @@ import { Vector2 } from "@/game/math/Vector2";
 import { DelayedKillTrait } from "@/game/gameobject/trait/DelayedKillTrait";
 import { BuildStatusChangeEvent } from "@/game/event/BuildStatusChangeEvent";
 import { NotifyBuildStatus } from "@/game/gameobject/trait/interface/NotifyBuildStatus";
+import { AresFirestormWallTrait } from "@/game/gameobject/trait/AresFirestormWallTrait";
 export enum BuildStatus {
     BuildUp = 0,
     Ready = 1,
@@ -59,6 +60,7 @@ export class Building extends Techno {
     public rallyTrait?: RallyTrait;
     public wallTrait?: WallTrait;
     public gapGeneratorTrait?: GapGeneratorTrait;
+    public firestormWallTrait?: AresFirestormWallTrait;
     public psychicDetectorTrait?: PsychicDetectorTrait;
     public tankBunkerTrait?: TankBunkerTrait;
     static factory(owner: any, rules: TechnoRules, gameRules: any, art: any, world: any, coords: any): Building {
@@ -143,6 +145,10 @@ export class Building extends Techno {
         if (rules.wall) {
             building.wallTrait = new WallTrait();
             building.traits.add(building.wallTrait);
+        }
+        if (rules.firestormWall) {
+            building.firestormWallTrait = new AresFirestormWallTrait();
+            building.traits.add(building.firestormWallTrait);
         }
         if (rules.gapGenerator) {
             building.gapGeneratorTrait = new GapGeneratorTrait(rules.gapRadiusInCells);

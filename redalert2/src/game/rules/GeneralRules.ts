@@ -64,6 +64,8 @@ export class GeneralRules {
     public multipleFactory!: number;
     /** Ares global fallback for charge-drain superweapon active duration. */
     public chargeToDrainRatio!: number;
+    /** Ares Firestorm wall damage-to-active-charge conversion coefficient. */
+    public damageToFirestormDamageCoefficient!: number;
     public maximumQueuedObjects!: number;
     public lowPowerPenaltyModifier!: number;
     public minLowPowerProductionSpeed!: number;
@@ -163,6 +165,7 @@ export class GeneralRules {
         this.maxWaypointPathLength = ini.getNumber('MaxWaypointPathLength');
         this.multipleFactory = ini.getFixed('MultipleFactory', 1);
         this.chargeToDrainRatio = ini.getNumber('ChargeToDrainRatio', 1);
+        this.damageToFirestormDamageCoefficient = ini.getNumber('DamageToFirestormDamageCoefficient', 1);
         this.normalTargetingDelay = ini.getNumber('NormalTargetingDelay');
         this.padAircraft = ini.getArray('PadAircraft');
         this.parachuteMaxFallRate = ini.getNumber('ParachuteMaxFallRate');

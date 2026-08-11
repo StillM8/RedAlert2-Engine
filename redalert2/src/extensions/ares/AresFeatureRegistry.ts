@@ -141,6 +141,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Initial grants and deterministic elapsed charging while a VirtualCharge superweapon is unavailable are wired; per-house shot-history re-grant semantics and save/load of unavailable intervals remain open.",
     },
     {
+        id: "ares.firestorm-wall",
+        description: "Firestorm wall linking, contact effects, charge feedback, and projectile interception",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresFirestorm.test.ts"],
+        notes: "Firestorm.Wall, SubjectToFirestorm, and IgnoresFirestorm are normalized. Same-owner four-way links, active hostile projectile interception along the full projectile path, direct-contact immolation, and damage-to-active-charge feedback follow the Antares 3.0p1 semantics. Persistent superweapon state, active/idle wall animation presentation, and trigger/network action coverage remain open.",
+    },
+    {
         id: "ares.superweapon-deferment",
         description: "Ares SW.Deferment delay for supported superweapon state machines",
         implemented: true,
