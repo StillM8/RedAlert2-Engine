@@ -30,6 +30,7 @@ export class AudioSystem {
     private disposables = new CompositeDisposable();
     private soundsPlaying = new Set<AudioBufferSourceNode>();
     private musicState?: MusicState;
+    private resumePromise?: Promise<void>;
     constructor(mixer: Mixer) {
         this.mixer = mixer;
     }
@@ -62,8 +63,28 @@ export class AudioSystem {
         if (this.audioContext.state === 'closed') {
             throw new Error("Can't resume audio system because its AudioContext is closed");
         }
-        await this.audioContext.resume();
-        console.log('[AudioSystem] AudioContext resumed successfully');
+        if (!this.resumePromise) {
+            const audioContext = this.audioContext;
+            let resumePromise: Promise<void>;
+            resumePromise = audioContext.resume()
+                .then(() => console.log('[AudioSystem] AudioContext resumed successfully'))
+                .finally(() => {
+                    if (this.resumePromise === resumePromise) {
+                        this.resumePromise = undefined;
+                    }
+                });
+            this.resumePromise = resumePromise;
+        }
+        await this.resumePromise;
+    }
+    private requestResume(): void {
+        if (this.isSuspended()) {
+            // Autoplay policy may reject this until a user gesture. Playback
+            // remains scheduled and the shell/UI can still perform its
+            // explicit gesture-bound resume; this best-effort request also
+            // covers contexts suspended after the initial menu boot.
+            void this.resume().catch(() => { });
+        }
     }
     dispose(): void {
         this.disposables.dispose();
@@ -77,6 +98,7 @@ export class AudioSystem {
                 }
             }
             this.soundsPlaying.clear();
+            this.resumePromise = undefined;
             this.audioContext = undefined;
         }
     }
@@ -117,6 +139,7 @@ export class AudioSystem {
         if (!this.isInitialized()) {
             throw new Error("Can't play audio file because audio system is not initialized");
         }
+        this.requestResume();
         const startTime = this.audioContext!.currentTime + delayMs / 1000;
         this.removeSuspendedSounds();
         return this.playWavFileAtTime(file, channel, startTime, volume, pan, rate, loop);
@@ -140,6 +163,7 @@ export class AudioSystem {
         if (!this.isInitialized()) {
             throw new Error("Can't play audio sequence because audio system is not initialized");
         }
+        this.requestResume();
         const audioContext = this.audioContext!;
         this.removeSuspendedSounds();
         const audioLoop = new AudioLoop(audioContext, volume, pan, rate, delayMs, attack, decay, loops, (buffer, startTime, vol, p, r) => {
@@ -161,6 +185,7 @@ export class AudioSystem {
         if (!this.isInitialized()) {
             throw new Error("Can't play audio sequence because audio system is not initialized");
         }
+        this.requestResume();
         const audioContext = this.audioContext!;
         this.removeSuspendedSounds();
         const audioSequence = new AudioSequence(audioContext, volume, pan, rate, delayMs, (buffer, startTime, vol, p, r) => {
