@@ -349,6 +349,7 @@ export class Engine {
                 const extension = entryName.split('.').pop()?.toLowerCase();
                 (extension === "pal" ? this.palettes : this.images).clear(entryName);
             }
+            this.vfs?.removeArchive(mixFileName);
         }
         this.loadedSideMixNames.clear();
         // These Yuri resources are hash-only entries in sidec02md.mix and
