@@ -692,6 +692,12 @@ export class Application {
             }
             catch (err) {
                 console.error('[Application] Engine.loadRules() failed:', err);
+                // Rules, art, and AI are mandatory for the engine and for the
+                // menu's shared data model. Continuing here leaves routing
+                // alive with an uninitialized engine, which presents as blank
+                // Options/Score/HUD screens and hides the actual import or
+                // Ares-compatibility failure from the user.
+                throw err;
             }
             if (typeof window.gtag === 'function') {
                 window.gtag('event', 'app_init', {
