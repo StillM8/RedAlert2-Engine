@@ -6,22 +6,25 @@ import type { SideId } from './AresSides';
  * for a future full snapshot serializer: it contains the Ares-owned
  * production state that an action log or snapshot must preserve.
  */
-export const ARES_PRODUCTION_STATE_VERSION = 1 as const;
+export const ARES_PRODUCTION_STATE_VERSION = 2 as const;
 
 export interface AresProductionExtensionState {
     readonly version: typeof ARES_PRODUCTION_STATE_VERSION;
     readonly stolenTechs: readonly (number | SideId)[];
     readonly permanentFactoryOwnerPlans: readonly string[];
+    readonly reverseEngineeredPlans: readonly string[];
 }
 
 export interface AresProductionStateSource {
     readonly stolenTech: Iterable<number | SideId>;
     readonly permanentFactoryOwnerPlans: Iterable<string>;
+    readonly reverseEngineeredPlans: Iterable<string>;
 }
 
 export interface AresProductionStateTarget {
     stolenTech: Set<number | SideId>;
     permanentFactoryOwnerPlans: Set<string>;
+    reverseEngineeredPlans: Set<string>;
 }
 
 function normalizePlanId(value: string): string | undefined {
@@ -88,6 +91,7 @@ export function serializeAresProductionExtensionState(
         version: ARES_PRODUCTION_STATE_VERSION,
         stolenTechs: normalizeStolenTech(source.stolenTech),
         permanentFactoryOwnerPlans: normalizePlanIds(source.permanentFactoryOwnerPlans),
+        reverseEngineeredPlans: normalizePlanIds(source.reverseEngineeredPlans),
     };
 }
 
@@ -95,6 +99,7 @@ function assertStateObject(state: unknown): asserts state is {
     version: unknown;
     stolenTechs: unknown;
     permanentFactoryOwnerPlans: unknown;
+    reverseEngineeredPlans?: unknown;
 } {
     if (typeof state !== 'object' || state === null) {
         throw new Error('Invalid Ares production state: expected an object');
@@ -111,16 +116,22 @@ export function restoreAresProductionExtensionState(
     state: unknown,
 ): void {
     assertStateObject(state);
-    if (state.version !== ARES_PRODUCTION_STATE_VERSION) {
+    // Version 1 predates reverse-engineered plans. It remains readable so
+    // older saves do not lose their existing stolen-tech/factory state.
+    if (state.version !== 1 && state.version !== ARES_PRODUCTION_STATE_VERSION) {
         throw new Error(`Unsupported Ares production state version: ${String(state.version)}`);
     }
     if (!Array.isArray(state.stolenTechs) || !Array.isArray(state.permanentFactoryOwnerPlans)) {
         throw new Error('Invalid Ares production state: collections must be arrays');
     }
+    if (state.version === ARES_PRODUCTION_STATE_VERSION && !Array.isArray(state.reverseEngineeredPlans)) {
+        throw new Error('Invalid Ares production state: reverseEngineeredPlans must be an array');
+    }
 
     const normalized = serializeAresProductionExtensionState({
         stolenTech: state.stolenTechs as Array<number | SideId>,
         permanentFactoryOwnerPlans: state.permanentFactoryOwnerPlans as string[],
+        reverseEngineeredPlans: (state.version === 1 ? [] : state.reverseEngineeredPlans) as string[],
     });
 
     target.stolenTech.clear();
@@ -131,5 +142,8 @@ export function restoreAresProductionExtensionState(
     for (const value of normalized.permanentFactoryOwnerPlans) {
         target.permanentFactoryOwnerPlans.add(value);
     }
+    target.reverseEngineeredPlans.clear();
+    for (const value of normalized.reverseEngineeredPlans) {
+        target.reverseEngineeredPlans.add(value);
+    }
 }
-

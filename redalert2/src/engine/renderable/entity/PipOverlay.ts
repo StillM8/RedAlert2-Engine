@@ -15,6 +15,8 @@ import { PaletteBasicMaterial } from '../../gfx/material/PaletteBasicMaterial';
 import { BatchedMesh, BatchMode } from '../../gfx/batch/BatchedMesh';
 import { HealthLevel } from '../../../game/gameobject/unit/HealthLevel';
 import { DebugLabel } from './unit/DebugLabel';
+import { ShpBuilder } from '../builder/ShpBuilder';
+import { selectAresInsignia } from '../../../extensions/ares/AresInsignia';
 import * as THREE from 'three';
 const HEALTH_BAR_OFFSET = -1;
 const CONTROL_GROUP_SIZE = { width: 8, height: 11 };
@@ -99,6 +101,8 @@ interface GameObject {
         maxNumberOccupants?: number;
         size: number;
         pip: PipColor;
+        aresInsignia?: any;
+        insigniaShowEnemy?: boolean;
     };
     healthTrait: {
         health: number;
@@ -186,6 +190,7 @@ export class PipOverlay {
     private lastRallyPoint?: any;
     private lastRepairState?: boolean;
     private lastVeteranLevel?: number;
+    private lastVeteranIndicatorVisible?: boolean;
     private lastSelectionLevel?: SelectionLevel;
     private lastDebugLabel?: string;
     private lastDebugTextEnabled?: boolean;
@@ -197,6 +202,8 @@ export class PipOverlay {
     private controlGroupSprite?: THREE.Mesh;
     private primaryFactorySprite?: THREE.Mesh;
     private veteranIndicator?: THREE.Mesh;
+    private veteranIndicatorBuilder?: ShpBuilder;
+    private veteranIndicatorWidth?: number;
     private rallyLine?: RallyPointFx;
     private repairWrench?: any;
     private flyHelper?: any;
@@ -727,8 +734,29 @@ export class PipOverlay {
         }
     }
     private createVeteranIndicator(gameObject: GameObject): THREE.Mesh | undefined {
-        if (gameObject.veteranLevel) {
-            const image = PipOverlay.pipsFile.getImage(13 + gameObject.veteranLevel - 1);
+        const veteranLevel = gameObject.veteranLevel ?? 0;
+        if (!this.shouldShowVeteranIndicator()) {
+            this.veteranIndicatorWidth = undefined;
+            return undefined;
+        }
+        const customSelection = selectAresInsignia(gameObject.rules.aresInsignia, veteranLevel);
+        if (customSelection) {
+            const customFile = this.imageFinder.tryFind(customSelection.fileName, false);
+            if (customFile?.numImages > 0) {
+                this.veteranIndicatorBuilder = new ShpBuilder(customFile, this.palette, this.camera, Coords.ISO_WORLD_SCALE);
+                this.veteranIndicatorBuilder.setFrame(customSelection.frame);
+                const frame = Math.max(0, Math.min(customSelection.frame, customFile.numImages - 1));
+                this.veteranIndicatorWidth = customFile.getImage(frame).width;
+                const mesh = this.veteranIndicatorBuilder.build();
+                mesh.matrixAutoUpdate = false;
+                mesh.renderOrder = 999996;
+                mesh.receiveShadow = false;
+                return mesh as THREE.Mesh;
+            }
+        }
+        if (veteranLevel > 0) {
+            const image = PipOverlay.pipsFile.getImage(13 + veteranLevel - 1);
+            this.veteranIndicatorWidth = image.width;
             const geometry = PipOverlay.geometries.get(image)!;
             const mesh = this.useSpriteBatching
                 ? new BatchedMesh(geometry, PipOverlay.material!, BatchMode.Merging)
@@ -738,6 +766,13 @@ export class PipOverlay {
             mesh.receiveShadow = false;
             return mesh;
         }
+    }
+    private shouldShowVeteranIndicator(): boolean {
+        const viewer = this.viewer?.value;
+        if (!viewer || viewer.isObserver || this.gameObject.rules.insigniaShowEnemy !== false) {
+            return true;
+        }
+        return !this.objectIsOpaqueToViewer();
     }
     private createRepairWrench(): any {
         const wrench = this.animFactory('WRENCH');
@@ -820,8 +855,12 @@ export class PipOverlay {
             }
         }
         else {
-            if (this.lastVeteranLevel !== gameObject.veteranLevel) {
+            const veteranIndicatorVisible = this.shouldShowVeteranIndicator();
+            if (this.lastVeteranLevel !== gameObject.veteranLevel ||
+                this.lastVeteranIndicatorVisible !== veteranIndicatorVisible ||
+                this.lastOwner !== gameObject.owner) {
                 this.lastVeteranLevel = gameObject.veteranLevel;
+                this.lastVeteranIndicatorVisible = veteranIndicatorVisible;
                 this.updateVeteranIndicatorSprite(gameObject);
             }
         }
@@ -935,10 +974,13 @@ export class PipOverlay {
         if (this.veteranIndicator) {
             this.rootObj!.remove(this.veteranIndicator);
         }
+        this.veteranIndicatorBuilder?.dispose();
+        this.veteranIndicatorBuilder = undefined;
         this.veteranIndicator = this.createVeteranIndicator(gameObject);
         if (this.veteranIndicator) {
             this.rootObj!.add(this.veteranIndicator);
-            const offset = Coords.screenDistanceToWorld(Math.floor(PipOverlay.pipBrdFile.getImage(gameObject.isInfantry() ? 1 : 0).width / 2) - Math.floor(PipOverlay.pipsFile.getImage(13).width / 2), 0);
+            const indicatorWidth = this.veteranIndicatorWidth ?? PipOverlay.pipsFile.getImage(13).width;
+            const offset = Coords.screenDistanceToWorld(Math.floor(PipOverlay.pipBrdFile.getImage(gameObject.isInfantry() ? 1 : 0).width / 2) - Math.floor(indicatorWidth / 2), 0);
             this.veteranIndicator.position.x = offset.x;
             this.veteranIndicator.position.y = 0;
             this.veteranIndicator.position.z = offset.y;

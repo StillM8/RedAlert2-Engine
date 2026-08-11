@@ -12,6 +12,7 @@ import { HoverRules } from './general/HoverRules';
 import { normalizePrerequisiteId } from '@/extensions/ares/AresPrerequisites';
 import { clamp } from '@/util/math';
 import type { AresSideRegistry } from '@/extensions/ares/AresSides';
+import { parseAresBountyGeneralRules } from '@/extensions/ares/AresBounty';
 export enum PrereqCategory {
     Power = 0,
     Factory = 1,
@@ -41,6 +42,8 @@ const prereqCategoryMap = new Map<PrereqCategory, string>([
     [PrereqCategory.Proc, 'PrerequisiteProc']
 ]);
 export class GeneralRules {
+    /** Ares global bounty enablers; empty means bounty is always enabled. */
+    public bountyEnablers: string[] = [];
     public prereqCategories = new Map<PrereqCategory, string[]>();
     /**
      * Normalized prerequisite groups, including the six vanilla groups and
@@ -112,6 +115,8 @@ export class GeneralRules {
     public refundPercent!: number;
     public returnStructures!: boolean;
     public unitsUnsellable!: boolean;
+    /** Ares default visibility for veterancy insignia on enemy units. */
+    public enemyInsignia!: boolean;
     public purifierBonus!: number;
     public maximumCheerRate!: number;
     public spyMoneyStealPercent!: number;
@@ -130,6 +135,7 @@ export class GeneralRules {
     public v3Rocket!: V3RocketRules;
     public veteran!: VeteranRules;
     public readIni(ini: IniReader, sideRegistry?: AresSideRegistry): void {
+        this.bountyEnablers = parseAresBountyGeneralRules(ini).enablers;
         this.aircraftFogReveal = ini.getNumber('AircraftFogReveal');
         this.alliedDisguise = ini.getString('AlliedDisguise');
         this.thirdDisguise = ini.getString('ThirdDisguise');
@@ -163,6 +169,7 @@ export class GeneralRules {
         this.engineerCaptureLevel = ini.getFixed('EngineerCaptureLevel', 0.25);
         this.engineerDamage = ini.getFixed('EngineerDamage', 0.437);
         this.engineerAlwaysCaptureTech = ini.getBool('EngineerAlwaysCaptureTech', true);
+        this.enemyInsignia = ini.getBool('EnemyInsignia', true);
         this.flightLevel = ini.getNumber('FlightLevel');
         this.guardAreaTargetingDelay = ini.getNumber('GuardAreaTargetingDelay');
         this.harvesterTooFarDistance = ini.getNumber('HarvesterTooFarDistance');

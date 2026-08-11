@@ -27,6 +27,10 @@ import type { AresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
 import { resolveAresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import { getAresSuperWeaponProviderNames, hasAresSuperWeaponProvider } from "@/extensions/ares/AresSuperWeaponProviders";
+import { parseAresInsigniaRules, resolveAresInsigniaShowEnemy } from "@/extensions/ares/AresInsignia";
+import type { AresInsigniaRules } from "@/extensions/ares/AresInsignia";
+import { parseAresBountyTechnoRules } from "@/extensions/ares/AresBounty";
+import type { AresBountyTechnoRules } from "@/extensions/ares/AresBounty";
 interface House {
     name: string;
 }
@@ -79,6 +83,12 @@ export class TechnoRules extends ObjectRules {
     declare canBeDriven: boolean;
     /** Ares restored Vehicle Thief: infantry can take eligible enemy vehicles. */
     declare vehicleThief: boolean;
+    /** Optional Ares custom SHP/frame selection by veterancy rank. */
+    declare aresInsignia?: AresInsigniaRules;
+    /** Effective Ares [General]/[TechnoType] insignia enemy visibility. */
+    declare insigniaShowEnemy: boolean;
+    /** Optional generic Ares bounty behavior for this TechnoType. */
+    declare aresBounty?: AresBountyTechnoRules;
     /** Ares VehicleThief target-side opt-out. */
     declare hijackerAllowed: boolean;
     /** Ares VehicleThief: whether mind control may be broken during hijacking. */
@@ -101,6 +111,15 @@ export class TechnoRules extends ObjectRules {
     declare factoryOwnersHasAllPlans: boolean;
     /** BuildingType: captured plans remain available after the building is lost. */
     declare factoryOwnersPermanent: boolean;
+    /** Ares BuildingType: enables reverse-engineering in a Grinding facility. */
+    declare reverseEngineersVictims: boolean;
+    /** Ares InfantryType/VehicleType: permits this unit to be reversed. */
+    declare canBeReversed: boolean;
+    /** Ares reverse-engineering output override; undefined means the unit itself. */
+    declare reversedAs?: string;
+    /** Ares custom spy effect that clears the target player's reverse plans. */
+    declare spyEffectCustom: boolean;
+    declare spyEffectUndoReverseEngineer: boolean;
     declare soylent: number;
     declare crateGoodie: boolean;
     declare buildCat: BuildCat;
@@ -397,6 +416,14 @@ export class TechnoRules extends ObjectRules {
     parse(): void {
         super.parse();
         this.owner = this.ini.getArray("Owner");
+        this.aresInsignia = parseAresInsigniaRules(
+            this.ini,
+            this.generalRules?.enemyInsignia ?? true,
+        );
+        this.insigniaShowEnemy = resolveAresInsigniaShowEnemy(
+            this.ini,
+            this.generalRules?.enemyInsignia ?? true,
+        );
         const aiBasePlanningValue = this.ini.getNumber("AIBasePlanningSide", -1);
         const planningSide = this.sideRegistry?.resolveByIndex(aiBasePlanningValue);
         if (planningSide) {
@@ -443,6 +470,7 @@ export class TechnoRules extends ObjectRules {
         this.hijackerKillPilots = this.ini.getNumber("VehicleThief.KillPilots", 0);
         this.hijackerEnterSound = this.ini.getString("VehicleThief.EnterSound") || undefined;
         this.hijackerLeaveSound = this.ini.getString("VehicleThief.LeaveSound") || undefined;
+        this.aresBounty = parseAresBountyTechnoRules(this.ini);
         const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
         this.prerequisiteLists = prerequisiteRules.alternativeLists;
         this.prerequisite = this.prerequisiteLists[0] ?? [];
@@ -453,6 +481,19 @@ export class TechnoRules extends ObjectRules {
         this.factoryOwnersForbidden = prerequisiteRules.factoryOwnersForbidden;
         this.factoryOwnersHasAllPlans = this.ini.getBool("FactoryOwners.HasAllPlans");
         this.factoryOwnersPermanent = this.ini.getBool("FactoryOwners.Permanent");
+        this.reverseEngineersVictims = this.type === ObjectType.Building &&
+            this.ini.getBool("ReverseEngineersVictims");
+        this.canBeReversed = [ObjectType.Infantry, ObjectType.Vehicle].includes(this.type)
+            ? this.ini.getBool("CanBeReversed", true)
+            : false;
+        const reversedAs = this.ini.getString("ReversedAs").trim();
+        this.reversedAs = reversedAs && reversedAs.toLocaleLowerCase("en-US") !== "none"
+            ? reversedAs
+            : undefined;
+        this.spyEffectCustom = this.type === ObjectType.Building &&
+            this.ini.getBool("SpyEffect.Custom");
+        this.spyEffectUndoReverseEngineer = this.type === ObjectType.Building &&
+            this.ini.getBool("SpyEffect.UndoReverseEngineer");
         this.soylent = this.ini.getNumber("Soylent");
         this.crateGoodie = this.ini.getBool("CrateGoodie");
         this.buildCat = this.ini.getEnum("BuildCat", BuildCat, BuildCat.Combat);

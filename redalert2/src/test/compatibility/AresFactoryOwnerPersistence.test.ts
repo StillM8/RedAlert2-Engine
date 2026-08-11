@@ -6,6 +6,7 @@ function makeProduction(): any {
     const production = Object.create(Production.prototype) as any;
     production.stolenTech = new Set();
     production.permanentFactoryOwnerPlans = new Set();
+    production.reverseEngineeredPlans = new Set();
     production.player = { buildings: new Set() };
     return production;
 }
@@ -24,6 +25,7 @@ describe('Ares FactoryOwners.Permanent persistence', () => {
             version: ARES_PRODUCTION_STATE_VERSION,
             stolenTechs: [2, 'Gamma'],
             permanentFactoryOwnerPlans: ['AlphaCountry', 'BetaCountry'],
+            reverseEngineeredPlans: [],
         });
     });
 
@@ -41,6 +43,7 @@ describe('Ares FactoryOwners.Permanent persistence', () => {
         expect(restored.debugGetState()).toEqual({
             stolenTechs: [2],
             permanentFactoryOwnerPlans: ['AlphaCountry'],
+            reverseEngineeredPlans: [],
         });
     });
 
@@ -53,12 +56,14 @@ describe('Ares FactoryOwners.Permanent persistence', () => {
             version: ARES_PRODUCTION_STATE_VERSION,
             stolenTechs: ['NewSide'],
             permanentFactoryOwnerPlans: ['NewCountry'],
+            reverseEngineeredPlans: [],
         });
 
         expect(production.serializeState()).toEqual({
             version: ARES_PRODUCTION_STATE_VERSION,
             stolenTechs: ['NewSide'],
             permanentFactoryOwnerPlans: ['NewCountry'],
+            reverseEngineeredPlans: [],
         });
     });
 
@@ -69,19 +74,21 @@ describe('Ares FactoryOwners.Permanent persistence', () => {
             version: ARES_PRODUCTION_STATE_VERSION + 1,
             stolenTechs: [],
             permanentFactoryOwnerPlans: [],
+            reverseEngineeredPlans: [],
         })).toThrow('Unsupported Ares production state version');
 
         expect(() => production.restoreState({
             version: ARES_PRODUCTION_STATE_VERSION,
             stolenTechs: 'not-an-array',
             permanentFactoryOwnerPlans: [],
+            reverseEngineeredPlans: [],
         })).toThrow('collections must be arrays');
 
         expect(() => production.restoreState({
             version: ARES_PRODUCTION_STATE_VERSION,
             stolenTechs: [1.5],
             permanentFactoryOwnerPlans: [],
+            reverseEngineeredPlans: [],
         })).toThrow('Invalid Ares stolen-tech index');
     });
 });
-

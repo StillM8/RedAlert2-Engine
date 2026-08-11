@@ -16,6 +16,7 @@ interface CountryRules {
     multiplay: boolean;
     isMultiplayerPassive: boolean;
     canBeDriven: boolean;
+    givesBounty: boolean;
     legacySideFallback: boolean;
     order: number;
     networkIndex: number;
@@ -95,6 +96,9 @@ export class Country {
     }
     get canBeDriven(): boolean {
         return this.rules.canBeDriven;
+    }
+    get givesBounty(): boolean {
+        return this.rules.givesBounty;
     }
     get name(): string {
         return this.rules.name;

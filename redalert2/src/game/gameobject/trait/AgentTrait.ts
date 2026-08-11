@@ -3,6 +3,9 @@ import { clamp } from "@/util/math";
 import { getAvailableBuildingSuperWeapon } from "@/game/gameobject/trait/SuperWeaponTrait";
 export class AgentTrait {
     infiltrate(agent: any, target: any, game: any): void {
+        if (target.rules.spyEffectCustom && target.rules.spyEffectUndoReverseEngineer) {
+            target.owner.production?.clearReverseEngineeredPlans?.();
+        }
         if (target.rules.radar &&
             ![...target.owner.buildings].some((b: any) => b.rules.spySat)) {
             game.mapShroudTrait.resetShroud(target.owner, game);

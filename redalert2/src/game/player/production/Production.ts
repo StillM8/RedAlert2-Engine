@@ -27,6 +27,8 @@ export class Production {
     private stolenTech: Set<number | SideId>;
     /** Stable country IDs whose complete factory plans were permanently captured. */
     private permanentFactoryOwnerPlans: Set<string>;
+    /** TechnoType names unlocked by reverse-engineering. */
+    private reverseEngineeredPlans: Set<string>;
     private theater?: string;
     static factory(player: any, rules: any, gameOpts: any, availableObjects: any[], theater?: string): Production {
         const production = new Production(player, rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects, theater);
@@ -53,6 +55,7 @@ export class Production {
         this.veteranTypes = new Set();
         this.stolenTech = new Set();
         this.permanentFactoryOwnerPlans = new Set();
+        this.reverseEngineeredPlans = new Set();
         this.theater = theater;
     }
     get onQueueUpdate() {
@@ -121,16 +124,16 @@ export class Production {
         return this.getQueue(this.getQueueTypeForFactory(type));
     }
     isAvailableForProduction(object: any): boolean {
-        return (object.isAvailableTo(this.player.country) &&
-            object.techLevel !== -1 &&
-            object.techLevel <= this.maxTechLevel &&
+        const reverseEngineered = this.hasReverseEngineeredPlan(object);
+        return ((reverseEngineered || object.isAvailableTo(this.player.country)) &&
+            (reverseEngineered || (object.techLevel !== -1 && object.techLevel <= this.maxTechLevel)) &&
             !(object.buildLimit === 0 && !this.player.isAi) &&
             !(object.superWeapon &&
                 this.rules.getSuperWeapon(object.superWeapon).disableableFromShell &&
                 !this.gameOpts.superWeapons) &&
             this.hasFactoryFor(object) &&
-            this.meetsPrerequisites(object) &&
-            this.meetsStolenTech(object));
+            (reverseEngineered ? this.meetsReverseEngineeredPrerequisites(object) : this.meetsPrerequisites(object)) &&
+            (reverseEngineered || this.meetsStolenTech(object)));
     }
     getAvailableObjects(): any[] {
         return this.allAvailableObjects.filter(obj => this.isAvailableForProduction(obj));
@@ -213,6 +216,31 @@ export class Production {
             theater: this.theater,
         });
     }
+    /**
+     * A reverse-engineered plan keeps only the restrictions documented by
+     * Ares: negative prerequisites and required theaters. Positive
+     * prerequisites, house/tech-level gates, and stolen-tech requirements are
+     * deliberately bypassed; factory/naval checks remain in hasFactoryFor().
+     */
+    meetsReverseEngineeredPrerequisites(object: any): boolean {
+        const ownedObjects = typeof this.player.getOwnedObjects === "function"
+            ? this.player.getOwnedObjects()
+            : Array.from(this.player.buildings);
+        return evaluateAresPrerequisiteRules({
+            alternativeLists: [[]],
+            negative: object.negativePrerequisite ?? [],
+            requiredTheaters: object.requiredTheaters ?? [],
+            stolenTechs: [],
+            factoryOwners: [],
+            factoryOwnersForbidden: [],
+        }, {
+            ownedObjectNames: ownedObjects.map((owned: any) => owned.name),
+            genericGroups: this.rules.general.genericPrerequisites,
+            genericAlternates: this.rules.general.genericPrerequisiteAlternates,
+            stolenTechs: this.stolenTech,
+            theater: this.theater,
+        });
+    }
     getPrimaryFactory(type: FactoryType): any {
         return this.primaryFactories.get(type);
     }
@@ -279,6 +307,27 @@ export class Production {
     addStolenTech(type: number | SideId) {
         this.stolenTech.add(type);
     }
+    addReverseEngineeredPlan(typeName: string): void {
+        const normalized = typeName.trim();
+        if (normalized) {
+            this.reverseEngineeredPlans.add(normalized);
+        }
+    }
+    hasReverseEngineeredPlan(objectOrName: any): boolean {
+        const name = typeof objectOrName === "string" ? objectOrName : objectOrName?.name;
+        if (!name) {
+            return false;
+        }
+        const normalized = name.trim().toLocaleLowerCase("en-US");
+        return [...(this.reverseEngineeredPlans ?? [])].some((plan) =>
+            plan.trim().toLocaleLowerCase("en-US") === normalized);
+    }
+    clearReverseEngineeredPlans(): void {
+        this.reverseEngineeredPlans.clear();
+    }
+    getReverseEngineeredPlans(): string[] {
+        return [...this.reverseEngineeredPlans];
+    }
     addPermanentFactoryOwnerPlans(countryId: string | undefined): void {
         if (countryId?.trim()) {
             this.permanentFactoryOwnerPlans.add(countryId.trim());
@@ -294,6 +343,7 @@ export class Production {
         return serializeAresProductionExtensionState({
             stolenTech: this.stolenTech ?? [],
             permanentFactoryOwnerPlans: this.permanentFactoryOwnerPlans ?? [],
+            reverseEngineeredPlans: this.reverseEngineeredPlans ?? [],
         });
     }
     restoreState(state: unknown): void {
@@ -303,9 +353,13 @@ export class Production {
         if (!this.permanentFactoryOwnerPlans) {
             this.permanentFactoryOwnerPlans = new Set();
         }
+        if (!this.reverseEngineeredPlans) {
+            this.reverseEngineeredPlans = new Set();
+        }
         restoreAresProductionExtensionState({
             stolenTech: this.stolenTech,
             permanentFactoryOwnerPlans: this.permanentFactoryOwnerPlans,
+            reverseEngineeredPlans: this.reverseEngineeredPlans,
         }, state);
     }
     /**
@@ -323,22 +377,27 @@ export class Production {
             ...stolenTech,
             "permanent-factory-owner-plans",
             ...state.permanentFactoryOwnerPlans,
+            "reverse-engineered-plans",
+            ...state.reverseEngineeredPlans,
         ]);
     }
     debugGetState(): {
         stolenTechs: Array<number | SideId>;
         permanentFactoryOwnerPlans: string[];
+        reverseEngineeredPlans: string[];
     } {
         const state = this.serializeState();
         return {
             stolenTechs: [...state.stolenTechs],
             permanentFactoryOwnerPlans: [...state.permanentFactoryOwnerPlans],
+            reverseEngineeredPlans: [...state.reverseEngineeredPlans],
         };
     }
     dispose() {
         this.queues.clear();
         this.stolenTech.clear();
         this.permanentFactoryOwnerPlans.clear();
+        this.reverseEngineeredPlans.clear();
         this.player = undefined;
     }
 }

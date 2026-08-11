@@ -45,6 +45,7 @@ import { WeaponType } from "./WeaponType";
 import { Warhead } from "./Warhead";
 import { NotifyObjectTraitAdd } from "./trait/interface/NotifyObjectTraitAdd";
 import { RadarOnOffEvent } from "./event/RadarOnOffEvent";
+import { awardAresBounty } from "@/extensions/ares/AresBounty";
 export enum GameStatus {
     NotStarted = 0,
     Started = 1,
@@ -679,6 +680,7 @@ export class Game {
                 originalOwner.addUnitsLost(obj.type, 1);
             }
         }
+        awardAresBounty(this, killer, obj);
         obj.isDestroyed = true;
         if (obj.healthTrait) {
             obj.healthTrait.health = 0;

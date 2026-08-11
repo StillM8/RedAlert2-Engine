@@ -39,6 +39,8 @@ export class CountryRules {
     public randomSelectionWeight = 1;
     /** Ares country-level override for whether neutral-owned units can be reclaimed. */
     public canBeDriven = false;
+    /** Ares country-level gate for whether destroying this country's objects awards bounty. */
+    public givesBounty = true;
     public multiplay: boolean;
     private multiplayPassive: boolean;
     private veteranAircraft: string[];
@@ -89,6 +91,7 @@ export class CountryRules {
         this.canBeDriven = ini.has("CanBeDriven")
             ? ini.getBool("CanBeDriven")
             : this.multiplayPassive;
+        this.givesBounty = ini.has("GivesBounty") ? ini.getBool("GivesBounty") : true;
         this.veteranAircraft = ini.getArray("VeteranAircraft");
         this.veteranInfantry = ini.getArray("VeteranInfantry");
         this.veteranUnits = ini.getArray("VeteranUnits");
