@@ -9,6 +9,7 @@ import {
     type AresAttachEffectAdvanceResult,
     type AresAttachEffectRemovalResult,
 } from "@/extensions/ares/AresAttachEffectRuntime";
+import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 
 export interface AresAttachEffectMultipliers {
@@ -21,6 +22,30 @@ export interface AresAttachEffectMultipliers {
 export interface AresAttachEffectTraitOptions {
     definitions?: ReadonlyMap<AresAttachEffectId, AresAttachEffectDefinition>;
     instances?: readonly AresAttachEffectInstance[];
+    /** Optional TechnoType-owned effect that is scheduled from spawn onward. */
+    automaticEffect?: AresAttachEffectBinding;
+}
+
+export interface AresAttachEffectBinding {
+    effectId: AresAttachEffectId;
+    definition: AresAttachEffectDefinition;
+}
+
+export type AresAttachEffectAutomaticPhase =
+    | "inactive"
+    | "waiting-initial"
+    | "active"
+    | "waiting-renewal"
+    | "disabled";
+
+export interface AresAttachEffectAutomaticSchedule {
+    phase: AresAttachEffectAutomaticPhase;
+    remainingDelay: number;
+}
+
+export interface AresAttachEffectTraitAdvanceResult extends AresAttachEffectAdvanceResult {
+    /** Present when expiry or a pending delay caused an automatic retry/apply. */
+    automaticApply?: AresAttachEffectApplyResult;
 }
 
 /**
@@ -32,13 +57,21 @@ export interface AresAttachEffectTraitOptions {
  * register this trait and consume its state and decisions at the appropriate
  * shared hooks.
  */
-export class AresAttachEffectTrait implements NotifyTick {
+export class AresAttachEffectTrait implements NotifySpawn, NotifyTick {
     private instances: AresAttachEffectInstance[];
     private definitions: Map<AresAttachEffectId, AresAttachEffectDefinition>;
+    private automaticEffect?: AresAttachEffectBinding;
+    private automaticPhase: AresAttachEffectAutomaticPhase = "inactive";
+    private automaticRemainingDelay = 0;
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
         this.instances = (options.instances ?? []).map(instance => ({ ...instance }));
         this.definitions = new Map(options.definitions ?? []);
+        this.automaticEffect = options.automaticEffect;
+        if (this.automaticEffect) {
+            this.definitions.set(this.automaticEffect.effectId, this.automaticEffect.definition);
+            this.automaticPhase = this.hasAutomaticInstance() ? "active" : "inactive";
+        }
     }
 
     getState(): readonly AresAttachEffectInstance[] {
@@ -55,29 +88,99 @@ export class AresAttachEffectTrait implements NotifyTick {
 
         if (["applied", "reapplied", "stacked"].includes(result.decision)) {
             this.definitions.set(effectId, definition);
+            if (effectId === this.automaticEffect?.effectId) {
+                this.automaticPhase = "active";
+                this.automaticRemainingDelay = 0;
+            }
+        }
+        else if (effectId === this.automaticEffect?.effectId && result.decision === "ignored-zero-duration") {
+            this.automaticPhase = "disabled";
+            this.automaticRemainingDelay = 0;
         }
         this.pruneDefinitions();
         return this.copyApplyResult(result);
     }
 
-    advance(): AresAttachEffectAdvanceResult {
+    advance(): AresAttachEffectTraitAdvanceResult {
         const result = advanceAresAttachEffects(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
+        let automaticApply: AresAttachEffectApplyResult | undefined;
+
+        if (this.automaticEffect &&
+            this.automaticPhase === "active" &&
+            !this.hasAutomaticInstance()) {
+            const delay = safeDelay(this.automaticEffect.definition.delay);
+            if (delay < 0) {
+                this.automaticPhase = "disabled";
+                this.automaticRemainingDelay = 0;
+            }
+            else {
+                this.automaticPhase = "waiting-renewal";
+                // The shared scheduler below processes the renewal timer
+                // during this same update, matching the reference ordering.
+                this.automaticRemainingDelay = delay;
+            }
+        }
+
+        automaticApply = this.processAutomaticDelay();
         this.pruneDefinitions();
         return {
             instances: this.getState(),
             expiredEffectIds: [...result.expiredEffectIds],
+            automaticApply,
         };
     }
 
     discardOnEntry(): AresAttachEffectRemovalResult {
         const result = discardAresAttachEffectsOnEntry(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
+        if (this.automaticEffect && !this.hasAutomaticInstance()) {
+            this.automaticPhase = "disabled";
+            this.automaticRemainingDelay = 0;
+        }
         this.pruneDefinitions();
         return {
             instances: this.getState(),
             removedEffectIds: [...result.removedEffectIds],
         };
+    }
+
+    /** Current automatic TechnoType-effect schedule for deterministic callers. */
+    getAutomaticSchedule(): AresAttachEffectAutomaticSchedule {
+        return {
+            phase: this.automaticPhase,
+            remainingDelay: this.automaticRemainingDelay,
+        };
+    }
+
+    /**
+     * Start the automatic TechnoType-owned effect lifecycle. A negative
+     * InitialDelay follows the Antares branch that never reaches attachment;
+     * positive values count down, and zero applies immediately.
+     */
+    spawn(
+        options: { protectedByIronCurtainOrForceShield?: boolean } = {},
+    ): AresAttachEffectApplyResult | undefined {
+        if (!this.automaticEffect || this.hasAutomaticInstance()) {
+            if (this.automaticEffect && this.hasAutomaticInstance()) this.automaticPhase = "active";
+            return undefined;
+        }
+
+        const initialDelay = safeDelay(this.automaticEffect.definition.initialDelay);
+        if (initialDelay < 0) {
+            this.automaticPhase = "disabled";
+            this.automaticRemainingDelay = 0;
+            return undefined;
+        }
+        if (initialDelay > 0) {
+            this.automaticPhase = "waiting-initial";
+            this.automaticRemainingDelay = initialDelay;
+            return undefined;
+        }
+
+        this.automaticPhase = "waiting-initial";
+        this.automaticRemainingDelay = 0;
+        return this.processAutomaticDelay(options);
     }
 
     /**
@@ -101,8 +204,41 @@ export class AresAttachEffectTrait implements NotifyTick {
         });
     }
 
+    [NotifySpawn.onSpawn](): AresAttachEffectApplyResult | undefined {
+        return this.spawn();
+    }
+
     [NotifyTick.onTick](): void {
         this.advance();
+    }
+
+    private processAutomaticDelay(
+        options: { protectedByIronCurtainOrForceShield?: boolean } = {},
+    ): AresAttachEffectApplyResult | undefined {
+        if (!this.automaticEffect ||
+            !["waiting-initial", "waiting-renewal"].includes(this.automaticPhase)) {
+            return undefined;
+        }
+        if (this.automaticRemainingDelay > 0) {
+            this.automaticRemainingDelay--;
+            return undefined;
+        }
+
+        const result = this.apply(
+            this.automaticEffect.effectId,
+            this.automaticEffect.definition,
+            options,
+        );
+        if (result.decision === "blocked-by-protection") {
+            // Ares retries a blocked TechnoType effect on a later update.
+            this.automaticRemainingDelay = 0;
+        }
+        return result;
+    }
+
+    private hasAutomaticInstance(): boolean {
+        return this.automaticEffect !== undefined &&
+            this.instances.some(instance => instance.effectId === this.automaticEffect!.effectId);
     }
 
     private pruneDefinitions(): void {
@@ -124,4 +260,8 @@ export class AresAttachEffectTrait implements NotifyTick {
 
 function finiteOrOne(value: number | undefined): number {
     return value !== undefined && Number.isFinite(value) ? value : 1;
+}
+
+function safeDelay(value: number | undefined): number {
+    return value !== undefined && Number.isSafeInteger(value) ? value : 0;
 }

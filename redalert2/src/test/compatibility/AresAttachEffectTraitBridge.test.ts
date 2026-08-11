@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { IniSection } from "@/data/IniSection";
 import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
-import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
+import {
+    AresAttachEffectTrait,
+    type AresAttachEffectBinding,
+} from "@/game/gameobject/trait/AresAttachEffectTrait";
+import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
 
 function definition(values: Record<string, string> = {}) {
     const section = new IniSection("GenericEffect");
@@ -113,5 +117,88 @@ describe("AresAttachEffectTrait gameplay bridge", () => {
         trait[NotifyTick.onTick]();
 
         expect(trait.getState()).toEqual([]);
+    });
+
+    test("applies a configured automatic effect after InitialDelay on NotifySpawn", () => {
+        const automaticEffect: AresAttachEffectBinding = {
+            effectId: "spawn-effect",
+            definition: definition({
+                "AttachEffect.Duration": "3",
+                "AttachEffect.InitialDelay": "2",
+                "AttachEffect.SpeedMultiplier": "0.75",
+            }),
+        };
+        const trait = new AresAttachEffectTrait({ automaticEffect });
+
+        expect(trait[NotifySpawn.onSpawn]()).toBeUndefined();
+        expect(trait.getAutomaticSchedule()).toEqual({
+            phase: "waiting-initial",
+            remainingDelay: 2,
+        });
+        expect(trait.advance().automaticApply).toBeUndefined();
+        expect(trait.getAutomaticSchedule().remainingDelay).toBe(1);
+        expect(trait.advance().automaticApply).toBeUndefined();
+        expect(trait.getAutomaticSchedule().remainingDelay).toBe(0);
+        expect(trait.advance()).toMatchObject({
+            automaticApply: { decision: "applied" },
+            instances: [{ effectId: "spawn-effect", remainingFrames: 3, discardOnEntry: false }],
+        });
+        expect(trait.getAggregateMultipliers().speed).toBe(0.75);
+    });
+
+    test("uses Delay after expiry and applies immediately when Delay is zero", () => {
+        const trait = new AresAttachEffectTrait({
+            automaticEffect: {
+                effectId: "renewing-effect",
+                definition: definition({
+                    "AttachEffect.Duration": "1",
+                    "AttachEffect.Delay": "0",
+                }),
+            },
+        });
+
+        trait.spawn();
+        const expiry = trait.advance();
+
+        expect(expiry).toMatchObject({
+            expiredEffectIds: ["renewing-effect"],
+            automaticApply: { decision: "applied" },
+            instances: [{ effectId: "renewing-effect", remainingFrames: 1, discardOnEntry: false }],
+        });
+        expect(trait.getAutomaticSchedule().phase).toBe("active");
+    });
+
+    test("counts a positive Delay after expiry and does not renew with a negative Delay", () => {
+        const delayed = new AresAttachEffectTrait({
+            automaticEffect: {
+                effectId: "delayed-effect",
+                definition: definition({
+                    "AttachEffect.Duration": "1",
+                    "AttachEffect.Delay": "2",
+                }),
+            },
+        });
+        delayed.spawn();
+        delayed.advance();
+        expect(delayed.getAutomaticSchedule()).toEqual({ phase: "waiting-renewal", remainingDelay: 1 });
+        expect(delayed.advance().automaticApply).toBeUndefined();
+        expect(delayed.getAutomaticSchedule().remainingDelay).toBe(0);
+        expect(delayed.advance().automaticApply?.decision).toBe("applied");
+
+        const nonRenewing = new AresAttachEffectTrait({
+            automaticEffect: {
+                effectId: "one-shot-effect",
+                definition: definition({
+                    "AttachEffect.Duration": "1",
+                    "AttachEffect.Delay": "-1",
+                }),
+            },
+        });
+        nonRenewing.spawn();
+        expect(nonRenewing.advance()).toMatchObject({
+            instances: [],
+            expiredEffectIds: ["one-shot-effect"],
+        });
+        expect(nonRenewing.getAutomaticSchedule()).toEqual({ phase: "disabled", remainingDelay: 0 });
     });
 });
