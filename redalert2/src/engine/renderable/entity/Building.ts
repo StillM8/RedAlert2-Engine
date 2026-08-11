@@ -252,7 +252,7 @@ export class Building {
         let E;
         try {
             E = this.objectArt.bibShape
-                ? this.imageFinder.find(this.objectArt.bibShape, this.objectArt.useTheaterExtension)
+                ? this.imageFinder.find(this.objectArt.bibShape, this.objectArt.useTheaterExtension, this.objectArt.useNewTheaterArt)
                 : void 0;
         }
         catch (e) {
@@ -1044,7 +1044,7 @@ export class Building {
         else {
             let t;
             try {
-                t = this.imageFinder.find(a, this.objectArt.useTheaterExtension);
+                t = this.imageFinder.find(a, this.objectArt.useTheaterExtension, this.objectArt.useNewTheaterArt);
             }
             catch (e) {
                 if (!(e instanceof MissingImageError))

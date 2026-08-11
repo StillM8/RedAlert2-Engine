@@ -273,6 +273,15 @@ export class ObjectArt {
     get useTheaterExtension(): boolean {
         return this.art.getBool("Theater", false);
     }
+    /**
+     * Ares NewTheater is separate from the legacy theater filename suffix.
+     * Keep it as explicit art metadata so ImageFinder can apply the
+     * second-letter replacement to any image prefix, including mod-defined
+     * prefixes outside the retail G/N/C/Y set.
+     */
+    get useNewTheaterArt(): boolean {
+        return this.art.getBool("NewTheater", false);
+    }
     private readPaletteAndLightingTypes(): void {
         this.paletteType = PaletteType.Default;
         this.lightingType = LightingType.Default;

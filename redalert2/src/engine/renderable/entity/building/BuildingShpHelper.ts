@@ -25,9 +25,11 @@ export class BuildingShpHelper {
     collectAnimShpFiles(anims: {
         getAll(): Map<string, Array<{
             image: string;
+            useNewTheaterArt?: boolean;
         }>>;
     }, options: {
         useTheaterExtension: boolean;
+        useNewTheaterArt?: boolean;
     }): Map<{
         image: string;
     }, any> {
@@ -38,7 +40,11 @@ export class BuildingShpHelper {
             for (const anim of animList) {
                 let shpFile;
                 try {
-                    shpFile = this.imageFinder.find(anim.image, options.useTheaterExtension);
+                    shpFile = this.imageFinder.find(
+                        anim.image,
+                        options.useTheaterExtension,
+                        anim.useNewTheaterArt ?? options.useNewTheaterArt,
+                    );
                 }
                 catch (error) {
                     if (error instanceof MissingImageError) {

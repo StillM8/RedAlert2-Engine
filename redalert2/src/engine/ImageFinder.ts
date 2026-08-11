@@ -11,21 +11,22 @@ export class ImageFinder {
     findByObjectArt(objectArt: {
         imageName: string;
         useTheaterExtension: boolean;
+        useNewTheaterArt?: boolean;
     }) {
-        return this.find(objectArt.imageName, objectArt.useTheaterExtension);
+        return this.find(objectArt.imageName, objectArt.useTheaterExtension, objectArt.useNewTheaterArt);
     }
-    find(artName: string, useTheaterExtension: boolean) {
-        const filename = this.getFilename(artName, useTheaterExtension);
+    find(artName: string, useTheaterExtension: boolean, useNewTheaterArt = false) {
+        const filename = this.getFilename(artName, useTheaterExtension, useNewTheaterArt);
         const image = this.images.get(filename);
         if (!image) {
             throw new MissingImageError(`No image file found for artName="${artName}" (file=${filename})`);
         }
         return image;
     }
-    tryFind(artName: string, useTheaterExtension: boolean) {
+    tryFind(artName: string, useTheaterExtension: boolean, useNewTheaterArt = false) {
         let image;
         try {
-            image = this.find(artName, useTheaterExtension);
+            image = this.find(artName, useTheaterExtension, useNewTheaterArt);
         }
         catch (error) {
             if (!(error instanceof MissingImageError))
@@ -33,10 +34,12 @@ export class ImageFinder {
         }
         return image;
     }
-    getFilename(artName: string, useTheaterExtension: boolean) {
+    getFilename(artName: string, useTheaterExtension: boolean, useNewTheaterArt = false) {
         let filename = artName.toLowerCase();
         filename += useTheaterExtension ? this.theater.settings.extension : ".shp";
-        filename = this.applyNewTheaterIfNeeded(artName, filename);
+        filename = useNewTheaterArt
+            ? this.applyNewTheater(filename)
+            : this.applyNewTheaterIfNeeded(artName, filename);
         return filename;
     }
     applyNewTheaterIfNeeded(artName: string, filename: string) {
@@ -49,6 +52,9 @@ export class ImageFinder {
         return this.applyNewTheater(filename);
     }
     applyNewTheater(filename: string) {
+        if (filename.length < 2) {
+            return filename;
+        }
         const firstChar = filename[0];
         const rest = filename.substr(2);
         const newTheaterChar = this.theater.settings.newTheaterChar.toLowerCase();

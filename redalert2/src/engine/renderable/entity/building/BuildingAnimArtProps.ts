@@ -81,6 +81,7 @@ export class BuildingAnimArtProps {
                     let image = art.getString("Image");
                     image = image || animName;
                     animData.image = image;
+                    animData.useNewTheaterArt = art.getBool("NewTheater", false);
                     animData.flat = propName === "UnderDoorAnim" ||
                         propName === "UnderRoofDoorAnim" ||
                         art.getBool("Flat");
