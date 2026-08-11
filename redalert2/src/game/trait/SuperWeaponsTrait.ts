@@ -40,6 +40,15 @@ import {
 } from "@/game/gameobject/trait/SuperWeaponTrait";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
+    /**
+     * Ares fires ChronoSphere first and ChronoWarp second.  The second-stage
+     * superweapon only supplies the destination; all chronoshift semantics
+     * come from the ChronoSphere that selected the source cell.
+     */
+    private readonly chronoSphereSources = new WeakMap<object, {
+        rules: any;
+        tile: any;
+    }>();
     [NotifyTick.onTick](t: any) {
         for (const e of t.getCombatants()) {
             this.reconcileAresAvailability(e, t);
@@ -136,6 +145,22 @@ export class SuperWeaponsTrait {
         const a = e.superWeaponsTrait
             ?.getAll()
             .find((e: any) => e.rules.index === t);
+        if (!a) {
+            // ChronoWarp is a PostClick dependent in Ares and commonly has
+            // no provider building of its own. Resolve its authored rule from
+            // the action index and consume the pending ChronoSphere source.
+            const rules = i?.rules?.getSuperWeaponByIndex?.(t);
+            const isChronoWarp = rules?.type === SuperWeaponType.ChronoWarp ||
+                rules?.ares?.extensionType === "ChronoWarp";
+            if (isChronoWarp && r && this.chronoSphereSources.has(e)) {
+                // A dependent ChronoWarp action carries its only click in
+                // tile; it has no tile2 because the ChronoSphere source was
+                // selected by the preceding action.
+                this.activateEffect(rules, e, i, r, s, false, s ?? r);
+                return true;
+            }
+            return false;
+        }
         if (a && a.status === SuperWeaponStatus.Ready) {
             if (a.rules.ares && hasAresSuperWeaponAvailabilityConfiguration(a.rules.ares) &&
                 !evaluateAresSuperWeaponAvailabilityForOwner(
@@ -184,7 +209,34 @@ export class SuperWeaponsTrait {
                     e.superWeaponsTrait?.recordAresSuperWeaponShot?.(a.name, a.shotsFired);
                 }
             }
-            this.activateEffect(a.rules, e, i, r, s);
+            const hasChronoWarpDependent = e.superWeaponsTrait?.getAll?.().some((candidate: any) =>
+                candidate.rules?.type === SuperWeaponType.ChronoWarp ||
+                candidate.rules?.ares?.extensionType === "ChronoWarp",
+            ) === true ||
+                [...(i?.rules?.superWeaponRules?.values?.() ?? [])].some((candidate: any) =>
+                    candidate.type === SuperWeaponType.ChronoWarp ||
+                    candidate.ares?.extensionType === "ChronoWarp",
+                );
+            if (a.rules.type === SuperWeaponType.ChronoSphere && (s || hasChronoWarpDependent)) {
+                if (s) {
+                    // The existing UI sends both clicks as one ChronoSphere
+                    // activation. It already owns the complete effect, so it
+                    // must not leave a source for a later standalone warp.
+                    this.chronoSphereSources.delete(e);
+                }
+                else {
+                    // Ares' native path sends the first click through the
+                    // ChronoSphere and the second through ChronoWarp. Keep
+                    // the source generic and house-local for that path.
+                    this.chronoSphereSources.set(e, {
+                        rules: a.rules,
+                        tile: r,
+                    });
+                }
+            }
+            const isChronoWarp = a.rules.type === SuperWeaponType.ChronoWarp ||
+                a.rules.ares?.extensionType === "ChronoWarp";
+            this.activateEffect(a.rules, e, i, r, s, false, isChronoWarp ? s ?? r : undefined);
             return true;
         }
         return false;
@@ -199,7 +251,15 @@ export class SuperWeaponsTrait {
         if (weapon.rules.ares?.swUnstoppable === true) return false;
         return weapon.deactivateChargeDrain();
     }
-    private activateEffect(e: any, i: any, r: any, s: any, a: any, n: boolean = false) {
+    private activateEffect(
+        e: any,
+        i: any,
+        r: any,
+        s: any,
+        a: any,
+        n: boolean = false,
+        chronoWarpDestination?: any,
+    ) {
         const o = e.type;
         const extensionType = e.ares?.extensionType;
         const eventType = o ?? e.typeId;
@@ -280,6 +340,25 @@ export class SuperWeaponsTrait {
                     e.ares,
                 ));
             }
+            if (extensionType === "ChronoWarp") {
+                const source = this.chronoSphereSources.get(i);
+                const destination = s ?? chronoWarpDestination;
+                if (source && destination) {
+                    const sourceRules = source.rules;
+                    t.push(new ChronoSphereEffect(
+                        SuperWeaponType.ChronoSphere,
+                        i,
+                        source.tile,
+                        destination,
+                        sourceRules.ares?.swRange,
+                        {
+                            affectedTargets: sourceRules.ares?.swAffectsTarget,
+                            reconsiderBuildings: sourceRules.ares?.chronosphereReconsiderBuildings,
+                        },
+                    ));
+                    this.chronoSphereSources.delete(i);
+                }
+            }
             switch (o) {
                 case SuperWeaponType.AmerParaDrop:
                     for (const [l, c] of r.rules.general.paradrop.amerParaDrop.entries()) {
@@ -317,7 +396,13 @@ export class SuperWeaponsTrait {
                     break;
                 case SuperWeaponType.ChronoSphere:
                     if (!a) {
-                        throw new Error("Missing tile2 action param");
+                        if (!this.chronoSphereSources.has(i)) {
+                            throw new Error("Missing tile2 action param");
+                        }
+                        // A first-stage ChronoSphere activation only records
+                        // its source. The existing two-click UI supplies
+                        // tile2 in the same call and continues below.
+                        break;
                     }
                     t.push(new ChronoSphereEffect(o, i, s, a, e.ares?.swRange, {
                         affectedTargets: e.ares?.swAffectsTarget,
