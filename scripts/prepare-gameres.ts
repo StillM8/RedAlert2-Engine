@@ -55,6 +55,16 @@ function detectResourceProfile(): ResourceProfile {
     return "ra2";
 }
 
+function hasFfmpeg(): boolean {
+    try {
+        execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+
 function retailFile(name: string): string {
     for (const candidate of [name, name.toUpperCase(), name.toLowerCase()]) {
         const path = join(RETAIL, candidate);
@@ -130,7 +140,11 @@ mkdirSync(join(OUT, "music"), { recursive: true });
 mkdirSync(TMP, { recursive: true });
 
 const RESOURCE_PROFILE = detectResourceProfile();
+const MEDIA_CONVERSION_AVAILABLE = hasFfmpeg();
 console.log(`== Preparing ${RESOURCE_PROFILE} game resources`);
+if (!MEDIA_CONVERSION_AVAILABLE) {
+    console.warn("== ffmpeg is unavailable; skipping optional music/video conversion");
+}
 
 console.log("== Copying core mixes");
 for (const name of ["ra2.mix", "language.mix", "multi.mix"]) {
@@ -143,22 +157,24 @@ const langMix = openMix(retailFile("language.mix"));
 extractTo(langMix, "ra2.csf", join(ROOT, "redalert2", "public", "general.csf"));
 
 console.log("== Converting music (theme.mix -> music/*.mp3)");
-const themeMix = openMix(retailFile("theme.mix"));
-const trackNames = mixDatabase.get("theme.mix") ?? [];
-for (const wavName of trackNames) {
-    if (!themeMix.containsFile(wavName)) {
-        console.warn(`   (skip) ${wavName} not in theme.mix`);
-        continue;
+if (MEDIA_CONVERSION_AVAILABLE) {
+    const themeMix = openMix(retailFile("theme.mix"));
+    const trackNames = mixDatabase.get("theme.mix") ?? [];
+    for (const wavName of trackNames) {
+        if (!themeMix.containsFile(wavName)) {
+            console.warn(`   (skip) ${wavName} not in theme.mix`);
+            continue;
+        }
+        const wavPath = join(TMP, wavName);
+        extractTo(themeMix, wavName, wavPath);
+        const mp3Name = wavName.replace(/\.wav$/i, ".mp3");
+        execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", wavPath, "-vn", "-ar", "22050", "-q:a", "5", join(OUT, "music", mp3Name)]);
+        console.log(`   ${mp3Name}`);
     }
-    const wavPath = join(TMP, wavName);
-    extractTo(themeMix, wavName, wavPath);
-    const mp3Name = wavName.replace(/\.wav$/i, ".mp3");
-    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", wavPath, "-vn", "-ar", "22050", "-q:a", "5", join(OUT, "music", mp3Name)]);
-    console.log(`   ${mp3Name}`);
 }
 
 console.log("== Converting menu video (ra2ts_l.bik -> ra2ts_l.webm)");
-if (langMix.containsFile("ra2ts_l.bik")) {
+if (MEDIA_CONVERSION_AVAILABLE && langMix.containsFile("ra2ts_l.bik")) {
     const bikPath = join(TMP, "ra2ts_l.bik");
     extractTo(langMix, "ra2ts_l.bik", bikPath);
     execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", bikPath, "-c:v", "libvpx", "-b:v", "1M", "-an", join(OUT, "ra2ts_l.webm")]);
@@ -227,6 +243,7 @@ try {
 
 console.log("== Converting YR music (thememd.mix -> music/*.mp3)");
 try {
+    if (!MEDIA_CONVERSION_AVAILABLE) throw new Error("ffmpeg is unavailable");
     // Track list comes from thememd.ini (inside ra2md.mix -> localmd.mix):
     // MIX archives store hashed names, so the ini is the only name source.
     const ra2mdMix = openMix(retailFile("ra2md.mix"));

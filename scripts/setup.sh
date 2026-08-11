@@ -19,8 +19,12 @@ die()  { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 # ---------------------------------------------------------------- prereqs
 bold "Checking prerequisites..."
 command -v bun >/dev/null 2>&1 || die "bun is required. Install: curl -fsSL https://bun.sh/install | bash"
-command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg is required (music/video conversion). Install: brew install ffmpeg"
-echo "  bun $(bun --version), ffmpeg OK"
+echo "  bun $(bun --version)"
+if command -v ffmpeg >/dev/null 2>&1; then
+  echo "  ffmpeg OK (music/video conversion enabled)"
+else
+  echo "  ffmpeg not found (optional music/video conversion will be skipped)"
+fi
 
 # ------------------------------------------------------------ find retail
 RETAIL="${1:-${RA2_RETAIL_DIR:-}}"
