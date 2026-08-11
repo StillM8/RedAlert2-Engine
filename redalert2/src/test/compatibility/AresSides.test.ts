@@ -137,6 +137,18 @@ describe("Ares side presentation", () => {
         expect(resolveSidePresentation(undefined, SideType.Yuri, true).hudLayout).toBe("yuri");
     });
 
+    test("does not turn Yuri-named sidebar assets into Yuri HUD geometry", () => {
+        const presentation = resolveSidePresentation({
+            id: "Foehn",
+            presentationId: "FourthSide",
+            sidebarMixFileIndex: 4,
+            sidebarYuriFileNames: true,
+        }, SideType.Civilian);
+
+        expect(presentation.hudLayout).toBe("soviet");
+        expect(presentation.useYuriFileNames).toBe(true);
+    });
+
     test("uses data-defined score assets for custom sides", () => {
         expect(resolveMultiplayerScorePresentation({
             id: "Foehn",

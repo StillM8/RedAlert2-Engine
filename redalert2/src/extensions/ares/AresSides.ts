@@ -144,8 +144,12 @@ export function resolveSidePresentation(
     const presentationId = normalize(side?.presentationId ?? side?.id ?? "");
     const isAllied = presentationId === "gdi" || presentationId === "allied" ||
         (legacySide === SideType.GDI && !presentationId.includes("yuri"));
+    // Sidebar.YuriFileNames selects the Yuri-named sidebar assets (for example
+    // radary.shp/radary.pal). It does not make the entire side use the Yuri
+    // HUD geometry. Ares custom sides such as Foehn can opt into those asset
+    // names while still using their own Allied/Soviet-style layout.
     const isYuri = presentationId === "yuri" || presentationId === "thirdside" ||
-        legacySide === SideType.Yuri || mixSelection.useYuriFileNames;
+        legacySide === SideType.Yuri;
     return {
         id: side?.presentationId ?? side?.id ?? String(legacySide),
         hudLayout: isYuri ? "yuri" : isAllied ? "allied" : "soviet",
