@@ -1,9 +1,20 @@
 import { SuperWeaponReadyEvent } from './event/SuperWeaponReadyEvent';
 import { GameSpeed } from './GameSpeed';
+import {
+    isAresChargeDrainMoneyDue,
+    normalizeAresChargeToDrainRatio,
+    startAresChargeDrain,
+    stopAresChargeDrain,
+} from '@/extensions/ares/AresSuperWeaponChargeDrain';
+import {
+    applyAresSuperWeaponMoney,
+    canAresSuperWeaponTransactMoney,
+} from '@/extensions/ares/AresSuperWeaponMoney';
 export enum SuperWeaponStatus {
     Charging = 0,
     Paused = 1,
-    Ready = 2
+    Ready = 2,
+    Draining = 3,
 }
 export class SuperWeapon {
     public name: string;
@@ -14,6 +25,7 @@ export class SuperWeapon {
     public isGift: boolean;
     public rechargeTicks: number;
     public chargeTicks: number;
+    private chargeDrainRatio = 1;
     /** First tick at which a VirtualCharge superweapon became unavailable. */
     private virtualChargeSinceTick?: number;
     constructor(name: string, rules: any, owner: any, oneTimeOnly: boolean = false) {
@@ -35,6 +47,10 @@ export class SuperWeapon {
         }
     }
     update(game: any): void {
+        if (this.status === SuperWeaponStatus.Draining) {
+            this.updateChargeDrain();
+            return;
+        }
         if (this.chargeTicks > 0 && this.status !== SuperWeaponStatus.Paused) {
             this.chargeTicks--;
             if (this.chargeTicks === 0) {
@@ -44,6 +60,9 @@ export class SuperWeapon {
         }
     }
     pauseTimer(currentTick?: number): void {
+        if (this.status === SuperWeaponStatus.Draining) {
+            this.deactivateChargeDrain();
+        }
         if (this.rules.ares?.swVirtualCharge === true &&
             currentTick !== undefined &&
             this.virtualChargeSinceTick === undefined) {
@@ -72,6 +91,55 @@ export class SuperWeapon {
         return this.chargeTicks / GameSpeed.BASE_TICKS_PER_SECOND;
     }
     getChargeProgress(): number {
+        if (this.status === SuperWeaponStatus.Draining) {
+            const duration = Math.max(1, this.rechargeTicks * this.chargeDrainRatio);
+            return Math.max(0, Math.min(1, 1 - this.chargeTicks / duration));
+        }
         return (this.rechargeTicks - this.chargeTicks) / this.rechargeTicks;
+    }
+
+    isChargeDrainActive(): boolean {
+        return this.status === SuperWeaponStatus.Draining;
+    }
+
+    startChargeDrain(ratio: number): boolean {
+        if (this.status !== SuperWeaponStatus.Ready) return false;
+        this.chargeDrainRatio = normalizeAresChargeToDrainRatio(ratio);
+        const transition = startAresChargeDrain(this.rechargeTicks, this.chargeDrainRatio);
+        this.chargeTicks = transition.timerTicks;
+        this.status = SuperWeaponStatus.Draining;
+        return true;
+    }
+
+    deactivateChargeDrain(): boolean {
+        if (this.status !== SuperWeaponStatus.Draining) return false;
+        const transition = stopAresChargeDrain(this.rechargeTicks, this.chargeTicks, this.chargeDrainRatio);
+        this.chargeTicks = transition.timerTicks;
+        this.status = transition.state === "ready"
+            ? SuperWeaponStatus.Ready
+            : SuperWeaponStatus.Charging;
+        return true;
+    }
+
+    private updateChargeDrain(): void {
+        if (this.chargeTicks > 0) this.chargeTicks--;
+        const amount = this.rules.ares?.moneyDrainAmount;
+        const delay = this.rules.ares?.moneyDrainDelay;
+        if (this.chargeTicks > 0 && isAresChargeDrainMoneyDue(this.chargeTicks, delay) && amount) {
+            if (!canAresSuperWeaponTransactMoney(this.owner.credits, amount) ||
+                !applyAresSuperWeaponMoney(this.owner, amount)) {
+                // Antares stops the drain when a scheduled transaction cannot
+                // be completed; the already-spent charge remains consumed.
+                this.deactivateChargeDrain();
+                return;
+            }
+        }
+        if (this.chargeTicks <= 0) {
+            // Automatic expiry shuts the effect down and starts a normal
+            // recharge cycle. The type-specific effect can attach its own
+            // deactivation hook when that handler is implemented.
+            this.chargeTicks = this.rechargeTicks;
+            this.status = SuperWeaponStatus.Charging;
+        }
     }
 }

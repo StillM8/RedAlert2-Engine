@@ -106,13 +106,14 @@ const EXTENSION_PREFIXES = [
     "eva.",
     "text.",
     "money.",
+    "usechargedrain",
 ] as const;
 
 function collectExtensionEntries(section: IniSectionLike): ReadonlyMap<string, string | string[]> {
     const entries = new Map<string, string | string[]>();
     for (const [key, value] of section.entries) {
         const normalized = normalize(key);
-        if (EXTENSION_PREFIXES.some(prefix => normalized.startsWith(prefix))) {
+        if (EXTENSION_PREFIXES.some(prefix => normalized.startsWith(prefix)) || normalized === "usechargedrain") {
             entries.set(key, Array.isArray(value) ? [...value] : value);
         }
     }
@@ -141,6 +142,11 @@ export interface AresSuperWeaponDefinition {
     swAutoFire?: boolean;
     /** When AutoFire is enabled, whether the owning human may click-launch it. */
     swManualFire?: boolean;
+    /** Raw legacy flag retained for provenance; Ares handlers decide whether it applies. */
+    swUseChargeDrain?: boolean;
+    /** Ares forces charge-drain timing for the Firestorm and Battery handlers. */
+    useChargeDrain?: boolean;
+    swUnstoppable?: boolean;
     swAIRequiresTarget?: string;
     swAIRequiresHouse?: string;
     swRangeMinimum?: number;
@@ -265,6 +271,14 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swFireIntoShroud: getBool(section, "SW.FireIntoShroud"),
         swAutoFire: getBool(section, "SW.AutoFire"),
         swManualFire: getBool(section, "SW.ManualFire"),
+        swUseChargeDrain: getBool(section, "UseChargeDrain"),
+        // Ares 3.0 only enables the charge-drain state machine for handlers
+        // that own that lifecycle.  In particular, Firestorm ignores an
+        // explicit UseChargeDrain=no, while an arbitrary custom Type= must
+        // not gain gameplay merely because the field was present.
+        useChargeDrain: extensionType === "Firestorm" ||
+            extensionType === "Battery",
+        swUnstoppable: getBool(section, "SW.Unstoppable"),
         swAIRequiresTarget: getString(section, "SW.AIRequiresTarget"),
         swAIRequiresHouse: getString(section, "SW.AIRequiresHouse"),
         swRangeMinimum: getNumber(section, "SW.RangeMinimum"),

@@ -122,6 +122,14 @@ export class SuperWeaponsTrait {
                     }
                 }
             }
+            else if (a.rules.ares?.useChargeDrain === true) {
+                const ratio = a.rules.ares.swChargeToDrainRatio ??
+                    i.rules.general?.chargeToDrainRatio ??
+                    1;
+                if (!a.startChargeDrain(ratio)) {
+                    return false;
+                }
+            }
             else {
                 a.resetTimer();
             }
@@ -129,6 +137,16 @@ export class SuperWeaponsTrait {
             return true;
         }
         return false;
+    }
+
+    /** Stop a charge-drain superweapon without changing ordinary SW timers. */
+    deactivateSuperWeapon(t: number, e: any): boolean {
+        const weapon = e.superWeaponsTrait
+            ?.getAll()
+            .find((candidate: any) => candidate.rules.index === t);
+        if (!weapon?.isChargeDrainActive?.()) return false;
+        if (weapon.rules.ares?.swUnstoppable === true) return false;
+        return weapon.deactivateChargeDrain();
     }
     private activateEffect(e: any, i: any, r: any, s: any, a: any, n: boolean = false) {
         const o = e.type;

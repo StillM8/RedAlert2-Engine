@@ -54,11 +54,14 @@ Money.DrainDelay=30
             contents: "[PaidSW]\nType=GenericWarhead\nMoney.Amount=-250\nMoney.DrainAmount=-5\nMoney.DrainDelay=30\n",
         }]);
         const usage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-money");
+        const drainUsage = report.featureUsage.find((item) => item.featureId === "ares.superweapon-charge-drain");
 
-        expect(usage?.occurrences).toBe(3);
+        expect(usage?.occurrences).toBe(1);
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.parserImplemented).toBe(true);
         expect(usage?.support?.runtimeImplemented).toBe(true);
+        expect(drainUsage?.occurrences).toBe(2);
+        expect(drainUsage?.definitionCount).toBe(1);
     });
 
     test("the activation path charges only after a valid ready launch", () => {
