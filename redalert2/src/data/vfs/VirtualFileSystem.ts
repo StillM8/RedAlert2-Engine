@@ -437,6 +437,16 @@ export class VirtualFileSystem {
             this.logger.error(`Failed to add BAG file "${filename}":`, error);
         }
     }
+    private async hasLooseOrMountedFile(filename: string): Promise<boolean> {
+        return this.fileExists(filename) || !!(await this.findRfsEntry(filename));
+    }
+    private async addBagFileIfPresent(filename: string): Promise<void> {
+        const idxFilename = filename.replace(/\.bag$/i, ".idx");
+        if (!await this.hasLooseOrMountedFile(filename) || !await this.hasLooseOrMountedFile(idxFilename)) {
+            return;
+        }
+        await this.addBagFile(filename);
+    }
     async loadImplicitMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
         this.logger.info("Initializing implicit mix files...");
         const YR = engineType === EngineType.YurisRevenge;
@@ -465,7 +475,15 @@ export class VirtualFileSystem {
         if (YR)
             await addImplicit("audiomd.mix");
         await addImplicit("audio.mix");
-        await this.addBagFile("audio.bag");
+        // Ares combines the retail audio bag with optional extension bags.
+        // Keep this discovery generic: profile/mod audio can live in loose
+        // imported storage or in any already-mounted MIX archive.
+        await this.addBagFileIfPresent("audio.bag");
+        await this.addBagFileIfPresent("ares.bag");
+        for (let i = 1; i <= 99; i++) {
+            const suffix = pad(i, "00");
+            await this.addBagFileIfPresent(`audio${suffix}.bag`);
+        }
         await addImplicit("conquer.mix");
         if (YR) {
             await addImplicit("conqmd.mix");
@@ -538,7 +556,7 @@ export class VirtualFileSystem {
             this.logger.info("No real file system is mounted; skipping standalone file loading.");
             return;
         }
-        const extensionsToLoad = ["ini", "csf"];
+        const extensionsToLoad = ["ini", "csf", "wav"];
         const excludeSet = new Set<string>((options?.exclude || []).map((file) => gamePathKey(file)));
         const filesForMemArchive: VirtualFile[] = [];
         const rfsIndex = await this.getRfsEntryIndex();
@@ -548,7 +566,11 @@ export class VirtualFileSystem {
             const lowerEntryName = normalizedEntryName.toLocaleLowerCase("en-US");
             const excluded = excludeSet.has(gamePathKey(normalizedEntryName)) ||
                 excludeSet.has(gamePathKey(gamePathLeaf(normalizedEntryName)));
-            if (extensionsToLoad.some((ext) => lowerEntryName.endsWith("." + ext)) && !excluded) {
+            const isLooseRootWav = lowerEntryName.endsWith(".wav") && !normalizedEntryName.includes("/");
+            const isStandaloneConfig = extensionsToLoad
+                .filter((extension) => extension !== "wav")
+                .some((extension) => lowerEntryName.endsWith("." + extension));
+            if ((isStandaloneConfig || isLooseRootWav) && !excluded) {
                 try {
                     const file = await this.rfs.openFile(entryName);
                     if (file) {

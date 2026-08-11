@@ -86,6 +86,19 @@ function copyMatchingMixes(pattern: RegExp, description: string): void {
     }
 }
 
+function copyMatchingRootFiles(pattern: RegExp, description: string): void {
+    const matches = readdirSync(RETAIL)
+        .filter((name) => pattern.test(name))
+        .sort((left, right) => left.localeCompare(right));
+    for (const name of matches) {
+        copyFileSync(join(RETAIL, name), join(OUT, name.toLowerCase()));
+        console.log(`   ${name}`);
+    }
+    if (matches.length === 0) {
+        console.warn(`   (skip) no ${description} found`);
+    }
+}
+
 function openMix(path: string): MixFile {
     const bytes = new Uint8Array(readFileSync(path));
     return new MixFile(VirtualFile.fromBytes(bytes, path).stream as any);
@@ -224,6 +237,13 @@ if (RESOURCE_PROFILE === "mental-omega") {
     copyMatchingMixes(/^movmo\d{2}\.mix$/i, "Mental Omega movie MIX files");
     copyMatchingMixes(/^multimo\.mix$/i, "Mental Omega multiplayer MIX");
 }
+
+// Ares can add audio outside the retail audio.mix/audiomd.mix containers.
+// Preserve these root resources so the runtime can discover the matching
+// IDX/BAG pair and any loose WAV samples without a profile-specific branch.
+console.log("== Copying loose audio resources");
+copyMatchingRootFiles(/^(?:audio|ares)(?:\d{2})?\.(?:bag|idx)$/i, "Ares audio BAG/IDX files");
+copyMatchingRootFiles(/\.wav$/i, "loose WAV resources");
 
 console.log("== Copying bonus map packs (*.mmx, *.yro)");
 for (const entry of readdirSync(RETAIL)) {

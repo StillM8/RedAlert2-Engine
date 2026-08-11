@@ -48,6 +48,29 @@ function createMix(entries: Array<[string, Uint8Array]>): MixFile {
     return new MixFile(new DataStream(createMixBytes(entries)));
 }
 
+function createEmptyMixBytes(): Uint8Array {
+    const bytes = createMixBytes([]);
+    // MixFile distinguishes the TD header from a Westwood flags word using
+    // the first four bytes. Keep an empty fixture on the TD path.
+    bytes[3] = 1;
+    return bytes;
+}
+
+function createIdxBytes(filename: string): Uint8Array {
+    const bytes = new Uint8Array(36 + 16);
+    const view = new DataView(bytes.buffer);
+    bytes.set(new TextEncoder().encode("GABA"), 0);
+    view.setInt32(4, 2, true);
+    view.setInt32(8, 1, true);
+    bytes.set(new TextEncoder().encode(filename), 12);
+    view.setUint32(28, 0, true);
+    view.setUint32(32, 4, true);
+    view.setUint32(36, 22050, true);
+    view.setUint32(40, 0x02, true);
+    view.setUint32(44, 0, true);
+    return bytes;
+}
+
 describe("VirtualFileSystem resource precedence", () => {
     test("higher explicit layers win regardless of insertion order", () => {
         const vfs = createVfs();
@@ -208,5 +231,35 @@ describe("VirtualFileSystem resource precedence", () => {
     test("fails loudly when a profile-required implicit MIX is unavailable", async () => {
         const vfs = createVfs();
         await expect(vfs.loadImplicitMixFiles(3, GAME_PROFILES.ra2)).rejects.toThrow(/Required archive "language\.mix"/);
+    });
+
+    test("discovers Ares extension audio bags from imported storage", async () => {
+        const files = new Map([
+            ["ra2.mix", VirtualFile.fromBytes(createEmptyMixBytes(), "ra2.mix")],
+            ["language.mix", VirtualFile.fromBytes(createEmptyMixBytes(), "language.mix")],
+            ["multi.mix", VirtualFile.fromBytes(createEmptyMixBytes(), "multi.mix")],
+            ["audio01.bag", VirtualFile.fromBytes(new Uint8Array([1, 2, 3, 4]), "audio01.bag")],
+            ["audio01.idx", VirtualFile.fromBytes(createIdxBytes("aresvoice"), "audio01.idx")],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const file = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!file) throw new FileNotFoundError(filename);
+                return file;
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadImplicitMixFiles(EngineType.RedAlert2, GAME_PROFILES.ra2);
+
+        expect(vfs.hasArchive("audio01.bag")).toBe(true);
+        expect(vfs.openFile("aresvoice.wav").getSize()).toBeGreaterThan(4);
     });
 });

@@ -30,11 +30,32 @@ interface SevenZipWasmOptions {
     quit?: (code: number, message?: string) => void;
 }
 declare function createSevenZipWasm(options?: SevenZipWasmOptions): Promise<SevenZipWasmModule>;
-const REQUIRED_MIX_SIZES = new Map<string, number>()
-    .set("ra2.mix", 281895456)
-    .set("language.mix", 53116040)
-    .set("multi.mix", 25856283)
-    .set("theme.mix", 76862662);
+const REQUIRED_ROOT_MIXES = ["ra2.mix", "language.mix", "multi.mix"] as const;
+const OPTIONAL_ROOT_MIXES = new Set(["theme.mix"]);
+
+function isRootFileName(filename: string): boolean {
+    return !filename.includes("/") && !filename.includes("\\");
+}
+
+function collectRootResourceNames(sourceEntries: readonly string[]): string[] {
+    const names = new Map<string, string>();
+    const add = (filename: string): void => {
+        const key = filename.toLocaleLowerCase("en-US");
+        if (!names.has(key)) names.set(key, filename);
+    };
+    for (const filename of REQUIRED_ROOT_MIXES) add(filename);
+    for (const filename of sourceEntries) {
+        if (isRootFileName(filename) && /\.mix$/i.test(filename)) add(filename);
+    }
+    return [...names.values()].sort((left, right) => left.localeCompare(right));
+}
+
+function isLooseAudioResource(filename: string): boolean {
+    return isRootFileName(filename) && (
+        /^(?:audio|ares)(?:\d{2})?\.(?:bag|idx)$/i.test(filename) ||
+        /\.wav$/i.test(filename)
+    );
+}
 function formatBytes(bytes: number): string {
     return (bytes / 1024 / 1024).toFixed(2) + " MB";
 }
@@ -72,8 +93,6 @@ export class GameResImporter {
         this.sentry = sentry;
     }
     async import(source: ImportSource | undefined, targetRfsRootDir: RealFileSystemDir, onProgress: ImportProgressCallback): Promise<void> {
-        const essentialMixes = ["ra2.mix", "language.mix", "multi.mix", "theme.mix"];
-        const optionalMixes = new Set(["theme.mix"]);
         const tauntsDirName = Engine.rfsSettings.tauntsDir;
         const S = this.strings;
         console.log('[GameResImporter] Starting import process');
@@ -184,19 +203,24 @@ export class GameResImporter {
                 }
                 throw e;
             }
-            const entriesToExtract = [...essentialMixes, tauntsDirName];
-            for (const entryName of entriesToExtract) {
+            const extractionPlans = [
+                { entryName: "*.mix", matches: (name: string) => /\.mix$/i.test(name) },
+                { entryName: "audio*.bag", matches: (name: string) => /^audio.*\.bag$/i.test(name) },
+                { entryName: "audio*.idx", matches: (name: string) => /^audio.*\.idx$/i.test(name) },
+                { entryName: "ares*.bag", matches: (name: string) => /^ares.*\.bag$/i.test(name) },
+                { entryName: "ares*.idx", matches: (name: string) => /^ares.*\.idx$/i.test(name) },
+                { entryName: tauntsDirName, matches: (_name: string) => false },
+            ];
+            const importedMixes = new Set<string>();
+            for (const { entryName, matches } of extractionPlans) {
                 onProgress(S.get("ts:import_extracting", entryName));
                 await sleep(100);
                 sevenZipExitCode = undefined;
                 sevenZipErrorMessage = undefined;
                 sevenZipModule.callMain(["x", "-ssc-", "-aoa", archiveName, entryName]);
                 if (sevenZipExitCode !== 0 && sevenZipExitCode !== undefined) {
-                    if (sevenZipExitCode === 1 && entryName === tauntsDirName) {
-                        console.warn(`Taunts directory "${entryName}" not found in archive, or non-fatal extraction issue. Skipping.`);
-                    }
-                    else if (sevenZipExitCode === 1 && optionalMixes.has(entryName)) {
-                        console.warn(`Optional mix file "${entryName}" not found in archive or non-fatal extraction issue. Skipping.`);
+                    if (sevenZipExitCode === 1) {
+                        console.warn(`Archive entry "${entryName}" was not found or had a non-fatal extraction issue. Skipping.`);
                     }
                     else {
                         const baseErrorMsg = `7-Zip exited with code ${sevenZipExitCode} for ${entryName}`;
@@ -213,25 +237,28 @@ export class GameResImporter {
                 const emFsCurrentDirContents = sevenZipModule.FS.lookupPath(sevenZipModule.FS.cwd())["node"].contents;
                 const extractedEntryNames = Object.keys(emFsCurrentDirContents);
                 if (entryName !== tauntsDirName) {
-                    const mixFileNameInFs = extractedEntryNames.find(name => stringUtils.equalsIgnoreCase(name, entryName)) || entryName;
-                    onProgress(S.get("ts:import_importing", mixFileNameInFs));
-                    let fileData;
-                    try {
-                        fileData = this.readFileFromEmFs(sevenZipModule.FS, mixFileNameInFs);
-                        sevenZipModule.FS.unlink(mixFileNameInFs);
-                    }
-                    catch (e: any) {
-                        if (e.errno === 44 && optionalMixes.has(entryName)) {
-                            console.warn(`Optional Mix file "${entryName}" not found in Emscripten FS after extraction. Skipping.`);
-                            continue;
+                    const extractedNames = extractedEntryNames.filter(matches);
+                    for (const extractedName of extractedNames) {
+                        onProgress(S.get("ts:import_importing", extractedName));
+                        try {
+                            const fileData = this.readFileFromEmFs(sevenZipModule.FS, extractedName);
+                            sevenZipModule.FS.unlink(extractedName);
+                            if (/\.mix$/i.test(extractedName)) {
+                                importedMixes.add(extractedName.toLocaleLowerCase("en-US"));
+                                await this.importMixArchive(fileData, targetRfsRootDir, onProgress, S);
+                            }
+                            else {
+                                await targetRfsRootDir.writeFile(fileData, extractedName.toLocaleLowerCase("en-US"));
+                            }
                         }
-                        if (e.errno === 44 && !REQUIRED_MIX_SIZES.has(entryName.toLowerCase())) {
-                            console.warn(`File "${entryName}" not found in Emscripten FS and not strictly required. Skipping.`);
-                            continue;
+                        catch (e: any) {
+                            if (e.errno === 44 && entryName !== "*.mix") {
+                                console.warn(`Resource "${extractedName}" disappeared from the archive extraction FS. Skipping.`);
+                                continue;
+                            }
+                            throw new GameResFileNotFoundError(extractedName);
                         }
-                        throw new GameResFileNotFoundError(entryName);
                     }
-                    await this.importMixArchive(fileData, targetRfsRootDir, onProgress, S);
                 }
                 else {
                     const tauntsDirInFs = extractedEntryNames.find(name => stringUtils.equalsIgnoreCase(name, tauntsDirName));
@@ -259,6 +286,11 @@ export class GameResImporter {
                 }
             }
             sevenZipModule.FS.unlink(archiveName);
+            for (const requiredMix of REQUIRED_ROOT_MIXES) {
+                if (!importedMixes.has(requiredMix)) {
+                    throw new GameResFileNotFoundError(requiredMix);
+                }
+            }
             try {
                 await targetRfsRootDir.openFile("ra2.mix");
             }
@@ -274,7 +306,8 @@ export class GameResImporter {
         else {
             const sourceDirWrapper = new RealFileSystemDir(source as FileSystemDirectoryHandle, true);
             const sourceEntries = await sourceDirWrapper.listEntries();
-            for (const mixName of essentialMixes) {
+            const rootMixes = collectRootResourceNames(sourceEntries);
+            for (const mixName of rootMixes) {
                 onProgress(S.get("ts:import_importing", mixName));
                 const actualFileName = sourceEntries.find(entry => stringUtils.equalsIgnoreCase(entry, mixName)) || mixName;
                 let virtualFile;
@@ -283,7 +316,7 @@ export class GameResImporter {
                 }
                 catch (e: any) {
                     if (e instanceof VfsFileNotFoundError) {
-                        if (optionalMixes.has(mixName)) {
+                        if (OPTIONAL_ROOT_MIXES.has(mixName.toLocaleLowerCase("en-US")) || !REQUIRED_ROOT_MIXES.some((required) => stringUtils.equalsIgnoreCase(required, mixName))) {
                             console.warn(`Optional Mix file "${mixName}" not found in source directory. Skipping.`);
                             continue;
                         }
@@ -292,6 +325,21 @@ export class GameResImporter {
                     throw e;
                 }
                 await this.importMixArchive(virtualFile, targetRfsRootDir, onProgress, S);
+            }
+            for (const resourceName of sourceEntries.filter(isLooseAudioResource)) {
+                const actualFileName = sourceEntries.find(entry => stringUtils.equalsIgnoreCase(entry, resourceName)) || resourceName;
+                try {
+                    onProgress(S.get("ts:import_importing", actualFileName));
+                    const virtualFile = await sourceDirWrapper.openFile(actualFileName);
+                    await targetRfsRootDir.writeFile(virtualFile, actualFileName.toLocaleLowerCase("en-US"));
+                }
+                catch (e: any) {
+                    if (e instanceof VfsFileNotFoundError) {
+                        console.warn(`Loose audio resource "${actualFileName}" disappeared during import. Skipping.`);
+                        continue;
+                    }
+                    throw e;
+                }
             }
             const tauntsDirInSource = sourceEntries.find(entry => stringUtils.equalsIgnoreCase(entry, tauntsDirName)) || tauntsDirName;
             let sourceTauntsDir: RealFileSystemDir | undefined;
