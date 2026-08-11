@@ -5,21 +5,27 @@ export class DamageSmokePlugin {
     private theater: any;
     private imageFinder: any;
     private gameSpeed: any;
+    private damageParticleSystems?: readonly any[];
     private renderableManager?: any;
     private smokeFx?: DamageSmokeFx;
     private lastDamaged?: boolean;
     private smokeStartTime?: number;
-    constructor(gameObject: any, art: any, theater: any, imageFinder: any, gameSpeed: any) {
+    constructor(gameObject: any, art: any, theater: any, imageFinder: any, gameSpeed: any, damageParticleSystems?: readonly any[]) {
         this.gameObject = gameObject;
         this.art = art;
         this.theater = theater;
         this.imageFinder = imageFinder;
         this.gameSpeed = gameSpeed;
+        this.damageParticleSystems = damageParticleSystems;
     }
     onCreate(renderableManager: any): void {
         this.renderableManager = renderableManager;
     }
     update(time: number): void {
+        if (this.damageParticleSystems && this.damageParticleSystems.length === 0) {
+            this.disposeSmokeFx();
+            return;
+        }
         if (!this.renderableManager)
             return;
         const isDamaged = this.gameObject.healthTrait.health < 50;

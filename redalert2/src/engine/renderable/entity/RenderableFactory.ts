@@ -21,6 +21,7 @@ import { InfantryDisguisePlugin } from "@/engine/renderable/entity/plugin/Infant
 import { PsychicDetectPlugin } from "@/engine/renderable/entity/building/PsychicDetectPlugin";
 import { TrailerSmokePlugin } from "@/engine/renderable/entity/plugin/TrailerSmokePlugin";
 import { DamageSmokePlugin } from "@/engine/renderable/entity/plugin/DamageSmokePlugin";
+import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import { LocomotorType } from "@/game/type/LocomotorType";
 import { ShipWakeTrailPlugin } from "@/engine/renderable/entity/plugin/ShipWakeTrailPlugin";
 import { ObjectCloakPlugin } from "@/engine/renderable/entity/plugin/ObjectCloakPlugin";
@@ -38,6 +39,7 @@ interface GameEntity {
     rules: {
         moveSound?: string;
         damageParticleSystems: any[];
+        aresDamageParticles?: AresDamageParticleSelection;
         locomotor: LocomotorType;
     };
     type: string;
@@ -127,6 +129,18 @@ interface Plugin {
 interface RenderableEntity {
     registerPlugin(plugin: Plugin): void;
 }
+
+/**
+ * Select the smoke candidates used to gate the legacy damage-smoke plugin.
+ * A pre-resolved Ares selection owns precedence when present; vanilla keeps
+ * using the existing DamageParticleSystems list.
+ */
+export function getDamageSmokeParticleSystems(
+    rules: Pick<GameEntity["rules"], "damageParticleSystems" | "aresDamageParticles">,
+): readonly any[] {
+    return rules.aresDamageParticles?.damageSmokeParticleSystems ?? rules.damageParticleSystems;
+}
+
 export class RenderableFactory {
     private localPlayer: LocalPlayer;
     private unitSelection: UnitSelection;
@@ -223,8 +237,9 @@ export class RenderableFactory {
             }
             else if (entity.isVehicle()) {
                 renderable = new Vehicle(entity, this.rules, this.art, this.imageFinder, this.theater, this.voxels, this.voxelAnims, palette, this.camera, this.lighting, this.debugWireframes, this.gameSpeed, selectionModel, this.vxlBuilderFactory, this.useSpriteBatching, pipOverlay, this.worldSound);
-                if (entity.rules.damageParticleSystems.length) {
-                    plugins.push(new DamageSmokePlugin(entity, this.art, this.theater, this.imageFinder, this.gameSpeed));
+                const damageSmokeParticleSystems = getDamageSmokeParticleSystems(entity.rules);
+                if (damageSmokeParticleSystems.length) {
+                    plugins.push(new DamageSmokePlugin(entity, this.art, this.theater, this.imageFinder, this.gameSpeed, damageSmokeParticleSystems));
                 }
                 if (entity.rules.locomotor === LocomotorType.Ship ||
                     entity.rules.locomotor === LocomotorType.Hover) {
