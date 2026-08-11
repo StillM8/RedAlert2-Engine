@@ -37,7 +37,7 @@ interface WolService {
 export class ScoreScreen extends MainMenuScreen {
     private strings: any;
     private jsxRenderer: any;
-    private wolService: WolService;
+    private wolService?: WolService;
     private scoreTable?: any;
     private reportUpdateTask?: Task<void>;
     constructor(strings: any, jsxRenderer: any, wolService: WolService) {
@@ -74,18 +74,33 @@ export class ScoreScreen extends MainMenuScreen {
             localPlayer.country?.sideDefinition,
             side,
         );
-        const assets = {
-            img: scorePresentation.image,
-            pal: scorePresentation.palette,
+        const fallbackPresentation = resolveMultiplayerScorePresentation(undefined, side);
+        const hasAssetPair = (image: string, palette: string): boolean => {
+            try {
+                return !!Engine.vfs?.fileExists(image) && !!Engine.vfs?.fileExists(palette);
+            }
+            catch {
+                return false;
+            }
         };
+        const customAssetsAvailable = hasAssetPair(scorePresentation.image, scorePresentation.palette);
+        const fallbackAssetsAvailable = hasAssetPair(fallbackPresentation.image, fallbackPresentation.palette);
+        const assets = customAssetsAvailable
+            ? { img: scorePresentation.image, pal: scorePresentation.palette }
+            : fallbackAssetsAvailable
+                ? { img: fallbackPresentation.image, pal: fallbackPresentation.palette }
+                : undefined;
         console.info('[ScoreScreen] Faction presentation', {
             side,
-            image: assets.img,
-            palette: assets.pal,
-            imageAvailable: Engine.vfs?.fileExists(assets.img),
-            paletteAvailable: Engine.vfs?.fileExists(assets.pal),
+            image: assets?.img ?? scorePresentation.image,
+            palette: assets?.pal ?? scorePresentation.palette,
+            imageAvailable: customAssetsAvailable || fallbackAssetsAvailable,
+            paletteAvailable: customAssetsAvailable || fallbackAssetsAvailable,
+            usingFallback: !customAssetsAvailable && fallbackAssetsAvailable,
         });
-        const [component] = this.jsxRenderer.render(jsx("container", { width: "100%", height: "100%" }, jsx("sprite", { image: assets.img, palette: assets.pal }), jsx(HtmlView, {
+        const [component] = this.jsxRenderer.render(jsx("container", { width: "100%", height: "100%" }, assets
+            ? jsx("sprite", { image: assets.img, palette: assets.pal })
+            : [], jsx(HtmlView, {
             width: "100%",
             height: "100%",
             component: ScoreTable,
@@ -106,7 +121,7 @@ export class ScoreScreen extends MainMenuScreen {
             while (true) {
                 if (cancellationToken.isCancelled())
                     return;
-                const report = this.wolService.getLastGameReport();
+                const report = this.wolService?.getLastGameReport?.();
                 if (report?.gameId === game.id) {
                     this.scoreTable.applyOptions((options: any) => {
                         options.gameReport = report;
