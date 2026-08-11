@@ -36,6 +36,13 @@ describe("ImageFinder Ares theater art", () => {
         expect(finder.getFilename("FGCNST", false, true)).toBe("fgcnst.shp");
     });
 
+    test("resolves NewTheater building bibs from their generic fallback", () => {
+        const finder = createFinder(["fgrefnbb.shp"]);
+
+        expect(finder.getFilename("FAREFNBB", false, true)).toBe("fgrefnbb.shp");
+        expect(finder.find("FAREFNBB", false, true)).toEqual({ filename: "fgrefnbb.shp" });
+    });
+
     test("keeps the retail heuristic for unmarked legacy art", () => {
         const finder = createFinder(["gucnst.shp"]);
 

@@ -392,7 +392,16 @@ export class GameLoader {
                     try {
                         const mainShp = imageFinder.findByObjectArt(artObject);
                         const bibShp = artObject.bibShape
-                            ? imageFinder.find(artObject.bibShape, artObject.useTheaterExtension)
+                            // Bibs are part of the same building art family. Ares
+                            // NewTheater must therefore resolve the bib through
+                            // the same second-letter/fallback rules as the main
+                            // SHP; otherwise one missing legacy name aborts the
+                            // entire building aggregate during preload.
+                            ? imageFinder.find(
+                                artObject.bibShape,
+                                artObject.useTheaterExtension,
+                                artObject.useNewTheaterArt,
+                            )
                             : undefined;
                         const animShps = buildingShpHelper.collectAnimShpFiles(animProps as any, artObject);
                         const frameInfos = buildingShpHelper.getShpFrameInfos(artObject, mainShp, bibShp, animShps as any);
