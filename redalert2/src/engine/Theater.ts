@@ -6,6 +6,7 @@ import type { LazyResourceCollection } from './LazyResourceCollection';
 import type { TmpFile } from '../data/TmpFile';
 import type { IniFile } from '../data/IniFile';
 import type { FileSystem } from '../data/vfs/FileSystem';
+import { getAresCustomPaletteCandidates } from '@/extensions/ares/AresCustomPalettes';
 export class Theater {
     public type: TheaterType;
     public settings: TheaterSettings;
@@ -61,15 +62,17 @@ export class Theater {
             case PaletteType.Unit:
                 return this.unitPalette;
             case PaletteType.Custom:
-                if (customPaletteName === "lib")
+                if (customPaletteName?.toLocaleLowerCase("en-US") === "lib")
                     return this.libPalette;
                 if (!customPaletteName)
                     throw new Error('Custom palette name required for PaletteType.Custom');
-                // Retail resolves Palette= with the theater extension first
-                // (libtem.pal / libsno.pal ...), then the bare name.
                 const theaterSuffix = this.settings.extension.replace(".", "");
-                const customPalette = this.palettes.get(customPaletteName + theaterSuffix + ".pal") ??
-                    this.palettes.get(customPaletteName + ".pal");
+                // Ares CustomPalette supports both complete filenames and
+                // the first-three-tildes theater substitution.  Keep the
+                // legacy basename fallback for Palette= compatibility.
+                const customPalette = getAresCustomPaletteCandidates(customPaletteName, theaterSuffix)
+                    .map((candidate) => this.palettes.get(candidate))
+                    .find((palette): palette is Palette => !!palette);
                 if (!customPalette) {
                     throw new Error(`Custom palette "${customPaletteName}" not found`);
                 }

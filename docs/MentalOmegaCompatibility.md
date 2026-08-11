@@ -23,6 +23,39 @@ extension runtime identifier; vanilla `ra2` and `yr` profiles remain separate.
   alternative lists, negative prerequisites, stolen-tech gates, and theater
   gates when map theater context is available.
 
+## Local Mental Omega 3.3.6 scan checkpoint
+
+The user-owned installation at `/home/ra2 android/RA2 MO` was scanned through
+the effective profile roots:
+
+```text
+rulesmo.ini
+artmo.ini
+aimo.ini
+uimd.ini
+soundmo.ini
+```
+
+The include graph resolved 5 roots with 0 missing includes, 0 cycles, and 0
+duplicate loads. It contains 14,104 sections and 214,282 key entries. The
+highest-impact identified Ares usage currently is:
+
+| Capability | Occurrences | Source files | Sections/definitions | Runtime status |
+| --- | ---: | ---: | ---: | --- |
+| Custom ArmorTypes / `Versus.*` | 8,917 | 1 | 640 / 877 | implemented, target integration open |
+| Custom foundations / outlines | 2,671 | 1 | 79 / 79 | implemented, target integration open |
+| Custom superweapon fields/types | 552 | 1 | 141 / 141 | parser partial, runtime gaps remain |
+| CustomPalette | 541 | 1 | 541 / 541 | implemented, render certification open |
+| EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
+| Projectile extensions | 385 | 1 | 232 / 232 | not implemented |
+| VehicleThief / CanDrive | 271 | 1 | 263 / 263 | core runtime implemented, integration gaps remain |
+
+The scanner currently reports a broad unknown-key bucket because ordinary
+Mental Omega keys are not all classified as vanilla or Ares yet. That bucket
+is a diagnostic backlog, not a claim that every unknown entry is an Ares
+mechanic. Development now follows the identified capability counts and
+dependencies.
+
 ## Compatibility status
 
 This is intentionally not a claim of complete runtime compatibility yet.
