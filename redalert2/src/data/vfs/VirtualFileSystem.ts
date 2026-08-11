@@ -174,6 +174,15 @@ export class VirtualFileSystem {
         }
         return [...files];
     }
+    /**
+     * Return the cached imported-storage inventory used by loose-resource
+     * loading. Consumers such as map discovery must reuse this index instead
+     * of enumerating Android's directory handles a second time during boot.
+     */
+    async listRfsFiles(): Promise<string[]> {
+        const index = await this.getRfsEntryIndex();
+        return [...new Set([...index.byPath.values()].flat())].sort(compareResourcePaths);
+    }
     resolve(filename: string): VfsResolution {
         const normalized = this.resolveFilename(filename);
         const candidates: VfsResolutionCandidate[] = [];
@@ -373,7 +382,9 @@ export class VirtualFileSystem {
      * It runs to a small fixpoint so a MIX can contain another known MIX.
      */
     async loadNestedMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
+        const startedAt = Date.now();
         const candidates = this.getExtraMixNames(engineType, profile);
+        let loadedArchives = 0;
         for (let pass = 0; pass < 3; pass++) {
             let loaded = false;
             for (const filename of candidates) {
@@ -382,11 +393,15 @@ export class VirtualFileSystem {
                 }
                 const added = await this.addMixFile(filename, this.metadataForExtraMix(filename, profile));
                 loaded ||= added;
+                if (added) {
+                    loadedArchives++;
+                }
             }
             if (!loaded) {
                 break;
             }
         }
+        this.logger.info(`Nested MIX discovery checked ${candidates.length} candidates, loaded ${loadedArchives} archives in ${Date.now() - startedAt} ms.`);
     }
     async addMixFile(filename: string, metadata?: ArchiveMetadata, options?: { required?: boolean }): Promise<boolean> {
         return this.addArchiveByFilename(filename, async (fileStreamHolder) => {

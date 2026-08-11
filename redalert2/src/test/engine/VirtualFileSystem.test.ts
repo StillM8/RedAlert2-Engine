@@ -161,6 +161,34 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.openFile("rules/UNITS.INI").readAsString()).toBe("[Unit]");
     });
 
+    test("reuses the imported-storage index across resource consumers", async () => {
+        let scans = 0;
+        const files = new Map([
+            ["maps/arena.map", VirtualFile.fromBytes(new TextEncoder().encode("map"), "arena.map")],
+            ["rulesmo.ini", VirtualFile.fromBytes(new TextEncoder().encode("[Rules]"), "rulesmo.ini")],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                scans++;
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const file = files.get(filename);
+                if (!file) throw new FileNotFoundError(filename);
+                return file;
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadStandaloneFiles();
+        expect(await vfs.listRfsFiles()).toEqual(["rulesmo.ini", "maps/arena.map"]);
+        expect(scans).toBe(1);
+    });
+
     test("discovers known nested MIX names and preserves parent provenance", async () => {
         const nestedBytes = new TextEncoder().encode("[General]\nName=MO\n");
         const nestedMixBytes = createMixBytes([["rulesmo.ini", nestedBytes]]);

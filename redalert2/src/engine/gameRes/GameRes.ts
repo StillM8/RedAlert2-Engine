@@ -556,8 +556,12 @@ export class GameRes {
         await vfs.loadExtraMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile]);
         await this.loadCustomMix(vfs);
         await this.loadMixes(config, cdnLoader, vfs, onProgress);
+        const mapListStartedAt = Date.now();
         await Engine.loadMapList();
+        console.info(`[GameRes] Map-list initialization completed in ${Date.now() - mapListStartedAt} ms.`);
+        const uiVariablesStartedAt = Date.now();
         await this.initUiCssVariables(this.rootEl);
+        console.info(`[GameRes] UI resource initialization completed in ${Date.now() - uiVariablesStartedAt} ms.`);
         return cdnLoader;
     }
     private async checkMixesIntegrity(rfsDir: RealFileSystemDir): Promise<void> {

@@ -521,7 +521,7 @@ export class Engine {
             // user map directory. Scan every registered directory so maps
             // shipped by mods appear in the lobby alongside the bundled map
             // manifests.
-            for await (const entryName of this.rfs.getEntriesRecursive()) {
+            for (const entryName of await this.vfs.listRfsFiles()) {
                 const lowerEntryName = entryName.toLowerCase();
                 try {
                     if (lowerEntryName.endsWith(".pkt")) {
