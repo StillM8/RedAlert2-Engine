@@ -180,7 +180,10 @@ export function canUseArmorVersus(
 export function parseAresWarheadVerses(section: IniSection, registry: ArmorRegistry): ParsedWarheadVerses {
     const verses = new Map<ArmorId, number>();
     const behavior = new Map<ArmorId, ArmorVersusBehavior>();
-    section.getFixedArray("Verses").forEach((value, index) => {
+    // Verses percentages are gameplay multipliers. Preserve authored values
+    // such as 1% and 2% exactly instead of applying the legacy fixed-point
+    // conversion, which would make 1% of 100 damage round down to zero.
+    section.getNumberArray("Verses").forEach((value, index) => {
         verses.set(index as ArmorId, value);
         behavior.set(index as ArmorId, defaultBehavior(value));
     });

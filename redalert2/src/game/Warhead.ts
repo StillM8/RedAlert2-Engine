@@ -333,7 +333,7 @@ export class Warhead {
                 }
             }
             if (!(isWeatherStorm && target.isOverlay() && (target.isBridge() || target.rules.wall))) {
-                damage *= this.rules.verses.get(armorType) || 1;
+                damage *= this.rules.verses.get(armorType) ?? 1;
             }
             if (damage > 0 && target.isTechno()) {
                 const techno = target as TechnoObject;
