@@ -8,7 +8,9 @@ export enum LocomotorType {
     Jumpjet = 5,
     Missile = 6,
     Ship = 7,
-    Vehicle = 8
+    Vehicle = 8,
+    /** Parsed explicitly, but intentionally has no runtime movement implementation. */
+    Unsupported = -1
 }
 export const locomotorTypesByClsId = new Map<string, LocomotorType>([
     ['{4A582746-9839-11d1-B709-00A024DDAFD1}', LocomotorType.Aircraft],

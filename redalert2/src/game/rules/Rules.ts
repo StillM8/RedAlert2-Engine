@@ -365,7 +365,7 @@ export class Rules {
         if (!section) {
             throw new Error("Missing [AudioVisual] section");
         }
-        this.audioVisual.readIni(section);
+        this.audioVisual.readIni(section, this.ini.getSection("General"));
     }
     private readCombatDamage(): void {
         const section = this.ini.getSection("CombatDamage");

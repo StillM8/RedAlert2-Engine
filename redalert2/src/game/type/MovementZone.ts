@@ -12,3 +12,8 @@ export enum MovementZone {
     Subterranean = 10,
     Water = 11
 }
+
+/** Generic Ares/YR spelling compatibility; the authored MO value is misspelled. */
+export const movementZoneAliases = {
+    Subterannean: "Subterranean",
+} as const;

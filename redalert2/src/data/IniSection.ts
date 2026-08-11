@@ -169,13 +169,17 @@ export class IniSection {
         const numArray = this.getNumberArray(key, separator, defaultValue);
         return numArray.map((n) => this.toFixedPointPrecision(n));
     }
-    public getEnum<T extends object>(key: string, enumObject: T, defaultValue: T[keyof T], caseInsensitive: boolean = false): T[keyof T] {
+    public getEnum<T extends object>(key: string, enumObject: T, defaultValue: T[keyof T], caseInsensitive: boolean = false, aliases: Readonly<Record<string, string>> = {}): T[keyof T] {
         let valueStr = this.getString(key).trim();
         if (!valueStr)
             return defaultValue;
+        const aliasEntry = Object.entries(aliases).find(([alias]) => caseInsensitive
+            ? alias.toLowerCase() === valueStr.toLowerCase()
+            : alias === valueStr);
+        const lookupValueStr = aliasEntry?.[1] ?? valueStr;
         let foundValue: T[keyof T] | undefined = undefined;
         if (caseInsensitive) {
-            const lowerValueStr = valueStr.toLowerCase();
+            const lowerValueStr = lookupValueStr.toLowerCase();
             for (const enumKey in enumObject) {
                 if (enumObject.hasOwnProperty(enumKey) && String(enumKey).toLowerCase() === lowerValueStr) {
                     foundValue = enumObject[enumKey as keyof T];
@@ -184,8 +188,8 @@ export class IniSection {
             }
         }
         else {
-            if (enumObject.hasOwnProperty(valueStr)) {
-                foundValue = enumObject[valueStr as keyof T];
+            if (enumObject.hasOwnProperty(lookupValueStr)) {
+                foundValue = enumObject[lookupValueStr as keyof T];
             }
         }
         if (foundValue === undefined) {

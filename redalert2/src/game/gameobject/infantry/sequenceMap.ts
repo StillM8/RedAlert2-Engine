@@ -139,6 +139,9 @@ export const getDeathAnim = (unit: {
         flamingInfantry: any;
         infantryHeadPop: any;
         infantryNuked: any;
+        infantryVirus: any;
+        infantryMutate: any;
+        infantryBrute: any;
     };
     animationNames: string[];
 }, deathType: InfDeathType): any => {
@@ -153,6 +156,12 @@ export const getDeathAnim = (unit: {
             return unit.audioVisual.infantryHeadPop;
         case InfDeathType.Nuke:
             return unit.audioVisual.infantryNuked;
+        case InfDeathType.Virus:
+            return unit.audioVisual.infantryVirus;
+        case InfDeathType.Mutate:
+            return unit.audioVisual.infantryMutate;
+        case InfDeathType.Brute:
+            return unit.audioVisual.infantryBrute;
         default:
             return undefined;
     }

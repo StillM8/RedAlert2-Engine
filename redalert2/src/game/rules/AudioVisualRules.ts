@@ -25,6 +25,9 @@ export class AudioVisualRules {
     private flamingInfantry: string = '';
     private infantryHeadPop: string = '';
     private infantryNuked: string = '';
+    private infantryVirus: string = '';
+    private infantryMutate: string = '';
+    private infantryBrute: string = '';
     private ironCurtainInvokeAnim: string = '';
     private messageDuration: number = 10;
     private metallicDebris: string[] = [];
@@ -46,13 +49,13 @@ export class AudioVisualRules {
     public firestormAirAnim: string = 'FSAIR';
     /** Ares global fallback for TechnoType Bounty.Display. */
     public bountyDisplay = false;
-    readIni(ini: any): AudioVisualRules {
+    readIni(ini: any, generalIni?: any): AudioVisualRules {
         this.ini = ini;
         // YR's rulesmd.ini omits many [AudioVisual] keys that RA2's rules.ini
         // defines — the original YR binary hardcodes their defaults. Every
         // fallback below is the exact value from retail RA2 rules.ini; without
         // them, code paths like the move-order flash crash on an empty name.
-        const str = (key: string, fallback = ''): string => ini.getString(key) || fallback;
+        const str = (key: string, fallback = ''): string => ini.getString(key) || generalIni?.getString(key) || fallback;
         const arr = (key: string, fallback: string[] = []): string[] => {
             const value = ini.getArray(key);
             return value && value.length ? value : fallback;
@@ -83,6 +86,9 @@ export class AudioVisualRules {
         this.flamingInfantry = str("FlamingInfantry", "FLAMEGUY");
         this.infantryHeadPop = str("InfantryHeadPop", "YURIDIE");
         this.infantryNuked = str("InfantryNuked", "NUKEDIE");
+        this.infantryVirus = str("InfantryVirus", "VIRUSD");
+        this.infantryMutate = str("InfantryMutate", "GENDEATH");
+        this.infantryBrute = str("InfantryBrute", "BRUTDIE");
         this.ironCurtainInvokeAnim = str("IronCurtainInvokeAnim", "IRONBLST");
         this.messageDuration = ini.getNumber("MessageDuration", 10);
         this.metallicDebris = arr("MetallicDebris", ["DBRIS1LG", "DBRIS2LG", "DBRIS3LG", "DBRIS4LG", "DBRIS5LG", "DBRIS6LG", "DBRIS7LG", "DBRIS8LG", "DBRIS9LG", "DBRS10LG", "DBRIS1SM", "DBRIS2SM", "DBRIS3SM", "DBRIS4SM", "DBRIS5SM", "DBRIS6SM", "DBRIS7SM", "DBRIS8SM", "DBRIS9SM", "DBRS10SM"]);

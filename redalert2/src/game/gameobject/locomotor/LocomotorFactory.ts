@@ -34,7 +34,7 @@ export class LocomotorFactory {
             case LocomotorType.Hover:
                 return new HoverLocomotor(this.game.rules.general.hover);
             default:
-                throw new Error(`Unhandled locomotor type ${locomotorType}`);
+                throw new Error(`Unsupported locomotor CLSID "${obj.rules.locomotorClsId ?? LocomotorType[locomotorType] ?? locomotorType}" for "${obj.name}"`);
         }
     }
 }

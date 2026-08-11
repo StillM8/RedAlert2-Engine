@@ -3,7 +3,7 @@ import { SideType } from "@/game/SideType";
 import { SpeedType } from "@/game/type/SpeedType";
 import { PipColor } from "@/game/type/PipColor";
 import { LocomotorType } from "@/game/type/LocomotorType";
-import { MovementZone } from "@/game/type/MovementZone";
+import { MovementZone, movementZoneAliases } from "@/game/type/MovementZone";
 import { ArmorType } from "@/game/type/ArmorType";
 import { LandTargeting } from "@/game/type/LandTargeting";
 import { NavalTargeting } from "@/game/type/NavalTargeting";
@@ -265,6 +265,8 @@ export class TechnoRules extends ObjectRules {
     declare fighter: boolean;
     declare flightLevel?: number;
     declare locomotor: LocomotorType;
+    /** Authored CLSID, retained when the generic runtime does not support it. */
+    declare locomotorClsId?: string;
     declare speedType?: SpeedType;
     declare speed: number;
     declare movementZone: MovementZone;
@@ -697,13 +699,14 @@ export class TechnoRules extends ObjectRules {
         const locomotorString = this.ini.getString("Locomotor");
         let defaultLocomotor = this.type === ObjectType.Building ? LocomotorType.Statue : LocomotorType.Chrono;
         if (locomotorString) {
+            this.locomotorClsId = locomotorString;
             const locomotorType = (LocomotorType as any).locomotorTypesByClsId?.get(locomotorString);
             if (locomotorType) {
                 this.locomotor = locomotorType;
             }
             else {
-                console.warn(`Object rules "${this.name}" has invalid Locomotor "${locomotorString}"`);
-                this.locomotor = defaultLocomotor;
+                console.warn(`Object rules "${this.name}" has unsupported Locomotor "${locomotorString}"`);
+                this.locomotor = LocomotorType.Unsupported;
             }
         }
         else {
@@ -730,7 +733,7 @@ export class TechnoRules extends ObjectRules {
             LocomotorType.Chrono
         ].includes(this.locomotor) ? 65 : 100;
         this.speed = ObjectRules.iniSpeedToLeptonsPerTick(this.ini.getNumber("Speed"), speedMultiplier);
-        this.movementZone = this.ini.getEnum("MovementZone", MovementZone, MovementZone.Normal);
+        this.movementZone = this.ini.getEnum("MovementZone", MovementZone, MovementZone.Normal, false, movementZoneAliases);
         this.fearless = this.ini.getBool("Fearless");
         // YR introduced IsSimpleDeployer (Siege Chopper) alongside RA2's
         // Deployer key; both mark a unit that toggles deployed state.
