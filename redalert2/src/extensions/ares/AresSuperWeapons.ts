@@ -171,6 +171,16 @@ export interface AresSuperWeaponDefinition {
     swAnimationHeight?: number;
     swSound?: string;
 
+    /** Shared Ares availability/grant fields. */
+    requiredHouses?: string[];
+    forbiddenHouses?: string[];
+    auxBuildings?: string[];
+    negBuildings?: string[];
+    allowPlayer?: boolean;
+    allowAI?: boolean;
+    shots?: number;
+    alwaysGranted?: boolean;
+
     /** Credits added to (positive) or removed from (negative) on launch. */
     moneyAmount?: number;
     /** Parsed for diagnostics; runtime charge-drain support is separate. */
@@ -301,6 +311,14 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnimation: getString(section, "SW.Animation"),
         swAnimationHeight: getNumber(section, "SW.AnimationHeight"),
         swSound: getString(section, "SW.Sound"),
+        requiredHouses: getArray(section, "SW.RequiredHouses"),
+        forbiddenHouses: getArray(section, "SW.ForbiddenHouses"),
+        auxBuildings: getArray(section, "SW.AuxBuildings"),
+        negBuildings: getArray(section, "SW.NegBuildings"),
+        allowPlayer: getBool(section, "SW.AllowPlayer"),
+        allowAI: getBool(section, "SW.AllowAI"),
+        shots: getNumber(section, "SW.Shots"),
+        alwaysGranted: getBool(section, "SW.AlwaysGranted"),
         moneyAmount: getNumber(section, "Money.Amount"),
         moneyDrainAmount: getNumber(section, "Money.DrainAmount"),
         moneyDrainDelay: getNumber(section, "Money.DrainDelay"),

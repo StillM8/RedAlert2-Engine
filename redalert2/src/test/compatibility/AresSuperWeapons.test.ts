@@ -88,6 +88,33 @@ EMPulse.PulseDelay=32
         expect(pulse?.empulsePulseBall).toBe("none");
     });
 
+    test("retains the shared Ares availability fields", () => {
+        const ini = new IniFile(`
+[Availability]
+Type=GenericWarhead
+SW.RequiredHouses=CountryA,CountryB
+SW.ForbiddenHouses=CountryC
+SW.AuxBuildings=AuxA,AuxB
+SW.NegBuildings=NegA
+SW.AllowPlayer=no
+SW.AllowAI=yes
+SW.Shots=3
+SW.AlwaysGranted=yes
+`);
+        const definition = parseAresSuperWeaponDefinition(ini.getSection("Availability")!);
+
+        expect(definition).toMatchObject({
+            requiredHouses: ["CountryA", "CountryB"],
+            forbiddenHouses: ["CountryC"],
+            auxBuildings: ["AuxA", "AuxB"],
+            negBuildings: ["NegA"],
+            allowPlayer: false,
+            allowAI: true,
+            shots: 3,
+            alwaysGranted: true,
+        });
+    });
+
     test("keeps vanilla type parsing compatible and ignores ordinary sections", () => {
         const ini = new IniFile(`
 [Nuke]
