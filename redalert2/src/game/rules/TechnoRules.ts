@@ -16,6 +16,8 @@ import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 import type { AresSideRegistry, SideId } from "@/extensions/ares/AresSides";
 import { parseAresPrerequisiteRules } from "@/extensions/ares/AresPrerequisites";
 import { defaultAresEmpImmunity, parseAresEmpThreshold } from "@/extensions/ares/AresEMP";
+import { parseAresTechnoExtensions } from "@/extensions/ares/AresTechnoExtensions";
+import type { AresTechnoExtensions } from "@/extensions/ares/AresTechnoExtensions";
 interface House {
     name: string;
 }
@@ -154,6 +156,8 @@ export class TechnoRules extends ObjectRules {
     declare explodes: boolean;
     declare ifvMode: number;
     declare turretIndexesByIfvMode: Map<number, number>;
+    /** Optional Ares TechnoType data; absent when no Ares Techno fields are authored. */
+    declare ares?: AresTechnoExtensions;
     declare turret: boolean;
     declare turretCount: number;
     declare turretAnim: string;
@@ -504,6 +508,14 @@ export class TechnoRules extends ObjectRules {
         this.explodes = this.ini.getBool("Explodes");
         this.ifvMode = this.ini.getNumber("IFVMode");
         this.turretIndexesByIfvMode = this.parseTurretIndexes();
+        const hasAresTechnoFields = [...this.ini.entries.keys()].some((key: string) => {
+            const normalized = key.trim().toLocaleLowerCase("en-US");
+            return normalized === "poweredby" ||
+                normalized === "voiceifvrepair" ||
+                /^weaponturretindex\d+$/.test(normalized) ||
+                /^weaponuiname\d+$/.test(normalized);
+        });
+        this.ares = hasAresTechnoFields ? parseAresTechnoExtensions(this.ini) : undefined;
         this.turret = this.ini.getBool("Turret");
         this.turretCount = this.ini.getNumber("TurretCount", this.turret ? 1 : 0);
         this.turretAnim = this.ini.getString("TurretAnim");

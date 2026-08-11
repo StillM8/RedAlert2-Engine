@@ -7,7 +7,8 @@ import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { DockableTrait } from "@/game/gameobject/trait/DockableTrait";
 import { Techno } from "@/game/gameobject/Techno";
 import { CrewedTrait } from "@/game/gameobject/trait/CrewedTrait";
-import { GunnerTrait } from "@/game/gameobject/trait/GunnerTrait";
+import { GunnerTrait, hasAresIfvRuntimeFields } from "@/game/gameobject/trait/GunnerTrait";
+import { resolveAresIfvDecision } from "@/extensions/ares/AresTechnoRuntimeAdapters";
 import { OpenToppedTrait } from "@/game/gameobject/trait/OpenToppedTrait";
 import { ParasiteableTrait } from "@/game/gameobject/trait/ParasiteableTrait";
 import { CrashableTrait } from "@/game/gameobject/trait/CrashableTrait";
@@ -139,7 +140,15 @@ export class Vehicle extends Techno {
     getUiName(): string {
         if (this.gunnerTrait) {
             const specialWeaponIndex = this.armedTrait.getSpecialWeaponIndex();
-            const ifvModeName = this.gunnerTrait.getUiNameForIfvMode(specialWeaponIndex, this.transportTrait?.units[0]?.name);
+            const passengers = this.transportTrait?.units ?? [];
+            const aresDecision = hasAresIfvRuntimeFields(this.rules)
+                ? resolveAresIfvDecision(this.rules.ares.ifv, passengers)
+                : undefined;
+            const ifvModeName = aresDecision?.uiName ??
+                this.gunnerTrait.getUiNameForIfvMode(
+                    aresDecision?.mode ?? specialWeaponIndex,
+                    passengers[0]?.name,
+                );
             const baseName = "name:" + this.name;
             return ifvModeName ? `{${ifvModeName}} {${baseName}}` : baseName;
         }
