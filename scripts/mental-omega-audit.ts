@@ -119,6 +119,7 @@ function createVfs(): { vfs: VirtualFileSystem; archives: string[] } {
         error: (message) => console.error(message),
     });
     for (const filename of orderedPaths) {
+        const archiveName = filename.split(/[\\/]/).pop()!;
         const bytes = new Uint8Array(readFileSync(filename));
         const virtualFile = VirtualFile.fromBytes(bytes, filename);
         // MixFile currently emits development-only header diagnostics for the
@@ -135,11 +136,12 @@ function createVfs(): { vfs: VirtualFileSystem; archives: string[] } {
         finally {
             console.log = originalLog;
         }
-        vfs.addArchive(archive, filename, {
-            id: filename,
+        vfs.addArchive(archive, archiveName, {
+            id: archiveName,
             layer: ResourceLayer.ModPatch,
             source: "mod",
             profile: "mental-omega",
+            provenance: [filename],
         });
     }
     return { vfs, archives: orderedPaths.map((path) => path.split(/[\\/]/).pop()!) };
