@@ -172,6 +172,32 @@ UseChargeDrain=yes
         expect(weapon.chargeTicks).toBe(0);
     });
 
+    test("Battery charge-drain lifecycle applies and removes house effects", () => {
+        const calls: string[] = [];
+        const owner: any = {
+            credits: 0,
+            powerTrait: {
+                activateAresBattery: () => calls.push("activate"),
+                deactivateAresBattery: () => calls.push("deactivate"),
+            },
+        };
+        const weapon = new SuperWeapon("Battery", makeRules({
+            extensionType: "Battery",
+            useChargeDrain: true,
+            batteryPower: 100,
+        }), owner);
+        weapon.rechargeTicks = 5;
+        weapon.chargeTicks = 0;
+        weapon.status = SuperWeaponStatus.Ready;
+
+        expect(weapon.startChargeDrain(1)).toBe(true);
+        expect(calls).toEqual(["activate"]);
+        expect(weapon.deactivateChargeDrain()).toBe(true);
+        expect(calls).toEqual(["activate", "deactivate"]);
+        expect(weapon.deactivateChargeDrain()).toBe(false);
+        expect(calls).toEqual(["activate", "deactivate"]);
+    });
+
     test("Unstoppable prevents manual deactivation", () => {
         const owner: any = { credits: 0, buildings: new Set() };
         const weapon = new SuperWeapon("Firewall", makeRules({

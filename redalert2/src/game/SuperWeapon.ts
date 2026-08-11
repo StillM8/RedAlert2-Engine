@@ -11,6 +11,7 @@ import {
     canAresSuperWeaponTransactMoney,
 } from '@/extensions/ares/AresSuperWeaponMoney';
 import { setAresFirestormActive } from '@/extensions/ares/AresFirestorm';
+import { setAresBatteryActiveForWeapon } from '@/extensions/ares/AresBattery';
 export enum SuperWeaponStatus {
     Charging = 0,
     Paused = 1,
@@ -29,6 +30,8 @@ export class SuperWeapon {
     private chargeDrainRatio = 1;
     /** First tick at which a VirtualCharge superweapon became unavailable. */
     private virtualChargeSinceTick?: number;
+    /** Active Battery house effects are paired with the charge-drain state. */
+    public aresBatteryActive = false;
     constructor(name: string, rules: any, owner: any, oneTimeOnly: boolean = false) {
         this.name = name;
         this.rules = rules;
@@ -49,7 +52,7 @@ export class SuperWeapon {
     }
     update(game: any): void {
         if (this.status === SuperWeaponStatus.Draining) {
-            this.updateChargeDrain();
+            this.updateChargeDrain(game);
             return;
         }
         if (this.chargeTicks > 0 && this.status !== SuperWeaponStatus.Paused) {
@@ -60,9 +63,9 @@ export class SuperWeapon {
             }
         }
     }
-    pauseTimer(currentTick?: number): void {
+    pauseTimer(currentTick?: number, world?: any): void {
         if (this.status === SuperWeaponStatus.Draining) {
-            this.deactivateChargeDrain();
+            this.deactivateChargeDrain(world);
         }
         if (this.rules.ares?.swVirtualCharge === true &&
             currentTick !== undefined &&
@@ -81,8 +84,8 @@ export class SuperWeapon {
         }
         this.status = this.chargeTicks > 0 ? SuperWeaponStatus.Charging : SuperWeaponStatus.Ready;
     }
-    resetTimer(): void {
-        setAresFirestormActiveForWeapon(this, false);
+    resetTimer(world?: any): void {
+        setAresSuperWeaponActiveForWeapon(this, false, world);
         this.chargeTicks = this.rechargeTicks;
         this.virtualChargeSinceTick = undefined;
         if (this.status === SuperWeaponStatus.Ready) {
@@ -104,24 +107,24 @@ export class SuperWeapon {
         return this.status === SuperWeaponStatus.Draining;
     }
 
-    startChargeDrain(ratio: number): boolean {
+    startChargeDrain(ratio: number, world?: any): boolean {
         if (this.status !== SuperWeaponStatus.Ready) return false;
         this.chargeDrainRatio = normalizeAresChargeToDrainRatio(ratio);
         const transition = startAresChargeDrain(this.rechargeTicks, this.chargeDrainRatio);
         this.chargeTicks = transition.timerTicks;
         this.status = SuperWeaponStatus.Draining;
-        setAresFirestormActiveForWeapon(this, true);
+        setAresSuperWeaponActiveForWeapon(this, true, world);
         return true;
     }
 
-    deactivateChargeDrain(): boolean {
+    deactivateChargeDrain(world?: any): boolean {
         if (this.status !== SuperWeaponStatus.Draining) return false;
         const transition = stopAresChargeDrain(this.rechargeTicks, this.chargeTicks, this.chargeDrainRatio);
         this.chargeTicks = transition.timerTicks;
         this.status = transition.state === "ready"
             ? SuperWeaponStatus.Ready
             : SuperWeaponStatus.Charging;
-        setAresFirestormActiveForWeapon(this, false);
+        setAresSuperWeaponActiveForWeapon(this, false, world);
         return true;
     }
 
@@ -132,7 +135,7 @@ export class SuperWeapon {
         return true;
     }
 
-    private updateChargeDrain(): void {
+    private updateChargeDrain(world?: any): void {
         if (this.chargeTicks > 0) this.chargeTicks--;
         const amount = this.rules.ares?.moneyDrainAmount;
         const delay = this.rules.ares?.moneyDrainDelay;
@@ -141,7 +144,7 @@ export class SuperWeapon {
                 !applyAresSuperWeaponMoney(this.owner, amount)) {
                 // Antares stops the drain when a scheduled transaction cannot
                 // be completed; the already-spent charge remains consumed.
-                this.deactivateChargeDrain();
+                this.deactivateChargeDrain(world);
                 return;
             }
         }
@@ -151,13 +154,16 @@ export class SuperWeapon {
             // deactivation hook when that handler is implemented.
             this.chargeTicks = this.rechargeTicks;
             this.status = SuperWeaponStatus.Charging;
-            setAresFirestormActiveForWeapon(this, false);
+            setAresSuperWeaponActiveForWeapon(this, false, world);
         }
     }
 }
 
-function setAresFirestormActiveForWeapon(weapon: SuperWeapon, active: boolean): void {
+function setAresSuperWeaponActiveForWeapon(weapon: SuperWeapon, active: boolean, world?: any): void {
     if (weapon.rules.ares?.extensionType === "Firestorm") {
         setAresFirestormActive(weapon.owner, active);
+    }
+    if (weapon.rules.ares?.extensionType === "Battery") {
+        setAresBatteryActiveForWeapon(weapon, active, world);
     }
 }

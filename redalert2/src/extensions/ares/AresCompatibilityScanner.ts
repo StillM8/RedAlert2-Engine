@@ -139,6 +139,10 @@ function featureForKey(section: string, key: string, value: string): string | un
     if (/^money\.amount$/i.test(key)) {
         return "ares.superweapon-money";
     }
+    if (/^battery\./i.test(key) ||
+        (/^type$/i.test(key) && /^battery$/i.test(value))) {
+        return "ares.superweapon-battery";
+    }
     if (/^superweapons$/i.test(key) ||
         /^(?:SW|Deliver|DropPod|Battery|HunterSeeker|Firestorm|GenericWarhead|ChronoWarp|SonarPulse)\./i.test(key) ||
         (/^type$/i.test(key) && /^(?:GenericWarhead|UnitDelivery|Firestorm|HunterSeeker|DropPod|EMPulse|Battery|SonarPulse|ChronoWarp)$/i.test(value))) {

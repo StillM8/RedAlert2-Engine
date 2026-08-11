@@ -18,11 +18,16 @@ export class PoweredTrait {
         if (!this.obj || !this.turnedOn || this.obj.empTrait?.isUnderEMP()) {
             return false;
         }
-        return (!(checkCharged || !this.isCharged()) ||
-            (!this.obj.rules.power && this.obj.rules.needsEngineer
-                ? !this.obj.owner.isNeutral
-                : !!this.obj.owner.powerTrait &&
-                    this.obj.owner.powerTrait?.level !== PowerLevel.Low));
+        if (checkCharged && !this.isCharged()) {
+            return false;
+        }
+        if (this.obj.owner.powerTrait?.isAresBatteryKeepingOnline?.(this.obj)) {
+            return true;
+        }
+        return !this.obj.rules.power && this.obj.rules.needsEngineer
+            ? !this.obj.owner.isNeutral
+            : !!this.obj.owner.powerTrait &&
+                this.obj.owner.powerTrait?.level !== PowerLevel.Low;
     }
     dispose(): void {
         this.obj = undefined;

@@ -92,7 +92,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: false,
-        tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts"],
+        tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts", "AresBattery.test.ts"],
         notes: "GenericWarhead cell detonation and UnitDelivery placement with deterministic house/target filters are wired; the remaining custom handlers are still unsupported.",
     },
     {
@@ -148,6 +148,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         runtimeImplemented: true,
         tests: ["AresFirestorm.test.ts"],
         notes: "Firestorm.Wall, SubjectToFirestorm, and IgnoresFirestorm are normalized. Same-owner four-way links, active hostile projectile interception along the full projectile path, direct-contact immolation, and damage-to-active-charge feedback follow the Antares 3.0p1 semantics. Persistent superweapon state, active/idle wall animation presentation, and trigger/network action coverage remain open.",
+    },
+    {
+        id: "ares.superweapon-battery",
+        description: "Antares Battery charge-drain power and building-state effects",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresBattery.test.ts", "AresSuperWeaponChargeDrain.test.ts"],
+        notes: "Battery.Power, Battery.KeepOnline, Battery.Overpower, duplicate-preserving activation/deactivation, low-power radar retention, and charge-drain lifecycle are wired from Antares 3.0p1 semantics. Full sidebar/action, AI, save/load, and network presentation remain open.",
     },
     {
         id: "ares.superweapon-deferment",
