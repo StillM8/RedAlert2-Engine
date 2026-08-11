@@ -27,6 +27,7 @@ export class MindControllableTrait {
     }
     restore(world: World): void {
         if (this.prevOwner) {
+            this.controller?.mindControllerTrait?.cleanTarget?.(this.gameObject);
             world.changeObjectOwner(this.gameObject, this.prevOwner);
             this.prevOwner = undefined;
             this.controller = undefined;
@@ -38,6 +39,7 @@ export class MindControllableTrait {
      * the previous owner.
      */
     makePermanent(): void {
+        this.controller?.mindControllerTrait?.cleanTarget?.(this.gameObject);
         this.controller = undefined;
         this.prevOwner = undefined;
     }

@@ -16,6 +16,7 @@ export class EnterRecyclerTask extends EnterBuildingTask {
             e.owner === this.target.owner);
     }
     onEnter(e: any): void {
+        e.aresVehicleHijackerTrait?.reimburseOnRecycle?.(this.target, this.game);
         this.game.sellTrait.sell(e);
         this.game.events.dispatch(new UnitRecycleEvent(e));
     }
