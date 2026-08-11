@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { WeaponType } from "@/game/WeaponType";
 import { Projectile } from "@/game/gameobject/Projectile";
 
-function makeWarhead() {
+function makeWarhead(canDamage: () => boolean = () => true) {
     const calls: any[] = [];
     return {
         calls,
@@ -21,7 +21,7 @@ function makeWarhead() {
             nukeMaker: false,
             shrapnelCount: 0,
         },
-        canDamage: () => true,
+        canDamage,
         computeDamage: (damage: number) => damage,
         inflictDamage: (damage: number, occupant: any) => {
             calls.push({ damage, occupant });
@@ -131,6 +131,26 @@ describe("Ares Urban Combat projectile hook", () => {
 
         expect(warhead.calls[0].damage).toBe(Number.POSITIVE_INFINITY);
         expect(building.garrisonTrait.units).toHaveLength(0);
+        expect(warhead.calls.some((call: any) => call.detonate)).toBe(false);
+    });
+
+    test("follows Ares occupant pass-through even when ordinary building damage is gated", () => {
+        const warhead = makeWarhead(() => false);
+        const building = makeBuilding(true);
+        const projectile = makeProjectile(building, warhead);
+        const game = {
+            generateRandom: () => 0,
+            generateRandomInt: () => 0,
+            destroyObject: (object: any) => {
+                if (object === projectile) projectile.isDestroyed = true;
+            },
+            rules: { general: { prism: {} } },
+        };
+
+        projectile.detonate(game);
+
+        expect(warhead.calls[0].damage).toBe(20);
+        expect(warhead.calls[0].occupant).toBe(building.occupant);
         expect(warhead.calls.some((call: any) => call.detonate)).toBe(false);
     });
 

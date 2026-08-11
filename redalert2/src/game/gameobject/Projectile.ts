@@ -632,14 +632,11 @@ export class Projectile extends GameObject {
         warhead: Warhead,
         weapon: any,
         damage: number,
-        detonationTile: any,
-        detonationZone: any,
     ): boolean {
         if (!targetObj?.isBuilding?.() || !targetObj.rules?.aresUrbanCombat) return false;
         const garrisonTrait = targetObj.garrisonTrait;
         const occupants = garrisonTrait?.units;
         if (!Array.isArray(occupants) || occupants.length === 0) return false;
-        if (!warhead.canDamage(targetObj, detonationTile, detonationZone)) return false;
         if (typeof game.generateRandom !== "function" || typeof game.generateRandomInt !== "function") return false;
 
         const urbanRules = targetObj.rules.aresUrbanCombat;
@@ -892,8 +889,6 @@ export class Projectile extends GameObject {
                 warhead,
                 weapon,
                 damage,
-                detonationTile,
-                detonationZone,
             );
             if (!occupantHit) {
                 warhead.detonate(game, damage, detonationTile, this.tileElevation, this.position.worldPosition, detonationZone, collisionType, this.target, {
