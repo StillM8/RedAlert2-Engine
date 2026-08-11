@@ -368,7 +368,7 @@ export class SoundHandler {
     }
     private handleBuildingPlaceSound(event: any): void {
         const building = event.target;
-        this.worldSound.playEffect(SoundKey.BuildingSlam, building, building.owner);
+        this.worldSound.playEffect(building.rules.slamSound || SoundKey.BuildingSlam, building, building.owner);
     }
     private handlePlayerDefeatedSound(event: any): void {
         const player = event.target;

@@ -389,6 +389,7 @@ export class TechnoRules extends ObjectRules {
     declare lightBlueTint: number;
     declare ambientSound?: string;
     declare createSound?: string;
+    declare slamSound?: string;
     declare deploySound?: string;
     declare undeploySound?: string;
     declare voiceSelect?: string;
@@ -881,6 +882,7 @@ export class TechnoRules extends ObjectRules {
         this.lightBlueTint = this.ini.getNumber("LightBlueTint", 1);
         this.ambientSound = this.ini.getString("AmbientSound") || undefined;
         this.createSound = this.ini.getString("CreateSound") || undefined;
+        this.slamSound = this.ini.getString("SlamSound") || undefined;
         this.deploySound = this.ini.getString("DeploySound") || undefined;
         this.undeploySound = this.ini.getString("UndeploySound") || undefined;
         this.voiceSelect = this.ini.getString("VoiceSelect") || undefined;
