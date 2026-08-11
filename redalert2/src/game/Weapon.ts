@@ -9,6 +9,10 @@ import { WeaponTargeting } from "@/game/WeaponTargeting";
 import { WeaponType } from "@/game/WeaponType";
 import { Vector2 } from "@/game/math/Vector2";
 import { Vector3 } from "@/game/math/Vector3";
+import {
+    resolveAresAttachEffectCombat,
+    type AresAttachEffectAggregateInput,
+} from "@/extensions/ares/AresAttachEffectCombat";
 interface GameMap {
     isWithinHardBounds(position: any): boolean;
 }
@@ -79,6 +83,9 @@ interface GameObject {
     };
     veteranTrait?: {
         getVeteranRofMultiplier(): number;
+    };
+    aresAttachEffectTrait?: {
+        getAggregateMultipliers(): AresAttachEffectAggregateInput;
     };
     ammoTrait?: {
         ammo: number;
@@ -259,7 +266,10 @@ export class Weapon {
         if (this.gameObject.veteranTrait) {
             rateOfFire *= this.gameObject.veteranTrait.getVeteranRofMultiplier();
         }
-        return Math.floor(rateOfFire);
+        return Math.floor(resolveAresAttachEffectCombat(
+            { rof: rateOfFire },
+            this.gameObject.aresAttachEffectTrait?.getAggregateMultipliers(),
+        ).effective.rof);
     }
     getCooldownTicks(): number {
         return this.cooldownTicks;
@@ -291,6 +301,11 @@ export class Weapon {
     }
     fire(target: Target, engine: GameEngine, damageMultiplier: number = 1): void {
         const gameObject = this.gameObject;
+        const firepowerMultiplier = resolveAresAttachEffectCombat(
+            { firepower: 1 },
+            gameObject.aresAttachEffectTrait?.getAggregateMultipliers(),
+        ).effective.firepower;
+        const effectiveDamageMultiplier = damageMultiplier * firepowerMultiplier;
         let spawnedProjectile: GameObject | null = null;
         let availableSpawns = 0;
         if (gameObject.airSpawnTrait && this.rules.spawner) {
@@ -358,7 +373,7 @@ export class Weapon {
             engine.createProjectile(this.projectileRules.name, gameObject, this, target, false);
         if (!projectile.isAircraft()) {
             projectile.baseDamageMultiplier =
-                damageMultiplier *
+                effectiveDamageMultiplier *
                     (gameObject.isUnit() ? gameObject.crateBonuses.firepower : 1);
         }
         const firingFlh = this.flh.clone();

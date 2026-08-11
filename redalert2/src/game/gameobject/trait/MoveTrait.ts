@@ -16,9 +16,16 @@ import { EnterTileEvent } from "@/game/event/EnterTileEvent";
 import { Vector3 } from "@/game/math/Vector3";
 import { NotifyElevationChange } from "@/game/trait/interface/NotifyElevationChange";
 import { Target } from "@/game/Target";
+import {
+    resolveAresAttachEffectCombat,
+    type AresAttachEffectAggregateInput,
+} from "@/extensions/ares/AresAttachEffectCombat";
 interface GameObject {
     rules: any;
     veteranTrait?: any;
+    aresAttachEffectTrait?: {
+        getAggregateMultipliers(): AresAttachEffectAggregateInput;
+    };
     crateBonuses: any;
     healthTrait: any;
     position: any;
@@ -113,7 +120,7 @@ export class MoveTrait {
     private lastMoveResult?: MoveResult;
     private lastTeleportTick?: number;
     get baseSpeed(): number {
-        return (this.gameObject.rules.speed *
+        const baseSpeed = this.gameObject.rules.speed *
             (this.gameObject.veteranTrait?.getVeteranSpeedMultiplier() ?? 1) *
             this.gameObject.crateBonuses.speed *
             (this.gameObject.isVehicle() &&
@@ -121,7 +128,11 @@ export class MoveTrait {
                 this.gameObject.rules.locomotor !== LocomotorType.Hover
                 ? 0.75
                 : 1) *
-            (1 - this.speedPenalty));
+            (1 - this.speedPenalty);
+        return resolveAresAttachEffectCombat(
+            { speed: baseSpeed },
+            this.gameObject.aresAttachEffectTrait?.getAggregateMultipliers(),
+        ).effective.speed;
     }
     constructor(gameObject: GameObject, tileOccupation: TileOccupation) {
         this.gameObject = gameObject;

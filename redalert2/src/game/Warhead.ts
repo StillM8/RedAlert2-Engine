@@ -22,6 +22,10 @@ import { AnimTerrainEffect } from "@/game/gameobject/common/AnimTerrainEffect";
 import { ObjectAttackedEvent } from "@/game/event/ObjectAttackedEvent";
 import { aresEmpThresholdExceeded } from "@/extensions/ares/AresEMP";
 import { applyAresKillDriver } from "@/extensions/ares/AresKillingDrivers";
+import {
+    resolveAresAttachEffectCombat,
+    type AresAttachEffectAggregateInput,
+} from "@/extensions/ares/AresAttachEffectCombat";
 interface GameObject {
     isSpawned: boolean;
     isDisposed: boolean;
@@ -54,6 +58,9 @@ interface TechnoObject extends GameObject {
     warpedOutTrait: WarpedOutTrait;
     invulnerableTrait: InvulnerableTrait;
     veteranTrait?: VeteranTrait;
+    aresAttachEffectTrait?: {
+        getAggregateMultipliers(): AresAttachEffectAggregateInput;
+    };
     moveTrait: MoveTrait;
     unitOrderTrait: UnitOrderTrait;
     suppressionTrait?: SuppressionTrait;
@@ -333,6 +340,10 @@ export class Warhead {
                 if (techno.veteranTrait) {
                     damage /= techno.veteranTrait.getVeteranArmorMultiplier();
                 }
+                damage /= resolveAresAttachEffectCombat(
+                    { armor: 1 },
+                    techno.aresAttachEffectTrait?.getAggregateMultipliers(),
+                ).effective.armor;
             }
             if (damage > 0 && target.isUnit()) {
                 const unit = target as UnitObject;
