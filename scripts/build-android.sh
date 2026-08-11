@@ -73,6 +73,9 @@ cp -R "$WEB/dist" "$ASSETS/WebDist"
 rm -rf "$ASSETS/GameRes"
 if [[ $SKIP_GAMERES -eq 0 ]]; then
   [[ -d "$ROOT/gameres-export" ]] || die "gameres-export is missing; run scripts/setup.sh or use --no-gameres"
+  if [[ "$VARIANT" == "mo" ]] && ! find "$ROOT/gameres-export" -maxdepth 1 -type f -iname 'expandmo[0-9][0-9].mix' -print -quit | grep -q .; then
+    die "Mental Omega resources are missing expandmo##.mix; run scripts/setup.sh against the MO install or use --no-gameres for folder import"
+  fi
   cp -R "$ROOT/gameres-export" "$ASSETS/GameRes"
 else
   mkdir -p "$ASSETS/GameRes"

@@ -5,7 +5,7 @@
  *   RA2_RETAIL_DIR=/path/to/steam-retail bun scripts/prepare-gameres.ts
  *
  * Produces:
- *   gameres-export/            ra2.mix, language.mix, multi.mix, music/*.mp3,
+ *   gameres-export/            retail core/profile MIX files, music/*.mp3,
  *                              ra2ts_l.webm (menu video), glsl.png (splash)
  *   redalert2/public/general.csf   English in-game strings (from language.mix)
  *
@@ -39,12 +39,41 @@ const ROOT = join(import.meta.dir, "..");
 const OUT = join(ROOT, "gameres-export");
 const TMP = join(OUT, ".tmp");
 
+type ResourceProfile = "ra2" | "yr" | "mental-omega";
+
+function hasRetailFile(name: string): boolean {
+    return [name, name.toUpperCase(), name.toLowerCase()].some((candidate) => existsSync(join(RETAIL, candidate)));
+}
+
+function detectResourceProfile(): ResourceProfile {
+    const requested = process.env.RA2_GAME_PROFILE?.trim().toLocaleLowerCase("en-US");
+    if (requested === "mo") return "mental-omega";
+    if (requested === "ra2" || requested === "yr" || requested === "mental-omega") return requested;
+    const entries = readdirSync(RETAIL);
+    if (entries.some((name) => /^expandmo\d{2}\.mix$/i.test(name))) return "mental-omega";
+    if (hasRetailFile("ra2md.mix") && hasRetailFile("langmd.mix")) return "yr";
+    return "ra2";
+}
+
 function retailFile(name: string): string {
     for (const candidate of [name, name.toUpperCase(), name.toLowerCase()]) {
         const path = join(RETAIL, candidate);
         if (existsSync(path)) return path;
     }
     throw new Error(`"${name}" not found in ${RETAIL} — point RA2_RETAIL_DIR at your RA2 install`);
+}
+
+function copyMatchingMixes(pattern: RegExp, description: string): void {
+    const matches = readdirSync(RETAIL)
+        .filter((name) => pattern.test(name))
+        .sort((left, right) => left.localeCompare(right));
+    for (const name of matches) {
+        copyFileSync(join(RETAIL, name), join(OUT, name));
+        console.log(`   ${name}`);
+    }
+    if (matches.length === 0) {
+        console.warn(`   (skip) no ${description} found`);
+    }
 }
 
 function openMix(path: string): MixFile {
@@ -99,6 +128,9 @@ function encodePng(width: number, height: number, rgba: Uint8Array): Uint8Array 
 mkdirSync(OUT, { recursive: true });
 mkdirSync(join(OUT, "music"), { recursive: true });
 mkdirSync(TMP, { recursive: true });
+
+const RESOURCE_PROFILE = detectResourceProfile();
+console.log(`== Preparing ${RESOURCE_PROFILE} game resources`);
 
 console.log("== Copying core mixes");
 for (const name of ["ra2.mix", "language.mix", "multi.mix"]) {
@@ -155,13 +187,26 @@ console.log(`   glsl.png (${bitmap.width}x${bitmap.height})`);
 
 // --- Yuri's Revenge (md) content ------------------------------------------
 console.log("== Copying YR mixes");
-for (const name of ["ra2md.mix", "langmd.mix", "multimd.mix", "expandmd01.mix"]) {
+for (const name of ["ra2md.mix", "langmd.mix", "multimd.mix"]) {
     try {
         copyFileSync(retailFile(name), join(OUT, name));
         console.log(`   ${name}`);
     } catch {
         console.warn(`   (skip) ${name} not found — YR content unavailable`);
     }
+}
+
+// MIX filenames are hashes inside the archive, so the runtime can only mount
+// profile extension archives when the importer preserves their container
+// names. Keep this profile-driven: ordinary RA2/YR exports get their own
+// extension layers, while a selected or detected MO install also carries the
+// expandmo## layer that defines its rules, art, sounds, and units.
+console.log("== Copying profile extension mixes");
+copyMatchingMixes(/^(?:ecache|expand|elocal)(?:md|mo)?\d{2}\.mix$/i, "profile extension MIX files");
+if (RESOURCE_PROFILE === "mental-omega") {
+    copyMatchingMixes(/^mapsmo\d{2}\.mix$/i, "Mental Omega map MIX files");
+    copyMatchingMixes(/^movmo\d{2}\.mix$/i, "Mental Omega movie MIX files");
+    copyMatchingMixes(/^multimo\.mix$/i, "Mental Omega multiplayer MIX");
 }
 
 console.log("== Copying bonus map packs (*.mmx, *.yro)");
