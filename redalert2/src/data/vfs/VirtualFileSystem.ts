@@ -402,6 +402,10 @@ export class VirtualFileSystem {
             }
         }
         this.logger.info(`Nested MIX discovery checked ${candidates.length} candidates, loaded ${loadedArchives} archives in ${Date.now() - startedAt} ms.`);
+        // Extension archives can contain Ares audio##.bag/.idx pairs. They
+        // are not visible during the initial implicit pass, so repeat the
+        // same generic audio discovery after the MIX fixpoint is mounted.
+        await this.loadAudioBagFiles();
     }
     async addMixFile(filename: string, metadata?: ArchiveMetadata, options?: { required?: boolean }): Promise<boolean> {
         return this.addArchiveByFilename(filename, async (fileStreamHolder) => {
@@ -447,6 +451,13 @@ export class VirtualFileSystem {
         }
         await this.addBagFile(filename);
     }
+    private async loadAudioBagFiles(): Promise<void> {
+        await this.addBagFileIfPresent("audio.bag");
+        await this.addBagFileIfPresent("ares.bag");
+        for (let i = 1; i <= 99; i++) {
+            await this.addBagFileIfPresent(`audio${pad(i, "00")}.bag`);
+        }
+    }
     async loadImplicitMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
         this.logger.info("Initializing implicit mix files...");
         const YR = engineType === EngineType.YurisRevenge;
@@ -475,15 +486,6 @@ export class VirtualFileSystem {
         if (YR)
             await addImplicit("audiomd.mix");
         await addImplicit("audio.mix");
-        // Ares combines the retail audio bag with optional extension bags.
-        // Keep this discovery generic: profile/mod audio can live in loose
-        // imported storage or in any already-mounted MIX archive.
-        await this.addBagFileIfPresent("audio.bag");
-        await this.addBagFileIfPresent("ares.bag");
-        for (let i = 1; i <= 99; i++) {
-            const suffix = pad(i, "00");
-            await this.addBagFileIfPresent(`audio${suffix}.bag`);
-        }
         await addImplicit("conquer.mix");
         if (YR) {
             await addImplicit("conqmd.mix");
@@ -500,6 +502,10 @@ export class VirtualFileSystem {
         if (YR)
             await addImplicit("multimd.mix");
         await addImplicit("multi.mix");
+        // Ares combines the retail audio bag with optional extension bags.
+        // Keep this discovery generic: profile/mod audio can live in loose
+        // imported storage or in any already-mounted MIX archive.
+        await this.loadAudioBagFiles();
         this.logger.info("Finished initializing implicit mix files.");
     }
     async loadExtraMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {

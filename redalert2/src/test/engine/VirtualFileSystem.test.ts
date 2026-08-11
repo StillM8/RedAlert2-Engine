@@ -262,4 +262,40 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.hasArchive("audio01.bag")).toBe(true);
         expect(vfs.openFile("aresvoice.wav").getSize()).toBeGreaterThan(4);
     });
+
+    test("rechecks extension audio bags after nested MIX discovery", async () => {
+        const nestedMix = createMixBytes([
+            ["audio01.bag", new Uint8Array([1, 2, 3, 4])],
+            ["audio01.idx", createIdxBytes("nestedvoice")],
+        ]);
+        const files = new Map<string, Uint8Array>([
+            ["ra2.mix", createMixBytes([["expandmo96.mix", nestedMix]])],
+            ["language.mix", createEmptyMixBytes()],
+            ["multi.mix", createEmptyMixBytes()],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) throw new FileNotFoundError(filename);
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadImplicitMixFiles(EngineType.RedAlert2, GAME_PROFILES.ra2);
+        expect(vfs.hasArchive("audio01.bag")).toBe(false);
+
+        await vfs.loadNestedMixFiles(EngineType.RedAlert2, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("expandmo96.mix")).toBe(true);
+        expect(vfs.hasArchive("audio01.bag")).toBe(true);
+        expect(vfs.openFile("nestedvoice.wav").getSize()).toBeGreaterThan(4);
+    });
 });
