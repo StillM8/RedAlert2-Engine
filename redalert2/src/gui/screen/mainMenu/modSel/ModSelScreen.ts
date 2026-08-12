@@ -23,6 +23,8 @@ import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
 import type { ArchiveSource } from "@/data/ArchiveSource";
 import { canImportModFromShell, downloadModFromShell, importModFromShell } from "@/shell/nativeShell";
+import { ContentRegistry, type ContentLibraryItem } from "@/content/ContentRegistry";
+import { EngineType } from "@/engine/EngineType";
 interface ModManager {
     listLocal(): Promise<any[]>;
     listRemote(): Promise<any[]>;
@@ -30,6 +32,7 @@ interface ModManager {
     ensureModDir?(): Promise<any>;
     deleteModFiles(modId: string): Promise<void>;
     loadMod(modId?: string): void;
+    loadContent(contentId?: string): void;
     getModDir(): any;
 }
 interface RootController {
@@ -71,6 +74,7 @@ export class ModSelScreen extends MainMenuScreen {
     private availableMods: Mod[] = [];
     private activeMod?: Mod;
     private selectedMod?: Mod;
+    private contentRegistry: ContentRegistry;
     private form?: any;
     constructor(rootController: RootController, strings: any, jsxRenderer: any, errorHandler: ErrorHandler, messageBoxApi: MessageBoxApi, modManager: ModManager, activeModId: string, modSdkUrl: string | undefined, modResourceLoader: ModResourceLoader, fsAccessLib: FsAccessLib, sentry: Sentry) {
         super();
@@ -81,6 +85,7 @@ export class ModSelScreen extends MainMenuScreen {
         this.messageBoxApi = messageBoxApi;
         this.modManager = modManager;
         this.activeModId = activeModId;
+        this.contentRegistry = new ContentRegistry(localStorage);
         this.modSdkUrl = modSdkUrl;
         this.modResourceLoader = modResourceLoader;
         this.fsAccessLib = fsAccessLib;
@@ -106,6 +111,16 @@ export class ModSelScreen extends MainMenuScreen {
     private handleSelectMod: (mod: Mod, doubleClick: boolean) => Promise<void>;
     async onEnter(): Promise<void> {
         this.availableMods = [];
+        try {
+            const selection = await this.contentRegistry.resolveSelection({
+                location: window.location,
+                fallbackProfile: Engine.getActiveProfile().id,
+            });
+            this.activeModId = selection.kind === "mod" ? (selection.modId ?? "") : selection.id;
+        }
+        catch (error) {
+            console.warn("[ModSelScreen] Could not resolve active content selection", error);
+        }
         this.controller.toggleMainVideo(false);
         this.initForm();
         if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
@@ -126,14 +141,18 @@ export class ModSelScreen extends MainMenuScreen {
     }
     private async loadAvailableMods(): Promise<Mod[] | undefined> {
         try {
-            const [localMods, remoteMods] = await Promise.all([
+            const [localMods, remoteMods, library] = await Promise.all([
                 this.modManager.listLocal(),
                 this.modManager.listRemote().catch((error) => {
                     console.warn("Failed to fetch remote mods", [error]);
                     return undefined;
                 }),
+                this.contentRegistry.listLibrary(),
             ]);
-            return await this.modManager.buildModList(localMods, remoteMods);
+            const builtins = library
+                .filter((item) => item.kind === "builtin")
+                .map((item) => this.createBuiltinMod(item));
+            return [...builtins, ...(await this.modManager.buildModList(localMods, remoteMods))];
         }
         catch (error: any) {
             if (!(error instanceof IOError ||
@@ -144,6 +163,15 @@ export class ModSelScreen extends MainMenuScreen {
             this.handleError(error, this.strings.get("GUI:ModListError"));
             return undefined;
         }
+    }
+    private createBuiltinMod(item: ContentLibraryItem): Mod {
+        const meta = new ModMeta();
+        meta.id = item.id;
+        meta.name = item.name;
+        meta.version = item.status === "ready" ? "installed" : "base files required";
+        meta.description = `${item.baseProfile.toUpperCase()} base${item.extensions.length ? ` + ${item.extensions.join(", ")}` : ""}`;
+        meta.supported = item.status === "ready";
+        return new Mod(meta, undefined);
     }
     private initForm(): void {
         this.controller.setMainComponent(this.jsxRenderer.render(jsx(HtmlView, {
@@ -166,7 +194,9 @@ export class ModSelScreen extends MainMenuScreen {
         this.controller?.setSidebarButtons([
             {
                 label: this.selectedMod && this.selectedMod === this.activeMod
-                    ? this.strings.get("GUI:UnloadMod")
+                    ? this.selectedMod.id.startsWith("builtin:")
+                        ? this.strings.get("GUI:LoadMod")
+                        : this.strings.get("GUI:UnloadMod")
                     : this.selectedMod?.isInstalled()
                         ? this.strings.get("GUI:LoadMod")
                         : this.strings.get("GUI:ModActionInstall"),
@@ -346,7 +376,18 @@ export class ModSelScreen extends MainMenuScreen {
     }
     private async loadOrUnloadMod(mod: Mod): Promise<void> {
         await this.controller?.hideSidebarButtons();
-        this.modManager.loadMod(mod !== this.activeMod ? mod.id : undefined);
+        if (mod.id.startsWith("builtin:")) {
+            this.modManager.loadContent(mod.id);
+            return;
+        }
+        if (mod !== this.activeMod) {
+            this.modManager.loadContent(`mod:${mod.id}`);
+            return;
+        }
+        const baseContent = Engine.getActiveEngine() === EngineType.YurisRevenge
+            ? "builtin:yr"
+            : "builtin:ra2";
+        this.modManager.loadContent(baseContent);
     }
     private async downloadMod(mod: Mod): Promise<ArchiveSource> {
         const downloadUrl = mod.meta.download;

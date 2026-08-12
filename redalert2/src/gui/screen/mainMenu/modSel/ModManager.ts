@@ -145,13 +145,18 @@ export class ModManager {
         }
     }
     loadMod(modId?: string): void {
+        this.loadContent(modId ? `mod:${modId}` : undefined);
+    }
+    loadContent(contentId?: string): void {
         const url = new URL(this.location.href);
-        if (modId) {
-            url.searchParams.set(RouteHelper.modQueryStringName, modId);
+        if (contentId) {
+            url.searchParams.set(RouteHelper.contentQueryStringName, contentId);
         }
         else {
+            url.searchParams.delete(RouteHelper.contentQueryStringName);
             url.searchParams.delete(RouteHelper.modQueryStringName);
         }
+        url.searchParams.delete(RouteHelper.modQueryStringName);
         this.location.href = url.href;
     }
 }

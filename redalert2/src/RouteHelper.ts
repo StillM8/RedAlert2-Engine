@@ -9,6 +9,7 @@ interface GameParams {
 }
 export class RouteHelper {
     static modQueryStringName = "mod";
+    static contentQueryStringName = "content";
     static getGameRoute(params: GameParams): string {
         return ("#/game/" +
             Base64.encode(JSON.stringify({
