@@ -4,14 +4,15 @@ import { HtmlReactElement } from '../HtmlReactElement';
 import { Dialog, type DialogProps } from './Dialog';
 import { GameResForm, type GameResFormProps } from './GameResForm';
 import { FileSystemUtil } from '../../engine/gameRes/FileSystemUtil';
-import { canPickGameDirectoryFromShell, pickGameDirectoryFromShell } from '../../shell/nativeShell';
+import { canPickGameDirectoryFromShell, getPlatformContentProvider, pickGameDirectoryFromShell } from '../../shell/nativeShell';
+import type { ContentImportSource } from '../../content/PlatformContentProvider';
 import type { Viewport } from '../Viewport';
 import type { Strings } from '../../data/Strings';
 interface FsAccessLibraryShim {
     polyfillDataTransferItem: () => Promise<void>;
     showDirectoryPicker: (options?: any) => Promise<FileSystemDirectoryHandle>;
 }
-export type GameResSourceSelection = FileSystemDirectoryHandle | FileSystemFileHandle | URL | undefined;
+export type GameResSourceSelection = FileSystemDirectoryHandle | FileSystemFileHandle | ContentImportSource | URL | undefined;
 export class GameResBoxApi {
     private viewport: Viewport;
     private strings: Strings;
@@ -73,6 +74,20 @@ export class GameResBoxApi {
                             }
                             catch (e) {
                                 console.error("Error importing Android game folder:", e);
+                                alert((e as Error).message || "Could not import the selected game folder.");
+                            }
+                            return;
+                        }
+                        const platformProvider = getPlatformContentProvider();
+                        if (platformProvider?.pickGameDirectory) {
+                            try {
+                                const imported = await platformProvider.pickGameDirectory();
+                                if (imported) {
+                                    handleResolve(imported);
+                                }
+                            }
+                            catch (e) {
+                                console.error("Error importing game folder through the platform provider:", e);
                                 alert((e as Error).message || "Could not import the selected game folder.");
                             }
                             return;

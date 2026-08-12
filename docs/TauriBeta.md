@@ -20,6 +20,9 @@ bun run tauri:dev
 
 The beta uses the existing user-owned resource import flow. No RA2, Yuri's
 Revenge, or Mental Omega files are included in the application bundle.
+After importing content, select it from **Menu → Mods**. The selected entry is
+persisted and the engine reloads from that entry on the next launch; the
+desktop shell does not expose a separate runtime/profile boot selector.
 
 ## Mobile implementations
 

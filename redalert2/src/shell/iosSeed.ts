@@ -5,6 +5,7 @@ import { gamePathKey, normalizeGamePath } from '../engine/GamePath';
 import type { ArchiveSource } from '../data/ArchiveSource';
 import { importContentSourceToOpfs } from '../content/InstalledContentImporter';
 import type { ContentImportKind, ContentImportSource, PlatformContentProvider } from '../content/PlatformContentProvider';
+import { BrowserContentProvider } from '../content/BrowserContentProvider';
 
 declare global {
     interface Window {
@@ -381,18 +382,22 @@ export interface NativeModImportResult {
     version: string;
 }
 
-export function canImportModFromShell(): boolean {
+function canImportNativeModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
         && (typeof window.Ra2Android?.pickModDirectory === 'function'
             || typeof window.Ra2Android?.pickModArchives === 'function');
 }
 
+export function canImportModFromShell(): boolean {
+    return canImportNativeModFromShell() || BrowserContentProvider.isAvailable();
+}
+
 async function pickNativeModSource(
     kind: ContentImportKind,
     picker: (() => boolean) | undefined,
 ): Promise<ContentImportSource | undefined> {
-    if (!picker || !canImportModFromShell()) {
+    if (!picker || !canImportNativeModFromShell()) {
         return undefined;
     }
     const nativeApi = window.Ra2Android!;
@@ -482,16 +487,20 @@ async function pickNativeModSource(
     };
 }
 
-/** Shared content-picker boundary implemented by the current Android shell. */
+/** Shared content-picker boundary implemented by each platform shell/browser. */
 export function getPlatformContentProvider(): PlatformContentProvider | undefined {
-    if (!canImportModFromShell()) {
-        return undefined;
+    if (canImportNativeModFromShell()) {
+        const nativeApi = window.Ra2Android!;
+        return {
+            // Android's base-game picker still commits directly through the
+            // shell because it owns the SAF permission and persistent root.
+            pickModDirectory: () => pickNativeModSource('directory', nativeApi.pickModDirectory),
+            pickModArchives: () => pickNativeModSource('archives', nativeApi.pickModArchives),
+        };
     }
-    const nativeApi = window.Ra2Android!;
-    return {
-        pickModDirectory: () => pickNativeModSource('directory', nativeApi.pickModDirectory),
-        pickModArchives: () => pickNativeModSource('archives', nativeApi.pickModArchives),
-    };
+    return BrowserContentProvider.isAvailable()
+        ? new BrowserContentProvider()
+        : undefined;
 }
 
 /**
@@ -507,11 +516,10 @@ export async function importModFromShell(
     const provider = getPlatformContentProvider();
     if (!provider)
         return undefined;
-    // Preserve the existing Android folder-first behavior during migration;
-    // the selector will expose separate folder/archive actions once all
-    // platform providers are wired to this same contract.
-    const source = await (typeof window.Ra2Android?.pickModDirectory === 'function'
-        ? provider.pickModDirectory()
+    const source = await (canImportNativeModFromShell()
+        ? (typeof window.Ra2Android?.pickModDirectory === 'function'
+            ? provider.pickModDirectory()
+            : provider.pickModArchives({ multiple: true }))
         : provider.pickModArchives({ multiple: true }));
     if (!source)
         return undefined;

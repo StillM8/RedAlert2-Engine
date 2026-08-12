@@ -13,7 +13,7 @@ fired like the original AI fired them, spies, garrisons, terror drones, and a ro
 
 No emulation, and no retail-binary rewrite: this is the Chrono Divide-lineage
 TypeScript engine, with its core simulation loop and determinism model kept
-shared across profiles. It is wrapped by a native Swift/WKWebView shell on
+shared across content entries. It is wrapped by a native Swift/WKWebView shell on
 iOS and a Kotlin/WebView shell on Android. Rendering uses WebGL through the
 platform browser runtime; native packages serve your imported retail assets
 offline.

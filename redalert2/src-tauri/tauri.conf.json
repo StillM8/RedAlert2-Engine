@@ -30,7 +30,7 @@
     "targets": "all",
     "category": "Game",
     "shortDescription": "A cross-platform Red Alert 2 engine",
-    "longDescription": "A TypeScript and WebGL reimplementation of Red Alert 2 and Yuri's Revenge with profile-driven compatibility for Mental Omega.",
+    "longDescription": "A TypeScript and WebGL reimplementation of Red Alert 2 and Yuri's Revenge with Mods-menu-selected compatibility for Mental Omega.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

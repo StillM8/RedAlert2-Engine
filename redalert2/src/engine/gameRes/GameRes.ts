@@ -38,6 +38,8 @@ import { MemArchive } from '../../data/vfs/MemArchive';
 import { VirtualFile } from '../../data/vfs/VirtualFile';
 import { GAME_PROFILES, type GameProfileId } from '../GameProfile';
 import { ResourceLayer } from '../../data/vfs/ResourceLayer';
+import { normalizeGamePath } from '../GamePath';
+import type { ContentImportSource } from '../../content/PlatformContentProvider';
 interface FsAccessLibrary {
     support: {
         adapter: {
@@ -59,6 +61,18 @@ interface InitResult {
 type LoadProgressCallback = (loadingText?: string, backgroundImage?: string | Blob) => void;
 type FatalErrorCallback = (error: Error, strings: Strings) => Promise<void>;
 type ImportErrorCallback = (error: Error, strings: Strings) => Promise<void>;
+
+function isContentImportSource(value: unknown): value is ContentImportSource {
+    if (!value || value instanceof URL) {
+        return false;
+    }
+    const source = value as Partial<ContentImportSource>;
+    return (source.kind === "directory" || source.kind === "archives")
+        && Array.isArray(source.files)
+        && typeof source.readFile === "function"
+        && typeof source.dispose === "function";
+}
+
 export class GameRes {
     private appVersion: string;
     private modName?: string;
@@ -241,7 +255,10 @@ export class GameRes {
             configRequiresSave = true;
             let selectedSource: GameResSource;
             if (userSelection) {
-                if (userSelection instanceof URL) {
+                if (isContentImportSource(userSelection)) {
+                    selectedSource = GameResSource.Local;
+                }
+                else if (userSelection instanceof URL) {
                     selectedSource = GameResSource.Archive;
                     archiveUrlFallback = userSelection.toString();
                 }
@@ -265,23 +282,53 @@ export class GameRes {
             currentConfig.source = selectedSource;
             if (selectedSource !== GameResSource.Cdn) {
                 try {
-                    if (!rfs) {
-                        if (selectedSource === GameResSource.Local && userSelection && !(userSelection instanceof URL) && userSelection.kind === 'directory') {
-                            const handle = userSelection as FileSystemDirectoryHandle;
-                            rfs = await Engine.initRfs(handle);
-                        }
-                        else {
+                    if (isContentImportSource(userSelection)) {
+                        if (!rfs) {
                             throw new NoStorageError("No storage adapters available for import.");
                         }
+                        const rootDir = rfs.getRootDirectory();
+                        if (!rootDir)
+                            throw new Error("RFS root directory not available for import");
+                        try {
+                            const staged = await this.stageContentImportSource(userSelection, rootDir, (text) => {
+                                updateSplashScreen(text);
+                                if (text)
+                                    console.info(text);
+                            });
+                            try {
+                                await new GameResImporter(this.appConfig, this.strings, this.sentry).import(staged.directory, rootDir, (text, image) => {
+                                    updateSplashScreen(text, image);
+                                    if (text)
+                                        console.info(text);
+                                });
+                            }
+                            finally {
+                                await staged.cleanup();
+                            }
+                        }
+                        finally {
+                            await userSelection.dispose();
+                        }
                     }
-                    const rootDir = rfs.getRootDirectory();
-                    if (!rootDir)
-                        throw new Error("RFS root directory not available for import");
-                    await new GameResImporter(this.appConfig, this.strings, this.sentry).import(userSelection, rootDir, (text, image) => {
-                        updateSplashScreen(text, image);
-                        if (text)
-                            console.info(text);
-                    });
+                    else {
+                        if (!rfs) {
+                            if (selectedSource === GameResSource.Local && userSelection && !(userSelection instanceof URL) && userSelection.kind === 'directory') {
+                                const handle = userSelection as FileSystemDirectoryHandle;
+                                rfs = await Engine.initRfs(handle);
+                            }
+                            else {
+                                throw new NoStorageError("No storage adapters available for import.");
+                            }
+                        }
+                        const rootDir = rfs.getRootDirectory();
+                        if (!rootDir)
+                            throw new Error("RFS root directory not available for import");
+                        await new GameResImporter(this.appConfig, this.strings, this.sentry).import(userSelection, rootDir, (text, image) => {
+                            updateSplashScreen(text, image);
+                            if (text)
+                                console.info(text);
+                        });
+                    }
                     console.info("Game assets successfully imported.");
                 }
                 catch (e: any) {
@@ -324,6 +371,58 @@ export class GameRes {
         if (createdBlobUrl)
             URL.revokeObjectURL(createdBlobUrl);
         return { configToPersist: configRequiresSave ? currentConfig : undefined, cdnResLoader: cdnResourceLoader };
+    }
+    private async stageContentImportSource(
+        source: ContentImportSource,
+        rootDir: RealFileSystemDir,
+        onProgress: (text: string) => void,
+    ): Promise<{ directory: FileSystemDirectoryHandle; cleanup: () => Promise<void> }> {
+        if (!source.files.length) {
+            throw new Error("The selected game content contains no readable files");
+        }
+        const cacheDir = await rootDir.getNativeHandle().getDirectoryHandle(Engine.rfsSettings.cacheDir, { create: true });
+        const suffix = typeof globalThis.crypto?.randomUUID === "function"
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const stagingName = `game-content-import-${suffix}`;
+        const stagingDirectory = await cacheDir.getDirectoryHandle(stagingName, { create: true });
+        const cleanup = async (): Promise<void> => {
+            try {
+                await cacheDir.removeEntry(stagingName, { recursive: true });
+            }
+            catch (error: any) {
+                if (error?.name !== "NotFoundError") {
+                    throw error;
+                }
+            }
+        };
+        try {
+            for (const sourceFile of source.files) {
+                const normalizedPath = normalizeGamePath(sourceFile.path);
+                onProgress(`Importing ${normalizedPath}`);
+                const segments = normalizedPath.split("/");
+                const fileName = segments.pop()!;
+                let targetDirectory = stagingDirectory;
+                for (const directoryName of segments) {
+                    targetDirectory = await targetDirectory.getDirectoryHandle(directoryName, { create: true });
+                }
+                const targetFile = await targetDirectory.getFileHandle(fileName, { create: true });
+                const writable = await targetFile.createWritable();
+                try {
+                    const stream = await source.readFile(sourceFile.path);
+                    await stream.pipeTo(writable);
+                }
+                catch (error) {
+                    await writable.abort();
+                    throw error;
+                }
+            }
+        }
+        catch (error) {
+            await cleanup();
+            throw error;
+        }
+        return { directory: stagingDirectory, cleanup };
     }
     private async loadMod(rfs: RealFileSystem, modDirHandle: FileSystemDirectoryHandle): Promise<RealFileSystemDir | undefined> {
         let modName = this.modName;

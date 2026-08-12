@@ -20,6 +20,9 @@ export interface ContentImportSource {
 }
 
 export interface PlatformContentProvider {
+    /** Browser/desktop providers return a streamable source; Android's native
+     * game picker commits directly through SAF and therefore may omit this. */
+    pickGameDirectory?(): Promise<ContentImportSource | undefined>;
     pickModDirectory(): Promise<ContentImportSource | undefined>;
     pickModArchives(options?: { multiple?: boolean }): Promise<ContentImportSource | undefined>;
 }
