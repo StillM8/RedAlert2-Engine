@@ -45,15 +45,8 @@ class MainActivity : Activity() {
     companion object {
         private const val TAG = "RA2"
         private const val APP_URL_BASE =
-            "https://${Ra2WebViewClient.APP_ASSET_HOST}/index.html?shell=1&platform=android"
-        private val APP_URL: String
-            get() = buildString {
-                append(APP_URL_BASE)
-                append("&engine=")
-                append(Uri.encode(BuildConfig.GAME_ENGINE))
-                append("&profile=")
-                append(Uri.encode(BuildConfig.GAME_PROFILE))
-            }
+            "https://${Ra2WebViewClient.APP_ASSET_HOST}/index.html?shell=1&platform=android&menuVideoRoot=%2Fnative-media%2Fandroid%2Fmenu-video"
+        private const val APP_URL = APP_URL_BASE
         private const val WEBVIEW_STATE_KEY = "ra2.webview.state"
         private const val MAX_RENDERER_RECOVERIES = 3
         private const val RECOVERY_WINDOW_MS = 5 * 60 * 1000L
@@ -76,30 +69,12 @@ class MainActivity : Activity() {
             "multi.mix",
             "ra2.mix",
         )
-        private val OPTIONAL_YR_GAME_FILES = listOf(
-            "langmd.mix",
-            "multimd.mix",
-            "ra2md.mix",
-        )
+        // The shell only confirms that a usable RA2-family installation was
+        // selected. YR and mod-specific requirements are resolved by the
+        // shared TypeScript content registry after Menu -> Mods selection.
+        private fun requiredGameFiles(): List<String> = REQUIRED_RA2_GAME_FILES
 
-        private fun requiredGameFiles(): List<String> =
-            REQUIRED_RA2_GAME_FILES + if (BuildConfig.GAME_ENGINE == "yr") {
-                OPTIONAL_YR_GAME_FILES
-            } else {
-                emptyList()
-            }
-
-        private fun gameDisplayName(): String = when (BuildConfig.GAME_PROFILE) {
-            "yr" -> "Yuri's Revenge"
-            "mental-omega" -> "Mental Omega"
-            else -> "Red Alert 2"
-        }
-
-        private val REQUIRED_MO_PROFILE_FILES = listOf(
-            "rulesmo.ini",
-            "artmo.ini",
-        )
-        private val MO_ARCHIVE_PATTERN = Regex("^expandmo\\d{2}\\.mix$", RegexOption.IGNORE_CASE)
+        private fun gameDisplayName(): String = "Red Alert 2 / Yuri's Revenge"
     }
 
     private lateinit var webView: WebView
@@ -807,44 +782,6 @@ class MainActivity : Activity() {
         }
     }
 
-    /**
-     * Validate the explicitly selected profile after the shared RA2/YR base
-     * files have been checked.  A MO APK must not accept an ordinary YR
-     * directory just because it contains all of the YR archives.
-     */
-    private fun validateSelectedProfile(files: Collection<ImportedFile>) {
-        if (BuildConfig.GAME_PROFILE != "mental-omega") return
-
-        val normalizedPaths = files.mapNotNull { normalizeArchivePath(it.path) }
-        val leafNames = normalizedPaths
-            .map { it.substringAfterLast('/').lowercase(Locale.ROOT) }
-            .toSet()
-        val missing = REQUIRED_MO_PROFILE_FILES.filterNot { it in leafNames }
-        val hasMoArchive = leafNames.any { MO_ARCHIVE_PATTERN.matches(it) }
-        // A normal Mental Omega installation keeps rulesmo.ini/artmo.ini in
-        // expandmo##.mix rather than as loose files.  The web VFS performs
-        // the authoritative hash lookup after import, so native validation
-        // only needs to recognize the archive container here.
-        val hasLooseMoRules = REQUIRED_MO_PROFILE_FILES.all { it in leafNames }
-        val hasLooseMoContent = normalizedPaths.any {
-            val lower = it.lowercase(Locale.ROOT)
-            lower == "uimd.ini" || lower == "uimo.ini" ||
-                Regex("(^|/)mapsmo/").containsMatchIn(lower) ||
-                Regex("(^|/)missionsmo/").containsMatchIn(lower)
-        }
-        if ((!hasMoArchive && !hasLooseMoRules) || (!hasMoArchive && !hasLooseMoContent)) {
-            val details = buildList {
-                if (!hasMoArchive && !hasLooseMoRules) {
-                    addAll(missing.map { "missing $it" })
-                }
-                if (!hasMoArchive && !hasLooseMoContent) {
-                    add("missing expandmo##.mix or MapsMO/MissionsMO content")
-                }
-            }
-            throw IOException("This is not a complete Mental Omega folder: ${details.joinToString()}")
-        }
-    }
-
     private fun validateImportedFileLimits(files: Collection<ImportedFile>) {
         if (files.size > MAX_IMPORTED_FILE_COUNT) {
             throw IOException("The selected mod contains too many files")
@@ -908,7 +845,6 @@ class MainActivity : Activity() {
                 if (missing.isNotEmpty()) {
                     throw IOException("This is not a complete ${gameDisplayName()} folder. Missing: ${missing.joinToString()}")
                 }
-                validateSelectedProfile(files)
                 val manifestFiles = JSONArray()
                 files.sortedBy { it.path }.forEach { file ->
                     manifestFiles.put(

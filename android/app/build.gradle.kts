@@ -21,30 +21,6 @@ android {
         manifestPlaceholders["allowCleartext"] = "false"
     }
 
-    flavorDimensions += "game"
-    productFlavors {
-        create("ra2") {
-            dimension = "game"
-            applicationId = "com.ammaar.ra2android"
-            buildConfigField("String", "GAME_ENGINE", "\"ra2\"")
-            buildConfigField("String", "GAME_PROFILE", "\"ra2\"")
-        }
-        create("yr") {
-            dimension = "game"
-            applicationId = "com.ammaar.yurirevengeandroid"
-            buildConfigField("String", "GAME_ENGINE", "\"yr\"")
-            buildConfigField("String", "GAME_PROFILE", "\"yr\"")
-        }
-        create("mo") {
-            dimension = "game"
-            applicationId = "com.ammaar.mentalomegaandroid"
-            // MO uses the Yuri's Revenge simulation family plus an explicit
-            // profile/extension runtime selected by the web engine.
-            buildConfigField("String", "GAME_ENGINE", "\"yr\"")
-            buildConfigField("String", "GAME_PROFILE", "\"mental-omega\"")
-        }
-    }
-
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"

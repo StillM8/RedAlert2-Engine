@@ -7,6 +7,13 @@ import { detectContentProfile, GAME_PROFILES, isGameProfileId, type GameProfileI
 
 export type BuiltinContentId = "builtin:ra2" | "builtin:yr";
 export type ContentSelectionId = BuiltinContentId | `mod:${string}`;
+export const ACTIVE_CONTENT_STORAGE_KEY = "_ra2_active_content";
+
+export interface ContentSelectionStorage {
+    getItem(key: string): string | null;
+    setItem(key: string, value: string): void;
+    removeItem(key: string): void;
+}
 
 export interface ContentSelection {
     id: ContentSelectionId;
@@ -102,17 +109,59 @@ function profileFromPaths(paths: Iterable<string>): GameProfileId | undefined {
     return detectContentProfile(paths);
 }
 
+function getDefaultSelectionStorage(): ContentSelectionStorage | undefined {
+    try {
+        return typeof globalThis.localStorage === "undefined" ? undefined : globalThis.localStorage;
+    }
+    catch {
+        return undefined;
+    }
+}
+
+export function readPersistedContentSelection(storage = getDefaultSelectionStorage()): ContentSelectionId | undefined {
+    if (!storage) {
+        return undefined;
+    }
+    try {
+        return parseContentSelectionId(storage.getItem(ACTIVE_CONTENT_STORAGE_KEY));
+    }
+    catch {
+        return undefined;
+    }
+}
+
+export function persistContentSelection(
+    id: ContentSelectionId | undefined,
+    storage = getDefaultSelectionStorage(),
+): void {
+    if (!storage) {
+        return;
+    }
+    try {
+        if (id) {
+            storage.setItem(ACTIVE_CONTENT_STORAGE_KEY, id);
+        }
+        else {
+            storage.removeItem(ACTIVE_CONTENT_STORAGE_KEY);
+        }
+    }
+    catch {
+        // Private browsing and embedded WebViews can reject localStorage.
+        // The URL route still handles the current reload in that case.
+    }
+}
+
 /** Shared content catalog and explicit Mod Menu route resolver. */
 export class ContentRegistry {
     /**
-     * Resolve only an explicit selection made by the Mods screen. The native
-     * profile is the app's baseline; the content query is written by
-     * ModManager immediately before a full document reload. There is no
-     * hidden localStorage selection or startup content picker.
+     * Resolve the route written by the Mods screen, then its persisted copy
+     * for the next cold start. There is no separate startup content picker:
+     * the persisted route is simply the last successful Mods selection.
      */
     async resolveSelection(options: {
         location?: Location;
         fallbackProfile?: GameProfileId;
+        storage?: ContentSelectionStorage;
     } = {}): Promise<ContentSelection> {
         const url = options.location ? new URL(options.location.href) : new URL(window.location.href);
         const fallbackProfile = options.fallbackProfile ?? "ra2";
@@ -120,14 +169,30 @@ export class ContentRegistry {
         const legacyMod = url.searchParams.get("mod");
         const requested = explicitContent ?? (legacyMod ? parseContentSelectionId(`mod:${legacyMod}`) : undefined);
         if (requested) {
-            return await this.selectionFromId(requested, fallbackProfile);
+            const selection = await this.selectionFromId(requested, fallbackProfile);
+            if (selection) {
+                persistContentSelection(selection.id, options.storage);
+                return selection;
+            }
         }
-        if (fallbackProfile === "mental-omega") {
-            // Compatibility for old MO flavor URLs/installations. The normal
-            // path is still an explicit Mod Menu selection.
-            return { id: "mod:mental-omega", kind: "mod", modId: "mental-omega", profileId: fallbackProfile };
+
+        const persistedId = readPersistedContentSelection(options.storage);
+        if (persistedId) {
+            const persistedSelection = await this.selectionFromId(persistedId, fallbackProfile);
+            const isAvailable = persistedSelection
+                ? await this.isSelectionAvailable(persistedSelection.id)
+                : false;
+            if (persistedSelection && isAvailable !== false) {
+                return persistedSelection;
+            }
+            // A deleted mod or removed base game must not trap the next boot
+            // in a dead route. The user can select it again after reinstalling.
+            persistContentSelection(undefined, options.storage);
         }
-        const builtinId: BuiltinContentId = fallbackProfile === "yr" ? "builtin:yr" : "builtin:ra2";
+
+        // RA2 is the neutral first-boot baseline. YR, MO, and every other
+        // content package become active only through Menu -> Mods.
+        const builtinId: BuiltinContentId = "builtin:ra2";
         return { id: builtinId, kind: "builtin", profileId: profileForBuiltin(builtinId) };
     }
 
@@ -182,21 +247,28 @@ export class ContentRegistry {
         return items;
     }
 
-    private async selectionFromId(id: ContentSelectionId, fallbackProfile: GameProfileId): Promise<ContentSelection> {
+    private async selectionFromId(id: ContentSelectionId, fallbackProfile: GameProfileId): Promise<ContentSelection | undefined> {
         if (isBuiltinContentId(id)) {
             return { id, kind: "builtin", profileId: profileForBuiltin(id) };
         }
         const modId = id.slice("mod:".length);
-        const metadata = await this.findInstalledMetadata(modId);
+        const installed = await this.findInstalledMod(modId);
+        if (installed?.exists === false) {
+            return undefined;
+        }
         return {
             id,
             kind: "mod",
             modId,
-            profileId: metadataProfile(metadata) ?? fallbackProfile,
+            profileId: metadataProfile(installed?.metadata) ?? installed?.profileId ?? fallbackProfile,
         };
     }
 
-    private async findInstalledMetadata(modId: string): Promise<Partial<InstalledContentMetadata> | undefined> {
+    private async findInstalledMod(modId: string): Promise<{
+        exists: boolean;
+        metadata?: Partial<InstalledContentMetadata>;
+        profileId?: GameProfileId;
+    } | undefined> {
         if (typeof navigator.storage?.getDirectory !== "function") {
             return undefined;
         }
@@ -204,7 +276,37 @@ export class ContentRegistry {
             const root = await navigator.storage.getDirectory();
             const mods = await root.getDirectoryHandle("mods");
             const mod = await mods.getDirectoryHandle(modId);
-            return await readGeneratedMetadata(mod);
+            const metadata = await readGeneratedMetadata(mod);
+            return {
+                exists: true,
+                metadata,
+                profileId: metadataProfile(metadata) ?? profileFromPaths(await listFilesRecursive(mod)),
+            };
+        }
+        catch {
+            return { exists: false };
+        }
+    }
+
+    private async isSelectionAvailable(id: ContentSelectionId): Promise<boolean | undefined> {
+        if (id.startsWith("mod:")) {
+            return (await this.findInstalledMod(id.slice("mod:".length)))?.exists;
+        }
+        if (!isBuiltinContentId(id)) {
+            return undefined;
+        }
+        if (typeof navigator.storage?.getDirectory !== "function") {
+            return undefined;
+        }
+        try {
+            const root = await navigator.storage.getDirectory();
+            const rootFiles: string[] = [];
+            for await (const [name, handle] of root.entries()) {
+                if (handle.kind === "file") {
+                    rootFiles.push(name);
+                }
+            }
+            return this.detectBaseProfiles(rootFiles).has(baseProfileForRuntime(profileForBuiltin(id)));
         }
         catch {
             return undefined;

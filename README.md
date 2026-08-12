@@ -66,25 +66,28 @@ And where the Generals engine came with its AI, its lighting, and its
 expansion content built in, here each of those became its own campaign —
 which is where most of the story below happened.
 
-## One TypeScript engine, profile-driven compatibility
+## One TypeScript engine, Mods-menu-selected content
 
 This is one shared TypeScript game engine and renderer. Red Alert 2, Yuri's
-Revenge, and Mental Omega are content/runtime profiles selected at startup;
-they are not three unrelated ports:
+Revenge, Mental Omega, and other compatible mods are content entries in one
+library. The user selects an installed entry from **Menu → Mods**; that choice
+performs a clean engine reload and is remembered for the next launch. There is
+one Android app, one iOS app, and one desktop app rather than a separate build
+profile for each game:
 
-| Profile | Simulation family | Content and compatibility layer |
+| Content entry | Simulation family | Content and compatibility layer |
 |---|---|---|
-| `ra2` | Red Alert 2 | Retail RA2 rules and resources |
-| `yr` | Yuri's Revenge | Retail YR expansion rules and resources |
-| `mental-omega` | Yuri's Revenge | Mental Omega resources plus the shared Ares-compatible runtime |
+| Red Alert 2 | Red Alert 2 | Retail RA2 rules and resources |
+| Yuri's Revenge | Yuri's Revenge | Retail YR expansion rules and resources |
+| Mental Omega | Yuri's Revenge | Imported MO resources plus the shared Ares-compatible runtime |
 
 Ares is part of this build as a generic TypeScript compatibility layer under
 `redalert2/src/extensions/ares/`. It is not a separately installed DLL, a
-second engine, or a Mental Omega-only patch. The Mental Omega profile selects
-the Ares extension runtime because MO's rules depend on Ares behavior; vanilla
-RA2/YR profiles continue through their ordinary paths when those fields are
-absent. The implementation must stay data-driven: code should respond to an
-Ares rule or capability, not to a hard-coded `Mental Omega` name.
+second engine, or a Mental Omega-only patch. The selected content descriptor
+declares its base game and required extensions; MO uses Yuri's Revenge plus
+Ares, while vanilla RA2/YR continue through their ordinary paths. The
+implementation must stay data-driven: code should respond to an Ares rule or
+capability, not to a hard-coded `Mental Omega` name.
 
 The Ares layer is deliberately incremental. Parsing a key does not mean the
 whole feature is complete. The explicit registry and tests track parser,
@@ -307,46 +310,46 @@ with `xcrun devicectl device install app --device <id> <path to RA2.app>`.
 
 ### Android builds
 
-Android keeps the native RA2/YR/MO baseline flavors, while the in-game Mods
-screen owns content switching. The built-in Mod Menu entries are Red Alert 2
-and Yuri's Revenge; imported packages stay separate and declare which base
-they require. Build a selected baseline from the repo root:
+Android is one product. The in-game Mods screen owns content switching; the
+native shell only provides storage, lifecycle, and file-picking services. The
+built-in Mod Menu entries are Red Alert 2 and Yuri's Revenge; imported
+packages stay separate and declare which base they require. Build the unified
+app from the repo root:
 
 ```sh
-./scripts/build-android.sh --variant ra2
-./scripts/build-android.sh --variant yr
-./scripts/build-android.sh --variant mo
+./scripts/build-android.sh
+./scripts/build-android.sh --release
 ```
 
-Use `--device` to install and launch a selected flavor through `adb`:
+Use `--device` to install and launch the unified debug app through `adb`:
 
 ```sh
-./scripts/build-android.sh --variant ra2 --device
-./scripts/build-android.sh --variant yr --device
-./scripts/build-android.sh --variant mo --device
+./scripts/build-android.sh --device
 ```
 
 The first launch opens the in-app game-resource setup. After the base files
 are imported, open **Menu → Mods**. Selecting Red Alert 2, Yuri's Revenge, or
-an imported mod performs a full engine reload. A mod that requires YR uses the
-separately imported Yuri's Revenge base; it does not replace or merge the base
-install.
+an imported mod performs a full engine reload and persists that choice for the
+next launch. A mod that requires YR uses the separately imported Yuri's
+Revenge base; it does not replace or merge the base install. If the selected
+content is removed, the stale route is cleared and the app returns to the
+neutral Red Alert 2 baseline until another Mods selection is made.
 
 Retail game files are not bundled; import your legally-owned installation on
 first launch. For local QA only, Android accepts
-`./scripts/build-android.sh --variant mo --with-gameres`.
+`./scripts/build-android.sh --with-gameres`.
 
-The [v0.0.1 Android release](https://github.com/StillM8/RedAlert2-Android/releases/tag/v0.0.1)
-includes separate release APKs for Red Alert 2 and Yuri's Revenge. Retail game
-files are not bundled; import your legally-owned installation on first launch.
-During the first import, the Android client converts the retail Bink menu movie
-to WebM and stores it with the imported files. Later launches reuse that file.
+The Android release is a single app (`com.ammaar.ra2android` in release and
+`com.ammaar.ra2android.debug` in debug). Retail game files are not bundled;
+import your legally-owned installation on first launch. During the first
+import, the Android client converts the retail Bink menu movie to WebM and
+stores it with the imported files. Later launches reuse that file.
 
 Returning from Android Home or Back preserves the existing WebView and game
 session instead of booting a new session. While a single-player match is
 hidden, the shared engine writes an action-log checkpoint; if Android later
-kills the WebView, the next launch validates the app/profile/mod identity and
-resumes that checkpoint. Multiplayer is not reconstructed from a local replay;
+kills the WebView, the next launch validates the app and selected content route
+before resuming that checkpoint. Multiplayer is not reconstructed from a local replay;
 its live network/session lifecycle remains separate.
 
 Desktop development (no Xcode needed):
@@ -388,7 +391,7 @@ input, and packaging.
 | `redalert2/src/gui/screen/mainMenu/loadGame/` | Mid-match save/load (replay-backed) |
 | `redalert2/src/extensions/ares/` | Generic Ares-compatible parsing, adapters, handlers, and feature registry |
 | `ios/` | XcodeGen project: Swift shell, WKWebView, bundle scheme handler |
-| `android/` | Kotlin shell, WebView asset server, Android lifecycle, and RA2/YR/MO flavors |
+| `android/` | Kotlin shell, WebView asset server, Android lifecycle, and unified app packaging |
 | `scripts/setup.sh` | One-shot setup: deps + retail import + next steps |
 | `scripts/prepare-gameres.ts` | The asset importer (what `setup.sh` runs for you) |
 | `scripts/build-ios.sh` | Web build → engine-only staging → xcodegen → xcodebuild |

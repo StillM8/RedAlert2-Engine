@@ -17,13 +17,11 @@ export PATH="$HOME/.bun/bin:$PATH"
 SKIP_WEB=0
 DEVICE=0
 BUNDLE_LOCAL_GAMERES=0
-VARIANT="yr"
 for arg in "$@"; do
   case "$arg" in
     --no-web) SKIP_WEB=1 ;;
     --device) DEVICE=1 ;;
     --bundle-local-gameres) BUNDLE_LOCAL_GAMERES=1 ;;
-    --ra2) VARIANT="ra2" ;;
   esac
 done
 
@@ -60,36 +58,23 @@ EOF
   exit 1
 fi
 
-# App identity per variant so both can coexist on a device.
-if [[ "$VARIANT" == "ra2" ]]; then
-  export RA2_BUNDLE_ID="${RA2_BUNDLE_ID:-com.ammaar.ra2classic}"
-  export RA2_APP_NAME="${RA2_APP_NAME:-Red Alert 2}"
-else
-  export RA2_BUNDLE_ID="${RA2_BUNDLE_ID:-com.ammaar.ra2web}"
-  # Assigned separately: an apostrophe inside ${VAR:-default} breaks bash's
-  # parameter expansion even within double quotes.
-  if [[ -z "${RA2_APP_NAME:-}" ]]; then RA2_APP_NAME="Yuri's Revenge"; fi
-  export RA2_APP_NAME
-fi
+# One product identity. Content selection belongs to the shared Mods menu,
+# not to an iOS app variant or a native URL/profile.
+export RA2_BUNDLE_ID="${RA2_BUNDLE_ID:-com.ammaar.ra2web}"
+export RA2_APP_NAME="${RA2_APP_NAME:-Red Alert 2 Engine}"
 
 if [[ $SKIP_WEB -eq 0 ]]; then
   echo "==> Building web app"
   (cd "$WEB" && bun --bun vite build)
 fi
 
-echo "==> Staging WebDist ($VARIANT)"
+echo "==> Staging WebDist"
 rm -rf "$IOS/Resources/WebDist"
 mkdir -p "$IOS/Resources"
 cp -R "$WEB/dist" "$IOS/Resources/WebDist"
 # The 430MB import archive is only needed for browser-based import, not the shell.
 rm -rf "$IOS/Resources/WebDist/local-pack"
-if [[ "$VARIANT" == "ra2" ]]; then
-  # Classic build: boot as plain RA2 with the RA2 string table.
-  sed -i '' 's/^engine = yr/engine = ra2/; s/^csfFile = generalmd.csf/csfFile = general.csf/' "$IOS/Resources/WebDist/config.ini"
-  grep -E "^engine|^csfFile" "$IOS/Resources/WebDist/config.ini"
-fi
-
-echo "==> Staging GameRes ($VARIANT)"
+echo "==> Staging GameRes"
 rm -rf "$IOS/Resources/GameRes"
 mkdir -p "$IOS/Resources/GameRes"
 if [[ $BUNDLE_LOCAL_GAMERES -eq 1 ]]; then
@@ -99,12 +84,6 @@ if [[ $BUNDLE_LOCAL_GAMERES -eq 1 ]]; then
     exit 1
   fi
   cp -R "$GAMERES"/. "$IOS/Resources/GameRes"
-  if [[ "$VARIANT" == "ra2" ]]; then
-    # Strip YR-only content (engine in ra2 mode ignores it; saves ~350MB).
-    rm -f "$IOS/Resources/GameRes"/{ra2md.mix,langmd.mix,multimd.mix,expandmd01.mix}
-    rm -f "$IOS/Resources/GameRes"/*.yro
-  fi
-
   echo "==> Generating GameRes manifest"
   python3 - "$IOS/Resources/GameRes" <<'EOF'
 import json, os, sys

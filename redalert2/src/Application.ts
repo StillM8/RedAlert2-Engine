@@ -30,8 +30,7 @@ import { browserFileSystemAccess } from './engine/gameRes/browserFileSystemAcces
 import type { TestToolRuntimeContext } from './tools/TestToolSupport';
 import { attachPerformanceOptions, installPerformanceDebugApi } from './performance/PerformanceRuntime';
 import { inGameViewportActive } from './gui/inGameViewport';
-import { getNativeShellEngine, getNativeShellProfile, isNativeShell } from './shell/nativeShell';
-import { getGameProfile, type GameProfileId } from './engine/GameProfile';
+import { getGameProfile } from './engine/GameProfile';
 import { ContentRegistry } from './content/ContentRegistry';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
@@ -195,13 +194,6 @@ export class Application {
             const iniFileInstance = new IniFile(iniString);
             this.config = new Config();
             this.config.load(iniFileInstance);
-            const shellEngine = isNativeShell() ? getNativeShellEngine() : undefined;
-            const persistedEngine = isNativeShell() ? localStorage.getItem('_ra2_native_engine') : null;
-            const nativeEngine = shellEngine ?? (persistedEngine === 'yr' ? 'yr' : persistedEngine === 'ra2' ? 'ra2' : undefined);
-            if (nativeEngine === 'ra2' || nativeEngine === 'yr') {
-                this.config.getGeneralData().set('engine', nativeEngine);
-                console.log(`[Application] Native shell selected ${nativeEngine} engine${shellEngine ? ' from the Android app variant' : ' from imported archives'}.`);
-            }
             console.log('[Application] config.ini loaded and parsed successfully.');
             console.log('[Application] Config object dump:', this.config);
             console.log('[Application] Verification: Default Locale from config:', this.config.defaultLocale);
@@ -590,7 +582,9 @@ export class Application {
         }
         try {
             await this.loadConfig();
-            Engine.setActiveEngine(this.config.engine === "yr" ? EngineType.YurisRevenge : EngineType.RedAlert2);
+            // The app has one neutral engine shell. The selected content
+            // route below is the only source of the active simulation family.
+            Engine.setActiveEngine(EngineType.RedAlert2);
             this.initializePreferredViewportSize();
             this.updateViewportSize();
         }
@@ -656,15 +650,13 @@ export class Application {
             .then(gpuData => this.gpuTier = gpuData)
             .catch(e => this.sentry?.captureException(e));
         this.fsAccessLib = browserFileSystemAccess;
-        const nativeShellProfile = isNativeShell() ? getNativeShellProfile() : undefined;
-        const fallbackProfile: GameProfileId = nativeShellProfile ?? (this.config.engine === 'yr' ? 'yr' : 'ra2');
         const contentRegistry = new ContentRegistry();
         const contentSelection = await contentRegistry.resolveSelection({
             location: window.location,
-            fallbackProfile,
         });
         const profile = contentSelection.profileId;
         const modName = contentSelection.kind === 'mod' ? contentSelection.modId : undefined;
+        Engine.setActiveEngine(profile === "ra2" ? EngineType.RedAlert2 : EngineType.YurisRevenge);
         let gameResConfig = this.loadGameResConfig(this.localPrefs);
         try {
             const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry, profile);

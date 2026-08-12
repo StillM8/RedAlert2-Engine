@@ -10,12 +10,11 @@ export {
  canImportModFromShell,
  downloadModFromShell,
  getPlatformContentProvider,
- getNativeShellProfile,
- getNativeShellEngine,
  importModFromShell,
  installShellDebugLog,
  installShellRepl,
  isNativeShell,
+ selectNativeMenuVideoSource,
  pickGameDirectoryFromShell,
  seedGameResFromShell,
 } from './iosSeed';

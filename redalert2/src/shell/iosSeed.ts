@@ -1,22 +1,17 @@
 import { StorageKey } from '../LocalPrefs';
 import { GameResSource } from '../engine/gameRes/GameResSource';
 import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/async/cancellation';
-import { getGameProfile, isGameProfileId, type GameProfileId } from '../engine/GameProfile';
 import { gamePathKey, normalizeGamePath } from '../engine/GamePath';
 import type { ArchiveSource } from '../data/ArchiveSource';
 import { importContentSourceToOpfs } from '../content/InstalledContentImporter';
 import type { ContentImportKind, ContentImportSource, PlatformContentProvider } from '../content/PlatformContentProvider';
-
-export type NativeShellEngine = 'ra2' | 'yr';
-export type NativeShellProfile = GameProfileId;
 
 declare global {
     interface Window {
         __RA2_SHELL__?: {
             platform: string;
             version: string;
-            engine?: NativeShellEngine;
-            profile?: NativeShellProfile;
+            menuVideoRoot?: string;
             thermalState?: string;
         };
         Ra2Android?: {
@@ -150,13 +145,6 @@ const REQUIRED_RA2_GAME_FILES = [
     'multi.mix',
     'ra2.mix',
 ];
-const OPTIONAL_YR_GAME_FILES = [
-    'langmd.mix',
-    'multimd.mix',
-    'ra2md.mix',
-];
-const NATIVE_ENGINE_STORAGE_KEY = '_ra2_native_engine';
-const NATIVE_PROFILE_STORAGE_KEY = '_ra2_native_profile';
 
 /**
  * Both debug channels below talk to a hardcoded dev host over plain HTTP: the
@@ -288,39 +276,64 @@ function ensureShellMarker(): void {
     const params = new URLSearchParams(window.location.search);
     if (!params.has('shell'))
         return;
-    const rawEngine = params.get('engine');
-    const engine: NativeShellEngine | undefined = rawEngine === 'ra2'
-        ? 'ra2'
-        : rawEngine === 'yr'
-            ? 'yr'
-            : undefined;
-    const rawProfile = params.get('profile');
-    const profile: NativeShellProfile | undefined = isGameProfileId(rawProfile)
-        ? rawProfile
-        : engine;
+    const platform = params.get('platform') || 'native';
+    const requestedMenuVideoRoot = params.get('menuVideoRoot');
+    const menuVideoRoot = requestedMenuVideoRoot === '/native-media/android/menu-video' ||
+        requestedMenuVideoRoot === '/native-media/ios/menu-video'
+        ? requestedMenuVideoRoot
+        : platform === 'android'
+            ? '/native-media/android/menu-video'
+            : platform === 'ios'
+                ? '/native-media/ios/menu-video'
+                : undefined;
     window.__RA2_SHELL__ = {
-        platform: params.get('platform') || 'native',
+        platform,
         version: params.get('shellVersion') || '0.1.0',
-        ...(engine ? { engine } : {}),
-        ...(profile ? { profile } : {}),
+        ...(menuVideoRoot ? { menuVideoRoot } : {}),
     };
+}
+
+function nativeMenuVideoUrl(filename: string): string | undefined {
+    ensureShellMarker();
+    if (!/^[A-Za-z0-9._-]+\.bik$/i.test(filename)) {
+        return undefined;
+    }
+    const root = window.__RA2_SHELL__?.menuVideoRoot;
+    if (!root) {
+        return undefined;
+    }
+    return new URL(`${root}/${encodeURIComponent(filename)}`, window.location.href).toString();
+}
+
+/**
+ * Ask the current native shell whether it has a platform-owned Bink file.
+ * Android and iOS deliberately use different native URL roots; if neither
+ * shell has a loose Bink file, the caller falls back to the shared OPFS/VFS
+ * import path, which extracts it from language*.mix.
+ */
+export async function selectNativeMenuVideoSource(filenames: readonly string[]): Promise<string | undefined> {
+    for (const filename of filenames) {
+        const url = nativeMenuVideoUrl(filename);
+        if (!url) {
+            return undefined;
+        }
+        try {
+            const response = await fetch(`${url}?probe=1`, { cache: 'no-store' });
+            if (response.ok) {
+                return url;
+            }
+        }
+        catch (error) {
+            console.debug(`[nativeShell] Native menu video probe failed for ${filename}`, error);
+        }
+    }
+    return undefined;
 }
 
 export function isNativeShell(): boolean {
     ensureShellMarker();
     // The query flag also lets a desktop browser exercise the native code path.
     return !!window.__RA2_SHELL__;
-}
-
-export function getNativeShellEngine(): NativeShellEngine | undefined {
-    ensureShellMarker();
-    return window.__RA2_SHELL__?.engine;
-}
-
-export function getNativeShellProfile(): NativeShellProfile | undefined {
-    ensureShellMarker();
-    return window.__RA2_SHELL__?.profile
-        ?? window.__RA2_SHELL__?.engine;
 }
 
 export function canPickGameDirectoryFromShell(): boolean {
@@ -727,25 +740,16 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             return '';
         }
     }));
-    const hasYuriFiles = OPTIONAL_YR_GAME_FILES.every((file) => manifestPaths.has(gamePathKey(file)));
-    const requestedProfile = getNativeShellProfile();
-    const selectedProfile = requestedProfile ?? (hasYuriFiles ? 'yr' : 'ra2');
-    const profile = getGameProfile(selectedProfile);
-    const missingRequiredFiles = profile.requiredFiles.filter((file) => !manifestPaths.has(gamePathKey(file)));
+    const missingRequiredFiles = REQUIRED_RA2_GAME_FILES.filter((file) => !manifestPaths.has(gamePathKey(file)));
     if (missingRequiredFiles.length > 0) {
         console.warn(
-            `[nativeShell] Resource import is incomplete for ${selectedProfile}; ` +
+            '[nativeShell] Resource import is incomplete for the RA2-family base; ' +
             `missing ${missingRequiredFiles.join(', ')}. The game-resource chooser will remain available.`,
         );
         localStorage.removeItem(StorageKey.GameRes);
-        localStorage.removeItem(NATIVE_ENGINE_STORAGE_KEY);
-        localStorage.removeItem(NATIVE_PROFILE_STORAGE_KEY);
     }
     else {
-        const selectedEngine = selectedProfile === 'ra2' ? 'ra2' : 'yr';
-        localStorage.setItem(NATIVE_ENGINE_STORAGE_KEY, selectedEngine);
-        localStorage.setItem(NATIVE_PROFILE_STORAGE_KEY, selectedProfile);
-        console.info(`[nativeShell] Selected ${profile.displayName} resources using the ${selectedEngine} engine`);
+        console.info('[nativeShell] Base resources are available; content will be selected from Menu -> Mods');
     }
     const totalBytes = manifest.files.reduce((sum, f) => sum + f.size, 0);
     let copiedBytes = 0;

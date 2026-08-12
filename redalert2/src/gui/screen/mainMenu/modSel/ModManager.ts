@@ -3,6 +3,7 @@ import { RouteHelper } from "@/RouteHelper";
 import { Mod } from "@/gui/screen/mainMenu/modSel/Mod";
 import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 import { INSTALLED_CONTENT_METADATA_FILE, type InstalledContentMetadata } from "@/content/ContentIdentity";
+import { persistContentSelection, parseContentSelectionId } from "@/content/ContentRegistry";
 interface Directory {
     getEntries(): AsyncIterable<string>;
     containsEntry(name: string): Promise<boolean>;
@@ -158,10 +159,13 @@ export class ModManager {
     }
     loadContent(contentId?: string): void {
         const url = new URL(this.location.href);
-        if (contentId) {
-            url.searchParams.set(RouteHelper.contentQueryStringName, contentId);
+        const selectionId = parseContentSelectionId(contentId);
+        if (selectionId) {
+            persistContentSelection(selectionId);
+            url.searchParams.set(RouteHelper.contentQueryStringName, selectionId);
         }
         else {
+            persistContentSelection(undefined);
             url.searchParams.delete(RouteHelper.contentQueryStringName);
             url.searchParams.delete(RouteHelper.modQueryStringName);
         }

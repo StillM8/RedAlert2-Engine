@@ -115,7 +115,6 @@ export class ModSelScreen extends MainMenuScreen {
         try {
             const selection = await this.contentRegistry.resolveSelection({
                 location: window.location,
-                fallbackProfile: Engine.getActiveProfile().id,
             });
             this.activeModId = selection.kind === "mod" ? (selection.modId ?? "") : selection.id;
         }

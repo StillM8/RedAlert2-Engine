@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { ContentRegistry, parseContentSelectionId } from "@/content/ContentRegistry";
+import {
+    ACTIVE_CONTENT_STORAGE_KEY,
+    ContentRegistry,
+    parseContentSelectionId,
+    persistContentSelection,
+} from "@/content/ContentRegistry";
 
 describe("content registry selection", () => {
     test("accepts built-in and mod selection ids but rejects unsafe ids", () => {
@@ -9,7 +14,7 @@ describe("content registry selection", () => {
         expect(parseContentSelectionId("mental-omega")).toBeUndefined();
     });
 
-    test("resolves only explicit Mod Menu routes", async () => {
+    test("resolves explicit Mod Menu routes", async () => {
         const registry = new ContentRegistry();
         await expect(registry.resolveSelection({
             location: { href: "https://example.test/index.html?content=builtin:yr" } as Location,
@@ -27,6 +32,33 @@ describe("content registry selection", () => {
         await expect(registry.resolveSelection({
             location: { href: "https://example.test/index.html" } as Location,
             fallbackProfile: "ra2",
+        })).resolves.toMatchObject({ id: "builtin:ra2", profileId: "ra2" });
+    });
+
+    test("persists the last Mods selection across a cold start", async () => {
+        const values = new Map<string, string>();
+        const storage = {
+            getItem: (key: string) => values.get(key) ?? null,
+            setItem: (key: string, value: string) => values.set(key, value),
+            removeItem: (key: string) => values.delete(key),
+        };
+        const registry = new ContentRegistry();
+
+        await expect(registry.resolveSelection({
+            location: { href: "https://example.test/index.html?content=builtin:yr" } as Location,
+            storage,
+        })).resolves.toMatchObject({ id: "builtin:yr", profileId: "yr" });
+        expect(values.get(ACTIVE_CONTENT_STORAGE_KEY)).toBe("builtin:yr");
+
+        await expect(registry.resolveSelection({
+            location: { href: "https://example.test/index.html" } as Location,
+            storage,
+        })).resolves.toMatchObject({ id: "builtin:yr", profileId: "yr" });
+
+        persistContentSelection(undefined, storage);
+        await expect(registry.resolveSelection({
+            location: { href: "https://example.test/index.html" } as Location,
+            storage,
         })).resolves.toMatchObject({ id: "builtin:ra2", profileId: "ra2" });
     });
 });

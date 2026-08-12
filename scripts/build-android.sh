@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Build the web engine, stage it into the Android WebView shell, and build an APK.
 #
-#   ./scripts/build-android.sh                 # Red Alert 2 debug APK
-#   ./scripts/build-android.sh --variant yr    # Yuri's Revenge debug APK
-#   ./scripts/build-android.sh --variant mo    # Mental Omega compatibility APK
+#   ./scripts/build-android.sh                 # unified debug APK
+#   ./scripts/build-android.sh --release       # unified release APK
 #   ./scripts/build-android.sh --device        # debug APK + adb install
 #   ./scripts/build-android.sh --no-web         # reuse redalert2/dist
 #   ./scripts/build-android.sh --with-gameres   # QA-only: bundle local game files
@@ -19,7 +18,7 @@ ASSETS="$ANDROID/app/src/main/assets"
 SKIP_WEB=0
 BUNDLE_GAMERES=0
 INSTALL=0
-VARIANT=ra2
+BUILD_TYPE=debug
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,11 +26,8 @@ while [[ $# -gt 0 ]]; do
     --with-gameres) BUNDLE_GAMERES=1 ;;
     --no-gameres) BUNDLE_GAMERES=0 ;; # backwards-compatible engine-only alias
     --device) INSTALL=1 ;;
-    --variant)
-      [[ $# -ge 2 ]] || { echo "error: --variant requires ra2, yr, or mo" >&2; exit 2; }
-      VARIANT="$2"
-      shift
-      ;;
+    --debug) BUILD_TYPE=debug ;;
+    --release) BUILD_TYPE=release ;;
     *) echo "error: unknown argument: $1" >&2; exit 2 ;;
   esac
   shift
@@ -39,24 +35,15 @@ done
 
 die() { echo "error: $*" >&2; exit 1; }
 
-case "$VARIANT" in
-  ra2)
-    GRADLE_VARIANT=ra2Debug
-    APK_NAME=app-ra2-debug.apk
-    PACKAGE_NAME=com.ammaar.ra2android.debug
-    ;;
-  yr)
-    GRADLE_VARIANT=yrDebug
-    APK_NAME=app-yr-debug.apk
-    PACKAGE_NAME=com.ammaar.yurirevengeandroid.debug
-    ;;
-  mo)
-    GRADLE_VARIANT=moDebug
-    APK_NAME=app-mo-debug.apk
-    PACKAGE_NAME=com.ammaar.mentalomegaandroid.debug
-    ;;
-  *) die "unsupported Android variant '$VARIANT' (expected ra2, yr, or mo)" ;;
-esac
+APK_NAME="app-${BUILD_TYPE}.apk"
+if [[ "$BUILD_TYPE" == "debug" ]]; then
+  PACKAGE_NAME=com.ammaar.ra2android.debug
+else
+  # No release keystore is checked into the repository; Gradle emits the
+  # intentionally unsigned artifact for the app owner to sign.
+  APK_NAME=app-release-unsigned.apk
+  PACKAGE_NAME=com.ammaar.ra2android
+fi
 
 if [[ $SKIP_WEB -eq 0 ]]; then
   if command -v bun >/dev/null 2>&1; then
@@ -77,9 +64,6 @@ cp -R "$WEB/dist" "$ASSETS/WebDist"
 rm -rf "$ASSETS/GameRes"
 if [[ $BUNDLE_GAMERES -eq 1 ]]; then
   [[ -d "$ROOT/gameres-export" ]] || die "gameres-export is missing; run scripts/setup.sh before using --with-gameres"
-  if [[ "$VARIANT" == "mo" ]] && ! find "$ROOT/gameres-export" -maxdepth 1 -type f -iname 'expandmo[0-9][0-9].mix' -print -quit | grep -q .; then
-    die "Mental Omega resources are missing expandmo##.mix; run scripts/setup.sh against the MO install or use an engine-only build"
-  fi
   cp -R "$ROOT/gameres-export" "$ASSETS/GameRes"
 fi
 
@@ -105,8 +89,8 @@ else
   die "Gradle is required; install it or set GRADLE_BIN"
 fi
 
-(cd "$ANDROID" && "${GRADLE[@]}" ":app:assemble${GRADLE_VARIANT^}")
-APK="$ANDROID/app/build/outputs/apk/${GRADLE_VARIANT}/$APK_NAME"
+(cd "$ANDROID" && "${GRADLE[@]}" ":app:assemble${BUILD_TYPE^}")
+APK="$ANDROID/app/build/outputs/apk/${BUILD_TYPE}/$APK_NAME"
 if [[ ! -f "$APK" ]]; then
   APK="$(find "$ANDROID/app/build/outputs/apk" -type f -name "$APK_NAME" -print -quit)"
 fi

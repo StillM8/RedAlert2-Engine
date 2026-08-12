@@ -50,14 +50,12 @@ function App() {
                     const content = params.get('content');
                     const profile = content === 'builtin:yr'
                         ? 'yr'
-                        : content === 'builtin:ra2'
-                            ? 'ra2'
-                            : params.get('profile') ?? localStorage.getItem('_ra2_native_profile');
+                        : 'ra2';
                     handleSplashScreenUpdate({
                         width: window.innerWidth,
                         height: window.innerHeight,
                         parentElement: rootElement,
-                        backgroundImage: profile === 'yr' || profile === 'mental-omega'
+                        backgroundImage: profile === 'yr'
                             ? '/res/img/yr-loading.png'
                             : '/res/img/ra2-loading.png',
                         loadingText: 'Initializing...',
