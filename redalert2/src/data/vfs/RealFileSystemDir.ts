@@ -8,6 +8,11 @@ import { VirtualFile } from "./VirtualFile";
 type DirectoryIndex = Map<string, { name: string; kind: "file" | "directory" }>;
 const directoryIndexes = new WeakMap<FileSystemDirectoryHandle, Promise<DirectoryIndex>>();
 
+export interface RecursiveEntryOptions {
+    /** Directory names to skip before descending from this directory's root. */
+    skipRootDirectories?: ReadonlySet<string>;
+}
+
 export class RealFileSystemDir {
     private handle: FileSystemDirectoryHandle;
     public caseSensitive: boolean;
@@ -39,7 +44,7 @@ export class RealFileSystemDir {
     }
 
     /** Enumerate files below this directory using game-style relative paths. */
-    async *getEntriesRecursive(prefix: string = ""): AsyncGenerator<string, void, undefined> {
+    async *getEntriesRecursive(prefix: string = "", options?: RecursiveEntryOptions): AsyncGenerator<string, void, undefined> {
         try {
             for await (const [key, entryHandle] of this.handle.entries()) {
                 const entryPath = prefix ? `${prefix}/${key}` : key;
@@ -47,6 +52,9 @@ export class RealFileSystemDir {
                     yield entryPath;
                 }
                 else {
+                    if (!prefix && options?.skipRootDirectories?.has(gamePathKey(key))) {
+                        continue;
+                    }
                     const child = new RealFileSystemDir(
                         entryHandle as FileSystemDirectoryHandle,
                         this.caseSensitive,

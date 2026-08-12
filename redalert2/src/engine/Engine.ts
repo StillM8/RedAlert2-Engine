@@ -238,7 +238,20 @@ export class Engine {
         this.gameResSource = source;
     }
     static async initRfs(rootHandle: FileSystemDirectoryHandle): Promise<RealFileSystem> {
-        const rfsInstance = (this.rfs = new RealFileSystem());
+        // These directories are application-managed namespaces, not part of
+        // the immutable base game. The selected mod and map roots are mounted
+        // explicitly later in GameRes; excluding their root copies prevents
+        // unrelated installed mods from being discovered during VFS scans.
+        const rfsInstance = (this.rfs = new RealFileSystem({
+            excludedRootDirectories: [
+                this.rfsSettings.modDir,
+                this.rfsSettings.mapDir,
+                this.rfsSettings.cacheDir,
+                this.rfsSettings.replayDir,
+                this.rfsSettings.musicDir,
+                this.rfsSettings.tauntsDir,
+            ],
+        }));
         rfsInstance.addRootDirectoryHandle(rootHandle);
         return rfsInstance;
     }

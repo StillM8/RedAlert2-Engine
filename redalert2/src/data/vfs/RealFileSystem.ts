@@ -1,14 +1,26 @@
 import { FileNotFoundError } from "./FileNotFoundError";
 import { RealFileSystemDir } from "./RealFileSystemDir";
 import type { VirtualFile } from "./VirtualFile";
+import { gamePathKey } from "../../engine/GamePath";
 export interface RFSConstructorOptions {
+    /**
+     * Root-level directories owned by the engine rather than by the active
+     * game installation. They are mounted separately when needed (for
+     * example the selected mod and map directories), so recursively scanning
+     * them from the base root would leak unrelated content into the VFS.
+     */
+    excludedRootDirectories?: readonly string[];
 }
 export class RealFileSystem {
     private directories: RealFileSystemDir[];
     private rootDirectory: RealFileSystemDir | undefined;
     private rootDirectoryHandle: FileSystemDirectoryHandle | undefined;
+    private readonly excludedRootDirectoryKeys: ReadonlySet<string>;
     constructor(options?: RFSConstructorOptions) {
         this.directories = [];
+        this.excludedRootDirectoryKeys = new Set(
+            (options?.excludedRootDirectories ?? []).map((directory) => gamePathKey(directory)),
+        );
     }
     addRootDirectoryHandle(handle: FileSystemDirectoryHandle): RealFileSystemDir {
         this.rootDirectoryHandle = handle;
@@ -104,7 +116,10 @@ export class RealFileSystem {
     }
     async *getEntriesRecursive(): AsyncGenerator<string, void, undefined> {
         for (const dir of this.directories) {
-            for await (const entryName of dir.getEntriesRecursive()) {
+            const options = dir === this.rootDirectory
+                ? { skipRootDirectories: this.excludedRootDirectoryKeys }
+                : undefined;
+            for await (const entryName of dir.getEntriesRecursive("", options)) {
                 yield entryName;
             }
         }
