@@ -4,6 +4,8 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 import fs from 'fs';
 import path from 'path';
 const devPort = 4000;
+const tauriDevHost = process.env.TAURI_DEV_HOST;
+const isTauriBuild = !!process.env.TAURI_ENV_PLATFORM || !!tauriDevHost;
 // Mirrors the iOS shell's ra2app://app/gameres/ mount so the ?shell code path
 // (first-launch asset seeding) is testable in a desktop browser.
 const gameResDir = path.resolve(__dirname, '../gameres-export');
@@ -63,21 +65,35 @@ const manualHttpsConfig = fs.existsSync('./certs/server.key') && fs.existsSync('
     : undefined;
 // http://localhost is still a secure context, so SharedArrayBuffer keeps working
 // with the COOP/COEP headers below. Used for embedded-browser dev and the iOS shell.
-const useHttp = !!process.env.RA2_HTTP;
+// Tauri's development webview must connect to the same fixed HTTP URL as its
+// `devUrl`. Browser development keeps the existing local HTTPS default.
+const useHttp = !!process.env.RA2_HTTP || isTauriBuild;
+const tauriBuildTarget = process.env.TAURI_ENV_PLATFORM === 'windows'
+    ? 'chrome105'
+    : isTauriBuild
+        ? 'safari13'
+        : undefined;
 export default defineConfig({
+    clearScreen: false,
     plugins: [react(), serveGameResDev(), syncSevenZipWasm(), syncFfmpegCore(), ...(manualHttpsConfig || useHttp ? [] : [basicSsl()])],
     server: {
-        host: '0.0.0.0',
+        host: tauriDevHost || '0.0.0.0',
         port: devPort,
         strictPort: true,
         https: useHttp ? undefined : (manualHttpsConfig ?? {}),
+        hmr: tauriDevHost
+            ? { protocol: 'ws', host: tauriDevHost, port: devPort }
+            : undefined,
         headers: {
             'Cross-Origin-Embedder-Policy': 'require-corp',
             'Cross-Origin-Opener-Policy': 'same-origin',
         },
         fs: {
             allow: ['..']
-        }
+        },
+        watch: {
+            ignored: ['**/src-tauri/**'],
+        },
     },
     preview: {
         host: '0.0.0.0',
@@ -95,6 +111,10 @@ export default defineConfig({
     },
     worker: {
         format: 'es'
+    },
+    build: {
+        ...(tauriBuildTarget ? { target: tauriBuildTarget } : {}),
+        ...(process.env.TAURI_ENV_DEBUG ? { minify: false, sourcemap: true } : {}),
     },
     assetsInclude: ['**/*.wasm']
 });

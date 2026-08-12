@@ -18,6 +18,12 @@ iOS and a Kotlin/WebView shell on Android. Rendering uses WebGL through the
 platform browser runtime; native packages serve your imported retail assets
 offline.
 
+The repository also includes a Tauri 2 beta shell for Windows, Linux, macOS,
+Android, and iOS under `redalert2/src-tauri/`. It packages this same frontend
+and keeps the existing Kotlin/Swift mobile shells available while the Tauri
+mobile resource bridge is certified. See [`docs/TauriBeta.md`](docs/TauriBeta.md)
+for commands and platform prerequisites.
+
 **No game assets are included or distributed.** You need your own copy of
 Red Alert 2 + Yuri's Revenge ([Steam](https://store.steampowered.com/app/2229850/),
 part of the C&C Ultimate Collection). One script imports everything from
