@@ -1,8 +1,10 @@
 package com.ammaar.ra2android
 
 import android.app.Activity
+import android.Manifest
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -54,6 +56,7 @@ class MainActivity : Activity() {
         private const val GAME_DIRECTORY_REQUEST = 4103
         private const val MOD_DIRECTORY_REQUEST = 4104
         private const val MOD_ARCHIVE_REQUEST = 4105
+        private const val MOD_IMPORT_NOTIFICATION_REQUEST = 4106
         private const val NATIVE_DOWNLOAD_MAX_BYTES = 1024L * 1024L * 1024L
         private const val MAX_IMPORTED_FILE_COUNT = 100_000
         private const val MAX_IMPORTED_BYTES = 8L * 1024L * 1024L * 1024L
@@ -87,6 +90,64 @@ class MainActivity : Activity() {
     private val downloadExecutor = Executors.newCachedThreadPool()
     private val nativeDownloads = ConcurrentHashMap<String, NativeDownloadJob>()
 
+    private fun startModImportKeepAlive() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            runOnUiThread {
+                requestPermissions(
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    MOD_IMPORT_NOTIFICATION_REQUEST,
+                )
+            }
+        }
+        val intent = Intent(this, ModImportKeepAliveService::class.java)
+            .setAction(ModImportKeepAliveService.ACTION_START)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (error: Exception) {
+            // The import can still report a normal error if this device blocks
+            // foreground services, but keep the failure visible in logcat.
+            Log.w(TAG, "Could not start the mod-import keep-alive service", error)
+        }
+    }
+
+    private fun stopModImportKeepAlive() {
+        stopService(
+            Intent(this, ModImportKeepAliveService::class.java)
+                .setAction(ModImportKeepAliveService.ACTION_STOP),
+        )
+    }
+
+    private fun updateModImportKeepAlive(progress: ModImportProgress, text: String) {
+        try {
+            startService(
+                Intent(this, ModImportKeepAliveService::class.java)
+                    .setAction(ModImportKeepAliveService.ACTION_UPDATE)
+                    .putExtra(ModImportKeepAliveService.EXTRA_PROGRESS_TEXT, text)
+                    .putExtra(ModImportKeepAliveService.EXTRA_COPIED_BYTES, progress.copiedBytes)
+                    .putExtra(ModImportKeepAliveService.EXTRA_TOTAL_BYTES, progress.totalBytes)
+                    .putExtra(ModImportKeepAliveService.EXTRA_COPIED_FILES, progress.copiedFiles)
+                    .putExtra(ModImportKeepAliveService.EXTRA_TOTAL_FILES, progress.totalFiles),
+            )
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not update the mod-import notification", error)
+        }
+    }
+
+    private fun clearAbandonedModImportStaging() {
+        filesDir.listFiles()
+            ?.filter { it.name.startsWith(".mod-importing-") }
+            ?.forEach { staging ->
+                if (!staging.deleteRecursively()) {
+                    Log.w(TAG, "Could not clear abandoned mod staging: ${staging.name}")
+                }
+            }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -116,6 +177,17 @@ class MainActivity : Activity() {
         }
         else {
             webView.loadUrl(url)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // A launcher tap while the task is already in the background should
+        // return to this WebView, not create a second engine boot.
+        if (::webView.isInitialized) {
+            webView.onResume()
+            hideSystemUi()
         }
     }
 
@@ -263,6 +335,16 @@ class MainActivity : Activity() {
             if (modArchivePickerActive) return false
             modArchivePickerActive = true
             runOnUiThread { launchModArchivePicker() }
+            return true
+        }
+
+        /**
+         * Ends the foreground import indicator after the WebView has copied
+         * the native handoff into its persistent OPFS mod library.
+         */
+        @JavascriptInterface
+        fun finishModImport(): Boolean {
+            stopModImportKeepAlive()
             return true
         }
 
@@ -528,6 +610,7 @@ class MainActivity : Activity() {
         }
         catch (error: Exception) {
             modArchivePickerActive = false
+            stopModImportKeepAlive()
             Log.e(TAG, "Unable to launch mod archive picker", error)
             notifyNativeModImport(false, error.message ?: "Archive picker unavailable")
         }
@@ -546,6 +629,7 @@ class MainActivity : Activity() {
         }
         catch (error: Exception) {
             modArchivePickerActive = false
+            stopModImportKeepAlive()
             Log.e(TAG, "Unable to launch Android mod folder picker", error)
             notifyNativeModImport(false, error.message ?: "Mod folder picker unavailable")
         }
@@ -553,10 +637,21 @@ class MainActivity : Activity() {
 
     private data class ImportedFile(val path: String, val size: Long)
 
+    private data class ModImportProgress(
+        var copiedBytes: Long = 0L,
+        var totalBytes: Long = 0L,
+        var copiedFiles: Int = 0,
+        var totalFiles: Int = 0,
+        var lastReportedAt: Long = 0L,
+    )
+
     private fun importModArchives(uris: List<Uri>) {
+        clearAbandonedModImportStaging()
+        startModImportKeepAlive()
         importExecutor.execute {
             val token = UUID.randomUUID().toString().replace("-", "")
             val staging = File(filesDir, ".mod-importing-$token")
+            var handedOffToWeb = false
             try {
                 if (!staging.mkdirs() && !staging.isDirectory) {
                     throw IOException("Could not create the mod import directory")
@@ -657,6 +752,7 @@ class MainActivity : Activity() {
                     throw IOException("Could not commit the native mod import")
                 }
                 notifyNativeModImport(true, token = token)
+                handedOffToWeb = true
             }
             catch (error: Exception) {
                 staging.deleteRecursively()
@@ -665,6 +761,9 @@ class MainActivity : Activity() {
             }
             finally {
                 modArchivePickerActive = false
+                if (!handedOffToWeb) {
+                    stopModImportKeepAlive()
+                }
             }
         }
     }
@@ -672,16 +771,24 @@ class MainActivity : Activity() {
     /** Copies an extracted mod folder into the native staging area while
      * preserving its complete relative path tree. */
     private fun importModDirectory(treeUri: Uri) {
+        clearAbandonedModImportStaging()
+        startModImportKeepAlive()
         importExecutor.execute {
             val token = UUID.randomUUID().toString().replace("-", "")
             val staging = File(filesDir, ".mod-importing-$token")
+            var handedOffToWeb = false
             try {
                 if (!staging.mkdirs() && !staging.isDirectory) {
                     throw IOException("Could not create the mod import directory")
                 }
                 val files = mutableListOf<ImportedFile>()
                 val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
-                copyTree(treeUri, rootDocumentId, staging, "", files)
+                val progress = ModImportProgress()
+                notifyNativeModImportProgress(progress, force = true)
+                measureTree(treeUri, rootDocumentId, progress)
+                notifyNativeModImportProgress(progress, force = true)
+                copyTree(treeUri, rootDocumentId, staging, "", files, progress)
+                notifyNativeModImportProgress(progress, force = true)
                 if (files.isEmpty()) {
                     throw IOException("The selected mod folder contains no readable files")
                 }
@@ -711,6 +818,7 @@ class MainActivity : Activity() {
                     throw IOException("Could not commit the native mod import")
                 }
                 notifyNativeModImport(true, token = token)
+                handedOffToWeb = true
             }
             catch (error: Exception) {
                 staging.deleteRecursively()
@@ -719,6 +827,9 @@ class MainActivity : Activity() {
             }
             finally {
                 modArchivePickerActive = false
+                if (!handedOffToWeb) {
+                    stopModImportKeepAlive()
+                }
             }
         }
     }
@@ -978,6 +1089,7 @@ class MainActivity : Activity() {
         destinationRoot: File,
         relativeDirectory: String,
         files: MutableList<ImportedFile>,
+        progress: ModImportProgress? = null,
     ) {
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
         val projection = arrayOf(
@@ -1012,10 +1124,42 @@ class MainActivity : Activity() {
                     if (!destination.mkdirs() && !destination.isDirectory) {
                         throw IOException("Could not create $relativePath")
                     }
-                    copyTree(treeUri, documentIdValue, destinationRoot, relativePath, files)
+                    copyTree(treeUri, documentIdValue, destinationRoot, relativePath, files, progress)
                 } else {
                     copyDocument(childUri, destination)
                     files += ImportedFile(relativePath, destination.length())
+                    if (progress != null) {
+                        progress.copiedBytes += destination.length()
+                        progress.copiedFiles++
+                        notifyNativeModImportProgress(progress)
+                    }
+                }
+            }
+        } ?: throw IOException("Could not read the selected folder")
+    }
+
+    /** Read the provider metadata once so the native copy stage can show a real total. */
+    private fun measureTree(treeUri: Uri, documentId: String, progress: ModImportProgress) {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, documentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+        contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val mimeColumn = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            while (cursor.moveToNext()) {
+                val childId = cursor.getString(idColumn)
+                if (cursor.getString(mimeColumn) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    measureTree(treeUri, childId, progress)
+                } else {
+                    progress.totalFiles++
+                    if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) {
+                        val size = cursor.getLong(sizeColumn)
+                        if (size > 0) progress.totalBytes += size
+                    }
                 }
             }
         } ?: throw IOException("Could not read the selected folder")
@@ -1046,14 +1190,41 @@ class MainActivity : Activity() {
         webView.post { webView.evaluateJavascript(script, null) }
     }
 
-    private fun notifyNativeModImport(success: Boolean, error: String? = null, token: String? = null) {
+    private fun postNativeModImport(result: JSONObject) {
         if (!::webView.isInitialized) return
-        val result = JSONObject().put("success", success)
-        if (error != null) result.put("error", error)
-        if (token != null) result.put("token", token)
         val script = "window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__ && " +
             "window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__($result);"
         webView.post { webView.evaluateJavascript(script, null) }
+    }
+
+    private fun notifyNativeModImport(success: Boolean, error: String? = null, token: String? = null) {
+        val result = JSONObject().put("success", success)
+        if (error != null) result.put("error", error)
+        if (token != null) result.put("token", token)
+        postNativeModImport(result)
+    }
+
+    private fun notifyNativeModImportProgress(progress: ModImportProgress, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - progress.lastReportedAt < 250L) return
+        progress.lastReportedAt = now
+        val copiedMb = progress.copiedBytes / 1_048_576L
+        val totalMb = progress.totalBytes / 1_048_576L
+        val text = if (progress.totalBytes > 0L) {
+            "Copying mod files: $copiedMb / $totalMb MB (${progress.copiedFiles} / ${progress.totalFiles})"
+        } else {
+            "Copying mod files: $copiedMb MB (${progress.copiedFiles} files)"
+        }
+        updateModImportKeepAlive(progress, text)
+        postNativeModImport(
+            JSONObject()
+                .put("success", false)
+                .put("event", "progress")
+                .put("copiedBytes", progress.copiedBytes)
+                .put("totalBytes", progress.totalBytes)
+                .put("copiedFiles", progress.copiedFiles)
+                .put("totalFiles", progress.totalFiles),
+        )
     }
 
     @Deprecated("Use Activity Result APIs when this shell grows more activities")
@@ -1080,6 +1251,7 @@ class MainActivity : Activity() {
             modArchivePickerActive = false
             val treeUri = data?.data
             if (resultCode != RESULT_OK || treeUri == null) {
+                stopModImportKeepAlive()
                 notifyNativeModImport(false)
                 return
             }
@@ -1107,6 +1279,7 @@ class MainActivity : Activity() {
                 if (uris.isEmpty()) data.data?.let(uris::add)
             }
             if (uris.isEmpty()) {
+                stopModImportKeepAlive()
                 notifyNativeModImport(false)
             }
             else {
@@ -1293,7 +1466,6 @@ class MainActivity : Activity() {
         }
         nativeDownloads.clear()
         downloadExecutor.shutdownNow()
-        importExecutor.shutdownNow()
         filePathCallback?.onReceiveValue(null)
         filePathCallback = null
         super.onDestroy()

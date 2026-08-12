@@ -436,8 +436,15 @@ export class Engine {
         }
         const mpModes = this.getMpModes();
         for (const mode of mpModes.getAll()) {
-            if (mode.rulesOverride) {
+            // Mode-specific INIs are optional overlays. A partial or modded
+            // import must still boot the shared multiplayer shell when one
+            // mode's override is absent; the lobby will use the base rules for
+            // that mode until the content provider supplies the file.
+            if (mode.rulesOverride && this.vfs.fileExists(mode.rulesOverride)) {
                 filesToHash.push(mode.rulesOverride);
+            }
+            else if (mode.rulesOverride) {
+                console.warn(`Skipping missing optional multiplayer mode rules "${mode.rulesOverride}" while hashing content.`);
             }
         }
         const crc = new Crc32();

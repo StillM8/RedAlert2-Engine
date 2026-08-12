@@ -90,6 +90,25 @@ function compareResourcePaths(a: string, b: string): number {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * Campaign presentation/content is deliberately outside the current boot
+ * contract. Multiplayer and skirmish map packs remain eligible for mounting,
+ * but movie/mission MIX containers are only relevant to campaign flows.
+ */
+export function isCampaignOnlyMixFilename(filename: string): boolean {
+    const leaf = gamePathKey(gamePathLeaf(filename));
+    return /^(?:movie|movies|mov(?:md|mo))\d*\.mix$/.test(leaf) ||
+        /^(?:campaign|mission|missions)(?:md|mo)?\d*\.mix$/.test(leaf);
+}
+
+/** Files renamed by file managers after a duplicate copy are not canonical
+ * game containers. If the canonical name exists, mounting the suffixed copy
+ * can make a corrupt/partial archive win over the real layer. */
+function canonicalDuplicateMixFilename(filename: string): string | undefined {
+    const match = filename.match(/^(.*)\s+\(\d+\)(\.mix)$/i);
+    return match ? `${match[1]}${match[2]}` : undefined;
+}
+
 export class VirtualFileSystem {
     private rfs?: RealFileSystem;
     private logger: VfsLogger;
@@ -134,10 +153,18 @@ export class VirtualFileSystem {
         }
         throw new FileNotFoundError(`File "${filename}" not found in VFS`);
     }
-    addArchive(archive: Archive, name: string, metadata: ArchiveMetadata = {}): void {
+    addArchive(
+        archive: Archive,
+        name: string,
+        metadata: ArchiveMetadata = {},
+        options: { allowDuplicateName?: boolean } = {},
+    ): void {
         const normalizedName = normalizeGamePath(name);
-        const key = gamePathKey(normalizedName);
-        if (!this.allArchives.has(key)) {
+        if (!options.allowDuplicateName && this.hasArchive(normalizedName)) {
+            return;
+        }
+        const key = `${gamePathKey(normalizedName)}#${this.nextArchiveOrder}`;
+        {
             const layer = metadata.layer ?? ResourceLayer.BaseGame;
             const provenance = [
                 ...(metadata.provenance ?? []),
@@ -166,25 +193,32 @@ export class VirtualFileSystem {
         }
     }
     hasArchive(name: string): boolean {
-        return this.allArchives.has(gamePathKey(name));
+        const key = gamePathKey(name);
+        return [...this.allArchives.values()].some((record) =>
+            gamePathKey(record.descriptor.filename) === key);
     }
     getArchive(name: string): Archive | undefined {
-        return this.allArchives.get(gamePathKey(name))?.archive;
+        const key = gamePathKey(name);
+        return this.archivesByPriority.find((record) =>
+            gamePathKey(record.descriptor.filename) === key)?.archive;
     }
     removeArchive(name: string): void {
         const key = gamePathKey(name);
-        const record = this.allArchives.get(key);
-        if (record) {
-            this.allArchives.delete(key);
+        const records = [...this.allArchives.entries()]
+            .filter(([, record]) => gamePathKey(record.descriptor.filename) === key);
+        for (const [recordKey, record] of records) {
+            this.allArchives.delete(recordKey);
             const index = this.archivesByPriority.indexOf(record);
             if (index > -1) {
                 this.archivesByPriority.splice(index, 1);
             }
+        }
+        if (records.length > 0) {
             this.logger.info(`Removed archive "${name}" from VFS`);
         }
     }
     listArchives(): string[] {
-        return [...this.allArchives.values()].map((record) => record.descriptor.filename);
+        return [...new Set([...this.allArchives.values()].map((record) => record.descriptor.filename))];
     }
     listFiles(): string[] {
         const files = new Set<string>();
@@ -265,6 +299,13 @@ export class VirtualFileSystem {
                     const leafEntries = byLeaf.get(leafKey) ?? [];
                     leafEntries.push(normalized);
                     byLeaf.set(leafKey, leafEntries);
+                    const canonicalDuplicate = canonicalDuplicateMixFilename(gamePathLeaf(normalized));
+                    if (canonicalDuplicate) {
+                        const canonicalKey = gamePathKey(canonicalDuplicate);
+                        const canonicalEntries = byLeaf.get(canonicalKey) ?? [];
+                        canonicalEntries.push(normalized);
+                        byLeaf.set(canonicalKey, canonicalEntries);
+                    }
                 }
                 const sortEntries = (entries: string[]): void => {
                     entries.sort(compareResourcePaths);
@@ -359,6 +400,68 @@ export class VirtualFileSystem {
         }
         return false;
     }
+    private async addMixArchiveFromFile(
+        filename: string,
+        file: VirtualFile,
+        metadata: ArchiveMetadata,
+    ): Promise<boolean> {
+        try {
+            this.addArchive(new MixFile(file.stream), filename, metadata, { allowDuplicateName: true });
+            return true;
+        }
+        catch (error) {
+            this.logger.error(`Failed to create archive from "${filename}":`, error);
+            return false;
+        }
+    }
+
+    private async addMixFilesFromMountedLayers(
+        filename: string,
+        profile?: GameProfileDescriptor,
+    ): Promise<number> {
+        if (!this.rfs || typeof (this.rfs as any).openFilesFromLayers !== "function") {
+            return 0;
+        }
+        const layeredFiles = await (this.rfs as any).openFilesFromLayers(filename) as Array<{
+            file: VirtualFile;
+            directoryIndex: number;
+        }>;
+        const filesByDirectory = new Map<number, Array<{ file: VirtualFile; directoryIndex: number }>>();
+        for (const layeredFile of layeredFiles) {
+            const directoryFiles = filesByDirectory.get(layeredFile.directoryIndex) ?? [];
+            directoryFiles.push(layeredFile);
+            filesByDirectory.set(layeredFile.directoryIndex, directoryFiles);
+        }
+        let loaded = 0;
+        for (const { file, directoryIndex } of layeredFiles) {
+            const directoryFiles = filesByDirectory.get(directoryIndex) ?? [file];
+            const hasDuplicateVariants = directoryFiles.length > 1;
+            const largestVariantSize = Math.max(...directoryFiles.map(({ file: candidate }) => candidate.getSize()));
+            const isLargestVariant = file.getSize() === largestVariantSize;
+            const metadata = {
+                ...this.metadataForExtraMix(filename, profile),
+                // The root installation is the fallback layer; each
+                // explicitly mounted directory after it is an active overlay.
+                // If a file provider renamed a second same-name MIX, the
+                // largest copy is normally the full/base archive and the
+                // smaller copy is its patch.
+                layer: directoryIndex === 0
+                    ? ResourceLayer.ModCore
+                    : hasDuplicateVariants && isLargestVariant
+                        ? ResourceLayer.ModCore
+                        : ResourceLayer.ModPatch,
+                source: "mod" as const,
+                profile: profile?.id,
+                id: `${filename}:${file.filename}:${directoryIndex}`,
+                provenance: [file.filename],
+            };
+            if (await this.addMixArchiveFromFile(filename, file, metadata)) {
+                loaded++;
+            }
+        }
+        return loaded;
+    }
+
     private metadataForMix(filename: string): ArchiveMetadata {
         const lower = filename.toLocaleLowerCase("en-US");
         if (/^(?:ecache|expand|elocal)(?:md|mo)?\d{2}\.mix$/.test(lower)) {
@@ -629,14 +732,33 @@ export class VirtualFileSystem {
         const rfsIndex = await this.getRfsEntryIndex();
         const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
         const findEntryByLeaf = async (filename: string): Promise<string | undefined> => {
-            const preferred = await this.rfs!.findEntryByLeaf(filename);
+            // RealFileSystem exposes a fast leaf index. Keep the VFS boundary
+            // compatible with lightweight providers used by tests and by
+            // platform import adapters that only implement the core methods.
+            const preferred = typeof (this.rfs as any).findEntryByLeaf === "function"
+                ? await (this.rfs as any).findEntryByLeaf(filename) as string | undefined
+                : undefined;
             return preferred ?? rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
         };
         let profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
         let deferredArchives = 0;
         for (const fileToTry of this.getExtraMixNames(engineType, profile)) {
+            if (this.hasArchive(fileToTry)) {
+                continue;
+            }
+            // Do not rescan every mounted directory for all 900 numbered
+            // candidates. The inventory already tells us whether this leaf
+            // exists in any base/overlay layer.
+            if (!rfsIndex.byLeaf.has(gamePathKey(gamePathLeaf(fileToTry)))) {
+                continue;
+            }
+            const layeredArchives = await this.addMixFilesFromMountedLayers(fileToTry, profile);
+            if (layeredArchives > 0) {
+                profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
+                continue;
+            }
             const rfsEntry = await findEntryByLeaf(fileToTry);
-            if (rfsEntry && !this.hasArchive(fileToTry)) {
+            if (rfsEntry) {
                 if (profileFilesReady) {
                     this.deferExtraMixFile(fileToTry, rfsEntry, this.metadataForExtraMix(fileToTry, profile));
                     deferredArchives++;
@@ -662,11 +784,20 @@ export class VirtualFileSystem {
             "cameocd.mix",
         ].map(gamePathKey));
         const remainingMixes = new Map<string, string>();
+        let skippedCampaignArchives = 0;
         for (const rfsFile of rfsEntries) {
             const filename = gamePathLeaf(rfsFile);
             const key = gamePathKey(filename);
             if (!/\.mix$/i.test(filename) || implicitMixes.has(key) || remainingMixes.has(key) ||
                 this.deferredExtraMixFiles.has(key)) {
+                continue;
+            }
+            if (isCampaignOnlyMixFilename(filename)) {
+                skippedCampaignArchives++;
+                continue;
+            }
+            const canonicalDuplicate = canonicalDuplicateMixFilename(filename);
+            if (canonicalDuplicate && rfsIndex.byLeaf.has(gamePathKey(canonicalDuplicate))) {
                 continue;
             }
             const preferred = await findEntryByLeaf(filename);
@@ -687,7 +818,10 @@ export class VirtualFileSystem {
         if (!options.deferMapArchives) {
             await this.loadMapArchives(engineType, profile, rfsEntries);
         }
-        this.logger.info(`Finished loading extra mix files${deferredArchives ? `; deferred ${deferredArchives} profile layers` : ""}.`);
+        this.logger.info(
+            `Finished loading extra mix files${deferredArchives ? `; deferred ${deferredArchives} profile layers` : ""}` +
+            `${skippedCampaignArchives ? `; skipped ${skippedCampaignArchives} campaign archives` : ""}.`,
+        );
     }
     /**
      * Mount map containers deferred by startup. The operation is idempotent so

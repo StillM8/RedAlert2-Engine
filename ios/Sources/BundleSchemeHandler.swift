@@ -6,7 +6,8 @@ import UniformTypeIdentifiers
 ///
 /// Layout:
 ///   ra2app://app/<path>            -> Resources/WebDist/<path>
-///   ra2app://app/gameres/<path>    -> Resources/GameRes/<path>
+///   ra2app://app/gameres/<path>         -> legacy game-resource path
+///   ra2app://app/gameres-bundle/<path>  -> Resources/GameRes/<path>
 final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "ra2app"
 
@@ -74,7 +75,15 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         let fileURL: URL
-        if relative.hasPrefix("gameres/") {
+        if relative == "gameres-bundle" || relative.hasPrefix("gameres-bundle/") {
+            let bundledPath = relative == "gameres-bundle"
+                ? "manifest.json"
+                : String(relative.dropFirst("gameres-bundle/".count))
+            // This branch is intentionally bundle-only. It must not be
+            // redirected to any future private import directory: the web
+            // seed uses it only to detect optional packaged resources.
+            fileURL = gameResRoot.appendingPathComponent(bundledPath)
+        } else if relative.hasPrefix("gameres/") {
             fileURL = gameResRoot.appendingPathComponent(String(relative.dropFirst("gameres/".count)))
         } else {
             fileURL = webRoot.appendingPathComponent(relative)

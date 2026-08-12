@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { VirtualFile } from "@/data/vfs/VirtualFile";
 import { MemArchive } from "@/data/vfs/MemArchive";
-import { VirtualFileSystem } from "@/data/vfs/VirtualFileSystem";
+import { isCampaignOnlyMixFilename, VirtualFileSystem } from "@/data/vfs/VirtualFileSystem";
 import { ResourceLayer } from "@/data/vfs/ResourceLayer";
 import { FileNotFoundError } from "@/data/vfs/FileNotFoundError";
 import { GAME_PROFILES } from "@/engine/GameProfile";
@@ -376,6 +376,42 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.hasArchive("multimo.mix")).toBe(true);
     });
 
+    test("leaves campaign-only MIX containers out of the multiplayer boot mount", async () => {
+        const files = new Map<string, Uint8Array>([
+            ["maps01.mix", createEmptyMixBytes()],
+            ["movies01.mix", createEmptyMixBytes()],
+            ["movmd03.mix", createEmptyMixBytes()],
+            ["missionsmo.mix", createEmptyMixBytes()],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) throw new FileNotFoundError(filename);
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        expect(isCampaignOnlyMixFilename("movies01.mix")).toBe(true);
+        expect(isCampaignOnlyMixFilename("movmd03.mix")).toBe(true);
+        expect(isCampaignOnlyMixFilename("missionsmo.mix")).toBe(true);
+        expect(isCampaignOnlyMixFilename("maps01.mix")).toBe(false);
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("maps01.mix")).toBe(true);
+        expect(vfs.hasArchive("movies01.mix")).toBe(false);
+        expect(vfs.hasArchive("movmd03.mix")).toBe(false);
+        expect(vfs.hasArchive("missionsmo.mix")).toBe(false);
+    });
+
     test("defers large profile MIX layers until a content consumer requests them", async () => {
         const profileCore = createMixBytes([
             ["rulesmo.ini", new TextEncoder().encode("[Rules]")],
@@ -415,6 +451,92 @@ describe("VirtualFileSystem resource precedence", () => {
         await vfs.loadDeferredExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
 
         expect(vfs.hasArchive("expandmo95.mix")).toBe(true);
+    });
+
+    test("falls back to the base MIX when an active overlay has the same filename", async () => {
+        const baseMix = createMixBytes([
+            ["rulesmo.ini", new TextEncoder().encode("[Rules]\nBase=yes")],
+            ["base-only.ini", new TextEncoder().encode("base")],
+        ]);
+        const overlayMix = createMixBytes([
+            ["overlay-only.ini", new TextEncoder().encode("overlay")],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield "expandmo99.mix";
+            },
+            async openFile(filename: string) {
+                if (filename.toLocaleLowerCase() !== "expandmo99.mix") {
+                    throw new FileNotFoundError(filename);
+                }
+                return VirtualFile.fromBytes(baseMix, filename);
+            },
+            async openFilesFromLayers(filename: string) {
+                if (filename.toLocaleLowerCase() !== "expandmo99.mix") {
+                    return [];
+                }
+                return [
+                    { file: VirtualFile.fromBytes(baseMix, "expandmo99.mix"), directoryIndex: 0 },
+                    { file: VirtualFile.fromBytes(overlayMix, "expandmo99.mix"), directoryIndex: 1 },
+                ];
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.openFile("rulesmo.ini").readAsString()).toContain("Base=yes");
+        expect(vfs.openFile("base-only.ini").readAsString()).toBe("base");
+        expect(vfs.openFile("overlay-only.ini").readAsString()).toBe("overlay");
+        expect(vfs.debugListFileOwners("rulesmo.ini")).toEqual(["expandmo99.mix"]);
+    });
+
+    test("treats file-manager duplicate MIX names as a full archive plus patch", async () => {
+        const patchMix = createMixBytes([
+            ["overlay-only.ini", new TextEncoder().encode("overlay")],
+        ]);
+        const baseMix = new Uint8Array([
+            ...createMixBytes([
+                ["rulesmo.ini", new TextEncoder().encode("[Rules]\nBase=yes")],
+                ["base-only.ini", new TextEncoder().encode("base")],
+            ]),
+            ...new Uint8Array(128),
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield "expandmo99.mix";
+                yield "expandmo99 (1).mix";
+            },
+            async openFile(filename: string) {
+                throw new FileNotFoundError(filename);
+            },
+            async openFilesFromLayers(filename: string) {
+                if (filename.toLocaleLowerCase() !== "expandmo99.mix") {
+                    return [];
+                }
+                return [
+                    { file: VirtualFile.fromBytes(patchMix, "expandmo99.mix"), directoryIndex: 1 },
+                    { file: VirtualFile.fromBytes(baseMix, "expandmo99 (1).mix"), directoryIndex: 1 },
+                ];
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.openFile("rulesmo.ini").readAsString()).toContain("Base=yes");
+        expect(vfs.openFile("base-only.ini").readAsString()).toBe("base");
+        expect(vfs.openFile("overlay-only.ini").readAsString()).toBe("overlay");
+        expect(vfs.listArchives()).toContain("expandmo99.mix");
+        expect(vfs.listArchives()).not.toContain("expandmo99 (1).mix");
     });
 
     test("defers standalone map archives without deferring profile MIX files", async () => {

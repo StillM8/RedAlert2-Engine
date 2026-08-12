@@ -5,6 +5,7 @@
  * importer must not need to know which one supplied the files.
  */
 export type ContentImportKind = "directory" | "archives";
+export type ContentImportProgress = (text: string) => void;
 
 export interface ContentImportFile {
     path: string;
@@ -23,6 +24,6 @@ export interface PlatformContentProvider {
     /** Browser/desktop providers return a streamable source; Android's native
      * game picker commits directly through SAF and therefore may omit this. */
     pickGameDirectory?(): Promise<ContentImportSource | undefined>;
-    pickModDirectory(): Promise<ContentImportSource | undefined>;
-    pickModArchives(options?: { multiple?: boolean }): Promise<ContentImportSource | undefined>;
+    pickModDirectory(onProgress?: ContentImportProgress): Promise<ContentImportSource | undefined>;
+    pickModArchives(options?: { multiple?: boolean; onProgress?: ContentImportProgress }): Promise<ContentImportSource | undefined>;
 }

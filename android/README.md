@@ -38,6 +38,11 @@ import the legally-owned Yuri's Revenge files as the base game, then import
 the mod from the Mods screen. Connect a device with USB debugging enabled
 before using `--device`; the script installs and launches the unified package.
 
+Large mod-folder imports run under a temporary low-priority Android
+notification and show copy progress in the app. The notification remains
+visible through the native copy and the final WebView storage copy, and the
+mod is not selectable until that second phase commits successfully.
+
 The script stages `redalert2/dist/` into `app/src/main/assets/WebDist/`. It
 removes any previously staged `GameRes/` directory for the default engine-only
 build, so old local assets cannot leak into a normal APK. The local
@@ -53,6 +58,8 @@ as a legacy alias for the default engine-only behavior.
 
 The packaged URL is HTTPS on Android's reserved app-assets origin. The custom
 WebView client adds the cross-origin isolation headers needed by the web build
-and maps `/gameres/` to packaged assets or a future private app/asset-pack
-directory. When Android backgrounds the app, single-player writes a shared
-action-log checkpoint; multiplayer is not restored from that local checkpoint.
+and keeps `/gameres/` for imported user content while reserving
+`/gameres-bundle/` for optional packaged seed assets. An engine-only APK returns
+404 for the latter, so an existing import is not rescanned as a bundled seed.
+When Android backgrounds the app, single-player writes a shared action-log
+checkpoint; multiplayer is not restored from that local checkpoint.

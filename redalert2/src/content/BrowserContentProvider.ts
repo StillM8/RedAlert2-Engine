@@ -3,6 +3,7 @@ import type {
     ContentImportFile,
     ContentImportKind,
     ContentImportSource,
+    ContentImportProgress,
     PlatformContentProvider,
 } from "@/content/PlatformContentProvider";
 
@@ -121,11 +122,11 @@ export class BrowserContentProvider implements PlatformContentProvider {
         return this.pickDirectory();
     }
 
-    async pickModDirectory(): Promise<ContentImportSource | undefined> {
+    async pickModDirectory(_onProgress?: ContentImportProgress): Promise<ContentImportSource | undefined> {
         return this.pickDirectory();
     }
 
-    async pickModArchives(options: { multiple?: boolean } = {}): Promise<ContentImportSource | undefined> {
+    async pickModArchives(options: { multiple?: boolean; onProgress?: ContentImportProgress } = {}): Promise<ContentImportSource | undefined> {
         const pickerWindow = globalThis as DirectoryPickerWindow;
         if (pickerWindow.showOpenFilePicker) {
             try {

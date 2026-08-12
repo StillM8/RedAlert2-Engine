@@ -1,9 +1,10 @@
 import {
+    CONTENT_IMPORT_IN_PROGRESS_FILE,
     INSTALLED_CONTENT_METADATA_FILE,
     type InstalledContentMetadata,
 } from "@/content/ContentIdentity";
 import { gamePathKey } from "@/engine/GamePath";
-import { detectContentProfile, GAME_PROFILES, isGameProfileId, type GameProfileId } from "@/engine/GameProfile";
+import { GAME_PROFILES, isGameProfileId, type GameProfileId } from "@/engine/GameProfile";
 
 export type BuiltinContentId = "builtin:ra2" | "builtin:yr";
 export type ContentSelectionId = BuiltinContentId | `mod:${string}`;
@@ -91,22 +92,14 @@ async function readGeneratedMetadata(directory: FileSystemDirectoryHandle): Prom
     }
 }
 
-async function listFilesRecursive(directory: FileSystemDirectoryHandle, prefix = ""): Promise<string[]> {
-    const files: string[] = [];
-    for await (const [name, handle] of directory.entries()) {
-        const path = prefix ? `${prefix}/${name}` : name;
-        if (handle.kind === "file") {
-            files.push(path);
-        }
-        else {
-            files.push(...await listFilesRecursive(handle as FileSystemDirectoryHandle, path));
-        }
+async function hasImportInProgressMarker(directory: FileSystemDirectoryHandle): Promise<boolean> {
+    try {
+        await directory.getFileHandle(CONTENT_IMPORT_IN_PROGRESS_FILE);
+        return true;
     }
-    return files;
-}
-
-function profileFromPaths(paths: Iterable<string>): GameProfileId | undefined {
-    return detectContentProfile(paths);
+    catch {
+        return false;
+    }
 }
 
 function getDefaultSelectionStorage(): ContentSelectionStorage | undefined {
@@ -222,8 +215,13 @@ export class ContentRegistry {
             }
             const modDirectory = handle as FileSystemDirectoryHandle;
             const metadata = await readGeneratedMetadata(modDirectory);
-            const files = metadata ? [] : await listFilesRecursive(modDirectory);
-            const profileId = metadataProfile(metadata) ?? profileFromPaths(files);
+            // Only completed UI imports belong in the selectable library.
+            // This also hides an interrupted Android/WebView copy until the
+            // user retries it, rather than booting a partial resource graph.
+            if (!metadata || await hasImportInProgressMarker(modDirectory)) {
+                continue;
+            }
+            const profileId = metadataProfile(metadata) ?? "ra2";
             const resolvedProfile = profileId ?? "ra2";
             const baseProfile = metadata?.baseProfile === "ra2" || metadata?.baseProfile === "yr"
                 ? metadata.baseProfile
@@ -277,10 +275,13 @@ export class ContentRegistry {
             const mods = await root.getDirectoryHandle("mods");
             const mod = await mods.getDirectoryHandle(modId);
             const metadata = await readGeneratedMetadata(mod);
+            if (!metadata || await hasImportInProgressMarker(mod)) {
+                return { exists: false };
+            }
             return {
                 exists: true,
                 metadata,
-                profileId: metadataProfile(metadata) ?? profileFromPaths(await listFilesRecursive(mod)),
+                profileId: metadataProfile(metadata),
             };
         }
         catch {

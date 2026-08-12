@@ -6,13 +6,14 @@ import path from 'path';
 const devPort = 4000;
 const tauriDevHost = process.env.TAURI_DEV_HOST;
 const isTauriBuild = !!process.env.TAURI_ENV_PLATFORM || !!tauriDevHost;
-// Mirrors the iOS shell's ra2app://app/gameres/ mount so the ?shell code path
-// (first-launch asset seeding) is testable in a desktop browser.
+// Mirrors the native shells' packaged-only /gameres-bundle/ mount so the
+// ?shell code path (first-launch asset seeding) is testable in a desktop
+// browser without conflating it with a user's imported /gameres/ files.
 const gameResDir = path.resolve(__dirname, '../gameres-export');
 const serveGameResDev = (): Plugin => ({
     name: 'serve-gameres-dev',
     configureServer(server) {
-        server.middlewares.use('/gameres', (req, res, next) => {
+        server.middlewares.use('/gameres-bundle', (req, res, next) => {
             const relPath = decodeURIComponent((req.url ?? '/').split('?')[0]).replace(/^\/+/, '');
             const filePath = path.join(gameResDir, relPath);
             if (!filePath.startsWith(gameResDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {

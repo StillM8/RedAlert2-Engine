@@ -4,7 +4,7 @@ import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/
 import { gamePathKey, normalizeGamePath } from '../engine/GamePath';
 import type { ArchiveSource } from '../data/ArchiveSource';
 import { importContentSourceToOpfs } from '../content/InstalledContentImporter';
-import type { ContentImportKind, ContentImportSource, PlatformContentProvider } from '../content/PlatformContentProvider';
+import type { ContentImportKind, ContentImportProgress, ContentImportSource, PlatformContentProvider } from '../content/PlatformContentProvider';
 import { BrowserContentProvider } from '../content/BrowserContentProvider';
 
 declare global {
@@ -20,6 +20,7 @@ declare global {
             pickGameDirectory: () => boolean;
             pickModDirectory?: () => boolean;
             pickModArchives?: () => boolean;
+            finishModImport?: () => boolean;
             deleteNativeModImport?: (token: string) => boolean;
             startModDownload?: (url: string, requestId: string) => boolean;
             cancelModDownload?: (requestId: string) => boolean;
@@ -31,8 +32,13 @@ declare global {
         }) => void;
         __RA2_NATIVE_MOD_IMPORT_CALLBACK__?: (result: {
             success: boolean;
+            event?: 'progress';
             token?: string;
             error?: string;
+            copiedBytes?: number;
+            totalBytes?: number;
+            copiedFiles?: number;
+            totalFiles?: number;
         }) => void;
         __RA2_NATIVE_MOD_DOWNLOAD_CALLBACK__?: (requestId: string, result: {
             success?: boolean;
@@ -396,6 +402,7 @@ export function canImportModFromShell(): boolean {
 async function pickNativeModSource(
     kind: ContentImportKind,
     picker: (() => boolean) | undefined,
+    onProgress?: ContentImportProgress,
 ): Promise<ContentImportSource | undefined> {
     if (!picker || !canImportNativeModFromShell()) {
         return undefined;
@@ -403,7 +410,28 @@ async function pickNativeModSource(
     const nativeApi = window.Ra2Android!;
     const result = await new Promise<{ success: boolean; token?: string; error?: string }>((resolve) => {
         let settled = false;
-        const finish = (value: { success: boolean; token?: string; error?: string }) => {
+        const finish = (value: {
+            success: boolean;
+            event?: 'progress';
+            token?: string;
+            error?: string;
+            copiedBytes?: number;
+            totalBytes?: number;
+            copiedFiles?: number;
+            totalFiles?: number;
+        }) => {
+            if (value.event === 'progress') {
+                const copiedBytes = Number(value.copiedBytes) || 0;
+                const totalBytes = Number(value.totalBytes) || 0;
+                const copiedFiles = Number(value.copiedFiles) || 0;
+                const totalFiles = Number(value.totalFiles) || 0;
+                const copiedMb = (copiedBytes / 1048576).toFixed(0);
+                const totalMb = (totalBytes / 1048576).toFixed(0);
+                const amount = totalBytes > 0 ? `${copiedMb} / ${totalMb} MB` : `${copiedMb} MB`;
+                const files = totalFiles > 0 ? ` (${copiedFiles} / ${totalFiles} files)` : ` (${copiedFiles} files)`;
+                onProgress?.(`Copying mod files... ${amount}${files}`);
+                return;
+            }
             if (settled)
                 return;
             settled = true;
@@ -420,6 +448,7 @@ async function pickNativeModSource(
         }
     });
     if (!result.success || !result.token) {
+        nativeApi.finishModImport?.();
         if (result.error)
             throw new Error(result.error);
         return undefined;
@@ -434,31 +463,42 @@ async function pickNativeModSource(
     }
     catch (error) {
         nativeApi.deleteNativeModImport?.(token);
+        nativeApi.finishModImport?.();
         throw error;
     }
     if (!manifestResponse.ok) {
         nativeApi.deleteNativeModImport?.(token);
+        nativeApi.finishModImport?.();
         throw new Error(`Native mod manifest could not be read (${manifestResponse.status})`);
     }
-    const manifest = await manifestResponse.json() as {
-        files?: NativeModImportFile[];
-        sourceName?: string;
-    };
-    const files = Array.isArray(manifest.files) ? manifest.files : [];
-    if (!files.length) {
-        nativeApi.deleteNativeModImport?.(token);
-        throw new Error('The selected mod content contains no readable files');
-    }
+    let manifest: { files?: NativeModImportFile[]; sourceName?: string };
+    let files: NativeModImportFile[];
     const originalPathByKey = new Map<string, string>();
-    for (const file of files) {
-        const normalizedPath = normalizeGamePath(file.path);
-        const key = gamePathKey(normalizedPath);
-        if (originalPathByKey.has(key)) {
-            nativeApi.deleteNativeModImport?.(token);
-            throw new Error(`Native mod manifest contains duplicate path: ${file.path}`);
+    try {
+        manifest = await manifestResponse.json() as {
+            files?: NativeModImportFile[];
+            sourceName?: string;
+        };
+        files = Array.isArray(manifest.files) ? manifest.files : [];
+        if (!files.length) {
+            throw new Error('The selected mod content contains no readable files');
         }
-        originalPathByKey.set(key, file.path);
+        for (const file of files) {
+            const normalizedPath = normalizeGamePath(file.path);
+            const key = gamePathKey(normalizedPath);
+            if (originalPathByKey.has(key)) {
+                throw new Error(`Native mod manifest contains duplicate path: ${file.path}`);
+            }
+            originalPathByKey.set(key, file.path);
+        }
     }
+    catch (error) {
+        nativeApi.deleteNativeModImport?.(token);
+        nativeApi.finishModImport?.();
+        throw error;
+    }
+    // Keep the temporary native directory until the OPFS import finishes so
+    // a killed WebView can be retried from the same handoff.
     let disposed = false;
     return {
         kind,
@@ -494,8 +534,19 @@ export function getPlatformContentProvider(): PlatformContentProvider | undefine
         return {
             // Android's base-game picker still commits directly through the
             // shell because it owns the SAF permission and persistent root.
-            pickModDirectory: () => pickNativeModSource('directory', nativeApi.pickModDirectory),
-            pickModArchives: () => pickNativeModSource('archives', nativeApi.pickModArchives),
+            // Keep the bridge call bound to the injected object. Android
+            // WebView rejects a JavaScript bridge method invoked detached
+            // from its injected receiver as a non-injected object.
+            pickModDirectory: (onProgress) => pickNativeModSource(
+                'directory',
+                () => nativeApi.pickModDirectory?.() ?? false,
+                onProgress,
+            ),
+            pickModArchives: (options = {}) => pickNativeModSource(
+                'archives',
+                () => nativeApi.pickModArchives?.() ?? false,
+                options.onProgress,
+            ),
         };
     }
     return BrowserContentProvider.isAvailable()
@@ -518,17 +569,24 @@ export async function importModFromShell(
         return undefined;
     const source = await (canImportNativeModFromShell()
         ? (typeof window.Ra2Android?.pickModDirectory === 'function'
-            ? provider.pickModDirectory()
-            : provider.pickModArchives({ multiple: true }))
-        : provider.pickModArchives({ multiple: true }));
-    if (!source)
+            ? provider.pickModDirectory(onProgress)
+            : provider.pickModArchives({ multiple: true, onProgress }))
+        : provider.pickModArchives({ multiple: true, onProgress }));
+    if (!source) {
+        window.Ra2Android?.finishModImport?.();
         return undefined;
+    }
     try {
         const imported = await importContentSourceToOpfs(source, requestedId, onProgress);
         return { id: imported.id, name: imported.name, version: imported.version };
     }
     finally {
         await source.dispose();
+        // Native Android keeps a foreground notification alive through the
+        // WebView's OPFS copy as well as its SAF copy. This prevents a
+        // successful native handoff from looking finished while the actual
+        // mod is still being written.
+        window.Ra2Android?.finishModImport?.();
     }
 }
 
@@ -675,7 +733,8 @@ export function downloadModFromShell(
 
 /**
  * First-launch bootstrap for the native shell: copies the bundled, pre-imported
- * game resources (served by the shell at /gameres/) into origin-private storage,
+ * game resources (served by the shell at /gameres-bundle/) into origin-private
+ * storage,
  * then marks the import as complete exactly like GameResImporter would.
  *
  * No-op outside the shell, or once storage is already seeded.
@@ -726,8 +785,14 @@ function createSeedOverlay(): { setText: (text: string) => void; remove: () => v
     };
 }
 
+const BUNDLED_GAME_RES_ROOT = '/gameres-bundle';
+
 async function runSeed(onProgress: (text: string) => void): Promise<number> {
-    const manifestResponse = await fetch('/gameres/manifest.json');
+    // This endpoint is deliberately separate from /gameres/. Native shells
+    // may expose an imported user's files at /gameres/, but those files are
+    // already in the browser's VFS and must never be mistaken for a packaged
+    // seed to validate and copy on every launch.
+    const manifestResponse = await fetch(`${BUNDLED_GAME_RES_ROOT}/manifest.json`);
     if (!manifestResponse.ok) {
         // A shell build may intentionally omit retail resources. Let the
         // normal GameRes flow render its import/CDN chooser rather than
@@ -793,7 +858,7 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             copiedBytes += file.size;
             continue;
         }
-        const response = await fetch(`/gameres/${normalizedPath}`);
+        const response = await fetch(`${BUNDLED_GAME_RES_ROOT}/${normalizedPath}`);
         if (!response.ok) {
             throw new Error(`Failed to fetch bundled resource "${normalizedPath}" (${response.status})`);
         }

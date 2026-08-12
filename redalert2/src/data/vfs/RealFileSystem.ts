@@ -99,6 +99,60 @@ export class RealFileSystem {
         }
         throw new FileNotFoundError(`File "${filename}" not found in any registered real file system directories.`);
     }
+
+    /**
+     * Open every same-name MIX family from the mounted directory layers in
+     * base-to-overlay order. A mod can replace only part of a MIX archive, so
+     * callers need both the base archive and the selected overlay archive to
+     * provide entry-level fallback. File-provider suffixes such as " (1)"
+     * are treated as members of the same family.
+     */
+    async openFilesFromLayers(filename: string): Promise<Array<{ file: VirtualFile; directoryIndex: number }>> {
+        const result: Array<{ file: VirtualFile; directoryIndex: number }> = [];
+        const normalizedFilename = normalizeGamePath(filename);
+        const canonicalLeaf = gamePathKey(gamePathLeaf(normalizedFilename));
+        const isVariant = (entryName: string): boolean => {
+            const leaf = gamePathLeaf(entryName);
+            const canonical = leaf.match(/^(.*)\s+\(\d+\)(\.mix)$/i);
+            return gamePathKey(canonical ? `${canonical[1]}${canonical[2]}` : leaf) === canonicalLeaf;
+        };
+        for (let directoryIndex = 0; directoryIndex < this.directories.length; directoryIndex++) {
+            const directory = this.directories[directoryIndex];
+            const candidateNames = new Set<string>([normalizedFilename]);
+            // Android file providers preserve duplicate files by appending
+            // " (1)" to the second copy. Treat those names as one MIX layer
+            // family so a full archive and its patch can coexist in one mod.
+            for await (const entryName of directory.getEntries()) {
+                if (isVariant(entryName)) {
+                    candidateNames.add(entryName);
+                }
+            }
+            const opened: Array<{ file: VirtualFile; directoryIndex: number }> = [];
+            for (const candidateName of candidateNames) {
+                try {
+                    opened.push({
+                        file: await directory.openFile(candidateName),
+                        directoryIndex,
+                    });
+                }
+                catch (e) {
+                    if (!(e instanceof FileNotFoundError)) {
+                        throw e;
+                    }
+                }
+            }
+            // A larger duplicate is normally the full/base archive and the
+            // smaller one is the patch. Mounting in this order lets the VFS
+            // assign explicit core/patch precedence independent of picker
+            // enumeration order.
+            opened.sort((a, b) =>
+                b.file.getSize() - a.file.getSize() ||
+                gamePathKey(a.file.filename).localeCompare(gamePathKey(b.file.filename)),
+            );
+            result.push(...opened);
+        }
+        return result;
+    }
     async getRawFile(filename: string): Promise<File> {
         for (const dir of [...this.directories].reverse()) {
             try {

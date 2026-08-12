@@ -2,6 +2,7 @@ import { gamePathKey } from "@/engine/GamePath";
 import type { GameProfileId } from "@/engine/GameProfile";
 
 export const INSTALLED_CONTENT_METADATA_FILE = ".ra2-content.json";
+export const CONTENT_IMPORT_IN_PROGRESS_FILE = ".ra2-importing";
 export const INSTALLED_CONTENT_METADATA_VERSION = 1;
 
 export interface InstalledContentMetadata {

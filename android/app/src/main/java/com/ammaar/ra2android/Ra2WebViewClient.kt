@@ -48,6 +48,10 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
             return errorResponse(403, "Forbidden")
         }
 
+        // /gameres/ is the user-import mount. The seed probe must use the
+        // packaged-only /gameres-bundle/ mount so an existing import is never
+        // walked and copied as though it were bundled content.
+        val isBundledGameResource = path == "gameres-bundle" || path.startsWith("gameres-bundle/")
         val isGameResource = path == "gameres" || path.startsWith("gameres/")
         val isNativeDownload = path == "native-downloads" || path.startsWith("native-downloads/")
         val isNativeModImport = path == "native-mod-imports" || path.startsWith("native-mod-imports/")
@@ -107,12 +111,12 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
                 FileInputStream(importFile),
             )
         }
-        val relativePath = if (isGameResource) {
-            path.removePrefix("gameres/").ifEmpty { "manifest.json" }
-        } else {
-            path
+        val relativePath = when {
+            isBundledGameResource -> path.removePrefix("gameres-bundle/").ifEmpty { "manifest.json" }
+            isGameResource -> path.removePrefix("gameres/").ifEmpty { "manifest.json" }
+            else -> path
         }
-        val assetPath = "${if (isGameResource) GAME_RES_ROOT else WEB_ROOT}/$relativePath"
+        val assetPath = "${if (isGameResource || isBundledGameResource) GAME_RES_ROOT else WEB_ROOT}/$relativePath"
 
         val stream = if (isGameResource) {
             openGameResource(relativePath, assetPath)

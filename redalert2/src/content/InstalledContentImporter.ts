@@ -1,6 +1,7 @@
 import { gamePathKey, normalizeGamePath } from "@/engine/GamePath";
 import {
     allocateContentId,
+    CONTENT_IMPORT_IN_PROGRESS_FILE,
     createInstalledContentMetadata,
     INSTALLED_CONTENT_METADATA_FILE,
     normalizeContentId,
@@ -93,6 +94,13 @@ export async function importContentSourceToOpfs(
     for await (const entry of target.keys()) {
         await target.removeEntry(entry, { recursive: true });
     }
+    // Keep an explicit marker while copying. If Android kills the WebView
+    // halfway through a large import, ContentRegistry can reject the partial
+    // directory instead of persisting a broken mod as selectable content.
+    const progressFile = await target.getFileHandle(CONTENT_IMPORT_IN_PROGRESS_FILE, { create: true });
+    const progressWriter = await progressFile.createWritable();
+    await progressWriter.write(JSON.stringify({ sourceName: source.name ?? contentId }));
+    await progressWriter.close();
 
     const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
     let copiedBytes = 0;
@@ -139,6 +147,7 @@ export async function importContentSourceToOpfs(
     const metadataWriter = await metadataFile.createWritable();
     await metadataWriter.write(JSON.stringify(metadata, null, 2));
     await metadataWriter.close();
+    await target.removeEntry(CONTENT_IMPORT_IN_PROGRESS_FILE);
 
     return {
         id: contentId,
