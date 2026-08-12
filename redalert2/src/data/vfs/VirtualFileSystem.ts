@@ -75,6 +75,12 @@ export interface ExtraMixLoadOptions {
      * profile MIX files are still mounted immediately.
      */
     deferMapArchives?: boolean;
+    /**
+     * Mount only the numbered MIX layers needed to expose a profile's
+     * canonical override files during boot. Remaining layers are mounted by
+     * loadDeferredExtraMixFiles() when a match or map browser needs them.
+     */
+    deferAfterProfileFiles?: boolean;
 }
 
 function compareResourcePaths(a: string, b: string): number {
@@ -92,6 +98,12 @@ export class VirtualFileSystem {
     private nextArchiveOrder = 0;
     private rfsEntryIndex?: Promise<RfsEntryIndex>;
     private deferredMapArchivesPromise?: Promise<void>;
+    private deferredExtraMixFiles = new Map<string, {
+        filename: string;
+        rfsFile?: string;
+        metadata?: ArchiveMetadata;
+    }>();
+    private deferredExtraMixFilesPromise?: Promise<void>;
     constructor(rfs: RealFileSystem | undefined, logger: VfsLogger) {
         this.rfs = rfs;
         this.logger = logger;
@@ -397,20 +409,46 @@ export class VirtualFileSystem {
             id: filename,
         };
     }
+    private getProfileOverrideFiles(profile?: GameProfileDescriptor): string[] {
+        if (!profile) {
+            return [];
+        }
+        return [
+            ...Object.values(profile.fileNameOverrides ?? {}),
+        ].filter((filename, index, files) => filename && files.indexOf(filename) === index);
+    }
+    private profileOverrideFilesMounted(profile?: GameProfileDescriptor): boolean {
+        const files = this.getProfileOverrideFiles(profile);
+        return files.length > 0 && files.every((filename) => this.fileExists(filename));
+    }
+    private deferExtraMixFile(filename: string, rfsFile?: string, metadata?: ArchiveMetadata): void {
+        const key = gamePathKey(filename);
+        if (this.hasArchive(filename) || this.deferredExtraMixFiles.has(key)) {
+            return;
+        }
+        this.deferredExtraMixFiles.set(key, { filename, rfsFile, metadata });
+    }
     /**
      * Discover known extra MIX names inside already mounted archives.
      * Westwood MIX indexes contain hashes rather than filenames, so this
      * candidate-driven pass is the only generic way to recover nested names.
      * It runs to a small fixpoint so a MIX can contain another known MIX.
      */
-    async loadNestedMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
+    async loadNestedMixFiles(engineType: EngineType, profile?: GameProfileDescriptor, options: ExtraMixLoadOptions = {}): Promise<void> {
         const startedAt = Date.now();
         const candidates = this.getExtraMixNames(engineType, profile);
         let loadedArchives = 0;
+        let deferredArchives = 0;
+        const deferRemaining = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
         for (let pass = 0; pass < 3; pass++) {
             let loaded = false;
             for (const filename of candidates) {
                 if (this.hasArchive(filename) || !this.fileExists(filename)) {
+                    continue;
+                }
+                if (deferRemaining || (options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile))) {
+                    this.deferExtraMixFile(filename, undefined, this.metadataForExtraMix(filename, profile));
+                    deferredArchives++;
                     continue;
                 }
                 const added = await this.addMixFile(filename, this.metadataForExtraMix(filename, profile));
@@ -423,7 +461,8 @@ export class VirtualFileSystem {
                 break;
             }
         }
-        this.logger.info(`Nested MIX discovery checked ${candidates.length} candidates, loaded ${loadedArchives} archives in ${Date.now() - startedAt} ms.`);
+        this.logger.info(`Nested MIX discovery checked ${candidates.length} candidates, loaded ${loadedArchives} archives` +
+            `${deferredArchives ? `, deferred ${deferredArchives}` : ""} in ${Date.now() - startedAt} ms.`);
         // Extension archives can contain Ares audio##.bag/.idx pairs. They
         // are not visible during the initial implicit pass, so repeat the
         // same generic audio discovery after the MIX fixpoint is mounted.
@@ -442,6 +481,43 @@ export class VirtualFileSystem {
             return false;
         }
         return this.addMixFile(filename, metadata);
+    }
+    /**
+     * Finish the deferred profile MIX pass. Keeping this idempotent lets the
+     * map browser and match loader safely request the same content without
+     * racing duplicate archive parses.
+     */
+    async loadDeferredExtraMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
+        if (!this.deferredExtraMixFilesPromise) {
+            const loadPromise = (async () => {
+                const pending = [...this.deferredExtraMixFiles.values()];
+                if (pending.length === 0) {
+                    return;
+                }
+                for (const deferred of pending) {
+                    const key = gamePathKey(deferred.filename);
+                    if (this.hasArchive(deferred.filename)) {
+                        this.deferredExtraMixFiles.delete(key);
+                        continue;
+                    }
+                    const added = await this.addMixFile(deferred.filename, {
+                        ...this.metadataForExtraMix(deferred.filename, profile),
+                        ...(deferred.metadata ?? {}),
+                        ...(deferred.rfsFile ? { provenance: [deferred.rfsFile] } : {}),
+                    });
+                    if (!added) {
+                        throw new Error(`Could not load deferred profile archive "${deferred.filename}".`);
+                    }
+                    this.deferredExtraMixFiles.delete(key);
+                }
+                await this.loadNestedMixFiles(engineType, profile);
+            })();
+            this.deferredExtraMixFilesPromise = loadPromise.catch((error) => {
+                this.deferredExtraMixFilesPromise = undefined;
+                throw error;
+            });
+        }
+        await this.deferredExtraMixFilesPromise;
     }
     async addMixFile(filename: string, metadata?: ArchiveMetadata, options?: { required?: boolean }): Promise<boolean> {
         return this.addArchiveByFilename(filename, async (fileStreamHolder) => {
@@ -555,13 +631,21 @@ export class VirtualFileSystem {
         const findEntryByLeaf = (filename: string): string | undefined => {
             return rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
         };
+        let profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
+        let deferredArchives = 0;
         for (const fileToTry of this.getExtraMixNames(engineType, profile)) {
             const rfsEntry = findEntryByLeaf(fileToTry);
             if (rfsEntry && !this.hasArchive(fileToTry)) {
+                if (profileFilesReady) {
+                    this.deferExtraMixFile(fileToTry, rfsEntry, this.metadataForExtraMix(fileToTry, profile));
+                    deferredArchives++;
+                    continue;
+                }
                 await this.addMixFile(fileToTry, {
                     ...this.metadataForExtraMix(fileToTry, profile),
                     provenance: [rfsEntry],
                 });
+                profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
             }
         }
         // Imported installations can contain profile containers that are not
@@ -580,7 +664,8 @@ export class VirtualFileSystem {
         for (const rfsFile of rfsEntries) {
             const filename = gamePathLeaf(rfsFile);
             const key = gamePathKey(filename);
-            if (!/\.mix$/i.test(filename) || implicitMixes.has(key) || remainingMixes.has(key)) {
+            if (!/\.mix$/i.test(filename) || implicitMixes.has(key) || remainingMixes.has(key) ||
+                this.deferredExtraMixFiles.has(key)) {
                 continue;
             }
             remainingMixes.set(key, rfsFile);
@@ -598,7 +683,7 @@ export class VirtualFileSystem {
         if (!options.deferMapArchives) {
             await this.loadMapArchives(engineType, profile, rfsEntries);
         }
-        this.logger.info("Finished loading extra mix files.");
+        this.logger.info(`Finished loading extra mix files${deferredArchives ? `; deferred ${deferredArchives} profile layers` : ""}.`);
     }
     /**
      * Mount map containers deferred by startup. The operation is idempotent so
@@ -668,7 +753,7 @@ export class VirtualFileSystem {
         const filesForMemArchive: VirtualFile[] = [];
         const rfsIndex = await this.getRfsEntryIndex();
         const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
-        for (const entryName of rfsEntries) {
+        const standaloneEntries = rfsEntries.filter((entryName) => {
             const normalizedEntryName = normalizeGamePath(entryName);
             const lowerEntryName = normalizedEntryName.toLocaleLowerCase("en-US");
             const excluded = excludeSet.has(gamePathKey(normalizedEntryName)) ||
@@ -676,10 +761,21 @@ export class VirtualFileSystem {
             const isLooseRootWav = lowerEntryName.endsWith(".wav") && !normalizedEntryName.includes("/");
             const isStandaloneResource = extensionsToLoad
                 .some((extension) => lowerEntryName.endsWith("." + extension));
-            if ((isStandaloneResource || isLooseRootWav) && !excluded) {
+            return (isStandaloneResource || isLooseRootWav) && !excluded;
+        });
+        // File-system handles are asynchronous. Reading a small bounded batch
+        // in parallel removes the serialized per-file storage latency without
+        // turning a large imported mod into an unbounded read burst. Promise.all
+        // preserves entry order, so loose-file precedence remains deterministic.
+        const readBatchSize = 8;
+        for (let batchStart = 0; batchStart < standaloneEntries.length; batchStart += readBatchSize) {
+            const batch = standaloneEntries.slice(batchStart, batchStart + readBatchSize);
+            const batchFiles = await Promise.all(batch.map(async (entryName) => {
+                const aliases: VirtualFile[] = [];
                 try {
                     const file = await this.rfs.openFile(entryName);
                     if (file) {
+                        const normalizedEntryName = normalizeGamePath(entryName);
                         const normalizedSegments = normalizedEntryName.split("/");
                         // Imported archives are often stored below a picker
                         // folder (for example `Install/MIX/rulesmo.ini`).
@@ -688,19 +784,22 @@ export class VirtualFileSystem {
                         // paths such as `rules/units.ini`.
                         for (let aliasStart = 0; aliasStart < normalizedSegments.length; aliasStart++) {
                             const alias = normalizedSegments.slice(aliasStart).join("/");
-                            filesForMemArchive.push(VirtualFile.fromBytes(file.getBytes(), alias));
+                            aliases.push(VirtualFile.fromBytes(file.getBytes(), alias));
                         }
                     }
+                    return aliases;
                 }
                 catch (e) {
                     if (e instanceof FileNotFoundError) {
                         this.logger.warn(`Standalone file ${entryName} not found during VFS loadStandaloneFiles.`);
+                        return aliases;
                     }
                     else {
                         throw e;
                     }
                 }
-            }
+            }));
+            filesForMemArchive.push(...batchFiles.flat());
         }
         if (filesForMemArchive.length > 0) {
             const memArchive = new MemArchive();

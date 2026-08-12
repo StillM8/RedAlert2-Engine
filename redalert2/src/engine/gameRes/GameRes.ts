@@ -565,6 +565,7 @@ export class GameRes {
         });
         await vfs.loadExtraMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile], {
             deferMapArchives: true,
+            deferAfterProfileFiles: true,
         });
         await this.loadEngineResources(vfs);
         await this.loadMixes(config, cdnLoader, vfs, onProgress);
@@ -663,7 +664,9 @@ export class GameRes {
         }
         else {
             await vfs.loadImplicitMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile]);
-            await vfs.loadNestedMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile]);
+            await vfs.loadNestedMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile], {
+                deferAfterProfileFiles: true,
+            });
             const cacheDirHandle = await Engine.getCacheDir();
             if (cacheDirHandle) {
                 try {

@@ -525,6 +525,9 @@ export class Engine {
     private static async populateMapList(): Promise<MapList> {
         if (!this.vfs)
             throw new Error("File system not initialized");
+        // Map manifests can live in a deferred profile MIX layer. Finish the
+        // generic extra-resource pass before enumerating map archives.
+        await this.vfs.loadDeferredExtraMixFiles(this.getActiveEngine(), this.getActiveProfile());
         const combinedMapList = this.mapList ?? (this.mapList = this.createBaseMapList());
         const gameModes = this.mapListGameModes ??= this.getMpModes();
         await this.vfs.loadDeferredMapArchives(this.getActiveEngine(), this.getActiveProfile());

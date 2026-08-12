@@ -264,17 +264,23 @@ export class Hud extends UiObject {
         if (remainderWidth) {
             clippedBttnbkgd = bttnbkgdImg.clip(remainderWidth, bttnbkgdImg.height);
         }
+        // Keep the retail geometry split from the presentation data: RA2 uses
+        // Allied offsets, while YR's Yuri side uses the same button geometry
+        // as Allied and the Soviet card/text placement. Only the Soviet
+        // presentation changes the button/tab offsets.
+        const usesSovietButtonGeometry = this.presentation.hudLayout === "soviet";
+        const usesAlliedCardGeometry = this.presentation.hudLayout === "allied";
         let diploButtonOffset = { x: 12, y: 4 };
-        if (this.presentation.hudLayout === "soviet") {
+        if (usesSovietButtonGeometry) {
             diploButtonOffset = { x: 14, y: 5 };
         }
         let repairButtonOffset = { x: 20, y: 8 };
-        if (this.presentation.hudLayout === "soviet") {
+        if (usesSovietButtonGeometry) {
             repairButtonOffset = { x: 34, y: 7 };
         }
         let tabSpacing = 1;
         let tabOffset = { x: 26, y: -3 };
-        if (this.presentation.hudLayout === "soviet") {
+        if (usesSovietButtonGeometry) {
             tabSpacing = 0;
             tabOffset = { x: 20, y: -2 };
         }
@@ -285,7 +291,7 @@ export class Hud extends UiObject {
         const cameoNameToIdMap = this.createCameoNameToIdMap();
         const sidebarSlotSize = { width: slotClockImg.width, height: slotClockImg.height };
         const sidebarCardOffset = { x: 22, y: 1 };
-        const sidebarCardPosition = this.presentation.hudLayout === "allied"
+        const sidebarCardPosition = usesAlliedCardGeometry
             ? { x: 5, y: 2 }
             : { x: 0, y: 0 };
         const scrollButtonX = 38;

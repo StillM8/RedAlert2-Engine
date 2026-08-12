@@ -112,7 +112,13 @@ export class Renderer {
      * eliminating the blur from CSS-upscaling a small canvas.
      */
     setPixelRatio(ratio: number): void {
-        const clamped = Math.max(1, Math.min(3, ratio));
+        // A mobile viewport can be intentionally downscaled (especially when
+        // a landscape game surface is shown on a portrait display). Forcing a
+        // minimum of 1 made WebGL render the entire logical canvas at full
+        // size even when it occupied only a fraction of the device screen.
+        // Keep a quality floor, but let the backing store follow the actual
+        // display scale so this does not turn into a hidden GPU multiplier.
+        const clamped = Math.max(0.5, Math.min(3, ratio));
         if (this.pixelRatio === clamped) {
             return;
         }

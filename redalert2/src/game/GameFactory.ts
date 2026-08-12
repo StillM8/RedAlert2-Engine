@@ -78,9 +78,13 @@ export class GameFactory {
         const ai: Ai = new Ai(aiConfig);
         rules.applySpecialFlags(gameOptions.specialFlags as any);
         GameOptSanitizer.sanitize(gameOpts, rules);
-        const baseMultiplayerRules: Rules = new Rules(baseRules);
-        const multiplayerCountries: MultiplayerCountry[] = baseMultiplayerRules.getMultiplayerCountries();
-        const multiplayerColors: string[] = [...baseMultiplayerRules.getMultiplayerColors().values()] as any;
+        // Resolve lobby identities from the ruleset that will actually run the
+        // match.  Using baseRules here silently remapped extension profiles
+        // back to the retail YR country list (for example MO's `Latin` to the
+        // old `Arabs`).  The resulting country then failed generic MCV owner
+        // checks because MO's rules quite correctly refer to `Latin`.
+        const multiplayerCountries: MultiplayerCountry[] = rules.getMultiplayerCountries();
+        const multiplayerColors: string[] = [...rules.getMultiplayerColors().values()] as any;
         const prng: Prng = Prng.factory(randomSeed1, randomSeed2);
         const gameMap: GameMap = new GameMap(gameOptions as any, mapData, rules, prng.generateRandomInt.bind(prng));
         const world: World = new World();
@@ -106,7 +110,7 @@ export class GameFactory {
         const playerFactory: PlayerFactory = new PlayerFactory(rules, gameOpts, productionTrait.getAvailableObjects(), theater);
         const randomGen: GameOptRandomGen = GameOptRandomGen.factory(randomSeed1, randomSeed2);
         const generatedColors: Map<PlayerInfo, string> = randomGen.generateColors(gameOpts) as any;
-        const generatedCountries: Map<PlayerInfo, string> = randomGen.generateCountries(gameOpts, baseMultiplayerRules) as any;
+        const generatedCountries: Map<PlayerInfo, string> = randomGen.generateCountries(gameOpts, rules) as any;
         const generatedStartLocations: Map<PlayerInfo, number> = randomGen.generateStartLocations(gameOpts, gameMap.startingLocations as any);
         const allPlayers: (HumanPlayerInfo | AiPlayerInfo)[] = [
             ...gameOpts.humanPlayers,

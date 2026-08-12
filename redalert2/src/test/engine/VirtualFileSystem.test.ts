@@ -376,6 +376,47 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.hasArchive("multimo.mix")).toBe(true);
     });
 
+    test("defers large profile MIX layers until a content consumer requests them", async () => {
+        const profileCore = createMixBytes([
+            ["rulesmo.ini", new TextEncoder().encode("[Rules]")],
+            ["artmo.ini", new TextEncoder().encode("[Art]")],
+            ["aimo.ini", new TextEncoder().encode("[AI]")],
+        ]);
+        const files = new Map<string, Uint8Array>([
+            ["expandmo99.mix", profileCore],
+            ["expandmo95.mix", createEmptyMixBytes()],
+            ["multimo.mix", createEmptyMixBytes()],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) throw new FileNotFoundError(filename);
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"], {
+            deferAfterProfileFiles: true,
+        });
+
+        expect(vfs.hasArchive("expandmo99.mix")).toBe(true);
+        expect(vfs.hasArchive("expandmo95.mix")).toBe(false);
+        expect(vfs.hasArchive("multimo.mix")).toBe(true);
+        expect(vfs.openFile("rulesmo.ini").readAsString()).toBe("[Rules]");
+
+        await vfs.loadDeferredExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("expandmo95.mix")).toBe(true);
+    });
+
     test("defers standalone map archives without deferring profile MIX files", async () => {
         const files = new Map<string, Uint8Array>([
             ["arena.mmx", createEmptyMixBytes()],

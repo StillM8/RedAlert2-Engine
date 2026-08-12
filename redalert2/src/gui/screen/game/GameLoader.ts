@@ -58,6 +58,10 @@ export class GameLoader {
         if (!Engine.vfs) {
             throw new Error('Virtual File System not initialized');
         }
+        // The boot path mounts only the profile's canonical override layer so
+        // the menu can appear without parsing every large expansion MIX. A
+        // match needs the complete content graph before theater/game setup.
+        await Engine.vfs.loadDeferredExtraMixFiles(Engine.getActiveEngine(), Engine.getActiveProfile());
         this.clearStaticCaches();
         this.buildingImageDataCache.clear();
         try {

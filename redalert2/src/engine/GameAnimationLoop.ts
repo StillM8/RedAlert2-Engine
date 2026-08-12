@@ -73,6 +73,10 @@ export class GameAnimationLoop {
             }
             while (deltaFrames > 0) {
                 this.turnMgrIsWaiting = !this.tickGame(timestamp);
+                // lastGameFrame is the number of turns actually attempted. It
+                // must advance here, not while calculating the wall-clock
+                // delta, otherwise a slow render frame silently drops turns.
+                this.lastGameFrame++;
                 deltaFrames--;
             }
         }
@@ -84,10 +88,20 @@ export class GameAnimationLoop {
                 deltaFrames = 1;
             }
             if (this.options.skipBudgetMillis) {
-                let budget = this.options.skipBudgetMillis;
+                // The old fixed 8 ms budget dropped every turn beyond the
+                // first when the phone rendered below the simulation rate.
+                // Scale the budget to the amount of simulation time that is
+                // due, while retaining a small configured floor and a bound
+                // for a long background/OS scheduling pause.
+                const turnMillis = this.gameTurnMgr.getTurnMillis();
+                let budget = Math.max(
+                    this.options.skipBudgetMillis,
+                    Math.min(100, deltaFrames * turnMillis),
+                );
                 while (deltaFrames > 0) {
                     const startTime = performance.now();
                     this.turnMgrIsWaiting = !this.tickGame(timestamp);
+                    this.lastGameFrame++;
                     deltaFrames--;
                     const elapsed = performance.now() - startTime;
                     budget = Math.max(0, budget - elapsed);
@@ -99,6 +113,7 @@ export class GameAnimationLoop {
             else {
                 while (deltaFrames > 0) {
                     this.turnMgrIsWaiting = !this.tickGame(timestamp);
+                    this.lastGameFrame++;
                     deltaFrames--;
                 }
             }
@@ -207,8 +222,10 @@ export class GameAnimationLoop {
         if (this.startTime) {
             const elapsed = timestamp - this.startTime;
             const currentFrame = Math.round(elapsed / turnMillis);
-            deltaFrames = currentFrame - this.lastGameFrame;
-            this.lastGameFrame = currentFrame;
+            // Do not move lastGameFrame to the wall-clock target here. The
+            // caller may have a simulation budget and must retain any turns
+            // that could not be executed for the next animation frame.
+            deltaFrames = Math.max(0, currentFrame - this.lastGameFrame);
         }
         else {
             this.startTime = timestamp;
