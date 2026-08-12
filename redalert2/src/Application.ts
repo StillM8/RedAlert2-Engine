@@ -32,6 +32,7 @@ import { attachPerformanceOptions, installPerformanceDebugApi } from './performa
 import { inGameViewportActive } from './gui/inGameViewport';
 import { getNativeShellEngine, getNativeShellProfile, isNativeShell } from './shell/nativeShell';
 import { getGameProfile, type GameProfileId } from './engine/GameProfile';
+import { ContentRegistry } from './content/ContentRegistry';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -655,11 +656,15 @@ export class Application {
             .then(gpuData => this.gpuTier = gpuData)
             .catch(e => this.sentry?.captureException(e));
         this.fsAccessLib = browserFileSystemAccess;
-        const urlParams = new URLSearchParams(window.location.search);
-        const requestedModName = urlParams.get('mod');
         const nativeShellProfile = isNativeShell() ? getNativeShellProfile() : undefined;
-        const profile: GameProfileId = nativeShellProfile ?? (this.config.engine === 'yr' ? 'yr' : 'ra2');
-        const modName = requestedModName;
+        const fallbackProfile: GameProfileId = nativeShellProfile ?? (this.config.engine === 'yr' ? 'yr' : 'ra2');
+        const contentRegistry = new ContentRegistry(localStorage);
+        const contentSelection = await contentRegistry.resolveSelection({
+            location: window.location,
+            fallbackProfile,
+        });
+        const profile = contentSelection.profileId;
+        const modName = contentSelection.kind === 'mod' ? contentSelection.modId : undefined;
         let gameResConfig = this.loadGameResConfig(this.localPrefs);
         try {
             const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry, profile);
@@ -669,6 +674,7 @@ export class Application {
                 const vfsAny: any = (Engine as any).vfs;
                 const debugRoot = ((window as any).__ra2debug ??= {});
                 debugRoot.profile = getGameProfile(profile);
+                debugRoot.contentSelection = contentSelection;
                 debugRoot.vfs = {
                     explain: (filename: string) => vfsAny?.explain?.(filename),
                     resolve: (filename: string) => vfsAny?.resolve?.(filename),
@@ -730,6 +736,8 @@ export class Application {
                 });
             }
             this.sentry?.configureScope((scope: any) => {
+                scope.setTag('content', contentSelection.id);
+                scope.setExtra('contentSelection', contentSelection);
                 scope.setTag('mod', modName || '<none>');
                 scope.setExtra('mod', modName || '<none>');
                 let modHash: string | number = 'unknown';

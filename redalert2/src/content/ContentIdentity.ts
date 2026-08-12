@@ -1,4 +1,5 @@
 import { gamePathKey } from "@/engine/GamePath";
+import type { GameProfileId } from "@/engine/GameProfile";
 
 export const INSTALLED_CONTENT_METADATA_FILE = ".ra2-content.json";
 export const INSTALLED_CONTENT_METADATA_VERSION = 1;
@@ -10,6 +11,9 @@ export interface InstalledContentMetadata {
     version?: string;
     sourceName?: string;
     sourceKind?: "directory" | "archives";
+    baseProfile?: "ra2" | "yr";
+    runtimeProfile?: GameProfileId;
+    extensions?: readonly string[];
     importedAt: string;
 }
 
@@ -56,6 +60,9 @@ export function createInstalledContentMetadata(options: {
     version?: string;
     sourceName?: string;
     sourceKind?: "directory" | "archives";
+    baseProfile?: "ra2" | "yr";
+    runtimeProfile?: GameProfileId;
+    extensions?: readonly string[];
     importedAt?: string;
 }): InstalledContentMetadata {
     return {
@@ -65,6 +72,9 @@ export function createInstalledContentMetadata(options: {
         version: options.version,
         sourceName: options.sourceName,
         sourceKind: options.sourceKind,
+        baseProfile: options.baseProfile,
+        runtimeProfile: options.runtimeProfile,
+        extensions: options.extensions,
         importedAt: options.importedAt ?? new Date().toISOString(),
     };
 }

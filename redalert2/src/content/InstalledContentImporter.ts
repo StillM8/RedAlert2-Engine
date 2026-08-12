@@ -6,6 +6,7 @@ import {
     normalizeContentId,
 } from "@/content/ContentIdentity";
 import type { ContentImportSource } from "@/content/PlatformContentProvider";
+import { detectGameProfile, type GameProfileId } from "@/engine/GameProfile";
 
 export interface InstalledContentImportResult {
     id: string;
@@ -116,12 +117,26 @@ export async function importContentSourceToOpfs(
         onProgress?.(`Importing content... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`);
     }
 
+    const contentPaths = files.map((file) => file.normalizedPath);
+    const isMentalOmega = contentPaths.some((path) => {
+        const lower = path.toLocaleLowerCase("en-US");
+        return /(?:^|\/)expandmo\d{2}\.mix$/.test(lower) ||
+            /(?:^|\/)rulesmo\.ini$/.test(lower) ||
+            /(?:^|\/)artmo\.ini$/.test(lower) ||
+            /(?:^|\/)mapsmo\//.test(lower) ||
+            /(?:^|\/)missionsmo\//.test(lower);
+    });
+    const runtimeProfile: GameProfileId = isMentalOmega ? "mental-omega" : detectGameProfile(contentPaths);
+    const baseProfile: "ra2" | "yr" = isMentalOmega || runtimeProfile === "yr" ? "yr" : "ra2";
     const metadata = createInstalledContentMetadata({
         id: contentId,
         name: source.name ?? contentId,
         version: "imported",
         sourceName: source.name,
         sourceKind: source.kind,
+        baseProfile,
+        runtimeProfile,
+        extensions: isMentalOmega ? ["ares"] : [],
     });
     const metadataFile = await target.getFileHandle(INSTALLED_CONTENT_METADATA_FILE, { create: true });
     const metadataWriter = await metadataFile.createWritable();
