@@ -2314,6 +2314,21 @@ input[type="range"]:focus {
     margin-top: 10px;
 }
 
+#ra2web-root .diplo-form .game-settings {
+    /* The HTML menu is hosted inside the native-size retail background. On
+       small layouts that host can be narrower than the actual viewport, which
+       otherwise makes this block wrap every word into its own line. Keep the
+       settings readable without changing the retail footer's sizing. */
+    box-sizing: border-box;
+    width: min(500px, calc(100vw - 40px));
+    max-width: min(500px, calc(100vw - 40px));
+    margin-left: 50%;
+    transform: translateX(-50%);
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
+}
+
 #ra2web-root .diplo-form-footer > * + *,
 #ra2web-root .con-info-form-footer > * + * {
     margin-top: 20px;

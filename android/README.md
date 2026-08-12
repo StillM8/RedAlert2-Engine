@@ -15,22 +15,37 @@ The Gradle flavors select the shared engine profile:
 
 ## Local build
 
-1. Run the repository setup script against your legally-owned RA2/Yuri's Revenge install.
-2. Build and install the debug app:
+Normal Android builds are engine-only APKs. They do not package retail game
+files, even when `gameres-export/` exists in the checkout. Import a complete
+copy of your own legally-owned RA2, Yuri's Revenge, or Mental Omega game folder
+from the app's game-resource picker after installation.
+
+Build and install the debug app:
 
 ```sh
 ./scripts/build-android.sh --variant mo --device
 ```
 
-The MO build requires a local `gameres-export/` containing the Yuri's Revenge
-base archives and `expandmo##.mix` files. The large retail-derived payload is
-never committed. Connect a device with USB debugging enabled before using
-`--device`; the script installs with `adb` and launches the selected package.
+The `ra2`, `yr`, and `mo` flavors remain available. The `mo` flavor selects the
+Mental Omega + Ares-compatible runtime, but the user still supplies the Yuri's
+Revenge base files, Mental Omega expansion files, and any required Ares files
+through the import flow. Connect a device with USB debugging enabled before
+using `--device`; the script installs with `adb` and launches the selected
+package.
 
-The script stages `redalert2/dist/` into `app/src/main/assets/WebDist/` and,
-when `gameres-export/` exists, stages it into `app/src/main/assets/GameRes/`.
-Those directories are ignored because retail-derived files must not be
-committed or distributed.
+The script stages `redalert2/dist/` into `app/src/main/assets/WebDist/`. It
+removes any previously staged `GameRes/` directory for the default engine-only
+build, so old local assets cannot leak into a normal APK. The local
+`gameres-export/` directory is used only when explicitly requested for QA:
+
+```sh
+./scripts/build-android.sh --variant mo --with-gameres
+```
+
+That opt-in requires `gameres-export/`; for the `mo` flavor it must contain
+`expandmo##.mix`. Retail-derived files remain ignored and are never committed
+or distributed by default. `--no-gameres` remains accepted as a legacy alias
+for the default engine-only behavior.
 
 The packaged URL is HTTPS on Android's reserved app-assets origin. The custom
 WebView client adds the cross-origin isolation headers needed by the web build

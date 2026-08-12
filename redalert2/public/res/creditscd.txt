@@ -1,0 +1,62 @@
+CREDITS
+
+"Chrono Divide" is a fan-made recreation of the original "Command & Conquer: Red Alert 2"
+by Westwood Studios.
+
+The project is in no way affiliated with Electronic Arts Inc.
+All rights are held by their respective owners.
+
+
+
+CONCEPT, PROGRAMMING AND DESIGN
+
+Alexandru Ciucă
+
+
+
+ARTWORK
+
+- Halloween & Present Crates -
+CnCNet (<https://cncnet.org>)
+
+
+
+SINGLEPLAYER BOTS
+
+Supalosa (<https://github.com/Supalosa/>)
+
+
+
+TRANSLATIONS
+
+Chinese: ra2web (网页红警), Destructo (jzhc)
+German: raq1
+
+
+
+ACKNOWLEDGEMENTS
+
+The ground work laid by the community in decoding and
+working with the original Westwood file formats.
+
+- Reverse Engineering -
+Olaf van der Spek (<https://github.com/OlafvdSpek/xcc>)
+OpenRA developers (<https://github.com/OpenRA>)
+Frank "zzattack" Razenberg (<https://github.com/zzattack/ccmaps-net>)
+
+- Documentation -
+ModEnc (<https://www.modenc.renegadeprojects.com/Main_Page>)
+DeeZire's Red Alert 2 and Yuris Revenge INI Editing Guide
+Project Perfect Mod (<https://www.ppmforums.com/>)
+
+
+
+SPECIAL THANKS TO
+
+nullkuhl, for hosting the EU1 game server
+TAK02, for their time moderating the Discord server
+Bradley (BAC), [PH]NizzyStorm and many others for finding and reporting countless bugs
+
+
+
+"Red Alert 2" original credits follow:

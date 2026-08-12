@@ -352,7 +352,7 @@ export class VirtualFileSystem {
         if (/^(?:ecache|expand|elocal)(?:md|mo)?\d{2}\.mix$/.test(lower)) {
             return { layer: ResourceLayer.ModPatch, source: "mod" };
         }
-        if (lower.includes("cd") || lower === "ra2cd.mix") {
+        if (lower.includes("cd")) {
             return { layer: ResourceLayer.ExtensionRuntime, source: "engine" };
         }
         if (lower.includes("md")) {

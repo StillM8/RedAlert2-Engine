@@ -2,9 +2,10 @@
 # Build the RA2 web engine and package it into the iOS shell.
 #
 # Usage:
-#   ./scripts/build-ios.sh              # build web + stage + generate + build for simulator
-#   ./scripts/build-ios.sh --no-web     # skip the vite build (reuse existing dist)
-#   ./scripts/build-ios.sh --device     # build for a connected device (needs RA2_TEAM_ID)
+#   ./scripts/build-ios.sh                         # build without bundled game files
+#   ./scripts/build-ios.sh --bundle-local-gameres   # opt-in local resources for QA only
+#   ./scripts/build-ios.sh --no-web                 # skip the vite build (reuse existing dist)
+#   ./scripts/build-ios.sh --device                 # build for a connected device (needs RA2_TEAM_ID)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,11 +16,13 @@ export PATH="$HOME/.bun/bin:$PATH"
 
 SKIP_WEB=0
 DEVICE=0
+BUNDLE_LOCAL_GAMERES=0
 VARIANT="yr"
 for arg in "$@"; do
   case "$arg" in
     --no-web) SKIP_WEB=1 ;;
     --device) DEVICE=1 ;;
+    --bundle-local-gameres) BUNDLE_LOCAL_GAMERES=1 ;;
     --ra2) VARIANT="ra2" ;;
   esac
 done
@@ -87,20 +90,23 @@ if [[ "$VARIANT" == "ra2" ]]; then
 fi
 
 echo "==> Staging GameRes ($VARIANT)"
-if [[ ! -d "$GAMERES" ]]; then
-  echo "error: $GAMERES not found. Export game resources first." >&2
-  exit 1
-fi
 rm -rf "$IOS/Resources/GameRes"
-cp -R "$GAMERES" "$IOS/Resources/GameRes"
-if [[ "$VARIANT" == "ra2" ]]; then
-  # Strip YR-only content (engine in ra2 mode ignores it; saves ~350MB).
-  rm -f "$IOS/Resources/GameRes"/{ra2md.mix,langmd.mix,multimd.mix,expandmd01.mix}
-  rm -f "$IOS/Resources/GameRes"/*.yro
-fi
+mkdir -p "$IOS/Resources/GameRes"
+if [[ $BUNDLE_LOCAL_GAMERES -eq 1 ]]; then
+  echo "warning: bundling local gameres-export for QA only; normal builds require user import"
+  if [[ ! -d "$GAMERES" ]]; then
+    echo "error: $GAMERES not found. Export game resources first or omit --bundle-local-gameres." >&2
+    exit 1
+  fi
+  cp -R "$GAMERES"/. "$IOS/Resources/GameRes"
+  if [[ "$VARIANT" == "ra2" ]]; then
+    # Strip YR-only content (engine in ra2 mode ignores it; saves ~350MB).
+    rm -f "$IOS/Resources/GameRes"/{ra2md.mix,langmd.mix,multimd.mix,expandmd01.mix}
+    rm -f "$IOS/Resources/GameRes"/*.yro
+  fi
 
-echo "==> Generating GameRes manifest"
-python3 - "$IOS/Resources/GameRes" <<'EOF'
+  echo "==> Generating GameRes manifest"
+  python3 - "$IOS/Resources/GameRes" <<'EOF'
 import json, os, sys
 root = sys.argv[1]
 files = []
@@ -115,6 +121,9 @@ with open(os.path.join(root, "manifest.json"), "w") as f:
     json.dump({"files": files}, f, indent=1)
 print(f"manifest: {len(files)} files, {sum(f['size'] for f in files)/1048576:.1f} MB")
 EOF
+else
+  echo "Skipping local GameRes bundle; users must import their own game files."
+fi
 
 echo "==> Generating Xcode project"
 (cd "$IOS" && RA2_TEAM_ID="${RA2_TEAM_ID:-}" xcodegen generate)

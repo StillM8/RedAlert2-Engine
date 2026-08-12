@@ -71,11 +71,10 @@ Copyright © CubicleSoft. Dual-licensed **MIT or LGPL**.
 of Red Alert 2 + Yuri's Revenge that you already own
 ([Steam](https://store.steampowered.com/app/2229850/)).
 
-`redalert2/public/res/ra2cd.mix` was inherited from upstream and originally
-carried ten Westwood files (the multiplayer rank insignia and a gamemode table).
-Those were removed with `scripts/strip-retail-from-mix.py`; the archive now
-holds only Chrono Divide's own override files. The removed entries already reach
-the engine from your own `ra2md.mix`.
+The repository does not track or ship a retail or engine resource archive.
+Small engine-owned overrides and UI assets are kept as loose files under
+`redalert2/public/res/`; the game-resource importer mounts archives only after
+the player supplies them from a legally-owned installation.
 
 ## Trademarks
 

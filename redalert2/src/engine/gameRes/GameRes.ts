@@ -34,6 +34,8 @@ import SplashScreen from '../../gui/component/SplashScreen';
 import type { Viewport } from '../../gui/Viewport';
 import type { Config } from '../../Config';
 import { RealFileSystemDir } from '../../data/vfs/RealFileSystemDir';
+import { MemArchive } from '../../data/vfs/MemArchive';
+import { VirtualFile } from '../../data/vfs/VirtualFile';
 import { GAME_PROFILES, type GameProfileId } from '../GameProfile';
 import { ResourceLayer } from '../../data/vfs/ResourceLayer';
 interface FsAccessLibrary {
@@ -564,7 +566,7 @@ export class GameRes {
         await vfs.loadExtraMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile], {
             deferMapArchives: true,
         });
-        await this.loadCustomMix(vfs);
+        await this.loadEngineResources(vfs);
         await this.loadMixes(config, cdnLoader, vfs, onProgress);
         console.info("[GameRes] Map-list and standalone map archives deferred until first map-list consumer.");
         const uiVariablesStartedAt = Date.now();
@@ -602,13 +604,34 @@ export class GameRes {
             }
         }
     }
-    private async loadCustomMix(vfs: VirtualFileSystem): Promise<void> {
+    private async loadEngineResources(vfs: VirtualFileSystem): Promise<void> {
         const resourceLoader = new ResourceLoader(this.appResPath);
-        const mixDataBuffer = await resourceLoader.loadBinary(`ra2cd.mix?v=${this.appVersion}`);
-        const mixFile = new MixFile(new DataStream(mixDataBuffer));
-        vfs.addArchive(mixFile, "ra2cd.mix", {
+        const engineFiles = [
+            "rulescd.ini",
+            "artcd.ini",
+            "mpmodescd.ini",
+            "mpfreeforallmd.ini",
+            "missions.pkt",
+            "nodogengikills.ini",
+            "ui.ini",
+            "settings.png",
+            "info.png",
+            "creditscd.txt",
+            "missions.pkt",
+            "menulogo.png",
+        ];
+        const files = await Promise.all(engineFiles.map(async (filename) => {
+            const bytes = await resourceLoader.loadBinary(`${filename}?v=${this.appVersion}`);
+            return VirtualFile.fromBytes(bytes, filename);
+        }));
+        const engineArchive = new MemArchive();
+        for (const file of files) {
+            engineArchive.addFile(file);
+        }
+        vfs.addArchive(engineArchive, "engine-resources", {
             layer: ResourceLayer.ExtensionRuntime,
             source: "engine",
+            provenance: engineFiles.map((filename) => `${this.appResPath}${filename}`),
         });
     }
     private async loadMixes(config: GameResConfig, cdnLoader: CdnResourceLoader | undefined, vfs: VirtualFileSystem, onProgress: LoadProgressCallback): Promise<void> {

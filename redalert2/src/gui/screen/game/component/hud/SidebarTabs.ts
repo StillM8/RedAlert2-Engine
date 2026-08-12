@@ -5,6 +5,7 @@ import { UiComponent, UiComponentProps } from "@/gui/jsx/UiComponent";
 type TabImage = {
     width: number;
     height: number;
+    numImages?: number;
 };
 type Tab = {
     disabled: boolean;
@@ -63,7 +64,7 @@ export class SidebarTabs extends UiComponent<SidebarTabsProps> {
                         }
                     }
                 },
-                onFrame: (now: number, sprite: any) => this.handleFrame(now, sprite, sidebarModel.tabs[c], frameIndex),
+                onFrame: (now: number, sprite: any) => this.handleFrame(now, sprite, sidebarModel.tabs[c], frameIndex, img.numImages),
             }));
         }
         return children;
@@ -71,7 +72,7 @@ export class SidebarTabs extends UiComponent<SidebarTabsProps> {
     handleFrame(now: number, sprite: {
         setFrame?: (frame: number) => void;
         get3DObject?: () => any;
-    }, tab: Tab, baseFrame: number) {
+    }, tab: Tab, baseFrame: number, frameCount?: number) {
         if (!this.lastFlashUpdate || now - this.lastFlashUpdate >= 250) {
             this.lastFlashUpdate = now;
             this.flashing = !this.flashing;
@@ -90,7 +91,17 @@ export class SidebarTabs extends UiComponent<SidebarTabsProps> {
             state = 3;
         }
         if (sprite && typeof sprite.setFrame === 'function') {
-            sprite.setFrame(baseFrame + state);
+            sprite.setFrame(getSidebarTabFrame(baseFrame, state, frameCount));
         }
     }
+}
+
+/**
+ * Retail tab SHPs normally contain four state frames. Custom side archives
+ * may provide a single static frame; clamp only that local state offset while
+ * preserving the aggregate file offset.
+ */
+export function getSidebarTabFrame(baseFrame: number, state: number, frameCount = 4): number {
+    const availableFrames = Math.max(1, Math.trunc(frameCount) || 1);
+    return baseFrame + Math.min(Math.max(0, Math.trunc(state)), availableFrames - 1);
 }

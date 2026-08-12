@@ -216,7 +216,7 @@ export class Hud extends UiObject {
         const side2bImg = this.getImage("side2b.shp");
         const side3Img = this.getImage("side3.shp");
         const addonImg = this.getImage("addon.shp");
-        const sidebarTabImages = [SidebarCategory.Items, SidebarCategory.Defense, SidebarCategory.Infantry, SidebarCategory.Tanks]
+        const sidebarTabImages = [SidebarCategory.Structures, SidebarCategory.Armory, SidebarCategory.Infantry, SidebarCategory.Vehicles]
             .map((category) => {
                 const resolved = resolveSidebarTabIcon(category, this.images);
                 if (!resolved) {

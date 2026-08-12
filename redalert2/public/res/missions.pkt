@@ -1,0 +1,715 @@
+; This file is based on the missions.pkt file format, with added File (filename)
+;
+; The explicit file name is needed for remote maps, because URLs are case sensitive and the extension can't be inferred
+;
+
+[MultiMaps]
+; Fixes for vanilla maps
+1=MP21S2
+2=MP03T4
+3=MP10S4
+4=MP22S8
+
+; Patch maps included in modified XWIS missions.pkt
+40=AMAZON01
+41=EB1
+42=EB2
+43=EB3
+44=EB4
+45=EB5
+46=Invasion
+47=Arena
+48=Barrel
+49=BayOPigs
+50=Bermuda
+51=Break
+52=Carville
+53=Deadman
+54=Death
+55=Disaster
+56=Dustbowl
+57=GoldSt
+58=Grinder
+59=HailMary
+60=Hills
+61=Kaliforn
+62=Killer
+63=Lostlake
+64=NewHghts
+65=Oceansid
+66=Pacific
+67=Potomac
+68=PowdrKeg
+69=Rockets
+70=Roulette
+71=Round
+72=Seaofiso
+73=Shrapnel
+74=Tanyas
+75=Tower
+76=Tsunami
+77=Valley
+78=Xmas
+79=YuriPlot
+
+; CD maps
+111=cavernsofsiberia
+112=countryswingfixed
+113=countryswing_le
+114=doradodescent
+115=dryheat
+116=dunepatrolremake
+119=heckbvb
+120=heckcorners
+121=heckgolden
+122=heckcorners_b
+123=heckcorners_b_golden
+124=hecklvl
+125=heckrvr
+126=hecktvt
+127=isleland
+128=jungleofvietnam
+129=malibucliffsle
+130=mojosprt
+131=4_montanadmz_le
+132=6_near_ore_far
+133=8_near_ore_far
+134=offensedefense
+135=ore2startfixed
+136=rekoool6p
+137=rekoool8p
+138=riverram
+139=tourofegypt
+140=unrepent
+141=sinkswim_yr_port
+142=2_mayday_oils_fixed
+143=2_reconcile
+144=4_divide_freezes_over
+145=2_little_big_lake_le
+146=2_montana_dmz_le
+147=4_mount_olympus_le
+148=2_pinch_point_le
+149=2_river_rampage_le
+150=2_stormy_weather_le
+151=4_bull_run_le
+152=4_caverns_v410
+153=4_golden_state_freeway_le
+154=4_hammer_and_sickle_le
+155=4_heck_freezes_over_le
+156=4_jungle_of_vietnam_le
+157=4_river_rampage_le_2v2
+158=4_yin_yang_le
+159=2_bull_run_le_precap
+160=2_divide_freezes_over_le_precap
+161=2_hail_mary_le_precap
+162=2_montana_dmz_le_precap
+163=2_reconcile_precap
+164=2_river_divide_ra2_precap
+165=2_under_pressure_precap
+166=2_yin_yang_precap
+167=6_tour_of_egypt_sectorz
+168=8_tour_of_egypt_ext_sectorz
+
+;Anytown, Amerika
+[MP03T4]
+Description=DESC:MP03T4
+MaxPlayers=4
+; Added teamgame
+GameMode=standard, teamgame
+
+;Depth Charge
+[MP10S4]
+Description=DESC:MP10S4
+MaxPlayers=4
+; Added standard
+GameMode=standard, navalwar, nukewar
+
+;Alaskan Oil Spill
+[MP21S2]
+Description=DESC:MP21S2
+MaxPlayers=2
+; Added standard
+GameMode=standard, nukewar, navalwar
+
+;Arctic Circle
+[MP22S8]
+Description=DESC:MP22S8
+MaxPlayers=8
+; Added teamgame
+GameMode=standard, teamgame, airwar, nukewar, navalwar
+
+;Stormy Weather
+[AMAZON01]
+Description=NAME:WEEK76
+MaxPlayers=4
+GameMode=standard
+
+;City under Siege
+[EB1]
+Description=NAME:WEEK39
+MaxPlayers=4
+GameMode=standard
+
+;Sink Hole
+[EB2]
+Description=NAME:WEEK30
+MaxPlayers=4
+GameMode=standard
+
+;Sovereign Land
+[EB3]
+Description=NAME:WEEK26
+MaxPlayers=2
+GameMode=standard
+
+;country swing
+[EB4]
+Description=NAME:WEEK86
+MaxPlayers=4
+GameMode=standard
+
+;Olympus
+[EB5]
+Description=NAME:WEEK22
+MaxPlayers=4
+GameMode=standard
+
+;Invasion Confirmed
+[Invasion]
+Description=NAME:WEEK47
+MaxPlayers=4
+GameMode=standard
+
+;Arena
+[Arena]
+Description=NAME:WEEK109
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+;Loaded Barrel
+[Barrel]
+Description=NAME:WEEK58
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+;Bay of Pigs
+[BayOPigs]
+Description=NAME:WEEK35
+MaxPlayers=6
+GameMode=standard, teamgame
+
+;Bermuda
+[Bermuda]
+Description=NAME:WEEK10
+MaxPlayers=6
+GameMode=standard
+
+;Breakaway
+[Break]
+Description=NAME:WEEK55
+MaxPlayers=3
+GameMode=standard, navalwar
+
+;Carville's Convoy
+[Carville]
+Description=NAME:WEEK44
+MaxPlayers=4
+GameMode=standard
+
+;Deadman's Ridge
+[Deadman]
+Description=NAME:WEEK38
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+;Death Trap
+[Death]
+Description=NAME:WEEK80
+MaxPlayers=8
+GameMode=standard
+
+;Brink of Disaster
+[Disaster]
+Description=NAME:WEEK64
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+;Dustbowl
+[Dustbowl]
+Description=NAME:WEEK78
+MaxPlayers=2
+GameMode=standard
+
+;Streets of Gold
+[GoldSt]
+Description=NAME:WEEK16
+MaxPlayers=6
+GameMode=standard
+
+;Meat Grinder
+[Grinder]
+Description=NAME:WEEK69
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+;Hail Mary
+[HailMary]
+Description=NAME:WEEK73
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+;Head for the Hills
+[Hills]
+Description=NAME:WEEK96
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+;Kalifornia
+[Kaliforn]
+Description=NAME:WEEK41
+MaxPlayers=6
+GameMode=standard, meatgrind
+
+;Killer Instinct
+[Killer]
+Description=NAME:WEEK59
+MaxPlayers=3
+GameMode=standard, meatgrind
+
+;Lost Lake
+[Lostlake]
+Description=NAME:WEEK6
+MaxPlayers=4
+GameMode=standard, navalwar, teamgame
+
+;New Hights
+[NewHghts]
+Description=NAME:WEEK118
+MaxPlayers=2
+GameMode=standard
+
+;Oceanside
+[Oceansid]
+Description=NAME:WEEK8
+MaxPlayers=4
+GameMode=standard, navalwar
+
+;Pacific Heights
+[Pacific]
+Description=NAME:WEEK9
+MaxPlayers=4
+GameMode=standard, navalwar
+
+;Potomac
+[Potomac]
+Description=NAME:WEEK2
+MaxPlayers=6
+GameMode=standard
+
+;Powder Keg
+[PowdrKeg]
+Description=NAME:WEEK83
+MaxPlayers=8
+GameMode=standard
+
+;Rockets Red Glare
+[Rockets]
+Description=NAME:WEEK56
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+;Russian Roulette
+[Roulette]
+Description=NAME:WEEK4
+MaxPlayers=8
+GameMode=standard
+
+;Round House Kick
+[Round]
+Description=NAME:WEEK85
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+;Sea of Isolation
+[Seaofiso]
+Description=NAME:WEEK7
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+;shrapnel mountain
+[Shrapnel]
+Description=NAME:WEEK27
+MaxPlayers=4
+GameMode=standard
+
+;Tanyas Training Ground
+[Tanyas]
+Description=NAME:WEEK49
+MaxPlayers=4
+GameMode=standard
+
+;Tower of Power
+[Tower]
+Description=NAME:WEEK91
+MaxPlayers=4
+GameMode=standard
+
+;Tsunami
+[Tsunami]
+Description=NAME:WEEK14
+MaxPlayers=4
+GameMode=standard, navalwar
+
+;Valley of Gems
+[Valley]
+Description=NAME:WEEK15
+MaxPlayers=4
+GameMode=standard
+
+;Happy Trails
+[Xmas]
+Description=NAME:WEEK94
+MaxPlayers=2
+GameMode=standard
+
+;Yuri's Plot
+[YuriPlot]
+Description=NAME:WEEK43
+MaxPlayers=3
+GameMode=standard
+
+[cavernsofsiberia]
+File=cavernsofsiberia.map
+Description=NOSTR:Caverns of Siberia
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[countryswingfixed]
+File=countryswingfixed.map
+Description=NOSTR:Country Swing Fixed
+MaxPlayers=4
+GameMode=standard, teamgame, meatgrind
+
+[countryswing_le]
+File=4_country_swing_le_v2.map
+Description=NOSTR:Country Swing LE
+MaxPlayers=4
+GameMode=standard, teamgame, meatgrind
+
+[doradodescent]
+File=dorado_descent_yr_port.mpr
+Description=NOSTR:Dorado Descent (YR port)
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[dryheat]
+File=dryheat.map
+Description=NOSTR:Dry Heat
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[dunepatrolremake]
+File=dunepatrolremake.map
+Description=NOSTR:Dune Patrol Remake
+MaxPlayers=4
+GameMode=standard, teamgame, meatgrind
+
+[heckbvb]
+File=heckbvb.map
+Description=NOSTR:Heck Freezes Over B v B
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[heckcorners]
+File=heckcorners.map
+Description=NOSTR:Heck Freezes Over Corners
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[heckgolden]
+File=heckgolden.mpr
+Description=NOSTR:Heck Freezes Over Golden
+MaxPlayers=6
+GameMode=standard, meatgrind
+
+[heckcorners_b]
+File=heckcorners_b.map
+Description=NOSTR:Heck Freezes Over Corners B
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[heckcorners_b_golden]
+File=heckcorners_b_golden.map
+Description=NOSTR:Heck Freezes Over Corners B Golden
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[hecklvl]
+File=hecklvl.map
+Description=NOSTR:Heck Freezes Over L v L
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[heckrvr]
+File=heckrvr.map
+Description=NOSTR:Heck Freezes Over R v R
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[hecktvt]
+File=hecktvt.map
+Description=NOSTR:Heck Freezes Over T v T
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[isleland]
+File=IsleLand.map
+Description=NOSTR:Islands on the Land
+MaxPlayers=6
+GameMode=standard
+
+[jungleofvietnam]
+File=jungleofvietnam.map
+Description=NOSTR:Jungle of Vietnam
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[malibucliffsle]
+File=2_malibu_cliffs_le.map
+Description=NOSTR:Malibu Cliffs LE
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[mojosprt]
+File=MojoSprt.map
+Description=NOSTR:The Spirit of Mojo One
+MaxPlayers=4
+GameMode=standard
+
+[4_montanadmz_le]
+File=4_montana_dmz_le.map
+Description=NOSTR:Montana DMZ LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[6_near_ore_far]
+File=6_near_ore_far.map
+Description=NOSTR:Near Ore Far
+MaxPlayers=6
+GameMode=standard, teamgame
+
+[8_near_ore_far]
+File=8_near_ore_far.map
+Description=NOSTR:Near Ore Far
+MaxPlayers=8
+GameMode=standard, teamgame
+
+[offensedefense]
+File=offensedefense.map
+Description=NOSTR:Offense Defense (yuri original)
+MaxPlayers=4
+GameMode=standard, teamgame, meatgrind
+
+[ore2startfixed]
+File=ore2_startfixed.map
+Description=NOSTR:ORE!!!!!!!!V2 By:Roooo
+MaxPlayers=8
+GameMode=standard, meatgrind
+
+[rekoool6p]
+File=rekoool_fast_6players.mpr
+Description=NOSTR:Rekoool fast
+MaxPlayers=6
+GameMode=standard, meatgrind, teamgame
+
+[rekoool8p]
+File=rekoool_fast_8players.mpr
+Description=NOSTR:Rekoool fast
+MaxPlayers=8
+GameMode=standard, meatgrind, teamgame
+
+[riverram]
+File=RiverRam.map
+Description=NOSTR:River Rampage
+MaxPlayers=2
+GameMode=standard
+
+[tourofegypt]
+File=tourofegypt.map
+Description=NOSTR:Tour of Egypt
+MaxPlayers=6
+GameMode=standard, teamgame, meatgrind
+
+[unrepent]
+File=Unrepent.map
+Description=NOSTR:Unrepentant
+MaxPlayers=6
+GameMode=standard
+
+[sinkswim_yr_port]
+File=SinkSwim_yr_port.map
+Description=NOSTR:Sink or Swim (YR port)
+MaxPlayers=4
+GameMode=standard
+
+[2_mayday_oils_fixed]
+File=2_mayday_oils_fixed.map
+Description=NOSTR:May Day (Fixed Oils)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_reconcile]
+File=2_reconcile.map
+Description=NOSTR:Reconcile
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[4_divide_freezes_over]
+File=4_divide_freezes_over.map
+Description=NOSTR:Divide Freezes Over
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[2_little_big_lake_le]
+File=2_little_big_lake_le.map
+Description=NOSTR:Little Big Lake LE
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_montana_dmz_le]
+File=2_montana_dmz_le.map
+Description=NOSTR:Montana DMZ LE
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_pinch_point_le]
+File=2_pinch_point_le.map
+Description=NOSTR:Pinch Point LE
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_river_rampage_le]
+File=2_river_rampage_le.map
+Description=NOSTR:River Rampage LE
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_stormy_weather_le]
+File=2_stormy_weather_le.map
+Description=NOSTR:Stormy Weather LE
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[4_bull_run_le]
+File=4_bull_run_le.map
+Description=NOSTR:Bull Run LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_caverns_v410]
+File=4_caverns_v410.map
+Description=NOSTR:Caverns of Siberia LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_golden_state_freeway_le]
+File=4_golden_state_freeway_le.map
+Description=NOSTR:Golden State Fwy LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_hammer_and_sickle_le]
+File=4_hammer_and_sickle_le.map
+Description=NOSTR:Hammer and Sickle LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_heck_freezes_over_le]
+File=4_heck_freezes_over_le.map
+Description=NOSTR:Heck Freezes Over LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_jungle_of_vietnam_le]
+File=4_jungle_of_vietnam_le.map
+Description=NOSTR:Jungle of Vietnam LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_mount_olympus_le]
+File=4_mount_olympus_le.map
+Description=NOSTR:Mount Olympus LE
+MaxPlayers=4
+GameMode=standard, meatgrind
+
+[4_river_rampage_le_2v2]
+File=4_river_rampage_le_2v2.map
+Description=NOSTR:River Rampage LE (2v2)
+MaxPlayers=4
+GameMode=standard, teamgame, meatgrind
+
+[4_yin_yang_le]
+File=4_yin_yang_le.map
+Description=NOSTR:Yin Yang LE
+MaxPlayers=4
+GameMode=standard, teamgame, meatgrind
+
+[2_bull_run_le_precap]
+File=2_bull_run_le_precap.map
+Description=NOSTR:Bull Run LE (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_divide_freezes_over_le_precap]
+File=2_divide_freezes_over_le.map
+Description=NOSTR:Divide Freezes Over (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_hail_mary_le_precap]
+File=2_hail_mary_le.map
+Description=NOSTR:Hail Mary (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_montana_dmz_le_precap]
+File=2_montana_dmz_le_precaptured.map
+Description=NOSTR:Montana DMZ LE (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_reconcile_precap]
+File=2_reconcile_precaptured.map
+Description=NOSTR:Reconcile (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_river_divide_ra2_precap]
+File=2_river_divide_ra2.map
+Description=NOSTR:River Divide LE (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_under_pressure_precap]
+File=2_under_pressure.map
+Description=NOSTR:Under Pressure (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[2_yin_yang_precap]
+File=2_yin_yang_precap.map
+Description=NOSTR:Yin Yang (PreCaptured)
+MaxPlayers=2
+GameMode=standard, meatgrind
+
+[6_tour_of_egypt_sectorz]
+File=tour_of_egypt_v24_sectorz.map
+Description=NOSTR:Tour of Egypt NF By:Sector-z
+MaxPlayers=6
+GameMode=standard, meatgrind, teamgame
+
+[8_tour_of_egypt_ext_sectorz]
+File=tour_of_egypt_v24_ext_sectorz.map
+Description=NOSTR:Tour of Egypt NF Extended By:Sector-z
+MaxPlayers=8
+GameMode=standard, meatgrind, teamgame

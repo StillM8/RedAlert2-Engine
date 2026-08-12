@@ -53,7 +53,7 @@ translation layer is different:
 |---|---|
 | Real 2003 C++ engine, untouched | Real Chrono Divide-lineage TS engine, untouched where it counts |
 | DX8 → DXVK → Vulkan → MoltenVK → Metal | WebGL → ANGLE → Metal (Apple ships this in WebKit, JIT included) |
-| Filesystem rerouted into the bundle | Assets bundled + first-launch seed into origin storage, self-healing |
+| Filesystem rerouted into the bundle | User-imported assets stored in origin storage |
 | SDL touch → RTS touch semantics | Custom gesture engine → the engine's pointer layer |
 | "iOS owns your process" lifecycle work | Same, via the shell owning the WebView lifecycle |
 
@@ -110,10 +110,10 @@ In rough chronological order:
   out to be 99.98% recoverable from the retail English `ra2.csf` (one key was
   a translator credit); ~38 source files of UI/comments/dev-tools were
   translated by hand.
-- **A native shell with zero network dependency.** Custom URL-scheme handler
-  serving the built app and ~750MB of game assets from the bundle (the Yuri's Revenge build; RA2-classic is ~400MB);
-  first-launch seeding into browser origin storage that verifies per-file and
-  self-heals when iOS purges storage under disk pressure.
+- **A native shell with zero network dependency.** Custom URL-scheme handlers
+  serve the engine and its UI; users import their own game files into private
+  app storage. An optional local resource bundle remains available for QA, but
+  is not part of normal Android or iOS builds.
 - **Touch controls that feel like an RTS**, not a webpage: one-finger
   tap/drag-box, two-finger 1:1 map grab, pinch zoom (which meant *unlocking
   camera zoom in the engine* and making pan limits zoom-aware), long-press
@@ -286,12 +286,14 @@ git clone <this-repo> ra2-ios && cd ra2-ios
 ./scripts/setup.sh "/path/to/steamapps/common/Command & Conquer Red Alert 2"
 ```
 
-The script installs dependencies, verifies your retail files, imports and
-converts the assets (nothing is downloaded — everything comes from your
-copy), and tells you what to run next:
+The script installs dependencies, verifies your retail files, and prepares a
+local, gitignored import for development (nothing is downloaded — everything
+comes from your copy). Normal native builds package only the engine; the app
+then asks each player to import their own game files:
 
 ```sh
-./scripts/build-ios.sh                  # build + iPhone simulator
+./scripts/build-ios.sh                  # engine-only build + iPhone simulator
+./scripts/build-ios.sh --bundle-local-gameres  # optional local QA bundle
 RA2_TEAM_ID=<your-team-id> ./scripts/build-ios.sh --device   # iPhone/iPad
 ```
 
@@ -327,12 +329,11 @@ Use `--device` to install and launch the selected variant through `adb`:
 
 The first launch opens the in-app game-resource setup. Choose **Select folder**
 and select the directory containing the retail files; selecting individual files
-is not sufficient. The Yuri and Mental Omega variants require `langmd.mix`,
-`multimd.mix`, and `ra2md.mix` in addition to the Red Alert 2 files. The Mental
-Omega build also requires the selected installation's `expandmo##.mix` content
-archives; the build script rejects an MO package without them. Retail-derived
-files remain local build inputs and are not committed or distributed by this
-repository.
+is not sufficient. The Yuri and Mental Omega profiles require the corresponding
+Yuri's Revenge files, and Mental Omega additionally requires the selected
+installation's `expandmo##.mix` content archives. These are user-provided game
+files, not files packaged by the normal build. For local QA only, Android also
+accepts `./scripts/build-android.sh --variant mo --with-gameres`.
 
 The [v0.0.1 Android release](https://github.com/StillM8/RedAlert2-Android/releases/tag/v0.0.1)
 includes separate release APKs for Red Alert 2 and Yuri's Revenge. Retail game
@@ -389,8 +390,8 @@ input, and packaging.
 | `android/` | Kotlin shell, WebView asset server, Android lifecycle, and RA2/YR/MO flavors |
 | `scripts/setup.sh` | One-shot setup: deps + retail import + next steps |
 | `scripts/prepare-gameres.ts` | The asset importer (what `setup.sh` runs for you) |
-| `scripts/build-ios.sh` | Web build → asset staging → xcodegen → xcodebuild |
-| `scripts/build-android.sh` | Web build → MO/RA2/YR asset staging → Gradle APK → optional `adb` install |
+| `scripts/build-ios.sh` | Web build → engine-only staging → xcodegen → xcodebuild |
+| `scripts/build-android.sh` | Web build → engine-only staging → Gradle APK → optional `adb` install |
 
 ## What's upstream and what isn't
 
@@ -532,12 +533,10 @@ Licence above), while the Chrono Divide/RA2WEB lineage it descends from states
 that its engine reconstruction remains the author's and that commercial use is
 prohibited. This project is non-commercial and takes no position between them.
 
-No retail game assets are distributed with this repository. A legally-owned
-copy of Red Alert 2 + Yuri's Revenge is required, and the import script only
-ever reads from *your* install.
+No retail game assets or game archives are tracked or distributed with this
+repository. A legally-owned copy of Red Alert 2 + Yuri's Revenge is required;
+the importer only ever reads from *your* install, and normal native builds do
+not copy its output into the app.
 
-One file is inherited from the upstream base: `redalert2/public/res/ra2cd.mix`,
-a 117 KB archive of 25 small members that the engine loads unconditionally at
-boot. Upstream's `ini.mix` bundle was removed here after verifying the local
-boot path never reads it. If you are a rights holder and would like anything
-here changed or removed, open an issue and it will be handled immediately.
+If you are a rights holder and would like anything here changed or removed,
+open an issue and it will be handled immediately.

@@ -6,7 +6,10 @@
 #   ./scripts/build-android.sh --variant mo    # Mental Omega compatibility APK
 #   ./scripts/build-android.sh --device        # debug APK + adb install
 #   ./scripts/build-android.sh --no-web         # reuse redalert2/dist
-#   ./scripts/build-android.sh --no-gameres     # compile shell without game files
+#   ./scripts/build-android.sh --with-gameres   # QA-only: bundle local game files
+#
+# Normal builds are engine-only. Users import their own legally-owned game
+# files from the Android app; local resource bundling is opt-in for QA.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,14 +17,15 @@ WEB="$ROOT/redalert2"
 ANDROID="$ROOT/android"
 ASSETS="$ANDROID/app/src/main/assets"
 SKIP_WEB=0
-SKIP_GAMERES=0
+BUNDLE_GAMERES=0
 INSTALL=0
 VARIANT=ra2
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-web) SKIP_WEB=1 ;;
-    --no-gameres) SKIP_GAMERES=1 ;;
+    --with-gameres) BUNDLE_GAMERES=1 ;;
+    --no-gameres) BUNDLE_GAMERES=0 ;; # backwards-compatible engine-only alias
     --device) INSTALL=1 ;;
     --variant)
       [[ $# -ge 2 ]] || { echo "error: --variant requires ra2, yr, or mo" >&2; exit 2; }
@@ -71,21 +75,19 @@ mkdir -p "$ASSETS"
 cp -R "$WEB/dist" "$ASSETS/WebDist"
 
 rm -rf "$ASSETS/GameRes"
-if [[ $SKIP_GAMERES -eq 0 ]]; then
-  [[ -d "$ROOT/gameres-export" ]] || die "gameres-export is missing; run scripts/setup.sh or use --no-gameres"
+if [[ $BUNDLE_GAMERES -eq 1 ]]; then
+  [[ -d "$ROOT/gameres-export" ]] || die "gameres-export is missing; run scripts/setup.sh before using --with-gameres"
   if [[ "$VARIANT" == "mo" ]] && ! find "$ROOT/gameres-export" -maxdepth 1 -type f -iname 'expandmo[0-9][0-9].mix' -print -quit | grep -q .; then
-    die "Mental Omega resources are missing expandmo##.mix; run scripts/setup.sh against the MO install or use --no-gameres for folder import"
+    die "Mental Omega resources are missing expandmo##.mix; run scripts/setup.sh against the MO install or use an engine-only build"
   fi
   cp -R "$ROOT/gameres-export" "$ASSETS/GameRes"
-else
-  mkdir -p "$ASSETS/GameRes"
 fi
 
 # Large imported resource bundles make Android's asset compressor exceed the
 # default 2 GiB Gradle heap. Scale the packaging process from the staged
 # payload size rather than from a game/profile name; ordinary small builds
 # retain the repository defaults.
-if [[ $SKIP_GAMERES -eq 0 ]]; then
+if [[ $BUNDLE_GAMERES -eq 1 ]]; then
   GAMERES_SIZE_KIB="$(du -sk "$ASSETS/GameRes" | awk '{print $1}')"
   if [[ "$GAMERES_SIZE_KIB" -gt 524288 ]]; then
     export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=1"

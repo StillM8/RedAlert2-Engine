@@ -47,27 +47,33 @@ ignores the silent switch. `mediaTypesRequiringUserActionForPlayback = []` so
 audio and the menu video can autoplay. The WebView is marked `isInspectable` in
 debug builds so Safari's Web Inspector can attach to a running device.
 
-## 3. Getting ~750MB of assets onto the device
+## 3. Importing game assets on iOS
 
 The engine normally imports assets in-browser: the user points it at their game
 files, and it splits/transcodes MIX archives into origin-private storage (OPFS).
-On iOS we don't want the user hunting for files, so assets are prepared ahead of
-time and bundled.
+The normal iOS build does **not** bundle the developer's local game files. Users
+must import their own game files through the normal resource-import flow.
 
-**Build-time** (`scripts/prepare-gameres.ts`): an offline re-implementation of
-the importer. It reads your retail MIXes directly, copies the core archives,
-transcodes the music (`theme.mix` WAV → MP3 via ffmpeg), converts the menu video
-(`ra2ts_l.bik` → WebM), extracts the English string table (`ra2.csf` out of
-`language.mix`), and renders the loading splash (`glsl.shp` + `gls.pal` inside
-`ra2.mix` → PNG, with a from-scratch PNG encoder so the script needs no browser).
+**Optional QA bundle** (`scripts/build-ios.sh --bundle-local-gameres`): for
+local simulator/device QA, the script can copy the gitignored
+`gameres-export/` tree into the app bundle and generate its manifest. This is an
+explicit local-only convenience and is not the normal packaging policy.
 
-**First launch** (`src/shell/iosSeed.ts`): copies the bundled tree into OPFS,
-then flips the engine's "resources imported" flag so it boots straight to the
-menu. This is deliberately **not** gated on a stored boolean — iOS can evict
-OPFS under disk pressure while `localStorage` survives (or vice versa). The
-seeder verifies each file's size against a manifest and re-copies only what's
-missing or stale. Result: if the OS ever guts the storage, the next launch
-silently repairs it instead of showing a broken game.
+The export is produced by `scripts/prepare-gameres.ts`, an offline
+re-implementation of the importer. It reads your retail MIXes directly, copies
+the core archives, transcodes the music (`theme.mix` WAV → MP3 via ffmpeg),
+converts the menu video (`ra2ts_l.bik` → WebM), extracts the English string
+table (`ra2.csf` out of `language.mix`), and renders the loading splash
+(`glsl.shp` + `gls.pal` inside `ra2.mix` → PNG, with a from-scratch PNG encoder
+so the script needs no browser).
+
+**First launch** (`src/shell/iosSeed.ts`): if the optional QA bundle is present,
+the shell copies its tree into OPFS, then marks the import as complete. This is
+deliberately **not** gated on a stored boolean — iOS can evict OPFS under disk
+pressure while `localStorage` survives (or vice versa). The seeder verifies each
+file's size against a manifest and re-copies only what's missing or stale. With
+the normal build there is no bundled manifest, so seeding is skipped and the
+user's own import flow remains available.
 
 `?shell=1` forces shell mode in a desktop browser, and a Vite middleware serves
 `/gameres/` from the exported tree — so the entire iOS boot path (seed included)
@@ -840,8 +846,10 @@ same debug REPL. It is where those branches were actually confirmed to fire.
 
 ```sh
 ./scripts/setup.sh "/path/to/your/ra2/install"   # deps + verify + import
+./scripts/build-ios.sh                           # normal: no local game files bundled
+./scripts/build-ios.sh --bundle-local-gameres     # optional QA-only local bundle
 ./scripts/build-ios.sh --device                  # needs RA2_TEAM_ID for signing
 ```
 
-`prepare-gameres.ts` is the source of truth for what the app ships and how it's
-derived from retail files. Nothing it produces is committed to the repo.
+`prepare-gameres.ts` is the source of truth for the optional QA bundle and how
+it's derived from retail files. Nothing it produces is committed to the repo.
