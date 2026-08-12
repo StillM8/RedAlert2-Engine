@@ -1,20 +1,22 @@
-# Command & Conquer Red Alert 2 + Yuri's Revenge — iPhone, iPad & Android
+# Command & Conquer Red Alert 2, Yuri's Revenge & Mental Omega — TypeScript engine for desktop, iOS & Android
 
 <img width="800" height="450" alt="0808" src="https://github.com/user-attachments/assets/c8efcdb7-72c4-47b8-86a7-cecd25eb4ace" />
 
 
-**Red Alert 2 and Yuri's Revenge skirmish running natively on iPhone, iPad,
-and Android** — fully in English, with touch controls built for RTS (tap-select,
+**Red Alert 2, Yuri's Revenge, and Mental Omega running on desktop, iPhone,
+iPad, and Android** — fully in English, with touch controls built for RTS (tap-select,
 drag-box, two-finger map grab, pinch zoom, long-press force-attack),
 mid-match save/load, retail-accurate lighting, and skirmish AI built out on top of Supalosa's
 Chrono Divide bot until you get a different opponent every match: per-match personalities ×
 strategic doctrines, the retail game's own 132 attack teams, superweapons
 fired like the original AI fired them, spies, garrisons, terror drones, and a roster that shifts every game.
 
-No emulation, and no rewrite either: this is the real Chrono Divide-lineage
-TypeScript engine, with its core simulation loop and determinism model left
-alone and the changes additive, wrapped in a native Swift shell. Rendering flows WebGL → ANGLE → Metal via WebKit; your retail game
-assets ship inside the app bundle and never touch the network.
+No emulation, and no retail-binary rewrite: this is the Chrono Divide-lineage
+TypeScript engine, with its core simulation loop and determinism model kept
+shared across profiles. It is wrapped by a native Swift/WKWebView shell on
+iOS and a Kotlin/WebView shell on Android. Rendering uses WebGL through the
+platform browser runtime; native packages serve your imported retail assets
+offline.
 
 **No game assets are included or distributed.** You need your own copy of
 Red Alert 2 + Yuri's Revenge ([Steam](https://store.steampowered.com/app/2229850/),
@@ -58,6 +60,44 @@ translation layer is different:
 And where the Generals engine came with its AI, its lighting, and its
 expansion content built in, here each of those became its own campaign —
 which is where most of the story below happened.
+
+## One TypeScript engine, profile-driven compatibility
+
+This is one shared TypeScript game engine and renderer. Red Alert 2, Yuri's
+Revenge, and Mental Omega are content/runtime profiles selected at startup;
+they are not three unrelated ports:
+
+| Profile | Simulation family | Content and compatibility layer |
+|---|---|---|
+| `ra2` | Red Alert 2 | Retail RA2 rules and resources |
+| `yr` | Yuri's Revenge | Retail YR expansion rules and resources |
+| `mental-omega` | Yuri's Revenge | Mental Omega resources plus the shared Ares-compatible runtime |
+
+Ares is part of this build as a generic TypeScript compatibility layer under
+`redalert2/src/extensions/ares/`. It is not a separately installed DLL, a
+second engine, or a Mental Omega-only patch. The Mental Omega profile selects
+the Ares extension runtime because MO's rules depend on Ares behavior; vanilla
+RA2/YR profiles continue through their ordinary paths when those fields are
+absent. The implementation must stay data-driven: code should respond to an
+Ares rule or capability, not to a hard-coded `Mental Omega` name.
+
+The Ares layer is deliberately incremental. Parsing a key does not mean the
+whole feature is complete. The explicit registry and tests track parser,
+runtime, presentation, persistence, and multiplayer coverage separately.
+Current verified slices include data-defined sides/countries, additional armor,
+projectile extensions, attach effects, several superweapon handlers and
+targeting paths, and selected powered/veterancy/bounty/reverse-engineering
+bridges. Many features still need complete rendering/audio behavior,
+save/load integration, AI certification, and deterministic multiplayer
+certification. The project therefore does not yet claim full Ares or “all
+mods” parity.
+
+The practical rule for compatibility is:
+
+- vanilla RA2/YR mods using supported rules should run through the same engine;
+- Ares/MO mods run as their required Ares features become complete and tested;
+- mods that require an unimplemented Ares feature, a custom native DLL, or a
+  separate renderer still require additional engine work.
 
 ## The story of the effort
 
@@ -260,12 +300,13 @@ with `xcrun devicectl device install app --device <id> <path to RA2.app>`.
 
 ### Android builds
 
-The Android shell is split into two installable app variants:
+The Android shell is split into three installable app variants:
 
 | Variant | App | Package ID (debug) |
 |---|---|---|
 | `ra2` | Red Alert 2 | `com.ammaar.ra2android.debug` |
 | `yr` | Yuri's Revenge | `com.ammaar.yurirevengeandroid.debug` |
+| `mo` | Mental Omega compatibility profile | `com.ammaar.mentalomegaandroid.debug` |
 
 With the Android SDK and Gradle available, build either variant from the repo
 root:
@@ -273,6 +314,7 @@ root:
 ```sh
 ./scripts/build-android.sh --variant ra2
 ./scripts/build-android.sh --variant yr
+./scripts/build-android.sh --variant mo
 ```
 
 Use `--device` to install and launch the selected variant through `adb`:
@@ -280,12 +322,17 @@ Use `--device` to install and launch the selected variant through `adb`:
 ```sh
 ./scripts/build-android.sh --variant ra2 --device
 ./scripts/build-android.sh --variant yr --device
+./scripts/build-android.sh --variant mo --device
 ```
 
 The first launch opens the in-app game-resource setup. Choose **Select folder**
 and select the directory containing the retail files; selecting individual files
-is not sufficient. The Yuri variant requires `langmd.mix`, `multimd.mix`, and
-`ra2md.mix` in addition to the Red Alert 2 files.
+is not sufficient. The Yuri and Mental Omega variants require `langmd.mix`,
+`multimd.mix`, and `ra2md.mix` in addition to the Red Alert 2 files. The Mental
+Omega build also requires the selected installation's `expandmo##.mix` content
+archives; the build script rejects an MO package without them. Retail-derived
+files remain local build inputs and are not committed or distributed by this
+repository.
 
 The [v0.0.1 Android release](https://github.com/StillM8/RedAlert2-Android/releases/tag/v0.0.1)
 includes separate release APKs for Red Alert 2 and Yuri's Revenge. Retail game
@@ -293,8 +340,12 @@ files are not bundled; import your legally-owned installation on first launch.
 During the first import, the Android client converts the retail Bink menu movie
 to WebM and stores it with the imported files. Later launches reuse that file.
 
-Returning to any app from Home or Android Back preserves the existing WebView
-and game session instead of booting a new session.
+Returning from Android Home or Back preserves the existing WebView and game
+session instead of booting a new session. While a single-player match is
+hidden, the shared engine writes an action-log checkpoint; if Android later
+kills the WebView, the next launch validates the app/profile/mod identity and
+resumes that checkpoint. Multiplayer is not reconstructed from a local replay;
+its live network/session lifecycle remains separate.
 
 Desktop development (no Xcode needed):
 
@@ -302,6 +353,25 @@ Desktop development (no Xcode needed):
 cd redalert2 && RA2_HTTP=1 bun run dev
 # open http://localhost:4000/?shell=1  ← exercises the exact iOS boot path
 ```
+
+### Desktop, Linux and macOS
+
+The same `redalert2/` engine can already run on Windows, Linux, and macOS in a
+modern desktop browser. No platform-specific simulation rewrite is required:
+
+```sh
+cd redalert2
+bun install
+bun run dev
+```
+
+Import your legally-owned game resources through the browser and use the same
+TypeScript simulation, Ares compatibility code, renderer, and tests used by
+the native shells. This is a browser runtime today, not a packaged native
+desktop application. A future Electron/Tauri/CEF shell could provide a
+one-click offline desktop package, but it would still wrap the same engine;
+the shell would own filesystem permissions, window lifecycle, controller
+input, and packaging.
 
 ## Where things are
 
@@ -314,10 +384,13 @@ cd redalert2 && RA2_HTTP=1 bun run dev
 | `redalert2/src/game/ai/.../ai-ini/aiTriggerDb.ts` | Parser/evaluator for the retail `aimd.ini` attack-team database |
 | `redalert2/src/game/ai/.../logic/superweapons.ts` | The superweapon officer (targeting, timing, anti-SW Force Shield) |
 | `redalert2/src/gui/screen/mainMenu/loadGame/` | Mid-match save/load (replay-backed) |
+| `redalert2/src/extensions/ares/` | Generic Ares-compatible parsing, adapters, handlers, and feature registry |
 | `ios/` | XcodeGen project: Swift shell, WKWebView, bundle scheme handler |
+| `android/` | Kotlin shell, WebView asset server, Android lifecycle, and RA2/YR/MO flavors |
 | `scripts/setup.sh` | One-shot setup: deps + retail import + next steps |
 | `scripts/prepare-gameres.ts` | The asset importer (what `setup.sh` runs for you) |
 | `scripts/build-ios.sh` | Web build → asset staging → xcodegen → xcodebuild |
+| `scripts/build-android.sh` | Web build → MO/RA2/YR asset staging → Gradle APK → optional `adb` install |
 
 ## What's upstream and what isn't
 
