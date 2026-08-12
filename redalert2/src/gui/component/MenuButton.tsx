@@ -47,7 +47,15 @@ export class MenuButton extends React.Component<MenuButtonProps> {
             top: box.y,
             width: box.width,
             height: box.height,
-            lineHeight: box.height + 1 + "px",
+            maxWidth: box.width,
+            maxHeight: box.height,
+            boxSizing: "border-box",
+            padding: "0 4px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            textAlign: "center",
+            lineHeight: box.height + "px",
         };
     }
     onMouseDown(event: React.MouseEvent): void {

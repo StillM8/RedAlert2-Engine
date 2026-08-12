@@ -331,11 +331,10 @@ export class GameLoader {
             Engine.vfs.addArchive(new MixFile(new DataStream(cdnResources.pop(resourceType))), fileName);
         }
         else {
-            if (Engine.vfs.fileExists(sideMixSelection.baseMixFile)) {
-                await Engine.vfs.addMixFile(sideMixSelection.baseMixFile);
-            }
-            if (Engine.vfs.fileExists(sideMixSelection.expansionMixFile)) {
-                await Engine.vfs.addMixFile(sideMixSelection.expansionMixFile);
+            // The side archive may be a loose file or a nested archive; VFS
+            // resolves both without profile-specific import logic.
+            await Engine.vfs.loadNestedMixFile(sideMixSelection.baseMixFile);
+            if (await Engine.vfs.loadNestedMixFile(sideMixSelection.expansionMixFile)) {
                 // radary.shp is painted against its own purple palette, which
                 // sits in the same mix under a hash whose original filename is
                 // lost. Seed it under an alias so the HUD can pick it up.
@@ -348,9 +347,7 @@ export class GameLoader {
                     }
                 }
             }
-            if (Engine.vfs.fileExists(sideMixSelection.compatibilityMixFile)) {
-                await Engine.vfs.addMixFile(sideMixSelection.compatibilityMixFile);
-            }
+            await Engine.vfs.loadNestedMixFile(sideMixSelection.compatibilityMixFile);
         }
         Engine.markSideMixDataLoaded(sideMixFiles);
     }

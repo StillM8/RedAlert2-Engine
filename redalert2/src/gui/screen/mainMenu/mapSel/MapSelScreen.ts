@@ -157,7 +157,8 @@ export class MapSelScreen extends MainMenuScreen {
     private handleSelectMap: (mapName: string, doubleClick: boolean) => void;
     private handleSelectGameMode: (gameMode: GameMode) => void;
     private handleSelectSort: (sortType: SortType) => void;
-    onEnter({ gameOpts, usedSlots, lobbyType }: MapSelScreenParams): void {
+    async onEnter({ gameOpts, usedSlots, lobbyType }: MapSelScreenParams): Promise<void> {
+        await Engine.loadMapList();
         this.updateMapsAndModes();
         this.selectedGameMode = this.availableGameModes!.find((mode) => mode.id === gameOpts.gameMode)!;
         this.selectedMapName = gameOpts.mapName;

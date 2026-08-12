@@ -345,7 +345,10 @@ export class GameRes {
     private async lookForGameFiles(rfsDir: RealFileSystemDir): Promise<boolean> {
         const entries = await rfsDir.listEntries();
         console.log('[GameRes.lookForGameFiles] Entries in directory:', entries);
-        const missingFiles = await this.getMissingGameFiles(rfsDir, entries);
+        const missingFiles = await this.getMissingGameFiles(
+            rfsDir,
+            this.profile === "mental-omega" ? undefined : entries,
+        );
         const hasAllFiles = missingFiles.length === 0;
         console.log('[GameRes.lookForGameFiles] Missing required files:', missingFiles, 'Has all files:', hasAllFiles);
         return hasAllFiles;
@@ -356,7 +359,7 @@ export class GameRes {
     private async getMissingGameFiles(rfsDir: RealFileSystemDir, knownEntries?: string[]): Promise<string[]> {
         const entries = knownEntries ?? await rfsDir.listEntries();
         let entriesToCheck = entries;
-        if (this.profile === "mental-omega") {
+        if (this.profile === "mental-omega" && knownEntries === undefined) {
             const recursiveEntries: string[] = [];
             for await (const entry of rfsDir.getEntriesRecursive()) {
                 recursiveEntries.push(entry);
@@ -520,10 +523,18 @@ export class GameRes {
             if (!rfs) {
                 throw new NoStorageError("No available storage adapters for local/archive resources.");
             }
-            const rootDir = rfs.getRootDirectory();
+        }
+        const logger = AppLogger.get("vfs");
+        logger.info("Initializing virtual filesystem...");
+        const vfs = await Engine.initVfs(rfs, logger, GAME_PROFILES[this.profile]);
+        if (!config.isCdn()) {
+            const rootDir = rfs?.getRootDirectory();
             if (!rootDir)
                 throw new Error("RFS root not available for local game resources");
-            const missingRequiredFiles = await this.getMissingGameFiles(rootDir);
+            // Reuse the VFS inventory that standalone loading will consume.
+            // This avoids a second recursive Android directory walk for MO.
+            const knownEntries = await vfs.listRfsFiles();
+            const missingRequiredFiles = await this.getMissingGameFiles(rootDir, knownEntries);
             if (missingRequiredFiles.length > 0) {
                 const error = new Error(
                     `Required ${Engine.getActiveEngine() === EngineType.YurisRevenge ? "Red Alert 2 + Yuri's Revenge" : "Red Alert 2"} ` +
@@ -547,18 +558,15 @@ export class GameRes {
                 console.info("Mixes are valid.");
             }
         }
-        const logger = AppLogger.get("vfs");
-        logger.info("Initializing virtual filesystem...");
-        const vfs = await Engine.initVfs(rfs, logger, GAME_PROFILES[this.profile]);
         await vfs.loadStandaloneFiles({
             exclude: ["keyboard.ini", "theme.ini"].map((fileName) => Engine.getFileNameVariant(fileName)),
         });
-        await vfs.loadExtraMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile]);
+        await vfs.loadExtraMixFiles(Engine.getActiveEngine(), GAME_PROFILES[this.profile], {
+            deferMapArchives: true,
+        });
         await this.loadCustomMix(vfs);
         await this.loadMixes(config, cdnLoader, vfs, onProgress);
-        const mapListStartedAt = Date.now();
-        await Engine.loadMapList();
-        console.info(`[GameRes] Map-list initialization completed in ${Date.now() - mapListStartedAt} ms.`);
+        console.info("[GameRes] Map-list and standalone map archives deferred until first map-list consumer.");
         const uiVariablesStartedAt = Date.now();
         await this.initUiCssVariables(this.rootEl);
         console.info(`[GameRes] UI resource initialization completed in ${Date.now() - uiVariablesStartedAt} ms.`);

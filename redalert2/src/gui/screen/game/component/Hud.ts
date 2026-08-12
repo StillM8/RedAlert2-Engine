@@ -26,6 +26,8 @@ import { isNotNullOrUndefined } from "@/util/typeGuard";
 import { DebugText } from "@/gui/screen/game/component/hud/DebugText";
 import { ReplayStatsOverlay } from "@/gui/screen/game/component/hud/ReplayStatsOverlay";
 import { isAresPcxCameoSize, type AresPcxCameoAssetManifest } from "@/extensions/ares/AresPcxCameos";
+import { resolveSidebarTabIcon } from "@/gui/screen/game/component/hud/viewmodel/SidebarTabIconConfig";
+import { SidebarCategory } from "@/gui/screen/game/component/hud/viewmodel/SidebarModel";
 declare const THREE: any;
 interface Viewport {
     x: number;
@@ -214,10 +216,15 @@ export class Hud extends UiObject {
         const side2bImg = this.getImage("side2b.shp");
         const side3Img = this.getImage("side3.shp");
         const addonImg = this.getImage("addon.shp");
-        const tab00Img = this.getImage("tab00.shp");
-        const tab01Img = this.getImage("tab01.shp");
-        const tab02Img = this.getImage("tab02.shp");
-        const tab03Img = this.getImage("tab03.shp");
+        const sidebarTabImages = [SidebarCategory.Items, SidebarCategory.Defense, SidebarCategory.Infantry, SidebarCategory.Tanks]
+            .map((category) => {
+                const resolved = resolveSidebarTabIcon(category, this.images);
+                if (!resolved) {
+                    throw new Error(`Missing sidebar tab art for category ${SidebarCategory[category]}`);
+                }
+                return resolved.image;
+            });
+        const [tab00Img, tab01Img, tab02Img, tab03Img] = sidebarTabImages;
         const diplobtnImg = this.getImage("diplobtn.shp");
         const optbtnImg = this.getImage("optbtn.shp");
         const repairImg = this.getImage("repair.shp");
@@ -418,7 +425,7 @@ export class Hud extends UiObject {
             tooltip: this.strings.get("TXT_SELL_MODE"),
         }), jsx.jsx(SidebarTabs, {
             aggregatedImageData: aggregatedImageData,
-            images: [tab00Img, tab01Img, tab02Img, tab03Img],
+            images: sidebarTabImages,
             palette: sidebarPalette,
             sidebarModel: this.sidebarModel,
             tabSpacing: tabSpacing,

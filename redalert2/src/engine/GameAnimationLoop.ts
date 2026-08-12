@@ -36,6 +36,10 @@ interface GameAnimationLoopOptions {
     frameLimitOverride?: {
         value: number;
     };
+    // Multiplayer must continue its lockstep/network bookkeeping while the
+    // WebView is backgrounded. Single-player supplies false because its
+    // GameScreen persists a replay checkpoint and resumes from that tick.
+    runSimulationInBackground?: boolean;
     onError?(error: Error, isRenderError?: boolean): void;
 }
 export class GameAnimationLoop {
@@ -62,7 +66,7 @@ export class GameAnimationLoop {
         this.options = options;
     }
     private doBackgroundFrame = (timestamp: number): void => {
-        if (this.isStarted && this.paused) {
+        if (this.options.runSimulationInBackground !== false && this.isStarted && this.paused) {
             let deltaFrames = this.updateDeltaGameFrames(timestamp);
             if (this.turnMgrIsWaiting) {
                 deltaFrames = 1;
@@ -159,10 +163,12 @@ export class GameAnimationLoop {
                     cancelAnimationFrame(this.rafId);
                     this.rafId = undefined;
                 }
-                this.backgroundIntervalId = setInterval(() => {
-                    const timestamp = performance.now();
-                    this.doBackgroundFrame(timestamp);
-                }, 1000);
+                if (this.options.runSimulationInBackground !== false) {
+                    this.backgroundIntervalId = setInterval(() => {
+                        const timestamp = performance.now();
+                        this.doBackgroundFrame(timestamp);
+                    }, 1000);
+                }
             }
             else {
                 if (this.backgroundIntervalId) {

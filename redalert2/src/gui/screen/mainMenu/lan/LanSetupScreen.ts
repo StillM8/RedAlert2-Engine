@@ -18,6 +18,7 @@ import { uint8ArrayToBase64String } from '@/util/string';
 import { LanRecentPlayRecord } from '@/gui/screen/mainMenu/lan/LanRecentPlay';
 import { SlotType as NetSlotType } from '@/network/gameopt/SlotInfo';
 import { OBS_COUNTRY_ID } from '@/game/gameopts/constants';
+import { Engine } from '@/engine/Engine';
 
 interface RootController {
     goToScreen(screenType: number, params?: any): void;
@@ -113,7 +114,8 @@ export class LanSetupScreen extends MainMenuScreen {
         this.roomSession = new LanRoomSession(this.meshSession, this.gameModes, this.mapFileLoader, this.mapDir, this.mapList);
     }
 
-    onEnter(): void {
+    async onEnter(): Promise<void> {
+        await Engine.loadMapList();
         this.controller.toggleMainVideo(false);
         this.initView();
         this.subscribeRoomEvents();

@@ -234,6 +234,50 @@ describe("VirtualFileSystem resource precedence", () => {
         ]);
     });
 
+    test("inherits parent layer when a side MIX is loaded from a mod container", async () => {
+        const nestedMixBytes = createMixBytes([
+            ["tab00.shp", new Uint8Array([1, 2, 3])],
+        ]);
+        const outerMix = createMix([["sidec04.mix", nestedMixBytes]]);
+        const vfs = createVfs();
+        vfs.addArchive(outerMix, "expandmo96.mix", {
+            layer: ResourceLayer.ModPatch,
+            source: "mod",
+            profile: "mental-omega",
+            provenance: ["imported/expandmo96.mix"],
+        });
+
+        await vfs.addMixFile("sidec04.mix");
+
+        const resolution = vfs.explain("tab00.shp");
+        expect(resolution.winner).toMatchObject({
+            archive: "sidec04.mix",
+            layer: ResourceLayer.ModPatch,
+            priority: ResourceLayer.ModPatch,
+            source: "mod",
+            profile: "mental-omega",
+            provenance: ["imported/expandmo96.mix", "expandmo96.mix", "sidec04.mix"],
+        });
+    });
+
+    test("discovers Ares side MIX archives nested in a mod container", async () => {
+        const nestedMixBytes = createMixBytes([
+            ["tab00.shp", new Uint8Array([4, 5, 6])],
+        ]);
+        const outerMix = createMix([["sidec04.mix", nestedMixBytes]]);
+        const vfs = createVfs();
+        vfs.addArchive(outerMix, "expandmo96.mix", {
+            layer: ResourceLayer.ModPatch,
+            source: "mod",
+            profile: "mental-omega",
+        });
+
+        await vfs.loadNestedMixFile("sidec04.mix");
+
+        expect(vfs.hasArchive("sidec04.mix")).toBe(true);
+        expect(vfs.openFile("tab00.shp").getBytes()).toEqual(new Uint8Array([4, 5, 6]));
+    });
+
     test("fails loudly when a profile-required implicit MIX is unavailable", async () => {
         const vfs = createVfs();
         await expect(vfs.loadImplicitMixFiles(3, GAME_PROFILES.ra2)).rejects.toThrow(/Required archive "language\.mix"/);
@@ -330,5 +374,81 @@ describe("VirtualFileSystem resource precedence", () => {
 
         expect(vfs.hasArchive("mapsmo03.mix")).toBe(true);
         expect(vfs.hasArchive("multimo.mix")).toBe(true);
+    });
+
+    test("defers standalone map archives without deferring profile MIX files", async () => {
+        const files = new Map<string, Uint8Array>([
+            ["arena.mmx", createEmptyMixBytes()],
+            ["arena.yro", createEmptyMixBytes()],
+            ["mapsmo03.mix", createEmptyMixBytes()],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) throw new FileNotFoundError(filename);
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"], {
+            deferMapArchives: true,
+        });
+
+        expect(vfs.hasArchive("mapsmo03.mix")).toBe(true);
+        expect(vfs.hasArchive("arena.mmx")).toBe(false);
+        expect(vfs.hasArchive("arena.yro")).toBe(false);
+
+        await vfs.loadDeferredMapArchives(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("arena.mmx")).toBe(true);
+        expect(vfs.hasArchive("arena.yro")).toBe(true);
+    });
+
+    test("retries deferred map archives after a transient open failure", async () => {
+        const bytes = createEmptyMixBytes();
+        let openAttempts = 0;
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield "arena.mmx";
+            },
+            async openFile(filename: string) {
+                if (filename.toLocaleLowerCase("en-US") === "arena.mmx") {
+                    openAttempts++;
+                    if (openAttempts === 1) throw new FileNotFoundError(filename);
+                    return VirtualFile.fromBytes(bytes, filename);
+                }
+                throw new FileNotFoundError(filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await expect(vfs.loadExtraMixFiles(EngineType.RedAlert2, GAME_PROFILES.ra2, {
+            deferMapArchives: true,
+        })).resolves.toBeUndefined();
+        let firstAttemptFailed = false;
+        try {
+            await vfs.loadDeferredMapArchives(EngineType.RedAlert2, GAME_PROFILES.ra2);
+        }
+        catch (error) {
+            firstAttemptFailed = error instanceof FileNotFoundError;
+        }
+        expect(firstAttemptFailed).toBe(true);
+        await vfs.loadDeferredMapArchives(EngineType.RedAlert2, GAME_PROFILES.ra2);
+        await vfs.loadDeferredMapArchives(EngineType.RedAlert2, GAME_PROFILES.ra2);
+
+        expect(vfs.hasArchive("arena.mmx")).toBe(true);
+        expect(openAttempts).toBe(2);
     });
 });

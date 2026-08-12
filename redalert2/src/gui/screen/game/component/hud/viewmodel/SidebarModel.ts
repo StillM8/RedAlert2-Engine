@@ -12,10 +12,15 @@ export enum SidebarItemStatus {
     Ready = 4
 }
 export enum SidebarCategory {
-    Structures = 0,
-    Armory = 1,
+    /** The four retail tab meanings are also used by Ares custom sides. */
+    Items = 0,
+    Defense = 1,
     Infantry = 2,
-    Vehicles = 3
+    Tanks = 3,
+    /** Legacy names retained for simulation and input callers. */
+    Structures = Items,
+    Armory = Defense,
+    Vehicles = Tanks,
 }
 export class SidebarModel {
     game: any;

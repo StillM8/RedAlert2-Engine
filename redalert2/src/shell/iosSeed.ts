@@ -50,8 +50,94 @@ declare global {
     }
 }
 
-interface SeedManifest {
+export interface SeedManifest {
     files: { path: string; size: number }[];
+}
+
+const SEED_SENTINEL_FILE = '.ra2-shell-seed-sentinel.json';
+const SEED_SENTINEL_VERSION = 1;
+
+interface SeedSentinel {
+    version: number;
+    fingerprint: string;
+}
+
+function canonicalSeedManifest(manifest: SeedManifest): string {
+    const files = [...manifest.files]
+        .map(({ path, size }) => ({ path, size }))
+        .sort((a, b) => a.path.localeCompare(b.path) || a.size - b.size);
+    return JSON.stringify({ version: SEED_SENTINEL_VERSION, files });
+}
+
+export async function computeSeedFingerprint(manifest: SeedManifest): Promise<string> {
+    const canonical = canonicalSeedManifest(manifest);
+    const cryptoApi = globalThis.crypto;
+    if (!cryptoApi?.subtle) {
+        // The canonical form is small (the manifest contains metadata only)
+        // and remains an exact, collision-free fallback on older WebViews.
+        return `plain:${canonical}`;
+    }
+    const digest = await cryptoApi.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export function seedSentinelMatches(currentFingerprint: string | undefined, expectedFingerprint: string): boolean {
+    return currentFingerprint === expectedFingerprint;
+}
+
+async function readSeedSentinel(root: FileSystemDirectoryHandle): Promise<string | undefined> {
+    try {
+        const sentinelFile = await root.getFileHandle(SEED_SENTINEL_FILE);
+        const sentinel = JSON.parse(await (await sentinelFile.getFile()).text()) as Partial<SeedSentinel>;
+        if (sentinel.version !== SEED_SENTINEL_VERSION || typeof sentinel.fingerprint !== 'string') {
+            return undefined;
+        }
+        return sentinel.fingerprint;
+    }
+    catch {
+        return undefined;
+    }
+}
+
+async function writeSeedSentinel(root: FileSystemDirectoryHandle, fingerprint: string): Promise<void> {
+    const sentinelFile = await root.getFileHandle(SEED_SENTINEL_FILE, { create: true });
+    const writable = await sentinelFile.createWritable();
+    await writable.write(JSON.stringify({
+        version: SEED_SENTINEL_VERSION,
+        fingerprint,
+    } satisfies SeedSentinel));
+    await writable.close();
+}
+
+async function seedManifestFilesMatch(root: FileSystemDirectoryHandle, manifest: SeedManifest): Promise<boolean> {
+    for (const file of manifest.files) {
+        let normalizedPath: string;
+        try {
+            normalizedPath = normalizeGamePath(file.path);
+        }
+        catch {
+            return false;
+        }
+        const segments = normalizedPath.split('/');
+        const fileName = segments.pop();
+        if (!fileName) {
+            return false;
+        }
+        try {
+            let dir = root;
+            for (const segment of segments) {
+                dir = await dir.getDirectoryHandle(segment, { create: false });
+            }
+            const existing = await dir.getFileHandle(fileName, { create: false });
+            if ((await existing.getFile()).size !== file.size) {
+                return false;
+            }
+        }
+        catch {
+            return false;
+        }
+    }
+    return true;
 }
 
 // The Android folder importer can copy an arbitrary directory tree, so a
@@ -612,6 +698,7 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
         throw new Error(`Shell seed manifest missing (${manifestResponse.status})`);
     }
     const manifest: SeedManifest = await manifestResponse.json();
+    const fingerprint = await computeSeedFingerprint(manifest);
     const manifestPaths = new Set(manifest.files.map((file) => {
         try {
             return gamePathKey(file.path);
@@ -647,6 +734,11 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
         throw new Error('Native shell requires Origin Private File System support to seed game resources');
     }
     const root = await navigator.storage.getDirectory();
+    const currentFingerprint = await readSeedSentinel(root);
+    if (seedSentinelMatches(currentFingerprint, fingerprint) && await seedManifestFilesMatch(root, manifest)) {
+        console.info('[nativeShell] Game-resource bundle is already seeded; skipping resource copy');
+        return 0;
+    }
     for (const file of manifest.files) {
         let normalizedPath: string;
         try {
@@ -685,6 +777,15 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
     if (missingRequiredFiles.length === 0) {
         const config = String(GameResSource.Local);
         localStorage.setItem(StorageKey.GameRes, config);
+    }
+    try {
+        await writeSeedSentinel(root, fingerprint);
+    }
+    catch (error) {
+        // The sentinel only avoids future validation walks. A metadata write
+        // failure must not discard a successfully copied resource bundle;
+        // without a readable sentinel the next launch safely repairs it.
+        console.warn('[nativeShell] Could not persist game-resource seed sentinel', error);
     }
     console.log(`[nativeShell] Seeded ${manifest.files.length} files (${totalBytes} bytes, ${wroteFiles} written) from shell bundle`);
     return wroteFiles;

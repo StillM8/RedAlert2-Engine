@@ -105,6 +105,11 @@ export class GameScreen extends RootScreen {
     private returnTo?: any;
     private debugMapFile?: any;
     private pausedAtSpeed?: number;
+    private backgroundResumeSpeed?: number;
+    private backgroundCheckpointGeneration = 0;
+    private backgroundResumeReplayId?: string;
+    private backgroundStorageQueue: Promise<void> = Promise.resolve();
+    private resumingBackground = false;
     private gameEndHandled = false;
     constructor(private workerHostApi: any, private gservCon: any, private wgameresService: any, private wolService: any, private mapTransferService: any, private engineVersion: string, private engineModHash: string, private errorHandler: any, private gameMenuSubScreens: any, private loadingScreenApiFactory: any, private gameOptsParser: any, private gameOptsSerializer: any, private config: any, private strings: any, private renderer: any, private uiScene: any, private runtimeVars: any, private messageBoxApi: any, private toastApi: any, private uiAnimationLoop: any, private viewport: any, private jsxRenderer: any, private pointer: any, private sound: any, private music: any, private mixer: any, private keyBinds: any, private generalOptions: any, private localPrefs: any, private actionLogger: any, private lockstepLogger: any, private replayManager: any, private fullScreen: any, private mapFileLoader: any, private mapDir: any, private mapList: any, private gameLoader: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private mutedPlayers: any, private tauntsEnabled: any, private speedCheat: any, private sentry: any, private battleControlApi: any) {
         super();
@@ -149,6 +154,10 @@ export class GameScreen extends RootScreen {
         const playerName = this.playerName = lanLaunch?.localPlayerName ?? params.playerName;
         const isSinglePlayer = this.isSinglePlayer = params.create && params.singlePlayer;
         const isLanGame = this.isLanGame = Boolean(lanLaunch);
+        this.resumingBackground = Boolean(isSinglePlayer && params.backgroundResume);
+        this.backgroundResumeReplayId = this.resumingBackground && typeof params.backgroundResumeReplayId === 'string'
+            ? params.backgroundResumeReplayId
+            : undefined;
         if (isSinglePlayer) {
             gameOpts = params.gameOpts;
         }
@@ -283,7 +292,7 @@ export class GameScreen extends RootScreen {
         if (resumeReplay) {
             replay.actionRecords = resumeReplay.actionRecords.map((record: any) => ({ ...record }));
             replay.hashCheckpoints = [...(resumeReplay.hashCheckpoints ?? [])];
-            replay.name = resumeReplay.name?.replace(/^\[SAVE\] /, '') ?? replay.name;
+            replay.name = resumeReplay.name?.replace(/^\[(?:SAVE|AUTO)\] /, '') ?? replay.name;
         }
         const replayRecorder = this.replayRecorderInstance = new ReplayRecorder(game, replay);
         this.disposables.add(() => this.replayRecorderInstance = undefined);
@@ -371,6 +380,12 @@ export class GameScreen extends RootScreen {
     }
 
     async onLeave(): Promise<void> {
+        this.backgroundCheckpointGeneration++;
+        this.backgroundResumeSpeed = undefined;
+        this.resumingBackground = false;
+        if (this.isSinglePlayer) {
+            this.clearBackgroundResumeCheckpoint();
+        }
         inGameViewportActive.value = false;
         this.pointer.unlock();
         const hadGameAnimationLoop = Boolean(this.gameAnimationLoop);
@@ -1125,12 +1140,18 @@ export class GameScreen extends RootScreen {
                 this.gameTurnMgr.doGameTurn(performance.now())) { }
             console.log(`[GameScreen] Resumed save at tick ${game.currentTick} in ${Math.round(performance.now() - startTime)}ms`);
         }
+        if (this.resumingBackground) {
+            this.clearBackgroundResumeCheckpoint();
+            this.resumingBackground = false;
+        }
         if (this.usesServerConnection()) {
             this.initNetStats(localPlayer);
         }
+        this.installBackgroundLifecycle();
         this.gameAnimationLoop = new GameAnimationLoop(localPlayer, this.renderer, this.sound, this.gameTurnMgr, {
             skipFrames: true,
             skipBudgetMillis: 8,
+            runSimulationInBackground: !this.isSinglePlayer,
             frameLimit: this.generalOptions.graphics.frameLimit,
             // Live getter, so an OS thermal transition mid-match takes effect on
             // the very next frame with nothing to subscribe or tear down.
@@ -1143,6 +1164,156 @@ export class GameScreen extends RootScreen {
         });
         this.uiAnimationLoop.stop();
         this.gameAnimationLoop.start();
+    }
+    private installBackgroundLifecycle(): void {
+        document.addEventListener('visibilitychange', this.handleGameVisibilityChange);
+        this.disposables.add(() => document.removeEventListener('visibilitychange', this.handleGameVisibilityChange));
+        if (document.visibilityState === 'hidden') {
+            this.handleGameVisibilityChange();
+        }
+    }
+    private handleGameVisibilityChange = (): void => {
+        if (!this.game || !this.isSinglePlayer || this.gameEndHandled) {
+            return;
+        }
+        if (document.visibilityState === 'hidden') {
+            // Android can deliver more than one hidden notification while the
+            // Activity is moving to the background. One checkpoint is enough;
+            // duplicate saves would race the replay manifest writer.
+            if (this.backgroundResumeSpeed !== undefined) {
+                return;
+            }
+            if (this.backgroundResumeSpeed === undefined) {
+                const requestedSpeed = this.pausedAtSpeed ?? Number(this.game.desiredSpeed?.value ?? this.game.speed?.value);
+                this.backgroundResumeSpeed = Number.isFinite(requestedSpeed) && requestedSpeed > 0
+                    ? requestedSpeed
+                    : 1;
+            }
+            this.game.desiredSpeed.value = Number.EPSILON;
+            this.mixer?.setMuted?.(ChannelType.Effect, true);
+            this.mixer?.setMuted?.(ChannelType.Ambient, true);
+            const generation = ++this.backgroundCheckpointGeneration;
+            void this.saveBackgroundGameState(this.game, generation);
+            return;
+        }
+        if (this.backgroundResumeSpeed === undefined) {
+            return;
+        }
+        const resumeSpeed = this.backgroundResumeSpeed;
+        this.backgroundResumeSpeed = undefined;
+        ++this.backgroundCheckpointGeneration;
+        const checkpointId = this.readBackgroundResumeReplayId();
+        this.localPrefs.removeItem(StorageKey.BackgroundResume);
+        if (checkpointId) {
+            void this.deleteBackgroundReplay(checkpointId);
+        }
+        if (this.pausedAtSpeed === undefined) {
+            this.game.desiredSpeed.value = resumeSpeed;
+            this.mixer?.setMuted?.(ChannelType.Effect, false);
+            this.mixer?.setMuted?.(ChannelType.Ambient, false);
+        }
+    };
+    private readBackgroundResumeReplayId(): string | undefined {
+        const raw = this.localPrefs.getItem(StorageKey.BackgroundResume);
+        if (!raw) {
+            return this.backgroundResumeReplayId;
+        }
+        try {
+            const marker = JSON.parse(raw) as { replayId?: unknown };
+            return typeof marker.replayId === 'string' ? marker.replayId : undefined;
+        }
+        catch {
+            return undefined;
+        }
+    }
+    private clearBackgroundResumeCheckpoint(): void {
+        const replayId = this.readBackgroundResumeReplayId();
+        this.backgroundResumeReplayId = undefined;
+        this.localPrefs.removeItem(StorageKey.BackgroundResume);
+        if (replayId) {
+            void this.deleteBackgroundReplay(replayId);
+        }
+    }
+    private enqueueBackgroundStorage<T>(operation: () => Promise<T>): Promise<T> {
+        const queued = this.backgroundStorageQueue.then(operation, operation);
+        this.backgroundStorageQueue = queued.then(() => undefined, () => undefined);
+        return queued;
+    }
+    private async deleteBackgroundReplayNow(replayId: string): Promise<void> {
+        try {
+            const entries = await this.replayManager?.loadList?.();
+            const entry = entries?.find((candidate: any) => candidate.id === replayId);
+            if (entry && String(entry.name).startsWith('[AUTO] ')) {
+                await this.replayManager.deleteReplay(entry);
+            }
+        }
+        catch (error) {
+            console.warn('[GameScreen] Failed to remove background checkpoint', error);
+        }
+    }
+    private deleteBackgroundReplay(replayId: string): Promise<void> {
+        return this.enqueueBackgroundStorage(() => this.deleteBackgroundReplayNow(replayId));
+    }
+    private createReplayCheckpoint(game: any, name: string): Replay | undefined {
+        const source = this.replay;
+        if (!source || !this.isSinglePlayer || !this.replayManager) {
+            return undefined;
+        }
+        const checkpoint = new Replay();
+        checkpoint.gameId = source.gameId;
+        checkpoint.gameTimestamp = source.gameTimestamp;
+        checkpoint.gameOpts = source.gameOpts;
+        checkpoint.engineVersion = source.engineVersion;
+        checkpoint.modHash = source.modHash;
+        checkpoint.timestamp = Date.now();
+        checkpoint.actionRecords = (source.actionRecords ?? []).map((record: any) => ({ ...record }));
+        checkpoint.eventRecords = (source.eventRecords ?? []).map((event: any) => ({ ...event }));
+        checkpoint.hashCheckpoints = (source.hashCheckpoints ?? []).map((checkpoint: any) => ({ ...checkpoint }));
+        checkpoint.finish(game.currentTick);
+        checkpoint.name = Replay.sanitizeFileName(name);
+        return checkpoint;
+    }
+    private async saveBackgroundGameState(game: any, generation: number): Promise<void> {
+        if (!this.replayManager || !this.isSinglePlayer) {
+            return;
+        }
+        const mapTitle = this.replay?.gameOpts?.mapTitle ?? this.replay?.gameOpts?.mapName ?? 'Skirmish';
+        const minutes = Math.floor(game.currentTick / (15 * 60));
+        const checkpoint = this.createReplayCheckpoint(game, `[AUTO] ${mapTitle} - ${minutes}min`);
+        if (!checkpoint) {
+            return;
+        }
+        try {
+            await this.enqueueBackgroundStorage(async () => {
+                const previousId = this.readBackgroundResumeReplayId();
+                const replayId = await this.replayManager.saveReplay(checkpoint, true);
+                const isCurrent = generation === this.backgroundCheckpointGeneration &&
+                    this.isSinglePlayer && !this.gameEndHandled && this.game === game;
+                if (!isCurrent) {
+                    await this.deleteBackgroundReplayNow(replayId);
+                    return;
+                }
+                const markerStored = this.localPrefs.setItem(StorageKey.BackgroundResume, JSON.stringify({
+                    replayId,
+                    engineVersion: this.engineVersion,
+                    modHash: this.engineModHash,
+                    profileId: Engine.getActiveProfile().id,
+                    modId: Engine.getActiveMod() ?? null,
+                }));
+                if (markerStored === false) {
+                    await this.deleteBackgroundReplayNow(replayId);
+                    return;
+                }
+                this.backgroundResumeReplayId = replayId;
+                if (previousId && previousId !== replayId) {
+                    await this.deleteBackgroundReplayNow(previousId);
+                }
+                console.info(`[GameScreen] Saved background checkpoint at tick ${game.currentTick}`);
+            });
+        }
+        catch (error) {
+            console.warn('[GameScreen] Failed to save background checkpoint', error);
+        }
     }
     private initNetStats(localPlayer: any): void {
         const pingMonitor = new PingMonitor(this.gameTurnMgr, this.gservCon, this.avgPing);
@@ -1290,23 +1461,12 @@ export class GameScreen extends RootScreen {
         });
     }
     private async saveGame(game: any): Promise<void> {
-        const replay = this.replay;
-        if (!replay || !this.isSinglePlayer || !this.replayManager) {
+        const mapTitle = this.replay?.gameOpts?.mapTitle ?? this.replay?.gameOpts?.mapName ?? 'Skirmish';
+        const minutes = Math.floor(game.currentTick / (15 * 60));
+        const save = this.createReplayCheckpoint(game, `[SAVE] ${mapTitle} - ${minutes}min`);
+        if (!save) {
             return;
         }
-        const save = new Replay();
-        save.gameId = replay.gameId;
-        save.gameTimestamp = replay.gameTimestamp;
-        save.gameOpts = replay.gameOpts;
-        save.engineVersion = replay.engineVersion;
-        save.modHash = replay.modHash;
-        save.timestamp = Date.now();
-        save.actionRecords = replay.actionRecords.map((record: any) => ({ ...record }));
-        save.hashCheckpoints = [...replay.hashCheckpoints];
-        save.finish(game.currentTick);
-        const mapTitle = replay.gameOpts?.mapTitle ?? replay.gameOpts?.mapName ?? 'Skirmish';
-        const minutes = Math.floor(game.currentTick / (15 * 60));
-        save.name = Replay.sanitizeFileName(`[SAVE] ${mapTitle} - ${minutes}min`);
         await this.replayManager.saveReplay(save, true);
         this.toastApi?.push?.('Game saved');
     }
@@ -1315,6 +1475,11 @@ export class GameScreen extends RootScreen {
             return;
         }
         this.gameEndHandled = true;
+        if (this.isSinglePlayer) {
+            this.backgroundCheckpointGeneration++;
+            this.backgroundResumeSpeed = undefined;
+            this.clearBackgroundResumeCheckpoint();
+        }
 
         let gameResultPopup: any;
 

@@ -5,6 +5,7 @@ import { JsxRenderer } from './gui/jsx/JsxRenderer.js';
 import { BoxedVar } from './util/BoxedVar.js';
 import { RootController } from './gui/screen/RootController.js';
 import { ScreenType, MainMenuScreenType } from './gui/screen/ScreenType.js';
+import { MainMenuRoute } from './gui/screen/mainMenu/MainMenuRoute.js';
 import { MainMenuRootScreen } from './gui/screen/mainMenu/MainMenuRootScreen.js';
 import { HomeScreen } from './gui/screen/mainMenu/main/HomeScreen.js';
 import { LanSetupScreen } from './gui/screen/mainMenu/lan/LanSetupScreen.js';
@@ -400,16 +401,95 @@ export class Gui {
         gameMenuSubScreens.set((await import('./gui/screen/game/gameMenu/ScreenType.js')).ScreenType.OptionsKeyboard, new (await import('./gui/screen/options/KeyboardScreen.js')).KeyboardScreen(this.strings, this.jsxRenderer!, this.keyBinds!));
         const sharedVxlGeometryPool = new VxlGeometryPool(new VxlGeometryCache(null, Engine.getActiveMod?.() ?? null), this.generalOptions!.graphics.models.value);
         const buildingImageDataCache = new Map();
-        const gameScreen = new GameScreen(undefined, undefined, undefined, undefined, undefined, this.appVersion, '', errorHandler, gameMenuSubScreens, loadingScreenApiFactory, undefined, undefined, this.config, this.strings, this.renderer, this.uiScene, this.runtimeVars || {}, this.messageBoxApi, this.toastApi, this.uiAnimationLoop, this.viewport, this.jsxRenderer, this.pointer, this.sound, this.music, this.mixer, this.keyBinds, this.generalOptions, this.localPrefs, undefined, undefined, replayManager, this.fullScreen, mapFileLoader, undefined, Engine.getMapList?.(), new GameLoader(this.appVersion, undefined, gameResLoader, gameResLoader, rules, gameModes, this.sound, (console as any), undefined, speedCheat, this.gameResConfig!, sharedVxlGeometryPool, buildingImageDataCache, (this as any).runtimeVars?.debugBotIndex, this.config.devMode ?? false), sharedVxlGeometryPool, buildingImageDataCache, mutedPlayers, tauntsEnabled, speedCheat, undefined, clientApi.battleControl);
+        const engineModHash = Engine.getActiveMod?.() ?? '';
+        const gameScreen = new GameScreen(undefined, undefined, undefined, undefined, undefined, this.appVersion, engineModHash, errorHandler, gameMenuSubScreens, loadingScreenApiFactory, undefined, undefined, this.config, this.strings, this.renderer, this.uiScene, this.runtimeVars || {}, this.messageBoxApi, this.toastApi, this.uiAnimationLoop, this.viewport, this.jsxRenderer, this.pointer, this.sound, this.music, this.mixer, this.keyBinds, this.generalOptions, this.localPrefs, undefined, undefined, replayManager, this.fullScreen, mapFileLoader, undefined, Engine.getMapList?.(), new GameLoader(this.appVersion, undefined, gameResLoader, gameResLoader, rules, gameModes, this.sound, (console as any), undefined, speedCheat, this.gameResConfig!, sharedVxlGeometryPool, buildingImageDataCache, (this as any).runtimeVars?.debugBotIndex, this.config.devMode ?? false), sharedVxlGeometryPool, buildingImageDataCache, mutedPlayers, tauntsEnabled, speedCheat, undefined, clientApi.battleControl);
         (gameScreen as any).setController?.(this.rootController);
         this.rootController.addScreen(ScreenType.Game, gameScreen as any);
         const { ReplayScreen } = await import('./gui/screen/replay/ReplayScreen.js');
         const replayGameLoader = new GameLoader(this.appVersion, undefined, gameResLoader, gameResLoader, rules, gameModes, this.sound, (console as any), undefined, speedCheat, this.gameResConfig!, sharedVxlGeometryPool, buildingImageDataCache, (this as any).runtimeVars?.debugBotIndex, this.config.devMode ?? false);
-        const replayScreen = new ReplayScreen(this.appVersion, '', errorHandler, gameMenuSubScreens, loadingScreenApiFactory, this.config as any, this.strings, this.renderer as any, this.uiScene as any, this.runtimeVars || {} as any, this.messageBoxApi as any, this.uiAnimationLoop as any, this.viewport as any, this.jsxRenderer as any, this.pointer as any, this.sound as any, this.music as any, this.keyBinds as any, this.generalOptions as any, undefined as any, this.fullScreen as any, mapFileLoader as any, replayGameLoader as any, sharedVxlGeometryPool as any, buildingImageDataCache as any, (params?: any) => {
+        const replayScreen = new ReplayScreen(this.appVersion, engineModHash, errorHandler, gameMenuSubScreens, loadingScreenApiFactory, this.config as any, this.strings, this.renderer as any, this.uiScene as any, this.runtimeVars || {} as any, this.messageBoxApi as any, this.uiAnimationLoop as any, this.viewport as any, this.jsxRenderer as any, this.pointer as any, this.sound as any, this.music as any, this.keyBinds as any, this.generalOptions as any, undefined as any, this.fullScreen as any, mapFileLoader as any, replayGameLoader as any, sharedVxlGeometryPool as any, buildingImageDataCache as any, (params?: any) => {
             this.rootController!.goToScreen(ScreenType.MainMenuRoot, params);
         }, clientApi.battleControl);
         this.rootController.addScreen(ScreenType.Replay, replayScreen as any);
-        this.rootController.goToScreen(ScreenType.MainMenuRoot);
+        const backgroundResumeParams = await this.loadBackgroundResumeParams(replayManager);
+        if (backgroundResumeParams) {
+            console.info('[Gui] Resuming the interrupted single-player game from its background checkpoint');
+            this.rootController.goToScreen(ScreenType.Game, backgroundResumeParams);
+        }
+        else {
+            this.rootController.goToScreen(ScreenType.MainMenuRoot);
+        }
+    }
+    private async loadBackgroundResumeParams(replayManager: any): Promise<any | undefined> {
+        const rawMarker = this.localPrefs.getItem(StorageKey.BackgroundResume);
+        if (!rawMarker) {
+            return undefined;
+        }
+        let marker: {
+            replayId?: unknown;
+            engineVersion?: unknown;
+            modHash?: unknown;
+            profileId?: unknown;
+            modId?: unknown;
+        };
+        try {
+            marker = JSON.parse(rawMarker);
+        }
+        catch {
+            this.localPrefs.removeItem(StorageKey.BackgroundResume);
+            return undefined;
+        }
+        const currentModId = Engine.getActiveMod() ?? null;
+        const currentModHash = Engine.getActiveMod() ?? '';
+        if (typeof marker.replayId !== 'string' ||
+            marker.engineVersion !== this.appVersion ||
+            marker.modHash !== currentModHash ||
+            marker.profileId !== Engine.getActiveProfile().id ||
+            marker.modId !== currentModId) {
+            console.warn('[Gui] Ignoring background checkpoint from a different app/profile/mod');
+            this.localPrefs.removeItem(StorageKey.BackgroundResume);
+            return undefined;
+        }
+        try {
+            const entry = (await replayManager.loadList(true)).find((candidate: any) => candidate.id === marker.replayId);
+            if (!entry || !String(entry.name).startsWith('[AUTO] ')) {
+                this.localPrefs.removeItem(StorageKey.BackgroundResume);
+                return undefined;
+            }
+            const replay = await replayManager.loadReplay(entry);
+            const playerName = replay.gameOpts?.humanPlayers?.[0]?.name;
+            if (replay.engineVersion !== this.appVersion ||
+                replay.modHash !== currentModHash ||
+                !replay.gameId ||
+                !Number.isFinite(replay.gameTimestamp) ||
+                !playerName ||
+                !replay.gameOpts) {
+                this.localPrefs.removeItem(StorageKey.BackgroundResume);
+                return undefined;
+            }
+            return {
+                create: true,
+                gameId: replay.gameId,
+                timestamp: replay.gameTimestamp * 1000,
+                playerName,
+                gameOpts: replay.gameOpts,
+                singlePlayer: true,
+                tournament: false,
+                mapTransfer: false,
+                createPrivateGame: false,
+                gservUrl: '',
+                resumeReplay: replay,
+                backgroundResume: true,
+                backgroundResumeReplayId: marker.replayId,
+                returnTo: new MainMenuRoute(MainMenuScreenType.Home, {}),
+            };
+        }
+        catch (error) {
+            // Keep the marker if storage is temporarily unavailable. A later
+            // launch can still recover the checkpoint instead of discarding it.
+            console.warn('[Gui] Could not inspect background checkpoint', error);
+            return undefined;
+        }
     }
     private startAnimationLoop(): void {
         console.log('[Gui] Animation loop already started by UiAnimationLoop');

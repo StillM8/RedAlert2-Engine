@@ -1308,7 +1308,6 @@ class MainActivity : Activity() {
         super.onResume()
         if (::webView.isInitialized) {
             webView.onResume()
-            webView.resumeTimers()
             val powerManager = getSystemService(PowerManager::class.java)
             if (powerManager != null) pushPowerState(powerManager)
         }
@@ -1317,7 +1316,10 @@ class MainActivity : Activity() {
     override fun onPause() {
         if (::webView.isInitialized) {
             webView.onPause()
-            webView.pauseTimers()
+            // Do not call pauseTimers(): multiplayer uses the WebView event
+            // loop for lockstep/network bookkeeping while the Activity is in
+            // the background. Single-player stops simulation itself after
+            // saving a replay checkpoint on document.visibilitychange.
         }
         super.onPause()
     }

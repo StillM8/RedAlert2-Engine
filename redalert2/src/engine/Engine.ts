@@ -216,6 +216,9 @@ export class Engine {
     public static ai?: IniFile;
     public static activeTheater?: Theater;
     private static mapList?: MapList;
+    private static mapListGameModes?: GameModes;
+    private static mapListLoadPromise?: Promise<MapList>;
+    private static mapListLoadScheduled = false;
     static getVersion(): string {
         return appVersion.split(".").slice(0, 2).join(".");
     }
@@ -507,18 +510,24 @@ export class Engine {
     static getIniSourceLoader(): IniSourceLoader | undefined {
         return this.iniSourceLoader;
     }
-    static async loadMapList(): Promise<MapList> {
-        if (!this.vfs)
-            throw new Error("File system not initialized");
-        const gameModes = this.getMpModes();
-        const combinedMapList = new MapList(gameModes);
+    private static createBaseMapList(): MapList {
+        const gameModes = this.mapListGameModes ??= this.getMpModes();
+        const mapList = new MapList(gameModes);
         const missionsPktFileName = this.getFileNameVariant("missions.pkt");
         if (this.iniFiles.has(missionsPktFileName)) {
-            combinedMapList.addFromIni(this.getIni(missionsPktFileName));
+            mapList.addFromIni(this.getIni(missionsPktFileName));
         }
         else {
             console.warn(`Map list file "${missionsPktFileName}" not found, skipping`);
         }
+        return mapList;
+    }
+    private static async populateMapList(): Promise<MapList> {
+        if (!this.vfs)
+            throw new Error("File system not initialized");
+        const combinedMapList = this.mapList ?? (this.mapList = this.createBaseMapList());
+        const gameModes = this.mapListGameModes ??= this.getMpModes();
+        await this.vfs.loadDeferredMapArchives(this.getActiveEngine(), this.getActiveProfile());
         for (const archiveName of this.vfs.listArchives()) {
             const pktFileName = archiveName.toLowerCase().replace(/\.[^.]+$/, "") + ".pkt";
             if (this.vfs.fileExists(pktFileName)) {
@@ -556,6 +565,16 @@ export class Engine {
         combinedMapList.mergeWith(localMapList);
         this.mapList = combinedMapList;
         return combinedMapList;
+    }
+    static async loadMapList(): Promise<MapList> {
+        if (!this.mapListLoadPromise) {
+            const loadPromise = this.populateMapList();
+            this.mapListLoadPromise = loadPromise.catch((error) => {
+                this.mapListLoadPromise = undefined;
+                throw error;
+            });
+        }
+        return this.mapListLoadPromise;
     }
     static getTileData(): LazyResourceCollection<TmpFile> {
         return this.tileData;
@@ -643,12 +662,37 @@ export class Engine {
         return undefined;
     }
     static getMapList(): MapList | undefined {
+        if (!this.vfs) {
+            return this.mapList;
+        }
+        if (!this.mapList) {
+            this.mapList = this.createBaseMapList();
+        }
+        if (!this.mapListLoadScheduled && !this.mapListLoadPromise) {
+            this.mapListLoadScheduled = true;
+            const startDeferredLoad = () => {
+                this.mapListLoadScheduled = false;
+                void this.loadMapList().catch((error) => {
+                    console.warn("[Engine] Deferred map-list initialization failed:", error);
+                });
+            };
+            const requestIdleCallback = (globalThis as any).requestIdleCallback;
+            if (typeof requestIdleCallback === "function") {
+                requestIdleCallback(startDeferredLoad, { timeout: 1000 });
+            }
+            else {
+                globalThis.setTimeout(startDeferredLoad, 0);
+            }
+        }
         return this.mapList;
     }
     static destroy(): void {
         this.activeTheater = undefined;
         this.activeMod = undefined;
         this.modHash = undefined;
+        this.mapListLoadPromise = undefined;
+        this.mapListLoadScheduled = false;
+        this.mapListGameModes = undefined;
         this.mapList = undefined;
         this.rfs = undefined;
         this.vfs = undefined;

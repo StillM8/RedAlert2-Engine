@@ -14,6 +14,7 @@ import { OBS_COUNTRY_ID } from '@/game/gameopts/constants';
 import { MapFile } from '@/data/MapFile';
 import { PregameController, PregameMapSelectionResult } from '@/gui/screen/mainMenu/lobby/PregameController';
 import { BotRegistry } from '@/game/ai/thirdpartbot/BotRegistry';
+import { Engine } from '@/engine/Engine';
 
 interface GameMode {
     id: number;
@@ -95,7 +96,8 @@ export class SkirmishScreen extends MainMenuScreen {
         this.musicType = MusicType.Intro;
     }
 
-    onEnter(): void {
+    async onEnter(): Promise<void> {
+        await Engine.loadMapList();
         this.controller.toggleMainVideo(false);
         this.lobbyForm = undefined;
         this.loadPersistedBots();

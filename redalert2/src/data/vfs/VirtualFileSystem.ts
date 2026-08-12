@@ -69,6 +69,14 @@ interface RfsEntryIndex {
     byLeaf: Map<string, string[]>;
 }
 
+export interface ExtraMixLoadOptions {
+    /**
+     * Leave standalone map archives for the first map-list consumer. Core and
+     * profile MIX files are still mounted immediately.
+     */
+    deferMapArchives?: boolean;
+}
+
 function compareResourcePaths(a: string, b: string): number {
     if (a.length !== b.length) {
         return a.length - b.length;
@@ -83,6 +91,7 @@ export class VirtualFileSystem {
     private archivesByPriority: ArchiveRecord[];
     private nextArchiveOrder = 0;
     private rfsEntryIndex?: Promise<RfsEntryIndex>;
+    private deferredMapArchivesPromise?: Promise<void>;
     constructor(rfs: RealFileSystem | undefined, logger: VfsLogger) {
         this.rfs = rfs;
         this.logger = logger;
@@ -245,7 +254,9 @@ export class VirtualFileSystem {
                     leafEntries.push(normalized);
                     byLeaf.set(leafKey, leafEntries);
                 }
-                const sortEntries = (entries: string[]): void => entries.sort(compareResourcePaths);
+                const sortEntries = (entries: string[]): void => {
+                    entries.sort(compareResourcePaths);
+                };
                 for (const entries of byPath.values()) sortEntries(entries);
                 for (const entries of byLeaf.values()) sortEntries(entries);
                 return { byPath, byLeaf };
@@ -259,9 +270,10 @@ export class VirtualFileSystem {
         return index.byPath.get(gamePathKey(normalized))?.[0] ??
             index.byLeaf.get(gamePathKey(gamePathLeaf(normalized)))?.[0];
     }
-    private async resolveFileWithRfs(filename: string): Promise<{ file: VirtualFile; provenance: string[] } | undefined> {
+    private async resolveFileWithRfs(filename: string): Promise<{ file: VirtualFile; provenance: string[]; resolution?: VfsResolution } | undefined> {
         let file: VirtualFile | undefined;
         let provenance: string[] = [];
+        let resolution: VfsResolution | undefined;
         if (this.rfs) {
             try {
                 file = await this.rfs.openFile(filename);
@@ -286,10 +298,10 @@ export class VirtualFileSystem {
                 return undefined;
             }
             file = this.openFile(filename);
-            const resolution = this.resolve(filename);
+            resolution = this.resolve(filename);
             provenance = resolution.winner?.provenance ? [...resolution.winner.provenance] : [];
         }
-        return { file, provenance };
+        return { file, provenance, resolution };
     }
     /** Open a loose or mounted resource using the same precedence as loaders. */
     async openFileWithRfs(filename: string): Promise<VirtualFile | undefined> {
@@ -304,8 +316,18 @@ export class VirtualFileSystem {
         if (resolvedFile) {
             try {
                 const archive = await createArchive(resolvedFile.file);
+                const inheritedMetadata = resolvedFile.resolution?.winner
+                    ? {
+                        layer: resolvedFile.resolution.winner.layer,
+                        priority: resolvedFile.resolution.winner.priority,
+                        source: resolvedFile.resolution.winner.source,
+                        profile: resolvedFile.resolution.winner.profile,
+                    }
+                    : {};
                 this.addArchive(archive, filename, {
-                    ...(metadata ?? this.metadataForMix(filename)),
+                    ...this.metadataForMix(filename),
+                    ...inheritedMetadata,
+                    ...(metadata ?? {}),
                     provenance: metadata?.provenance ?? resolvedFile.provenance,
                 });
                 return true;
@@ -406,6 +428,20 @@ export class VirtualFileSystem {
         // are not visible during the initial implicit pass, so repeat the
         // same generic audio discovery after the MIX fixpoint is mounted.
         await this.loadAudioBagFiles();
+    }
+    /**
+     * Mount one archive selected by a data-defined loader (for example an
+     * Ares side MIX). MIX indexes store nested filenames as hashes, so the
+     * caller supplies the resolved candidate after rules have been parsed.
+     */
+    async loadNestedMixFile(filename: string, metadata?: ArchiveMetadata): Promise<boolean> {
+        if (this.hasArchive(filename)) {
+            return true;
+        }
+        if (!this.fileExists(filename) && !await this.findRfsEntry(filename)) {
+            return false;
+        }
+        return this.addMixFile(filename, metadata);
     }
     async addMixFile(filename: string, metadata?: ArchiveMetadata, options?: { required?: boolean }): Promise<boolean> {
         return this.addArchiveByFilename(filename, async (fileStreamHolder) => {
@@ -508,7 +544,7 @@ export class VirtualFileSystem {
         await this.loadAudioBagFiles();
         this.logger.info("Finished initializing implicit mix files.");
     }
-    async loadExtraMixFiles(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
+    async loadExtraMixFiles(engineType: EngineType, profile?: GameProfileDescriptor, options: ExtraMixLoadOptions = {}): Promise<void> {
         this.logger.info("Loading extra mix files...");
         if (!this.rfs) {
             this.logger.info("No real file system is mounted; skipping loose extra MIX discovery.");
@@ -559,31 +595,62 @@ export class VirtualFileSystem {
                 provenance: [rfsFile],
             });
         }
+        if (!options.deferMapArchives) {
+            await this.loadMapArchives(engineType, profile, rfsEntries);
+        }
+        this.logger.info("Finished loading extra mix files.");
+    }
+    /**
+     * Mount map containers deferred by startup. The operation is idempotent so
+     * gameplay, map discovery, and tools can safely request it independently.
+     */
+    async loadDeferredMapArchives(engineType: EngineType, profile?: GameProfileDescriptor): Promise<void> {
+        if (!this.deferredMapArchivesPromise) {
+            const loadPromise = (async () => {
+                if (!this.rfs) {
+                    return;
+                }
+                const rfsIndex = await this.getRfsEntryIndex();
+                const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
+                await this.loadMapArchives(engineType, profile, rfsEntries);
+            })();
+            this.deferredMapArchivesPromise = loadPromise.catch((error) => {
+                // A partially mounted pass is safe to retry: loadMapArchives
+                // skips archives already present in the VFS. Do not permanently
+                // cache a transient RFS/open failure.
+                this.deferredMapArchivesPromise = undefined;
+                throw error;
+            });
+        }
+        await this.deferredMapArchivesPromise;
+    }
+    private async loadMapArchives(engineType: EngineType, profile: GameProfileDescriptor | undefined, rfsEntries: string[]): Promise<void> {
+        if (!this.rfs) {
+            return;
+        }
         const mapExtensions = [".mmx"];
         if (engineType === EngineType.YurisRevenge) {
             mapExtensions.push(".yro");
         }
         for (const ext of mapExtensions) {
             for (const rfsFile of rfsEntries) {
-                if (rfsFile.toLocaleLowerCase("en-US").endsWith(ext)) {
-                    if (!this.hasArchive(rfsFile)) {
-                        const fileData = await this.rfs.openFile(rfsFile);
-                        if (fileData) {
-                            this.addArchive(new MixFile(fileData.stream), rfsFile, {
-                                layer: ResourceLayer.MapOverride,
-                                source: "map",
-                                profile: profile?.id,
-                                provenance: [rfsFile],
-                            });
-                        }
-                        else {
-                            this.logger.warn(`Could not open RFS file ${rfsFile} for map archive loading.`);
-                        }
-                    }
+                if (!rfsFile.toLocaleLowerCase("en-US").endsWith(ext) || this.hasArchive(rfsFile)) {
+                    continue;
+                }
+                const fileData = await this.rfs.openFile(rfsFile);
+                if (fileData) {
+                    this.addArchive(new MixFile(fileData.stream), rfsFile, {
+                        layer: ResourceLayer.MapOverride,
+                        source: "map",
+                        profile: profile?.id,
+                        provenance: [rfsFile],
+                    });
+                }
+                else {
+                    this.logger.warn(`Could not open RFS file ${rfsFile} for map archive loading.`);
                 }
             }
         }
-        this.logger.info("Finished loading extra mix files.");
     }
     async loadStandaloneFiles(options?: {
         exclude?: string[];
