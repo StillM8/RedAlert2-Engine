@@ -11,8 +11,6 @@ the simulation engine, add a second renderer, or bundle retail game files.
 | Windows | `bun run tauri:build` | Rust, MSVC C++ Build Tools, WebView2 |
 | Linux | `bun run tauri:build` | Rust and WebKitGTK 4.1 development packages |
 | macOS | `bun run tauri:build` | Rust and Xcode Command Line Tools |
-| Android | `bun run tauri:android:init`, then `bun run tauri:android:build` | Rust Android targets, Android Studio/SDK/NDK |
-| iOS | `bun run tauri:ios:init`, then `bun run tauri:ios:build` | macOS, Xcode, iOS Rust targets, CocoaPods |
 
 Run the desktop beta locally with:
 
@@ -23,17 +21,12 @@ bun run tauri:dev
 The beta uses the existing user-owned resource import flow. No RA2, Yuri's
 Revenge, or Mental Omega files are included in the application bundle.
 
-## Mobile status
+## Mobile implementations
 
-The Tauri project is configured for Tauri Android/iOS initialization, while the
-existing Kotlin Android and Swift/WKWebView iOS shells remain the current
-certified mobile paths. Keeping them in place avoids replacing their tested
-offline resource, lifecycle, and device-specific handling before the equivalent
-Tauri mobile bridge is verified.
-
-The next mobile-beta checkpoint is to connect Tauri's native file dialog/filesystem
-APIs to the shared game-resource importer and then validate lifecycle recovery,
-offline imports, touch input, and device builds on real hardware.
+Tauri is intentionally desktop-only. Android continues to use the existing
+Kotlin/WebView shell, and iOS continues to use the existing Swift/WKWebView
+shell. Their tested offline resource, lifecycle, touch, and device-specific
+handling is not being replaced by Tauri.
 
 ## Release identity
 
