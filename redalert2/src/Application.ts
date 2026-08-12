@@ -73,6 +73,30 @@ const mockSentry = {
     captureException: (e: any) => console.error("Sentry Mock: captureException", e),
     configureScope: (cb: Function) => cb({ setTag: () => { }, setExtra: () => { } }),
 };
+
+function getImportErrorFileField(error: any): string {
+    const directField = [error?.file, error?.fileName, error?.filename]
+        .find((value) => typeof value === 'string' && value.trim().length > 0);
+    if (directField) {
+        return directField;
+    }
+    const message = typeof error?.message === 'string' ? error.message : '';
+    const quotedFile = message.match(/\b(?:file|directory)\s+"([^"]+)"/i)?.[1];
+    if (quotedFile) {
+        return quotedFile;
+    }
+    return '';
+}
+
+function formatImportFileNotFound(template: string, error: any): string {
+    const fileField = getImportErrorFileField(error);
+    if (fileField) {
+        return template.indexOf("%s") >= 0
+            ? template.replace(/%s/g, fileField)
+            : `${template} ${fileField}`;
+    }
+    return error?.message ? `${template}\n\n${error.message}` : template;
+}
 class ViewportAdapter implements Viewport {
     constructor(private boxedVar: BoxedVar<ViewportRect>) { }
     get value(): ViewportRect {
@@ -997,13 +1021,9 @@ export class Application {
                 template + " " + fileField;
             errorMessage += "\n\n" + replaced;
         }
-        else if (error.name === "FileNotFoundError") {
-            const fileField = (error as any).file || '';
+        else if (error.name === "FileNotFoundError" || error.name === "GameResFileNotFoundError") {
             const template = strings.get("ts:import_file_not_found");
-            const replaced = template.indexOf("%s") >= 0 ?
-                template.replace(/%s/g, fileField) :
-                template + " " + fileField;
-            errorMessage += "\n\n" + replaced;
+            errorMessage += "\n\n" + formatImportFileNotFound(template, error);
         }
         else if (error.name === "DownloadError" || error.message?.match(/XHR error|Failed to fetch/i)) {
             errorMessage += "\n\n" + strings.get("ts:downloadfailed");
@@ -1045,13 +1065,9 @@ export class Application {
     }
     private async handleGameResImportError(error: Error, strings: Strings): Promise<void> {
         let errorMessage = strings.get("ts:import_failed");
-        if (error.name === "FileNotFoundError") {
-            const fileField = (error as any).file || '';
+        if (error.name === "FileNotFoundError" || error.name === "GameResFileNotFoundError") {
             const template = strings.get("ts:import_file_not_found");
-            const replaced = template.indexOf("%s") >= 0 ?
-                template.replace(/%s/g, fileField) :
-                template + " " + fileField;
-            errorMessage += "\n\n" + replaced;
+            errorMessage += "\n\n" + formatImportFileNotFound(template, error);
         }
         else if (error.name === "InvalidArchiveError") {
             errorMessage += "\n\n" + strings.get("ts:import_invalid_archive");
