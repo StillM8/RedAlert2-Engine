@@ -244,7 +244,7 @@ export class ModSelScreen extends MainMenuScreen {
                     if (canImportModFromShell()) {
                         try {
                             this.messageBoxApi.show(this.strings.get("ts:import_preparing_for_import"));
-                            const imported = await importModFromShell("android-imported-mod", (progress) => {
+                            const imported = await importModFromShell(undefined, (progress) => {
                                 this.messageBoxApi.updateText(progress);
                             });
                             this.messageBoxApi.destroy();

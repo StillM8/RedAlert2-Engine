@@ -4,6 +4,8 @@ import { OperationCanceledError, type CancellationToken } from '@puzzl/core/lib/
 import { getGameProfile, isGameProfileId, type GameProfileId } from '../engine/GameProfile';
 import { gamePathKey, normalizeGamePath } from '../engine/GamePath';
 import type { ArchiveSource } from '../data/ArchiveSource';
+import { importContentSourceToOpfs } from '../content/InstalledContentImporter';
+import type { ContentImportKind, ContentImportSource, PlatformContentProvider } from '../content/PlatformContentProvider';
 
 export type NativeShellEngine = 'ra2' | 'yr';
 export type NativeShellProfile = GameProfileId;
@@ -360,7 +362,7 @@ interface NativeModImportFile {
     size: number;
 }
 
-interface NativeModImportResult {
+export interface NativeModImportResult {
     id: string;
     name: string;
     version: string;
@@ -369,23 +371,17 @@ interface NativeModImportResult {
 export function canImportModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
-        && (getNativeShellEngine() === 'ra2' || getNativeShellEngine() === 'yr')
         && (typeof window.Ra2Android?.pickModDirectory === 'function'
             || typeof window.Ra2Android?.pickModArchives === 'function');
 }
 
-/**
- * Imports an extracted mod folder selected by Android's Storage Access
- * Framework. ZIP archive selection remains available as a fallback for
- * installations that have not been extracted. The resulting files are
- * streamed into the same OPFS mod directory used by the desktop importer.
- */
-export async function importModFromShell(
-    modId: string,
-    onProgress?: (text: string) => void,
-): Promise<NativeModImportResult | undefined> {
-    if (!canImportModFromShell())
+async function pickNativeModSource(
+    kind: ContentImportKind,
+    picker: (() => boolean) | undefined,
+): Promise<ContentImportSource | undefined> {
+    if (!picker || !canImportModFromShell()) {
         return undefined;
+    }
     const nativeApi = window.Ra2Android!;
     const result = await new Promise<{ success: boolean; token?: string; error?: string }>((resolve) => {
         let settled = false;
@@ -398,8 +394,7 @@ export async function importModFromShell(
         };
         window.__RA2_NATIVE_MOD_IMPORT_CALLBACK__ = finish;
         try {
-            const picker = nativeApi.pickModDirectory ?? nativeApi.pickModArchives;
-            if (!picker || !picker())
+            if (!picker())
                 finish({ success: false });
         }
         catch (error: any) {
@@ -413,81 +408,106 @@ export async function importModFromShell(
     }
 
     const token = result.token;
+    let manifestResponse: Response;
     try {
-        const manifestResponse = await fetch(`/native-mod-imports/${encodeURIComponent(token)}/manifest.json`, {
+        manifestResponse = await fetch(`/native-mod-imports/${encodeURIComponent(token)}/manifest.json`, {
             cache: 'no-store',
         });
-        if (!manifestResponse.ok)
-            throw new Error(`Native mod manifest could not be read (${manifestResponse.status})`);
-        const manifest = await manifestResponse.json() as { files?: NativeModImportFile[] };
-        const files = Array.isArray(manifest.files) ? manifest.files : [];
-        if (!files.length)
-            throw new Error('The selected mod folder contains no readable files');
-
-        if (typeof navigator.storage?.getDirectory !== 'function')
-            throw new Error('Android OPFS storage is unavailable');
-        const root = await navigator.storage.getDirectory();
-        const modsDir = await root.getDirectoryHandle('mods', { create: true });
-        const modDir = await modsDir.getDirectoryHandle(modId, { create: true });
-        for await (const entry of modDir.keys()) {
-            await modDir.removeEntry(entry, { recursive: true });
-        }
-
-        const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-        let copiedBytes = 0;
-        for (const file of files) {
-            let normalizedPath: string;
-            try {
-                normalizedPath = normalizeGamePath(file.path);
-            }
-            catch {
-                throw new Error(`Unsafe native mod path: ${file.path}`);
-            }
-            const pathSegments = normalizedPath.split('/');
-            const fileName = pathSegments.pop();
-            if (!fileName)
-                throw new Error(`Unsafe native mod path: ${file.path}`);
-            const response = await fetch(
-                `/native-mod-imports/${encodeURIComponent(token)}/${pathSegments.concat(fileName).map(encodeURIComponent).join('/')}`,
-                { cache: 'no-store' },
-            );
-            if (!response.ok || !response.body)
-                throw new Error(`Native mod file could not be read (${file.path})`);
-            let targetDir = modDir;
-            for (const segment of pathSegments) {
-                targetDir = await targetDir.getDirectoryHandle(segment, { create: true });
-            }
-            const fileHandle = await targetDir.getFileHandle(fileName, { create: true });
-            const writable = await fileHandle.createWritable();
-            try {
-                await response.body.pipeTo(writable);
-            }
-            catch (error) {
-                await writable.abort();
-                throw error;
-            }
-            copiedBytes += file.size;
-            onProgress?.(`Preparing mod files... ${(copiedBytes / 1048576).toFixed(0)} / ${(totalBytes / 1048576).toFixed(0)} MB`);
-        }
-
-        const metadata = [
-            '[General]',
-            `ID=${modId}`,
-            `Name=${modId}`,
-            'Version=folder',
-            'Author=Imported Android folder',
-            '',
-        ].join('\n');
-        const metaHandle = await modDir.getFileHandle('modcd.ini', { create: true });
-        const metaWritable = await metaHandle.createWritable();
-        await metaWritable.write(metadata);
-        await metaWritable.close();
-        nativeApi.deleteNativeModImport?.(token);
-        return { id: modId, name: modId, version: 'folder' };
     }
     catch (error) {
         nativeApi.deleteNativeModImport?.(token);
         throw error;
+    }
+    if (!manifestResponse.ok) {
+        nativeApi.deleteNativeModImport?.(token);
+        throw new Error(`Native mod manifest could not be read (${manifestResponse.status})`);
+    }
+    const manifest = await manifestResponse.json() as {
+        files?: NativeModImportFile[];
+        sourceName?: string;
+    };
+    const files = Array.isArray(manifest.files) ? manifest.files : [];
+    if (!files.length) {
+        nativeApi.deleteNativeModImport?.(token);
+        throw new Error('The selected mod content contains no readable files');
+    }
+    const originalPathByKey = new Map<string, string>();
+    for (const file of files) {
+        const normalizedPath = normalizeGamePath(file.path);
+        const key = gamePathKey(normalizedPath);
+        if (originalPathByKey.has(key)) {
+            nativeApi.deleteNativeModImport?.(token);
+            throw new Error(`Native mod manifest contains duplicate path: ${file.path}`);
+        }
+        originalPathByKey.set(key, file.path);
+    }
+    let disposed = false;
+    return {
+        kind,
+        name: typeof manifest.sourceName === 'string' && manifest.sourceName.trim()
+            ? manifest.sourceName.trim()
+            : undefined,
+        files,
+        async readFile(path: string): Promise<ReadableStream<Uint8Array>> {
+            const normalizedPath = normalizeGamePath(path);
+            const sourcePath = originalPathByKey.get(gamePathKey(normalizedPath)) ?? normalizedPath;
+            const response = await fetch(
+                `/native-mod-imports/${encodeURIComponent(token)}/${sourcePath.split('/').map(encodeURIComponent).join('/')}`,
+                { cache: 'no-store' },
+            );
+            if (!response.ok || !response.body) {
+                throw new Error(`Native mod file could not be read (${sourcePath})`);
+            }
+            return response.body;
+        },
+        dispose(): void {
+            if (disposed)
+                return;
+            disposed = true;
+            nativeApi.deleteNativeModImport?.(token);
+        },
+    };
+}
+
+/** Shared content-picker boundary implemented by the current Android shell. */
+export function getPlatformContentProvider(): PlatformContentProvider | undefined {
+    if (!canImportModFromShell()) {
+        return undefined;
+    }
+    const nativeApi = window.Ra2Android!;
+    return {
+        pickModDirectory: () => pickNativeModSource('directory', nativeApi.pickModDirectory),
+        pickModArchives: () => pickNativeModSource('archives', nativeApi.pickModArchives),
+    };
+}
+
+/**
+ * Imports an extracted mod folder selected by Android's Storage Access
+ * Framework. ZIP archive selection remains available as a fallback for
+ * installations that have not been extracted. The resulting files are
+ * streamed into the same OPFS mod directory used by the desktop importer.
+ */
+export async function importModFromShell(
+    requestedId?: string,
+    onProgress?: (text: string) => void,
+): Promise<NativeModImportResult | undefined> {
+    const provider = getPlatformContentProvider();
+    if (!provider)
+        return undefined;
+    // Preserve the existing Android folder-first behavior during migration;
+    // the selector will expose separate folder/archive actions once all
+    // platform providers are wired to this same contract.
+    const source = await (typeof window.Ra2Android?.pickModDirectory === 'function'
+        ? provider.pickModDirectory()
+        : provider.pickModArchives({ multiple: true }));
+    if (!source)
+        return undefined;
+    try {
+        const imported = await importContentSourceToOpfs(source, requestedId, onProgress);
+        return { id: imported.id, name: imported.name, version: imported.version };
+    }
+    finally {
+        await source.dispose();
     }
 }
 

@@ -667,7 +667,10 @@ class MainActivity : Activity() {
                     )
                 }
                 File(staging, "manifest.json").writeText(
-                    JSONObject().put("files", manifestFiles).toString(),
+                    JSONObject()
+                        .put("files", manifestFiles)
+                        .put("sourceName", queryDisplayName(orderedUris.firstOrNull() ?: uris.first()))
+                        .toString(),
                     Charsets.UTF_8,
                 )
                 val destination = File(filesDir, "$NATIVE_MOD_IMPORT_DIR/$token")
@@ -718,7 +721,10 @@ class MainActivity : Activity() {
                     )
                 }
                 File(staging, "manifest.json").writeText(
-                    JSONObject().put("files", manifestFiles).toString(),
+                    JSONObject()
+                        .put("files", manifestFiles)
+                        .put("sourceName", queryTreeDisplayName(treeUri))
+                        .toString(),
                     Charsets.UTF_8,
                 )
                 val destination = File(filesDir, "$NATIVE_MOD_IMPORT_DIR/$token")
@@ -863,6 +869,18 @@ class MainActivity : Activity() {
             }
         }
         return uri.toString()
+    }
+
+    private fun queryTreeDisplayName(uri: Uri): String {
+        return try {
+            DocumentsContract.getTreeDocumentId(uri)
+                .substringAfterLast(':')
+                .substringAfterLast('/')
+                .ifBlank { "imported-mod" }
+        }
+        catch (_: Exception) {
+            "imported-mod"
+        }
     }
 
     private fun importGameDirectory(treeUri: Uri) {

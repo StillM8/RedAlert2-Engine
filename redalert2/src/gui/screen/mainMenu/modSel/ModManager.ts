@@ -2,6 +2,7 @@ import { IniFile } from "@/data/IniFile";
 import { RouteHelper } from "@/RouteHelper";
 import { Mod } from "@/gui/screen/mainMenu/modSel/Mod";
 import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
+import { INSTALLED_CONTENT_METADATA_FILE, type InstalledContentMetadata } from "@/content/ContentIdentity";
 interface Directory {
     getEntries(): AsyncIterable<string>;
     containsEntry(name: string): Promise<boolean>;
@@ -22,6 +23,7 @@ interface Location {
 export class ModManager {
     public static readonly remoteListFileName = "mods.ini";
     public static readonly modMetaFileName = "modcd.ini";
+    public static readonly generatedContentMetaFileName = INSTALLED_CONTENT_METADATA_FILE;
     public static readonly modIdRegex = /^[a-z0-9-_]+$/i;
     private location: Location;
     private modDir?: Directory;
@@ -110,6 +112,26 @@ export class ModManager {
                     modMeta.name = modId;
                 }
                 modMeta.id = modId;
+            }
+            else if (await modDirectory.containsEntry(ModManager.generatedContentMetaFileName)) {
+                try {
+                    const generated = JSON.parse(
+                        await (await modDirectory.getRawFile(ModManager.generatedContentMetaFileName)).text(),
+                    ) as Partial<InstalledContentMetadata>;
+                    if (typeof generated.name === "string" && generated.name.trim()) {
+                        modMeta.name = generated.name.trim();
+                    }
+                    if (typeof generated.version === "string" && generated.version.trim()) {
+                        modMeta.version = generated.version.trim();
+                    }
+                    // Generated metadata is created by our importer and does
+                    // not mean the mod is vanilla; it only makes an otherwise
+                    // manifest-less installation visible in the library.
+                    modMeta.supported = true;
+                }
+                catch (error) {
+                    console.warn(`Couldn't parse generated content metadata in mod folder "${modId}"`, error);
+                }
             }
         }
         catch (error) {
