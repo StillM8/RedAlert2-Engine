@@ -6,13 +6,16 @@ import {
     normalizeContentId,
 } from "@/content/ContentIdentity";
 import type { ContentImportSource } from "@/content/PlatformContentProvider";
-import { detectGameProfile, type GameProfileId } from "@/engine/GameProfile";
+import { detectContentProfile, type GameProfileId } from "@/engine/GameProfile";
 
 export interface InstalledContentImportResult {
     id: string;
     name: string;
     version: string;
     sourceKind: ContentImportSource["kind"];
+    baseProfile: "ra2" | "yr";
+    runtimeProfile: GameProfileId;
+    extensions: readonly string[];
 }
 
 interface ImportedFile {
@@ -118,16 +121,10 @@ export async function importContentSourceToOpfs(
     }
 
     const contentPaths = files.map((file) => file.normalizedPath);
-    const isMentalOmega = contentPaths.some((path) => {
-        const lower = path.toLocaleLowerCase("en-US");
-        return /(?:^|\/)expandmo\d{2}\.mix$/.test(lower) ||
-            /(?:^|\/)rulesmo\.ini$/.test(lower) ||
-            /(?:^|\/)artmo\.ini$/.test(lower) ||
-            /(?:^|\/)mapsmo\//.test(lower) ||
-            /(?:^|\/)missionsmo\//.test(lower);
-    });
-    const runtimeProfile: GameProfileId = isMentalOmega ? "mental-omega" : detectGameProfile(contentPaths);
+    const runtimeProfile: GameProfileId = detectContentProfile(contentPaths);
+    const isMentalOmega = runtimeProfile === "mental-omega";
     const baseProfile: "ra2" | "yr" = isMentalOmega || runtimeProfile === "yr" ? "yr" : "ra2";
+    const extensions = isMentalOmega ? ["ares"] : [];
     const metadata = createInstalledContentMetadata({
         id: contentId,
         name: source.name ?? contentId,
@@ -136,7 +133,7 @@ export async function importContentSourceToOpfs(
         sourceKind: source.kind,
         baseProfile,
         runtimeProfile,
-        extensions: isMentalOmega ? ["ares"] : [],
+        extensions,
     });
     const metadataFile = await target.getFileHandle(INSTALLED_CONTENT_METADATA_FILE, { create: true });
     const metadataWriter = await metadataFile.createWritable();
@@ -148,5 +145,8 @@ export async function importContentSourceToOpfs(
         name: metadata.name,
         version: metadata.version ?? "imported",
         sourceKind: source.kind,
+        baseProfile,
+        runtimeProfile,
+        extensions,
     };
 }

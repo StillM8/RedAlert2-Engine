@@ -1,4 +1,5 @@
 import { ModManager } from "@/gui/screen/mainMenu/modSel/ModManager";
+import type { GameProfileId } from "@/engine/GameProfile";
 
 interface IniSection {
     getString(key: string): string | undefined;
@@ -22,6 +23,11 @@ export class ModMeta {
     public download?: string;
     public downloadSize?: number;
     public manualDownload: boolean = false;
+    /** Base game required by an imported content package. */
+    public baseProfile?: "ra2" | "yr";
+    /** Runtime profile selected after the package is mounted. */
+    public runtimeProfile?: GameProfileId;
+    public extensions?: readonly string[];
 
     fromIniFile(iniFile: IniFile): this {
         const generalSection = iniFile.getSection("General");
@@ -82,6 +88,9 @@ export class ModMeta {
         cloned.download = this.download;
         cloned.downloadSize = this.downloadSize;
         cloned.manualDownload = this.manualDownload;
+        cloned.baseProfile = this.baseProfile;
+        cloned.runtimeProfile = this.runtimeProfile;
+        cloned.extensions = this.extensions?.slice();
         return cloned;
     }
 }

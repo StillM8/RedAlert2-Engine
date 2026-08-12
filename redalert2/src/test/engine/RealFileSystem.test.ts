@@ -58,4 +58,22 @@ describe("RealFileSystem root isolation", () => {
         expect(entries).not.toContain("mods/other-mod/rules.ini");
         expect(entries).not.toContain("maps/other-map.mmx");
     });
+
+    test("prefers the selected overlay when resolving nested profile archives by leaf", async () => {
+        const root = fakeDirectory("game", [
+            { name: "expandmo99.mix", kind: "file" },
+        ]);
+        const selectedMod = fakeDirectory("selected-mod", [
+            {
+                name: "Install",
+                kind: "directory",
+                entries: [{ name: "expandmo99.mix", kind: "file" }],
+            },
+        ]);
+        const rfs = new RealFileSystem();
+        rfs.addRootDirectoryHandle(root);
+        rfs.addDirectoryHandle(selectedMod);
+
+        await expect(rfs.findEntryByLeaf("expandmo99.mix")).resolves.toBe("Install/expandmo99.mix");
+    });
 });

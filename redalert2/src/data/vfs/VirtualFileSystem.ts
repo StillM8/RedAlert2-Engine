@@ -628,13 +628,14 @@ export class VirtualFileSystem {
         }
         const rfsIndex = await this.getRfsEntryIndex();
         const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
-        const findEntryByLeaf = (filename: string): string | undefined => {
-            return rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
+        const findEntryByLeaf = async (filename: string): Promise<string | undefined> => {
+            const preferred = await this.rfs!.findEntryByLeaf(filename);
+            return preferred ?? rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
         };
         let profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
         let deferredArchives = 0;
         for (const fileToTry of this.getExtraMixNames(engineType, profile)) {
-            const rfsEntry = findEntryByLeaf(fileToTry);
+            const rfsEntry = await findEntryByLeaf(fileToTry);
             if (rfsEntry && !this.hasArchive(fileToTry)) {
                 if (profileFilesReady) {
                     this.deferExtraMixFile(fileToTry, rfsEntry, this.metadataForExtraMix(fileToTry, profile));
@@ -668,7 +669,10 @@ export class VirtualFileSystem {
                 this.deferredExtraMixFiles.has(key)) {
                 continue;
             }
-            remainingMixes.set(key, rfsFile);
+            const preferred = await findEntryByLeaf(filename);
+            if (preferred) {
+                remainingMixes.set(key, preferred);
+            }
         }
         for (const [key, rfsFile] of remainingMixes) {
             const filename = key;

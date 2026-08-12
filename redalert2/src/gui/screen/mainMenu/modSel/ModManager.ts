@@ -124,6 +124,15 @@ export class ModManager {
                     if (typeof generated.version === "string" && generated.version.trim()) {
                         modMeta.version = generated.version.trim();
                     }
+                    if (generated.baseProfile === "ra2" || generated.baseProfile === "yr") {
+                        modMeta.baseProfile = generated.baseProfile;
+                    }
+                    if (typeof generated.runtimeProfile === "string") {
+                        modMeta.runtimeProfile = generated.runtimeProfile as ModMeta["runtimeProfile"];
+                    }
+                    if (Array.isArray(generated.extensions)) {
+                        modMeta.extensions = generated.extensions.filter((extension): extension is string => typeof extension === "string");
+                    }
                     // Generated metadata is created by our importer and does
                     // not mean the mod is vanilla; it only makes an otherwise
                     // manifest-less installation visible in the library.

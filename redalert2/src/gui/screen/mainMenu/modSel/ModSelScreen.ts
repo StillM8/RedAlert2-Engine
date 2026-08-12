@@ -85,7 +85,7 @@ export class ModSelScreen extends MainMenuScreen {
         this.messageBoxApi = messageBoxApi;
         this.modManager = modManager;
         this.activeModId = activeModId;
-        this.contentRegistry = new ContentRegistry(localStorage);
+        this.contentRegistry = new ContentRegistry();
         this.modSdkUrl = modSdkUrl;
         this.modResourceLoader = modResourceLoader;
         this.fsAccessLib = fsAccessLib;
@@ -103,7 +103,8 @@ export class ModSelScreen extends MainMenuScreen {
             });
             if (doubleClick &&
                 mod !== this.activeMod &&
-                mod.status === ModStatus.Installed) {
+                mod.status === ModStatus.Installed &&
+                mod.supported) {
                 await this.loadOrUnloadMod(mod);
             }
         };
@@ -149,6 +150,24 @@ export class ModSelScreen extends MainMenuScreen {
                 }),
                 this.contentRegistry.listLibrary(),
             ]);
+            const localContent = new Map(
+                library
+                    .filter((item) => item.kind === "mod")
+                    .map((item) => [item.modId ?? item.id.slice("mod:".length), item]),
+            );
+            for (const localMod of localMods) {
+                const item = localContent.get(localMod.id!);
+                if (!item) {
+                    continue;
+                }
+                localMod.baseProfile = item.baseProfile;
+                localMod.runtimeProfile = item.profileId;
+                localMod.extensions = item.extensions;
+                localMod.supported = item.status === "ready";
+                if (!localMod.description) {
+                    localMod.description = `${item.baseProfile.toUpperCase()} base required`;
+                }
+            }
             const builtins = library
                 .filter((item) => item.kind === "builtin")
                 .map((item) => this.createBuiltinMod(item));
@@ -171,6 +190,9 @@ export class ModSelScreen extends MainMenuScreen {
         meta.version = item.status === "ready" ? "installed" : "base files required";
         meta.description = `${item.baseProfile.toUpperCase()} base${item.extensions.length ? ` + ${item.extensions.join(", ")}` : ""}`;
         meta.supported = item.status === "ready";
+        meta.baseProfile = item.baseProfile;
+        meta.runtimeProfile = item.profileId;
+        meta.extensions = item.extensions;
         return new Mod(meta, undefined);
     }
     private initForm(): void {
@@ -200,7 +222,7 @@ export class ModSelScreen extends MainMenuScreen {
                     : this.selectedMod?.isInstalled()
                         ? this.strings.get("GUI:LoadMod")
                         : this.strings.get("GUI:ModActionInstall"),
-                disabled: !this.selectedMod,
+                disabled: !this.selectedMod || !this.selectedMod.supported,
                 onClick: async () => {
                     const mod = this.selectedMod!;
                     if (mod.status === ModStatus.Installed || mod === this.activeMod) {
@@ -313,6 +335,7 @@ export class ModSelScreen extends MainMenuScreen {
                 label: this.strings.get("GUI:UninstallMod"),
                 tooltip: this.strings.get("STT:UninstallMod"),
                 disabled: !(this.selectedMod?.isInstalled() &&
+                    !this.selectedMod.id.startsWith("builtin:") &&
                     this.activeMod !== this.selectedMod),
                 onClick: async () => {
                     const mod = this.selectedMod!;
@@ -375,6 +398,9 @@ export class ModSelScreen extends MainMenuScreen {
         ]);
     }
     private async loadOrUnloadMod(mod: Mod): Promise<void> {
+        if (!mod.supported) {
+            return;
+        }
         await this.controller?.hideSidebarButtons();
         if (mod.id.startsWith("builtin:")) {
             this.modManager.loadContent(mod.id);
@@ -443,28 +469,22 @@ export class ModSelScreen extends MainMenuScreen {
             this.messageBoxApi.destroy();
         }
         if (modMeta?.id) {
-            const mod = new Mod(modMeta, undefined);
-            if (mod) {
-                const existingIndex = this.availableMods.findIndex((m) => m.id === mod.id);
-                if (existingIndex !== -1) {
-                    this.availableMods.splice(existingIndex, 1, mod);
-                }
-                else {
-                    this.availableMods.unshift(mod);
-                }
-                this.selectedMod = mod;
-                this.form?.applyOptions((options: any) => {
-                    options.mods = this.availableMods;
-                    options.selectedMod = mod;
-                });
-                this.updateSidebarButtons();
-            }
+            await this.refreshImportedMod(modMeta);
         }
     }
     private async refreshImportedMod(modMeta: any): Promise<void> {
         const localMeta = new ModMeta();
         Object.assign(localMeta, modMeta);
         localMeta.supported = true;
+        const item = (await this.contentRegistry.listLibrary())
+            .find((entry) => entry.kind === "mod" && entry.modId === localMeta.id);
+        if (item) {
+            localMeta.baseProfile = item.baseProfile;
+            localMeta.runtimeProfile = item.profileId;
+            localMeta.extensions = item.extensions;
+            localMeta.supported = item.status === "ready";
+            localMeta.description ??= `${item.baseProfile.toUpperCase()} base required`;
+        }
         const mod = new Mod(localMeta, undefined);
         const existingIndex = this.availableMods.findIndex((m) => m.id === mod.id);
         if (existingIndex !== -1) {

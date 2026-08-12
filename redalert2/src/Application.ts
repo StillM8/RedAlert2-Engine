@@ -658,7 +658,7 @@ export class Application {
         this.fsAccessLib = browserFileSystemAccess;
         const nativeShellProfile = isNativeShell() ? getNativeShellProfile() : undefined;
         const fallbackProfile: GameProfileId = nativeShellProfile ?? (this.config.engine === 'yr' ? 'yr' : 'ra2');
-        const contentRegistry = new ContentRegistry(localStorage);
+        const contentRegistry = new ContentRegistry();
         const contentSelection = await contentRegistry.resolveSelection({
             location: window.location,
             fallbackProfile,

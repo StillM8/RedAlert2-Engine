@@ -5,7 +5,10 @@ This module wraps the existing TypeScript/Three.js engine in an Android
 remain in `redalert2/`; this project supplies the Android lifecycle, fullscreen,
 power-state, renderer recovery, and offline resource-serving layer.
 
-The Gradle flavors select the shared engine profile:
+The Gradle flavors provide the native baseline profile, while the in-game Mods
+screen is the user-facing content switcher. Selecting a built-in game or an
+imported mod from **Menu → Mods** writes an explicit route and performs a full
+engine reload; there is no separate startup content-picker UI.
 
 | Flavor | Profile | Debug package |
 |---|---|---|
@@ -23,15 +26,16 @@ from the app's game-resource picker after installation.
 Build and install the debug app:
 
 ```sh
-./scripts/build-android.sh --variant mo --device
+./scripts/build-android.sh --variant ra2 --device
 ```
 
-The `ra2`, `yr`, and `mo` flavors remain available. The `mo` flavor selects the
-Mental Omega + Ares-compatible runtime, but the user still supplies the Yuri's
-Revenge base files, Mental Omega expansion files, and any required Ares files
-through the import flow. Connect a device with USB debugging enabled before
-using `--device`; the script installs with `adb` and launches the selected
-package.
+The `ra2`, `yr`, and `mo` flavors remain available. They provide the initial
+base profile only; switching content is done from **Menu → Mods** and reloads
+the shared engine. The list includes built-in Red Alert 2 and Yuri's Revenge
+entries plus imported mods. A YR-based mod remains separate from the YR base:
+import the legally-owned Yuri's Revenge files as the base game, then import
+the mod from the Mods screen. Connect a device with USB debugging enabled
+before using `--device`; the script installs and launches the selected package.
 
 The script stages `redalert2/dist/` into `app/src/main/assets/WebDist/`. It
 removes any previously staged `GameRes/` directory for the default engine-only

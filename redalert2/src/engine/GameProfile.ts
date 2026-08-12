@@ -231,3 +231,37 @@ export function detectGameProfile(paths: Iterable<string>): GameProfileId {
     }
     return "ra2";
 }
+
+/**
+ * Detect the runtime family represented by a base install or an imported mod
+ * package. Unlike detectGameProfile(), this also understands the partial
+ * Yuri/Ares signatures commonly shipped by mods that deliberately omit the
+ * retail base archives. Mental Omega remains explicit at the runtime-profile
+ * level because it is a YR mod, not a third simulation engine.
+ */
+export function detectContentProfile(paths: Iterable<string>): GameProfileId {
+    const normalizedPaths = [...paths]
+        .map((path) => tryNormalizeGamePath(path))
+        .filter((path): path is string => !!path);
+    const lowerPaths = normalizedPaths.map((path) => path.toLocaleLowerCase("en-US"));
+    const leaves = normalizedPaths.map((path) => gamePathKey(gamePathLeaf(path)));
+    const hasMentalOmega = lowerPaths.some((path, index) =>
+        /^expandmo\d{2}\.mix$/.test(leaves[index]) ||
+        /(?:^|\/)rulesmo\.ini$/.test(path) ||
+        /(?:^|\/)artmo\.ini$/.test(path) ||
+        /(?:^|\/)mapsmo\//.test(path) ||
+        /(?:^|\/)missionsmo\//.test(path),
+    );
+    if (hasMentalOmega) {
+        return "mental-omega";
+    }
+    const hasYuriOverlay = lowerPaths.some((path) =>
+        /(?:^|\/)(?:rulesmd|artmd|aimd|uimd|evamd|soundmd)\.ini$/.test(path) ||
+        /(?:^|\/)(?:langmd|multimd|ra2md|expandmd\d{2})\.mix$/.test(path) ||
+        path.endsWith(".yro"),
+    );
+    if (hasYuriOverlay) {
+        return "yr";
+    }
+    return detectGameProfile(normalizedPaths);
+}

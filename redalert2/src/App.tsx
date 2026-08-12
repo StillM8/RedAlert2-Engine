@@ -46,12 +46,18 @@ function App() {
                     // (for example after a pre-existing Android import). Keep
                     // the first frame branded and useful while the real game
                     // resources are being seeded/loaded.
-                    const profile = new URLSearchParams(window.location.search).get('profile');
+                    const params = new URLSearchParams(window.location.search);
+                    const content = params.get('content');
+                    const profile = content === 'builtin:yr'
+                        ? 'yr'
+                        : content === 'builtin:ra2'
+                            ? 'ra2'
+                            : params.get('profile') ?? localStorage.getItem('_ra2_native_profile');
                     handleSplashScreenUpdate({
                         width: window.innerWidth,
                         height: window.innerHeight,
                         parentElement: rootElement,
-                        backgroundImage: profile === 'yr'
+                        backgroundImage: profile === 'yr' || profile === 'mental-omega'
                             ? '/res/img/yr-loading.png'
                             : '/res/img/ra2-loading.png',
                         loadingText: 'Initializing...',

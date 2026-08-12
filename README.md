@@ -307,16 +307,10 @@ with `xcrun devicectl device install app --device <id> <path to RA2.app>`.
 
 ### Android builds
 
-The Android shell is split into three installable app variants:
-
-| Variant | App | Package ID (debug) |
-|---|---|---|
-| `ra2` | Red Alert 2 | `com.ammaar.ra2android.debug` |
-| `yr` | Yuri's Revenge | `com.ammaar.yurirevengeandroid.debug` |
-| `mo` | Mental Omega compatibility profile | `com.ammaar.mentalomegaandroid.debug` |
-
-With the Android SDK and Gradle available, build either variant from the repo
-root:
+Android keeps the native RA2/YR/MO baseline flavors, while the in-game Mods
+screen owns content switching. The built-in Mod Menu entries are Red Alert 2
+and Yuri's Revenge; imported packages stay separate and declare which base
+they require. Build a selected baseline from the repo root:
 
 ```sh
 ./scripts/build-android.sh --variant ra2
@@ -324,7 +318,7 @@ root:
 ./scripts/build-android.sh --variant mo
 ```
 
-Use `--device` to install and launch the selected variant through `adb`:
+Use `--device` to install and launch a selected flavor through `adb`:
 
 ```sh
 ./scripts/build-android.sh --variant ra2 --device
@@ -332,13 +326,15 @@ Use `--device` to install and launch the selected variant through `adb`:
 ./scripts/build-android.sh --variant mo --device
 ```
 
-The first launch opens the in-app game-resource setup. Choose **Select folder**
-and select the directory containing the retail files; selecting individual files
-is not sufficient. The Yuri and Mental Omega profiles require the corresponding
-Yuri's Revenge files, and Mental Omega additionally requires the selected
-installation's `expandmo##.mix` content archives. These are user-provided game
-files, not files packaged by the normal build. For local QA only, Android also
-accepts `./scripts/build-android.sh --variant mo --with-gameres`.
+The first launch opens the in-app game-resource setup. After the base files
+are imported, open **Menu → Mods**. Selecting Red Alert 2, Yuri's Revenge, or
+an imported mod performs a full engine reload. A mod that requires YR uses the
+separately imported Yuri's Revenge base; it does not replace or merge the base
+install.
+
+Retail game files are not bundled; import your legally-owned installation on
+first launch. For local QA only, Android accepts
+`./scripts/build-android.sh --variant mo --with-gameres`.
 
 The [v0.0.1 Android release](https://github.com/StillM8/RedAlert2-Android/releases/tag/v0.0.1)
 includes separate release APKs for Red Alert 2 and Yuri's Revenge. Retail game

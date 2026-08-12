@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { detectGameProfile, getGameProfile, validateMentalOmegaInstallation } from '@/engine/GameProfile';
+import { detectContentProfile, detectGameProfile, getGameProfile, validateMentalOmegaInstallation } from '@/engine/GameProfile';
 import { gamePathKey, normalizeGamePath } from '@/engine/GamePath';
 
 describe('GameProfile detection', () => {
@@ -76,6 +76,18 @@ describe('GameProfile detection', () => {
         expect(getGameProfile('mental-omega').resolveCanonicalFile('sound.ini')).toBe('soundmo.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('sound.ini', () => false)).toBe('soundmd.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('eva.ini', () => false)).toBe('evamd.ini');
+    });
+
+    test('detects a partial Yuri mod without requiring the imported YR base archives', () => {
+        expect(detectContentProfile([
+            'rulesmd.ini', 'artmd.ini', 'expandmd12.mix', 'maps/example.yro',
+        ])).toBe('yr');
+        expect(detectContentProfile([
+            'rulesmo.ini', 'artmo.ini', 'expandmo99.mix',
+        ])).toBe('mental-omega');
+        expect(detectContentProfile([
+            'rules.ini', 'art.ini', 'expand02.mix',
+        ])).toBe('ra2');
     });
 
     test('validates Mental Omega only when its own content signatures are present', () => {

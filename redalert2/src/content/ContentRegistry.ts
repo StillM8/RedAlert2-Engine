@@ -2,8 +2,8 @@ import {
     INSTALLED_CONTENT_METADATA_FILE,
     type InstalledContentMetadata,
 } from "@/content/ContentIdentity";
-import { gamePathKey, gamePathLeaf, tryNormalizeGamePath } from "@/engine/GamePath";
-import { GAME_PROFILES, isGameProfileId, type GameProfileId } from "@/engine/GameProfile";
+import { gamePathKey } from "@/engine/GamePath";
+import { detectContentProfile, GAME_PROFILES, isGameProfileId, type GameProfileId } from "@/engine/GameProfile";
 
 export type BuiltinContentId = "builtin:ra2" | "builtin:yr";
 export type ContentSelectionId = BuiltinContentId | `mod:${string}`;
@@ -26,14 +26,6 @@ export interface ContentLibraryItem {
     installed: boolean;
     status: "ready" | "needs-base" | "unknown";
     modId?: string;
-}
-
-export const CONTENT_SELECTION_STORAGE_KEY = "_ra2_selected_content";
-const CONTENT_SELECTION_SCHEMA_VERSION = 1;
-
-interface ContentSelectionStorage {
-    getItem(key: string): string | null;
-    setItem(key: string, value: string): void;
 }
 
 function isBuiltinContentId(value: string): value is BuiltinContentId {
@@ -107,63 +99,17 @@ async function listFilesRecursive(directory: FileSystemDirectoryHandle, prefix =
 }
 
 function profileFromPaths(paths: Iterable<string>): GameProfileId | undefined {
-    const leaves = new Set<string>();
-    let hasMentalOmegaArchive = false;
-    for (const path of paths) {
-        const normalized = tryNormalizeGamePath(path);
-        if (!normalized) {
-            continue;
-        }
-        const lower = normalized.toLocaleLowerCase("en-US");
-        const leaf = gamePathKey(gamePathLeaf(normalized));
-        leaves.add(leaf);
-        if (/^expandmo\d{2}\.mix$/.test(leaf) ||
-            lower.endsWith("/rulesmo.ini") ||
-            lower.endsWith("/artmo.ini") ||
-            lower.includes("/mapsmo/") ||
-            lower.includes("/missionsmo/")) {
-            hasMentalOmegaArchive = true;
-        }
-    }
-    if (hasMentalOmegaArchive) {
-        return "mental-omega";
-    }
-    if (GAME_PROFILES.yr.requiredFiles.every((file) => leaves.has(gamePathKey(file)))) {
-        return "yr";
-    }
-    if (GAME_PROFILES.ra2.requiredFiles.every((file) => leaves.has(gamePathKey(file)))) {
-        return "ra2";
-    }
-    return undefined;
+    return detectContentProfile(paths);
 }
 
-/** Shared runtime content catalog and selection persistence. */
+/** Shared content catalog and explicit Mod Menu route resolver. */
 export class ContentRegistry {
-    constructor(private readonly storage?: ContentSelectionStorage) {}
-
-    getStoredSelection(): ContentSelectionId | undefined {
-        const raw = this.storage?.getItem(CONTENT_SELECTION_STORAGE_KEY);
-        if (!raw) {
-            return undefined;
-        }
-        try {
-            const parsed = JSON.parse(raw) as { schemaVersion?: number; id?: string };
-            return parsed.schemaVersion === CONTENT_SELECTION_SCHEMA_VERSION
-                ? parseContentSelectionId(parsed.id)
-                : undefined;
-        }
-        catch {
-            return parseContentSelectionId(raw);
-        }
-    }
-
-    setStoredSelection(id: ContentSelectionId): void {
-        this.storage?.setItem(CONTENT_SELECTION_STORAGE_KEY, JSON.stringify({
-            schemaVersion: CONTENT_SELECTION_SCHEMA_VERSION,
-            id,
-        }));
-    }
-
+    /**
+     * Resolve only an explicit selection made by the Mods screen. The native
+     * profile is the app's baseline; the content query is written by
+     * ModManager immediately before a full document reload. There is no
+     * hidden localStorage selection or startup content picker.
+     */
     async resolveSelection(options: {
         location?: Location;
         fallbackProfile?: GameProfileId;
@@ -176,13 +122,9 @@ export class ContentRegistry {
         if (requested) {
             return await this.selectionFromId(requested, fallbackProfile);
         }
-        const stored = this.getStoredSelection();
-        if (stored) {
-            return await this.selectionFromId(stored, fallbackProfile);
-        }
         if (fallbackProfile === "mental-omega") {
-            // Compatibility for old MO flavor URLs/installations. New
-            // installs should select a concrete mod:<id> entry instead.
+            // Compatibility for old MO flavor URLs/installations. The normal
+            // path is still an explicit Mod Menu selection.
             return { id: "mod:mental-omega", kind: "mod", modId: "mental-omega", profileId: fallbackProfile };
         }
         const builtinId: BuiltinContentId = fallbackProfile === "yr" ? "builtin:yr" : "builtin:ra2";
@@ -217,7 +159,7 @@ export class ContentRegistry {
             const metadata = await readGeneratedMetadata(modDirectory);
             const files = metadata ? [] : await listFilesRecursive(modDirectory);
             const profileId = metadataProfile(metadata) ?? profileFromPaths(files);
-            const resolvedProfile = profileId ?? "yr";
+            const resolvedProfile = profileId ?? "ra2";
             const baseProfile = metadata?.baseProfile === "ra2" || metadata?.baseProfile === "yr"
                 ? metadata.baseProfile
                 : baseProfileForRuntime(resolvedProfile);

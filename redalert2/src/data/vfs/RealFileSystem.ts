@@ -1,7 +1,7 @@
 import { FileNotFoundError } from "./FileNotFoundError";
 import { RealFileSystemDir } from "./RealFileSystemDir";
 import type { VirtualFile } from "./VirtualFile";
-import { gamePathKey } from "../../engine/GamePath";
+import { gamePathKey, gamePathLeaf, normalizeGamePath } from "../../engine/GamePath";
 export interface RFSConstructorOptions {
     /**
      * Root-level directories owned by the engine rather than by the active
@@ -16,6 +16,7 @@ export class RealFileSystem {
     private rootDirectory: RealFileSystemDir | undefined;
     private rootDirectoryHandle: FileSystemDirectoryHandle | undefined;
     private readonly excludedRootDirectoryKeys: ReadonlySet<string>;
+    private preferredEntryByLeaf?: Promise<ReadonlyMap<string, string>>;
     constructor(options?: RFSConstructorOptions) {
         this.directories = [];
         this.excludedRootDirectoryKeys = new Set(
@@ -27,6 +28,7 @@ export class RealFileSystem {
         const newDir = new RealFileSystemDir(handle);
         this.directories.push(newDir);
         this.rootDirectory = newDir;
+        this.preferredEntryByLeaf = undefined;
         return newDir;
     }
     getRootDirectoryHandle(): FileSystemDirectoryHandle | undefined {
@@ -35,11 +37,13 @@ export class RealFileSystem {
     addDirectoryHandle(handle: FileSystemDirectoryHandle): RealFileSystemDir {
         const newDir = new RealFileSystemDir(handle);
         this.directories.push(newDir);
+        this.preferredEntryByLeaf = undefined;
         return newDir;
     }
     addDirectory(dir: RealFileSystemDir): void {
         if (!this.directories.includes(dir)) {
             this.directories.push(dir);
+            this.preferredEntryByLeaf = undefined;
         }
     }
     async getDirectory(path: string): Promise<RealFileSystemDir> {
@@ -123,5 +127,33 @@ export class RealFileSystem {
                 yield entryName;
             }
         }
+    }
+
+    /**
+     * Resolve a leaf through the mounted-directory precedence order. The
+     * selected mod directory is added after the base root, so its nested
+     * profile archive wins over a same-named base archive. Unselected managed
+     * roots are excluded before this index is built.
+     */
+    async findEntryByLeaf(filename: string): Promise<string | undefined> {
+        if (!this.preferredEntryByLeaf) {
+            this.preferredEntryByLeaf = (async () => {
+                const entriesByLeaf = new Map<string, string>();
+                for (const dir of [...this.directories].reverse()) {
+                    const options = dir === this.rootDirectory
+                        ? { skipRootDirectories: this.excludedRootDirectoryKeys }
+                        : undefined;
+                    for await (const entry of dir.getEntriesRecursive("", options)) {
+                        const normalized = normalizeGamePath(entry);
+                        const key = gamePathKey(gamePathLeaf(normalized));
+                        if (!entriesByLeaf.has(key)) {
+                            entriesByLeaf.set(key, normalized);
+                        }
+                    }
+                }
+                return entriesByLeaf;
+            })();
+        }
+        return (await this.preferredEntryByLeaf).get(gamePathKey(gamePathLeaf(filename)));
     }
 }

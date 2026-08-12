@@ -9,13 +9,13 @@ describe("content registry selection", () => {
         expect(parseContentSelectionId("mental-omega")).toBeUndefined();
     });
 
-    test("resolves legacy mod routes and persists explicit selection", async () => {
-        const values = new Map<string, string>();
-        const storage = {
-            getItem: (key: string) => values.get(key) ?? null,
-            setItem: (key: string, value: string) => values.set(key, value),
-        };
-        const registry = new ContentRegistry(storage);
+    test("resolves only explicit Mod Menu routes", async () => {
+        const registry = new ContentRegistry();
+        await expect(registry.resolveSelection({
+            location: { href: "https://example.test/index.html?content=builtin:yr" } as Location,
+            fallbackProfile: "ra2",
+        })).resolves.toMatchObject({ id: "builtin:yr", profileId: "yr" });
+
         const selection = await registry.resolveSelection({
             location: { href: "https://example.test/index.html?mod=mental-omega" } as Location,
             fallbackProfile: "yr",
@@ -24,10 +24,9 @@ describe("content registry selection", () => {
         expect(selection.modId).toBe("mental-omega");
         expect(selection.profileId).toBe("yr");
 
-        registry.setStoredSelection("builtin:yr");
         await expect(registry.resolveSelection({
             location: { href: "https://example.test/index.html" } as Location,
             fallbackProfile: "ra2",
-        })).resolves.toMatchObject({ id: "builtin:yr", profileId: "yr" });
+        })).resolves.toMatchObject({ id: "builtin:ra2", profileId: "ra2" });
     });
 });
