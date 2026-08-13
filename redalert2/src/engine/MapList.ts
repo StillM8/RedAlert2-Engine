@@ -2,6 +2,7 @@ import { MapManifest } from './MapManifest';
 import type { GameModes, GameModeEntry } from '../game/ini/GameModes';
 import type { IniFile, IniSection } from '../data/IniFile';
 import type { VirtualFile } from '../data/vfs/VirtualFile';
+import { gamePathKey, tryNormalizeGamePath } from './GamePath';
 export class MapList {
     private gameModes: GameModes;
     private manifests: MapManifest[] = [];
@@ -37,7 +38,12 @@ export class MapList {
         return this.manifests;
     }
     getByName(fileName: string): MapManifest | undefined {
-        return this.manifests.find((manifest) => manifest.fileName.toLowerCase() === fileName.toLowerCase());
+        const normalized = tryNormalizeGamePath(fileName);
+        if (!normalized) {
+            return undefined;
+        }
+        const key = gamePathKey(normalized);
+        return this.manifests.find((manifest) => gamePathKey(manifest.fileName) === key);
     }
     sortByName(): void {
         this.manifests.sort((a, b) => a.fileName.localeCompare(b.fileName));
@@ -54,7 +60,7 @@ export class MapList {
     }
     private dedupeEntries(): void {
         this.manifests = [
-            ...new Map(this.manifests.map((manifest) => [manifest.fileName.toLowerCase(), manifest])).values(),
+            ...new Map(this.manifests.map((manifest) => [gamePathKey(manifest.fileName), manifest])).values(),
         ];
     }
 }

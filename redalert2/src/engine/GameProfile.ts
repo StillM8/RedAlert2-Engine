@@ -22,6 +22,14 @@ export interface GameProfileDescriptor {
     /** Additional CSF names loaded as profile-local string overrides. */
     stringFileCandidates?: readonly string[];
     /**
+     * Authoritative multiplayer map catalogs supplied by this content
+     * profile. When present, map discovery can use these indexes without
+     * mounting unrelated deferred gameplay archives first.
+     */
+    multiplayerMapListFiles?: readonly string[];
+    /** Content roots that contain scenarios which must not enter multiplayer map discovery. */
+    nonMultiplayerMapRoots?: readonly string[];
+    /**
      * Resolve one of the engine's canonical filenames for this content
      * profile.  The availability callback is optional so scanners can inspect
      * the profile's preferred aliases without mounting a VFS first; runtime
@@ -118,6 +126,11 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
             "stringtable10.csf",
             "stringtable11.csf",
         ],
+        // The CnCNet client declaration points at this multiplayer catalog.
+        // Keeping the path at the profile boundary lets the shared engine use
+        // the same catalog machinery for any content package.
+        multiplayerMapListFiles: ["INI/MentalOmegaMaps.ini"],
+        nonMultiplayerMapRoots: ["MissionsMO"],
     }),
 };
 

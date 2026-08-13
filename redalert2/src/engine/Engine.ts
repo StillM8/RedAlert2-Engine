@@ -19,10 +19,12 @@ import { GameModes } from '../game/ini/GameModes';
 import { IniSourceLoader } from './IniSourceLoader';
 import * as stringUtils from '../util/string';
 import { MapList } from './MapList';
+import { VirtualFile } from '../data/vfs/VirtualFile';
 import { HvaFile } from '../data/HvaFile';
 import { MixinRulesType } from '../game/ini/MixinRulesType';
 import { AppLogger } from '../util/logger';
 import { GAME_PROFILES, type GameProfileDescriptor } from './GameProfile';
+import { gamePathKey } from './GamePath';
 type AppLoggerType = typeof AppLogger;
 interface TheaterSettings {
     type: TheaterType;
@@ -219,6 +221,7 @@ export class Engine {
     private static mapListGameModes?: GameModes;
     private static mapListLoadPromise?: Promise<MapList>;
     private static mapListLoadScheduled = false;
+    private static loadedMapListFiles = new Set<string>();
     static getVersion(): string {
         return appVersion.split(".").slice(0, 2).join(".");
     }
@@ -530,26 +533,59 @@ export class Engine {
     static getIniSourceLoader(): IniSourceLoader | undefined {
         return this.iniSourceLoader;
     }
+    private static getConfiguredMapListFiles(): readonly string[] {
+        const profileFiles = this.activeProfile.multiplayerMapListFiles;
+        return profileFiles?.length
+            ? profileFiles
+            : [this.getFileNameVariant("missions.pkt")];
+    }
+    private static loadConfiguredMapLists(mapList: MapList): number {
+        let loaded = 0;
+        for (const fileName of this.getConfiguredMapListFiles()) {
+            const key = gamePathKey(fileName);
+            if (this.loadedMapListFiles.has(key)) {
+                loaded++;
+                continue;
+            }
+            if (!this.iniFiles.has(fileName)) {
+                console.warn(`Map list file "${fileName}" not found, skipping`);
+                continue;
+            }
+            mapList.addFromIni(this.getIni(fileName));
+            this.loadedMapListFiles.add(key);
+            loaded++;
+        }
+        return loaded;
+    }
+    private static isExcludedFromMultiplayerMapDiscovery(fileName: string): boolean {
+        const fileKey = gamePathKey(fileName);
+        return (this.activeProfile.nonMultiplayerMapRoots ?? []).some((root) => {
+            const rootKey = gamePathKey(root);
+            return fileKey === rootKey || fileKey.startsWith(rootKey + "/");
+        });
+    }
     private static createBaseMapList(): MapList {
         const gameModes = this.mapListGameModes ??= this.getMpModes();
         const mapList = new MapList(gameModes);
-        const missionsPktFileName = this.getFileNameVariant("missions.pkt");
-        if (this.iniFiles.has(missionsPktFileName)) {
-            mapList.addFromIni(this.getIni(missionsPktFileName));
-        }
-        else {
-            console.warn(`Map list file "${missionsPktFileName}" not found, skipping`);
-        }
+        this.loadConfiguredMapLists(mapList);
         return mapList;
     }
     private static async populateMapList(): Promise<MapList> {
         if (!this.vfs)
             throw new Error("File system not initialized");
-        // Map manifests can live in a deferred profile MIX layer. Finish the
-        // generic extra-resource pass before enumerating map archives.
-        await this.vfs.loadDeferredExtraMixFiles(this.getActiveEngine(), this.getActiveProfile());
         const combinedMapList = this.mapList ?? (this.mapList = this.createBaseMapList());
         const gameModes = this.mapListGameModes ??= this.getMpModes();
+        const explicitMapLists = this.activeProfile.multiplayerMapListFiles ?? [];
+        const explicitMapListReady = explicitMapLists.some((fileName) =>
+            this.loadedMapListFiles.has(gamePathKey(fileName)));
+        // A declared catalog is already sufficient for the map browser. The
+        // match loader mounts deferred gameplay archives before simulation;
+        // making Skirmish mount them too turns a map lookup into gigabytes of
+        // unrelated I/O. Preserve legacy discovery when no catalog is ready.
+        if (!explicitMapListReady) {
+            await this.vfs.loadDeferredExtraMixFiles(this.getActiveEngine(), this.getActiveProfile());
+            this.loadConfiguredMapLists(combinedMapList);
+        }
         await this.vfs.loadDeferredMapArchives(this.getActiveEngine(), this.getActiveProfile());
         for (const archiveName of this.vfs.listArchives()) {
             const pktFileName = archiveName.toLowerCase().replace(/\.[^.]+$/, "") + ".pkt";
@@ -558,24 +594,41 @@ export class Engine {
             }
         }
         const localMapList = new MapList(gameModes);
+        let cataloguedMapsSkipped = 0;
+        let excludedMapsSkipped = 0;
+        let parsedLooseMaps = 0;
         if (this.rfs) {
             // RFS can contain the base game, an active mod directory, and a
             // user map directory. Scan every registered directory so maps
             // shipped by mods appear in the lobby alongside the bundled map
             // manifests.
-            for (const entryName of await this.vfs.listRfsFiles()) {
-                const lowerEntryName = entryName.toLowerCase();
+            for (const entry of await this.vfs.listRfsFileEntries()) {
+                const entryName = entry.path;
+                const effectiveEntryName = entry.effectivePath;
+                const lowerEntryName = effectiveEntryName.toLocaleLowerCase("en-US");
                 try {
+                    if (this.isExcludedFromMultiplayerMapDiscovery(effectiveEntryName)) {
+                        excludedMapsSkipped++;
+                        continue;
+                    }
                     if (lowerEntryName.endsWith(".pkt")) {
+                        if (this.loadedMapListFiles.has(gamePathKey(effectiveEntryName))) {
+                            continue;
+                        }
                         const fileData = await this.rfs.openFile(entryName, true);
                         if (fileData) {
                             localMapList.addFromIni(new IniFile(fileData));
                         }
                     }
                     else if (this.supportedMapTypes.some((type) => lowerEntryName.endsWith("." + type))) {
+                        if (combinedMapList.getByName(effectiveEntryName)) {
+                            cataloguedMapsSkipped++;
+                            continue;
+                        }
                         const fileData = await this.rfs.openFile(entryName, true);
                         if (fileData) {
-                            localMapList.addFromMapFile(fileData);
+                            localMapList.addFromMapFile(VirtualFile.fromBytes(fileData.getBytes(), effectiveEntryName));
+                            parsedLooseMaps++;
                         }
                     }
                 }
@@ -584,6 +637,8 @@ export class Engine {
                 }
             }
         }
+        console.info(`[Engine] Map discovery reused ${cataloguedMapsSkipped} catalog entries, ` +
+            `parsed ${parsedLooseMaps} uncatalogued maps, and excluded ${excludedMapsSkipped} non-multiplayer files.`);
         localMapList.sortByName();
         combinedMapList.mergeWith(localMapList);
         this.mapList = combinedMapList;
@@ -717,6 +772,7 @@ export class Engine {
         this.mapListLoadScheduled = false;
         this.mapListGameModes = undefined;
         this.mapList = undefined;
+        this.loadedMapListFiles.clear();
         this.rfs = undefined;
         this.vfs = undefined;
         this.art = undefined;

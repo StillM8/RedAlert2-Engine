@@ -81,6 +81,14 @@ interface RfsEntryIndex {
         directoryIndex: number;
     }>;
 }
+export interface RfsFileEntry {
+    /** Physical path used to open the selected file-provider entry. */
+    path: string;
+    /** Canonical game path after coherent duplicate-copy selection. */
+    effectivePath: string;
+    /** Mounted base/overlay directory that supplied the entry. */
+    directoryIndex: number;
+}
 
 export interface ExtraMixLoadOptions {
     /**
@@ -255,8 +263,17 @@ export class VirtualFileSystem {
      * of enumerating Android's directory handles a second time during boot.
      */
     async listRfsFiles(): Promise<string[]> {
+        return (await this.listRfsFileEntries()).map(({ path }) => path);
+    }
+    /**
+     * Enumerate selected imported files without losing their physical path or
+     * canonical game identity. Consumers open `path` and compare `effectivePath`.
+     */
+    async listRfsFileEntries(): Promise<RfsFileEntry[]> {
         const index = await this.getRfsEntryIndex();
-        return index.entries.map(({ path }) => path).sort(compareResourcePaths);
+        return index.entries
+            .map((entry) => ({ ...entry }))
+            .sort((a, b) => compareResourcePaths(a.path, b.path));
     }
     resolve(filename: string): VfsResolution {
         const normalized = this.resolveFilename(filename);

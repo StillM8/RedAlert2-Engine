@@ -76,6 +76,10 @@ describe('GameProfile detection', () => {
             'sound.ini': 'soundmo.ini',
             'missions.pkt': 'missionsmo.pkt',
         });
+        expect(getGameProfile('mental-omega').multiplayerMapListFiles).toEqual([
+            'INI/MentalOmegaMaps.ini',
+        ]);
+        expect(getGameProfile('mental-omega').nonMultiplayerMapRoots).toEqual(['MissionsMO']);
         expect(getGameProfile('mental-omega').resolveCanonicalFile('rules.ini')).toBe('rulesmo.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('ui.ini')).toBe('uimd.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('eva.ini')).toBe('evamo.ini');

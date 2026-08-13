@@ -224,6 +224,45 @@ describe("VirtualFileSystem resource precedence", () => {
             "INI (1)/Map Code/New Mode.ini",
             "INI (1)/Map Code/Free for All.ini",
         ]);
+        expect(await vfs.listRfsFileEntries()).toEqual([
+            {
+                path: "INI (1)/Map Code/New Mode.ini",
+                effectivePath: "INI/Map Code/New Mode.ini",
+                directoryIndex: 1,
+            },
+            {
+                path: "INI (1)/Map Code/Free for All.ini",
+                effectivePath: "INI/Map Code/Free for All.ini",
+                directoryIndex: 1,
+            },
+        ]);
+    });
+
+    test("opens a canonical map path from the selected duplicate-copy tree", async () => {
+        const files = new Map([
+            ["MapsMO/Standard/Arena.map", VirtualFile.fromBytes(new TextEncoder().encode("old"), "Arena.map")],
+            ["MapsMO (1)/Standard/Arena.map", VirtualFile.fromBytes(new TextEncoder().encode("new"), "Arena.map")],
+        ]);
+        const rfs = {
+            async *getEntriesRecursiveWithDirectoryIndex() {
+                yield { entryName: "MapsMO/Standard/Arena.map", directoryIndex: 0 };
+                yield { entryName: "MapsMO (1)/Standard/Arena.map", directoryIndex: 0 };
+            },
+            async openFile(filename: string) {
+                const file = files.get(filename);
+                if (!file) throw new FileNotFoundError(filename);
+                return file;
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        const file = await vfs.openFileWithRfs("mapsmo/standard/arena.map");
+
+        expect(file?.readAsString()).toBe("new");
     });
 
     test("reuses the imported-storage index across resource consumers", async () => {

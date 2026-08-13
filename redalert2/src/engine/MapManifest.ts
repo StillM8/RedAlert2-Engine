@@ -2,6 +2,7 @@ import { IniFile, IniSection } from '../data/IniFile';
 import type { GameModeEntry } from '../game/ini/GameModes';
 import type { VirtualFile } from '../data/vfs/VirtualFile';
 import type { Strings } from '../data/Strings';
+import { normalizeGamePath } from './GamePath';
 export class MapManifest {
     public fileName!: string;
     public uiName!: string;
@@ -9,12 +10,21 @@ export class MapManifest {
     public official!: boolean;
     public gameModes!: GameModeEntry[];
     fromIni(section: IniSection, availableGameModes: GameModeEntry[]): this {
-        this.fileName = section.getString("File") || section.name.toLowerCase() + ".map";
-        this.uiName = section.getString("Description");
+        const explicitFileName = section.getString("File");
+        this.fileName = normalizeGamePath(explicitFileName || section.name.toLowerCase() + ".map");
+        const description = section.getString("Description");
+        // Retail catalogs use CSF keys such as DESC:MP03T4, while CnCNet-style
+        // catalogs commonly contain literal names. Mark only literal text as
+        // NOSTR so it does not become a failed localization lookup.
+        this.uiName = description && !/^(?:NOSTR|[A-Za-z0-9_]+):/i.test(description)
+            ? `NOSTR:${description}`
+            : description;
         this.maxSlots = section.getNumber("MaxPlayers");
         this.official = true;
-        const supportedModeFilters = section.getArray("GameMode");
-        this.gameModes = availableGameModes.filter((gm) => supportedModeFilters.includes(gm.mapFilter));
+        const modeKey = section.has("GameModes") ? "GameModes" : "GameMode";
+        const supportedModeFilters = section.getArray(modeKey).map((filter) => filter.toLocaleLowerCase("en-US"));
+        this.gameModes = availableGameModes.filter((gm) =>
+            supportedModeFilters.includes(gm.mapFilter.toLocaleLowerCase("en-US")));
         return this;
     }
     getFullMapTitle(strings: Strings): string {
@@ -22,7 +32,9 @@ export class MapManifest {
         return this.addTitleSlotsSuffix(mapTitle, this.maxSlots);
     }
     private addTitleSlotsSuffix(title: string, maxPlayers: number): string {
-        if (!title.match(/(\s*\(|（)\s*\d(-\d)?\s*(\)|）)\s*$/)) {
+        const startsWithSlots = title.match(/^\s*(\(|（)\s*\d(-\d)?\s*(\)|）)/);
+        const endsWithSlots = title.match(/(\s*\(|（)\s*\d(-\d)?\s*(\)|）)\s*$/);
+        if (!startsWithSlots && !endsWithSlots) {
             title += ` (2${maxPlayers > 2 ? "-" + maxPlayers : ""})`;
         }
         return title;
@@ -43,7 +55,7 @@ export class MapManifest {
         // maps shipped below nested mod directories. Use
         // only the leaf name for the fallback UI label so long mod paths do
         // not spill out of the map picker.
-        this.fileName = mapFileName;
+        this.fileName = normalizeGamePath(mapFileName);
         const mapLeafName = mapFileName.split('/').pop() || mapFileName;
         this.uiName = "NOSTR:" + (basicSection.getString("Name") || mapLeafName.replace(/\.[^.]+$/, ""));
         const waypointsSectionContent = this.extractIniSection("Waypoints", mapContent);
