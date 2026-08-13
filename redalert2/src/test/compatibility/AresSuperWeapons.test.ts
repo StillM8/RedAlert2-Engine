@@ -22,6 +22,11 @@ SW.ManualFire=no
 SW.InitialReady=yes
 SW.VirtualCharge=true
 SW.Group=2
+SW.Animation=MOBlastAnim
+SW.AnimationHeight=4
+SW.AnimationVisibility=owner
+SW.Sound=MOBlastImpact
+SW.ActivationSound=MOBlastLaunch
 `);
         const section = ini.getSection("MOBlast")!;
         const definition = parseAresSuperWeaponDefinition(section);
@@ -38,6 +43,11 @@ SW.Group=2
         expect(definition?.swInitialReady).toBe(true);
         expect(definition?.swVirtualCharge).toBe(true);
         expect(definition?.swGroup).toBe(2);
+        expect(definition?.swAnimation).toBe("MOBlastAnim");
+        expect(definition?.swAnimationHeight).toBe(4);
+        expect(definition?.swAnimationVisibility).toBe("owner");
+        expect(definition?.swSound).toBe("MOBlastImpact");
+        expect(definition?.swActivationSound).toBe("MOBlastLaunch");
         expect(definition?.extensionEntries.get("SW.Damage")).toBe("500");
         expect(rules.typeId).toBe("GenericWarhead");
         expect(rules.type).toBeUndefined();

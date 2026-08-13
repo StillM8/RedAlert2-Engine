@@ -5,6 +5,10 @@ import { LightningStormFx } from '@/engine/gfx/lighting/LightningStormFx';
 import { GameSpeed } from '@/game/GameSpeed';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { Coords } from '@/game/Coords';
+import {
+    isAresSuperWeaponAnimationVisible,
+    resolveAresSuperWeaponViewerRelation,
+} from '@/extensions/ares/AresSuperWeaponPresentation';
 interface Game {
     events: {
         subscribe: (event: EventType, handler: (event: any) => void) => {
@@ -31,6 +35,10 @@ interface Game {
         };
         getIonLighting: () => any;
     };
+    localPlayer?: any;
+    alliances?: {
+        areAllied?: (player1: any, player2: any) => boolean;
+    };
 }
 interface Tile {
     rx: number;
@@ -54,9 +62,11 @@ interface LightningStormEvent {
     position: any;
 }
 interface SuperWeaponActivateEvent {
-    target: SuperWeaponType;
+    target: SuperWeaponType | string;
+    owner: any;
     atTile: Tile;
     atTile2?: Tile;
+    rules?: any;
 }
 export class SuperWeaponFxHandler {
     private game: Game;
@@ -105,7 +115,40 @@ export class SuperWeaponFxHandler {
                     anim.setPosition(destPos);
                 });
             }
+        }), this.game.events.subscribe(EventType.AresSuperWeaponEffect, (event: any) => {
+            this.handleAresSuperWeaponEffect(event);
         }));
+    }
+    private handleAresSuperWeaponEffect(event: {
+        rules?: any;
+        owner: any;
+        atTile?: Tile;
+    }): void {
+        const ares = event.rules?.ares;
+        const animation = ares?.swAnimation;
+        const tile = event.atTile;
+        if (!animation || !tile) return;
+
+        const viewerRelation = resolveAresSuperWeaponViewerRelation(
+            this.game.localPlayer,
+            event.owner,
+            this.game.alliances,
+        );
+        if (!isAresSuperWeaponAnimationVisible(ares, viewerRelation)) return;
+
+        const bridge = this.game.map.tileOccupation.getBridgeOnTile(tile);
+        const bridgeHeight = bridge?.tileElevation ?? 0;
+        const animationHeight = Number.isFinite(ares.swAnimationHeight)
+            ? ares.swAnimationHeight
+            : 0;
+        const position = Coords.tile3dToWorld(
+            tile.rx + 0.5,
+            tile.ry + 0.5,
+            (tile.z ?? 0) + bridgeHeight + animationHeight,
+        );
+        this.renderableManager.createTransientAnim(animation, (anim) => {
+            anim.setPosition(position);
+        });
     }
     createChronoSphereAnim(tile: Tile): void {
         this.chronoSphereAnim = this.renderableManager.createAnim(this.game.rules.audioVisual.chronoPlacement, (anim) => {

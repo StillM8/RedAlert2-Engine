@@ -171,6 +171,7 @@ export interface AresSuperWeaponDefinition {
     swTimerVisibility?: string;
     swAnimation?: string;
     swAnimationHeight?: number;
+    swAnimationVisibility?: string;
     swSound?: string;
     /** Ares PCX sidebar asset; absent means the legacy SidebarImage is used. */
     sidebarPcx?: string;
@@ -316,6 +317,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swTimerVisibility: getString(section, "SW.TimerVisibility"),
         swAnimation: getString(section, "SW.Animation"),
         swAnimationHeight: getNumber(section, "SW.AnimationHeight"),
+        swAnimationVisibility: getString(section, "SW.AnimationVisibility"),
         swSound: getString(section, "SW.Sound"),
         sidebarPcx: getString(section, "SidebarPCX"),
         chronosphereReconsiderBuildings: getBool(section, "Chronosphere.ReconsiderBuildings"),

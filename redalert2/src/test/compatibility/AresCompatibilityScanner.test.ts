@@ -283,13 +283,18 @@ Type=GenericWarhead
 SW.Damage=500
 SW.Warhead=MOBlast
 SW.AffectsTarget=land,units
+SW.Animation=MOBlastAnim
+SW.AnimationHeight=4
+SW.AnimationVisibility=owner
+SW.Sound=MOBlastImpact
+SW.ActivationSound=MOBlastLaunch
 Deliver.Types=MOUnit
 `,
             },
         ]);
 
         const usage = report.featureUsage.find((item) => item.featureId === "ares.custom-superweapons");
-        expect(usage?.occurrences).toBe(4);
+        expect(usage?.occurrences).toBe(9);
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.implemented).toBe(false);
         expect(report.featureUsage.find((item) => item.featureId === "ares.target-filters")?.occurrences).toBe(1);

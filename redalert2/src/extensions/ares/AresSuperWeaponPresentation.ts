@@ -29,6 +29,8 @@ export interface AresSuperWeaponPresentationRules {
     showTimer?: boolean | string;
     timerVisibility?: string;
     swTimerVisibility?: string;
+    animationVisibility?: string;
+    swAnimationVisibility?: string;
     group?: number | string;
     swGroup?: number | string;
     extensionEntries?: ReadonlyMap<string, string | string[]>;
@@ -40,6 +42,7 @@ export interface AresSuperWeaponPresentationState {
     autoFire: boolean;
     showTimer: boolean;
     timerVisibility: AresSuperWeaponTimerVisibility;
+    animationVisibility: AresSuperWeaponTimerVisibility;
     group: number;
 }
 
@@ -87,7 +90,7 @@ function numberValue(value: number | string | undefined, fallback: number): numb
     return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
 }
 
-function timerVisibility(value: string | undefined): AresSuperWeaponTimerVisibility {
+function visibility(value: string | undefined): AresSuperWeaponTimerVisibility {
     const normalized = value === undefined ? "" : normalize(value);
     return TIMER_VISIBILITIES.has(normalized as AresSuperWeaponTimerVisibility)
         ? normalized as AresSuperWeaponTimerVisibility
@@ -110,9 +113,12 @@ export function normalizeAresSuperWeaponPresentation(
         rules.showTimer ?? rawEntry(rules, "ShowTimer"),
         false,
     );
-    const visibility = rules.timerVisibility ??
+    const timerVisibilityValue = rules.timerVisibility ??
         rules.swTimerVisibility ??
         rawEntry(rules, "SW.TimerVisibility", "TimerVisibility");
+    const animationVisibilityValue = rules.animationVisibility ??
+        rules.swAnimationVisibility ??
+        rawEntry(rules, "SW.AnimationVisibility", "AnimationVisibility");
     const group = numberValue(
         rules.group ?? rules.swGroup ?? rawEntry(rules, "SW.Group", "Group"),
         0,
@@ -121,7 +127,8 @@ export function normalizeAresSuperWeaponPresentation(
         showCameo,
         autoFire,
         showTimer,
-        timerVisibility: timerVisibility(visibility),
+        timerVisibility: visibility(timerVisibilityValue),
+        animationVisibility: visibility(animationVisibilityValue),
         group,
     };
 }
@@ -149,6 +156,26 @@ export function isAresSuperWeaponTimerVisible(
     const state = normalizeAresSuperWeaponPresentation(rules);
     if (!state.showTimer) return false;
     switch (state.timerVisibility) {
+        case "none": return false;
+        case "owner": return viewer === "owner";
+        case "allies": return viewer === "owner" || viewer === "ally" || viewer === "observer";
+        case "team": return viewer === "owner" || viewer === "ally" || viewer === "observer";
+        case "enemies": return viewer === "enemy";
+        case "all": return true;
+    }
+}
+
+/**
+ * Decide whether the local viewer may see an Ares superweapon animation.
+ * Ares uses the same owner/allies/team/enemies/all relation vocabulary for
+ * animations and timers; observers are treated as allied viewers.
+ */
+export function isAresSuperWeaponAnimationVisible(
+    rules: AresSuperWeaponPresentationRules,
+    viewer: AresSuperWeaponViewerRelation,
+): boolean {
+    const state = normalizeAresSuperWeaponPresentation(rules);
+    switch (state.animationVisibility) {
         case "none": return false;
         case "owner": return viewer === "owner";
         case "allies": return viewer === "owner" || viewer === "ally" || viewer === "observer";

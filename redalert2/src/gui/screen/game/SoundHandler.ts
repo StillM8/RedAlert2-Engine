@@ -132,6 +132,9 @@ export class SoundHandler {
             case EventType.SuperWeaponActivate:
                 this.handleSuperWeaponActivateSound(event);
                 break;
+            case EventType.AresSuperWeaponEffect:
+                this.handleAresSuperWeaponEffectSound(event);
+                break;
             case EventType.LightningStormManifest:
                 this.handleLightningStormManifestSound(event);
                 break;
@@ -329,11 +332,29 @@ export class SoundHandler {
             if (sound) {
                 this.worldSound.playEffect(sound, Coords.tile3dToWorld(event.atTile.rx, event.atTile.ry, event.atTile.z), event.owner);
             }
+            const activationSound = event.rules?.ares?.swActivationSound;
+            if (activationSound && event.atTile) {
+                this.worldSound.playEffect(
+                    activationSound,
+                    Coords.tile3dToWorld(event.atTile.rx, event.atTile.ry, event.atTile.z),
+                    event.owner,
+                );
+            }
         }
         const message = superWeaponActivateMessageByType.get(event.target);
         if (message) {
             this.messageList.addSystemMessage(this.strings.get(message), this.player ?? 'grey');
         }
+    }
+    private handleAresSuperWeaponEffectSound(event: any): void {
+        if (event.noSfxWarning || !event.atTile) return;
+        const sound = event.rules?.ares?.swSound;
+        if (!sound) return;
+        this.worldSound.playEffect(
+            sound,
+            Coords.tile3dToWorld(event.atTile.rx, event.atTile.ry, event.atTile.z ?? 0),
+            event.owner,
+        );
     }
     private handleLightningStormManifestSound(event: any): void {
         this.messageList.addSystemMessage(this.strings.get('TXT_LIGHTNING_STORM'), this.player ?? 'grey');

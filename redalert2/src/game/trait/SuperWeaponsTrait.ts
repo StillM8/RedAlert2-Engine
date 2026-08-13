@@ -23,6 +23,7 @@ import { EMPulseEffect } from "@/game/superweapon/EMPulseEffect";
 import { DropPodEffect } from "@/game/superweapon/DropPodEffect";
 import { HunterSeekerEffect } from "@/game/superweapon/HunterSeekerEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
+import { AresSuperWeaponEffectEvent } from "@/game/event/AresSuperWeaponEffectEvent";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
 import { createAresSuperWeaponRadarEvent } from "@/extensions/ares/AresSuperWeaponRadar";
@@ -40,6 +41,10 @@ import {
 } from "@/game/gameobject/trait/SuperWeaponTrait";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
+    private readonly effectPresentationRules = new WeakMap<SuperWeaponEffect, {
+        rules: any;
+        noSfxWarning: boolean;
+    }>();
     /**
      * Ares fires ChronoSphere first and ChronoWarp second.  The second-stage
      * superweapon only supplies the destination; all chronoshift semantics
@@ -61,6 +66,15 @@ export class SuperWeaponsTrait {
         }
         for (const r of this.effects) {
             if (r.status === EffectStatus.NotStarted) {
+                const presentation = this.effectPresentationRules.get(r);
+                if (presentation && (presentation.rules?.ares?.swAnimation || presentation.rules?.ares?.swSound)) {
+                    t.events.dispatch(new AresSuperWeaponEffectEvent(
+                        presentation.rules,
+                        r.owner,
+                        r.tile,
+                        presentation.noSfxWarning,
+                    ));
+                }
                 r.onStart(t);
                 r.status = EffectStatus.Running;
             }
@@ -138,8 +152,11 @@ export class SuperWeaponsTrait {
             getBuildingSuperWeaponTraits(e).some(trait => trait.getSuperWeapon(e) === t) &&
             (!t.rules.isPowered || isAresEmpOperational(e)));
     }
-    private addEffect(e: SuperWeaponEffect) {
+    private addEffect(e: SuperWeaponEffect, rules?: any, noSfxWarning: boolean = false) {
         this.effects.push(e);
+        if (rules?.ares) {
+            this.effectPresentationRules.set(e, { rules, noSfxWarning });
+        }
     }
     activateSuperWeapon(t: number, e: any, i: any, r: any, s: any): boolean {
         const a = e.superWeaponsTrait
@@ -426,12 +443,12 @@ export class SuperWeaponsTrait {
                     break;
             }
             for (const d of t) {
-                this.addEffect(d);
+                this.addEffect(d, e, n);
             }
             r.traits.filter(NotifySuperWeaponActivate).forEach((e) => {
                 e[NotifySuperWeaponActivate.onActivate](eventType, i, r, s, a);
             });
-            r.events.dispatch(new SuperWeaponActivateEvent(eventType, i, s, a, n));
+            r.events.dispatch(new SuperWeaponActivateEvent(eventType, i, s, a, n, e));
         }
     }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
     getAresSuperWeaponPresentationGroup,
+    isAresSuperWeaponAnimationVisible,
     isAresSuperWeaponCameoVisible,
     isAresSuperWeaponTimerVisible,
     normalizeAresSuperWeaponPresentation,
@@ -14,6 +15,7 @@ describe("Ares superweapon presentation adapter", () => {
             autoFire: false,
             showTimer: false,
             timerVisibility: "all",
+            animationVisibility: "all",
             group: 0,
         });
         expect(isAresSuperWeaponCameoVisible({})).toBe(true);
@@ -55,6 +57,24 @@ describe("Ares superweapon presentation adapter", () => {
         }
     });
 
+    test("applies AnimationVisibility using the same owner relation vocabulary", () => {
+        const relations = ["owner", "ally", "observer", "enemy"] as const;
+        const expected: Record<string, boolean[]> = {
+            none: [false, false, false, false],
+            owner: [true, false, false, false],
+            allies: [true, true, true, false],
+            team: [true, true, true, false],
+            enemies: [false, false, false, true],
+            all: [true, true, true, true],
+        };
+        for (const [visibility, results] of Object.entries(expected)) {
+            expect(relations.map(relation => isAresSuperWeaponAnimationVisible(
+                { animationVisibility: visibility },
+                relation,
+            ))).toEqual(results);
+        }
+    });
+
     test("resolves owner, allied, enemy, and observer timer viewers", () => {
         const owner = { name: "Owner", isObserver: false };
         const ally = { name: "Ally", isObserver: false };
@@ -76,10 +96,14 @@ describe("Ares superweapon presentation adapter", () => {
                 ["SW.ShowCameo", "no"],
                 ["SW.AutoFire", "yes"],
                 ["SW.TimerVisibility", "owner"],
+                ["SW.AnimationVisibility", "owner"],
                 ["SW.Group", "7"],
                 ["ShowTimer", "yes"],
             ]),
         })).toBe(7);
+        expect(normalizeAresSuperWeaponPresentation({
+            extensionEntries: new Map([["SW.AnimationVisibility", "owner"]]),
+        }).animationVisibility).toBe("owner");
         expect(isAresSuperWeaponCameoVisible({
             extensionEntries: new Map([
                 ["SW.ShowCameo", "no"],

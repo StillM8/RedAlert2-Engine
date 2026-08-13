@@ -64,5 +64,6 @@ export enum EventType {
     TriggerAnim = 62,
     TriggerText = 63,
     TimerExpire = 64,
-    AresBountyAward = 65
+    AresBountyAward = 65,
+    AresSuperWeaponEffect = 66
 }

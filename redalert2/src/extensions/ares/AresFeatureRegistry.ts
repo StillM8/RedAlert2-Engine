@@ -218,8 +218,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts", "AresBattery.test.ts", "AresChronoWarp.test.ts", "AresMentalOmegaSuperWeaponHost.test.ts", "AresSuperWeaponAIHost.test.ts"],
-        notes: "Generic host paths cover GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, and the ChronoWarp destination stage with representative Mental Omega fixtures. The aggregate 96-definition custom-type surface remains partial; unsupported handlers, presentation, full AI breadth, persistence, target-content, and multiplayer certification remain open.",
+        tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts", "AresBattery.test.ts", "AresChronoWarp.test.ts", "AresMentalOmegaSuperWeaponHost.test.ts", "AresSuperWeaponAIHost.test.ts", "AresSuperWeaponPresentationRuntime.test.ts"],
+        notes: "Generic host paths cover GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, and the ChronoWarp destination stage with representative Mental Omega fixtures. Authored SW.Animation, SW.AnimationVisibility, SW.Sound, and SW.ActivationSound now flow through shared deferred render/audio events. The aggregate 96-definition custom-type surface remains partial; unsupported handlers, full AI breadth, persistence, target-content, and multiplayer certification remain open.",
     },
     {
         id: "ares.target-filters",

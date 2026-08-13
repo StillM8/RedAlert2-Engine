@@ -447,7 +447,7 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
         (/^type$/i.test(key) && /^hunterseeker$/i.test(value))) {
         return "ares.superweapon-hunter-seeker";
     }
-    if (/^(?:sw\.(?:inhibitors|designators|animation|animationheight|sound|activationsound|cursor|nocursor|warhead|damage|maxcount)|deliver\.(?:types|owner|basenormal)|droppod\.(?:types|veterancy|minimum|maximum|weapon|trailer)|genericwarhead\.|chronowarp\.|sonarpulse\.)/i.test(key) ||
+    if (/^(?:sw\.(?:inhibitors|designators|animation|animationheight|animationvisibility|sound|activationsound|cursor|nocursor|warhead|damage|maxcount)|deliver\.(?:types|owner|basenormal)|droppod\.(?:types|veterancy|minimum|maximum|weapon|trailer)|genericwarhead\.|chronowarp\.|sonarpulse\.)/i.test(key) ||
         /^(?:eva|text)\./i.test(key)) {
         return "ares.custom-superweapons";
     }
