@@ -37,7 +37,12 @@ export class MusicSpecs {
         }
     }
     getSpec(name: string): MusicSpec | undefined {
-        return this.specs.get(name);
+        const exact = this.specs.get(name);
+        if (exact) return exact;
+        const normalized = name.trim().toLocaleLowerCase("en-US");
+        return [...this.specs.entries()].find(([themeName]) =>
+            themeName.toLocaleLowerCase("en-US") === normalized,
+        )?.[1];
     }
     getAll(): MusicSpec[] {
         return [...this.specs.values()];

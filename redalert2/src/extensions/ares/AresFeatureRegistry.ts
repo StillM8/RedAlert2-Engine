@@ -159,6 +159,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Country IDs, side IDs, lobby ordering, multiplayer filtering, provenance, stable player identity, and explicit presentation resources are data-driven; legacy adapters remain for older simulation paths.",
     },
     {
+        id: "ares.side-ui",
+        description: "Ares side-specific sidebar, EVA, loading, result-banner, and multiplayer score presentation",
+        implemented: true,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresSides.test.ts", "AresCompatibilityScanner.test.ts"],
+        notes: "Sidebar MIX/Yuri filename selection, tooltip color, EVA tag, side/country loading themes, GraphicalText result banners, multiplayer score background/palette/bar assets, and win/lose themes use the generic side presentation path. Missing assets retain the vanilla fallback; save/mod-hash and live network certification remain open.",
+    },
+    {
         id: "ares.generic-prerequisites",
         description: "Generic and composable prerequisite expressions",
         implemented: true,

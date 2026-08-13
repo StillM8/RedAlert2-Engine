@@ -28,7 +28,7 @@ import { GameOptRandomGen } from '@/game/gameopts/GameOptRandomGen';
 import { DebugRenderable } from '@/engine/renderable/DebugRenderable';
 import { MixinRules } from '@/game/ini/MixinRules';
 import { isNotNullOrUndefined } from '@/util/typeGuard';
-import { resolveSideMixSelection, resolveSidePresentation, type SideDescriptor, type SidePresentation } from '@/extensions/ares/AresSides';
+import { resolveLoadingTheme, resolveSideMixSelection, resolveSidePresentation, type SideDescriptor, type SidePresentation } from '@/extensions/ares/AresSides';
 import { createAresPcxCameoAssetManifest, isAresPcxCameoSize, normalizeAresPcxCameos, type AresPcxCameoAssetManifest, type AresPcxCameoDefinition } from '@/extensions/ares/AresPcxCameos';
 import { TextureUtils } from '@/engine/gfx/TextureUtils';
 import { Rules } from '@/game/rules/Rules';
@@ -101,6 +101,10 @@ export class GameLoader {
                     ? game.rules.sideRegistry.toLegacySide(sideDescriptor.id)
                     : localPlayer.country.side === SideType.GDI ? SideType.GDI : SideType.Nod;
                 sidePresentation = resolveSidePresentation(sideDescriptor, hudSide, yuri);
+                sidePresentation = {
+                    ...sidePresentation,
+                    loadingTheme: resolveLoadingTheme(sideDescriptor, localPlayer.country),
+                };
                 useYuriArt = sidePresentation.useYuriFileNames;
                 console.info('[GameLoader] Local presentation', {
                     country: localPlayer.country?.name,

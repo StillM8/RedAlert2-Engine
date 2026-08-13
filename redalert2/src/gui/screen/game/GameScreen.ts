@@ -111,6 +111,7 @@ export class GameScreen extends RootScreen {
     private backgroundStorageQueue: Promise<void> = Promise.resolve();
     private resumingBackground = false;
     private gameEndHandled = false;
+    private sidePresentation?: SidePresentation;
     constructor(private workerHostApi: any, private gservCon: any, private wgameresService: any, private wolService: any, private mapTransferService: any, private engineVersion: string, private engineModHash: string, private errorHandler: any, private gameMenuSubScreens: any, private loadingScreenApiFactory: any, private gameOptsParser: any, private gameOptsSerializer: any, private config: any, private strings: any, private renderer: any, private uiScene: any, private runtimeVars: any, private messageBoxApi: any, private toastApi: any, private uiAnimationLoop: any, private viewport: any, private jsxRenderer: any, private pointer: any, private sound: any, private music: any, private mixer: any, private keyBinds: any, private generalOptions: any, private localPrefs: any, private actionLogger: any, private lockstepLogger: any, private replayManager: any, private fullScreen: any, private mapFileLoader: any, private mapDir: any, private mapList: any, private gameLoader: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private mutedPlayers: any, private tauntsEnabled: any, private speedCheat: any, private sentry: any, private battleControlApi: any) {
         super();
         this.onGservClose = (error: any) => {
@@ -247,6 +248,13 @@ export class GameScreen extends RootScreen {
             return;
         }
         const { game, theater, hudSide, sidePresentation, useYuriArt: loadedUseYuriArt, cameoFilenames } = gameLoadResult;
+        this.sidePresentation = sidePresentation;
+        // Ares makes the loading theme data-defined per side. The generic
+        // Loading track was already started before the rules were available;
+        // switch it here once the selected side is known.
+        if (sidePresentation?.loadingTheme) {
+            await this.music?.play(sidePresentation.loadingTheme as MusicType);
+        }
         this.game = game;
         this.disposables.add(game, () => this.game = undefined, () => Engine.unloadTheater(theater.type));
         let localPlayer: any;
@@ -1151,7 +1159,7 @@ export class GameScreen extends RootScreen {
         this.installBackgroundLifecycle();
         this.gameAnimationLoop = new GameAnimationLoop(localPlayer, this.renderer, this.sound, this.gameTurnMgr, {
             skipFrames: true,
-            skipBudgetMillis: 8,
+            maxCatchUpTurns: 120,
             runSimulationInBackground: !this.isSinglePlayer,
             frameLimit: this.generalOptions.graphics.frameLimit,
             // Live getter, so an OS thermal transition mid-match takes effect on
@@ -1500,8 +1508,10 @@ export class GameScreen extends RootScreen {
             if (this.jsxRenderer && this.viewport) {
                 [gameResultPopup] = this.jsxRenderer.render(jsx(GameResultPopup, {
                     type: isVictory && !isObserver
-                        ? GameResultType.MpVictory
-                        : GameResultType.MpDefeat,
+                        ? this.isSinglePlayer ? GameResultType.SpVictory : GameResultType.MpVictory
+                        : this.isSinglePlayer ? GameResultType.SpDefeat : GameResultType.MpDefeat,
+                    image: this.sidePresentation?.graphicalTextImage,
+                    palette: this.sidePresentation?.graphicalTextPalette,
                     viewport: this.viewport.value
                 }));
             }

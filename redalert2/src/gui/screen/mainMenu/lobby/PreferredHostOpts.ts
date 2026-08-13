@@ -50,7 +50,11 @@ export class PreferredHostOpts {
         return this;
     }
     applyMpDialogSettings(mpDialogSettings: any): this {
-        this.gameSpeed = mpDialogSettings.gameSpeed !== undefined ? 6 - mpDialogSettings.gameSpeed : this.gameSpeed;
+        // MultiplayerDialogSettings stores the user-facing slider value. The
+        // network serializer performs the legacy `6 - speed` conversion when
+        // it writes the wire format; applying that conversion here inverted
+        // the local slider and made the default speed 6 load as speed 0.
+        this.gameSpeed = mpDialogSettings.gameSpeed ?? this.gameSpeed;
         this.credits = mpDialogSettings.money ?? this.credits;
         this.unitCount = mpDialogSettings.unitCount ?? this.unitCount;
         this.shortGame = mpDialogSettings.shortGame ?? this.shortGame;

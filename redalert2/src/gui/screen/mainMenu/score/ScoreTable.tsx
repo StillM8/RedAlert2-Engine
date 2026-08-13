@@ -3,6 +3,7 @@ import classnames from "classnames";
 import { aiUiNames } from "@/game/gameopts/constants";
 import { CountryIcon } from "@/gui/component/CountryIcon";
 import { RankIndicator } from "@/gui/screen/mainMenu/lobby/component/RankIndicator";
+import { Image } from "@/gui/component/Image";
 import { WolGameReportResult } from "@/network/WolGameReport";
 import { formatTimeDuration } from "@/util/format";
 interface ScoreTableProps {
@@ -12,8 +13,9 @@ interface ScoreTableProps {
     localPlayer: any;
     gameReport?: any;
     strings: any;
+    scoreBars?: string[];
 }
-export const ScoreTable: React.FC<ScoreTableProps> = ({ game, singlePlayer, tournament, localPlayer, gameReport, strings, }) => {
+export const ScoreTable: React.FC<ScoreTableProps> = ({ game, singlePlayer, tournament, localPlayer, gameReport, strings, scoreBars, }) => {
     const players = game
         .getNonNeutralPlayers()
         .filter((player: any) => !player.isObserver || player.defeated)
@@ -37,8 +39,16 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({ game, singlePlayer, tour
             resultType = WolGameReportResult.Win;
         }
     }
-    return React.createElement("div", { className: "score-wrapper" }, (resultType || !singlePlayer) &&
-        React.createElement("div", { className: "score-title" }, React.createElement("div", { className: "game-result" }, resultType === WolGameReportResult.Win
+    const scoreBarLayer = !singlePlayer && scoreBars?.length
+        ? React.createElement("div", { className: "ares-score-bars", "aria-hidden": true }, scoreBars.map((filename, index) => React.createElement("div", {
+            className: "ares-score-bar",
+            key: filename,
+            style: { top: 56 + index * 36 },
+        }, React.createElement(Image, { src: filename }))))
+        : null;
+    const children: any[] = [
+        (resultType || !singlePlayer) &&
+            React.createElement("div", { className: "score-title" }, React.createElement("div", { className: "game-result" }, resultType === WolGameReportResult.Win
             ? strings.get("gui:gameresultvictory")
             : resultType === WolGameReportResult.Draw
                 ? strings.get("gui:gameresultdraw")
@@ -83,5 +93,10 @@ export const ScoreTable: React.FC<ScoreTableProps> = ({ game, singlePlayer, tour
                     },
                     strings: strings,
                 })));
-    })))));
+    })) )),
+    ];
+    if (scoreBarLayer) {
+        children.unshift(scoreBarLayer);
+    }
+    return React.createElement("div", { className: "score-wrapper" }, ...children);
 };

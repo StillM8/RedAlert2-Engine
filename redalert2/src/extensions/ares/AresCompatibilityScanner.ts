@@ -297,6 +297,9 @@ const ARES_SUPERWEAPON_TYPE_FEATURES: Readonly<Record<string, string>> = {
 };
 
 function featureForKey(section: string, sectionKind: IniSectionKind, key: string, value: string): string | undefined {
+    if ((sectionKind === "Side" || sectionKind === "Country") && /^(?:sidebar\.(?:mixfileindex|yurifilenames)|tooltipcolor|eva\.tag|loadingtheme|graphicaltext\.(?:image|palette)|multiplayerscore\.(?:background|palette|bars|wintheme|losetheme))$/i.test(key)) {
+        return "ares.side-ui";
+    }
     if (/^attacheffect\./i.test(key)) {
         return "ares.status-effects";
     }

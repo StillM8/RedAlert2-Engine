@@ -27,6 +27,8 @@ export interface SideDescriptor {
     tooltipColor?: string;
     evaTag?: string;
     loadingTheme?: string;
+    graphicalTextImage?: string;
+    graphicalTextPalette?: string;
     multiplayerScoreBackground?: string;
     multiplayerScorePalette?: string;
     multiplayerScoreBars?: string;
@@ -58,6 +60,8 @@ export interface SidePresentation {
     tooltipColor?: string;
     evaTag?: string;
     loadingTheme?: string;
+    graphicalTextImage: string;
+    graphicalTextPalette: string;
 }
 
 export interface MultiplayerScorePresentation {
@@ -66,6 +70,23 @@ export interface MultiplayerScorePresentation {
     bars: string;
     winTheme?: string;
     loseTheme?: string;
+}
+
+export const ARES_MULTIPLAYER_SCORE_BAR_COUNT = 10;
+
+/**
+ * Expands Ares' MultiplayerScore.Bars filename pattern. Ares reserves ten
+ * files: two caption bars followed by up to eight player bars. A pattern
+ * without `~~` is kept as one explicit asset so custom clients can still use
+ * a single decorative bar without manufacturing ten duplicate names.
+ */
+export function expandAresMultiplayerScoreBars(pattern: string | undefined): string[] {
+    const filename = pattern?.trim();
+    if (!filename) return [];
+    if (!filename.includes("~~")) return [filename];
+    return Array.from({ length: ARES_MULTIPLAYER_SCORE_BAR_COUNT }, (_, index) =>
+        filename.replace(/~~/g, String(index + 1).padStart(2, "0")),
+    );
 }
 
 export interface CountryDescriptor {
@@ -158,7 +179,17 @@ export function resolveSidePresentation(
         tooltipColor: parseTooltipColor(side?.tooltipColor),
         evaTag: side?.evaTag,
         loadingTheme: side?.loadingTheme,
+        graphicalTextImage: side?.graphicalTextImage ?? "grfxtxt.shp",
+        graphicalTextPalette: side?.graphicalTextPalette ?? "grfxtxt.pal",
     };
+}
+
+/** Country overrides take precedence over the side default for multiplayer loading audio. */
+export function resolveLoadingTheme(
+    side: SideDescriptor | undefined,
+    country: Pick<CountryDescriptor, "loadingTheme"> | undefined,
+): string | undefined {
+    return country?.loadingTheme ?? side?.loadingTheme;
 }
 
 /**
@@ -286,6 +317,8 @@ export class AresSideRegistry {
                 tooltipColor: sectionValue(section, "ToolTipColor"),
                 evaTag: sectionValue(section, "EVA.Tag"),
                 loadingTheme: sectionValue(section, "LoadingTheme"),
+                graphicalTextImage: sectionValue(section, "GraphicalText.Image"),
+                graphicalTextPalette: sectionValue(section, "GraphicalText.Palette"),
                 multiplayerScoreBackground: sectionValue(section, "MultiplayerScore.Background"),
                 multiplayerScorePalette: sectionValue(section, "MultiplayerScore.Palette"),
                 multiplayerScoreBars: sectionValue(section, "MultiplayerScore.Bars"),

@@ -526,6 +526,42 @@ ListIndex=11
         expect(countries.list().map((country) => country.id)).toEqual(["EpsilonCountry", "FoehnCountry"]);
     });
 
+    test("classifies generic Ares side presentation keys", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rules.ini",
+                contents: `
+[Sides]
+0=Foehn
+
+[Foehn]
+Sidebar.MixFileIndex=4
+Sidebar.YuriFileNames=yes
+ToolTipColor=12,34,56
+EVA.Tag=Foehn
+LoadingTheme=FOEHNLOAD
+MultiplayerScore.Background=foehnscore.shp
+MultiplayerScore.Palette=foehnscore.pal
+MultiplayerScore.Bars=foehnbar~~.pcx
+MultiplayerScore.WinTheme=FOEHNWIN
+MultiplayerScore.LoseTheme=FOEHNLOSE
+GraphicalText.Image=foehnresult.shp
+GraphicalText.Palette=foehnresult.pal
+
+[Countries]
+0=FoehnCountry
+
+[FoehnCountry]
+Side=Foehn
+LoadingTheme=FOEHNCOUNTRY
+`,
+            },
+        ]);
+
+        expect(report.featureUsage.find((item) => item.featureId === "ares.side-ui")?.occurrences).toBe(13);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
     test("marks dynamic side and country runtime coverage in the feature registry", () => {
         const registry = createDefaultAresFeatureRegistry();
         expect(registry.get("ares.custom-sides")).toMatchObject({
@@ -534,6 +570,11 @@ ListIndex=11
             runtimeImplemented: true,
         });
         expect(registry.get("ares.custom-countries")).toMatchObject({
+            implemented: true,
+            parserImplemented: true,
+            runtimeImplemented: true,
+        });
+        expect(registry.get("ares.side-ui")).toMatchObject({
             implemented: true,
             parserImplemented: true,
             runtimeImplemented: true,

@@ -202,7 +202,7 @@ export class MainMenuRootScreen extends RootScreen {
             screen = new screenClass(this.strings, this.jsxRenderer, mapFileLoader, errorHandler, this.messageBoxApi, this.localPrefs, mapList, gameModes, mapDir, fsAccessLib, sentry);
         }
         else if (screenType === MainMenuScreenType.Score) {
-            screen = new screenClass(this.strings, this.jsxRenderer, (this as any).wolService);
+            screen = new screenClass(this.strings, this.jsxRenderer, (this as any).wolService, this.music);
         }
         else if (screenType === MainMenuScreenType.LoadGame) {
             const { ErrorHandler } = await import('../../../ErrorHandler.js');

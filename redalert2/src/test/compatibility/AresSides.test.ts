@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveMultiplayerScorePresentation, resolveSideMixSelection, resolveSidePresentation } from "@/extensions/ares/AresSides";
+import { expandAresMultiplayerScoreBars, resolveLoadingTheme, resolveMultiplayerScorePresentation, resolveSideMixSelection, resolveSidePresentation } from "@/extensions/ares/AresSides";
 import { SideType } from "@/game/SideType";
 import { IniSection } from "@/data/IniSection";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
@@ -132,6 +132,8 @@ describe("Ares side presentation", () => {
             tooltipColor: "rgb(12,34,56)",
             evaTag: "Foehn",
             loadingTheme: undefined,
+            graphicalTextImage: "grfxtxt.shp",
+            graphicalTextPalette: "grfxtxt.pal",
         });
         expect(resolveSidePresentation(undefined, SideType.GDI).hudLayout).toBe("allied");
         expect(resolveSidePresentation(undefined, SideType.Yuri, true).hudLayout).toBe("yuri");
@@ -147,6 +149,22 @@ describe("Ares side presentation", () => {
 
         expect(presentation.hudLayout).toBe("soviet");
         expect(presentation.useYuriFileNames).toBe(true);
+    });
+
+    test("gives a country loading theme precedence over its side default", () => {
+        expect(resolveLoadingTheme({ id: "Foehn", loadingTheme: "FOEHN_SIDE" }, undefined)).toBe("FOEHN_SIDE");
+        expect(resolveLoadingTheme({ id: "Foehn", loadingTheme: "FOEHN_SIDE" }, { loadingTheme: "FOEHN_COUNTRY" })).toBe("FOEHN_COUNTRY");
+    });
+
+    test("keeps custom graphical result art in the generic side presentation", () => {
+        expect(resolveSidePresentation({
+            id: "Foehn",
+            graphicalTextImage: "foehnresult.shp",
+            graphicalTextPalette: "foehnresult.pal",
+        }, SideType.Civilian)).toMatchObject({
+            graphicalTextImage: "foehnresult.shp",
+            graphicalTextPalette: "foehnresult.pal",
+        });
     });
 
     test("uses data-defined score assets for custom sides", () => {
@@ -170,6 +188,15 @@ describe("Ares side presentation", () => {
             winTheme: undefined,
             loseTheme: undefined,
         });
+    });
+
+    test("expands the ten Ares multiplayer score bar assets", () => {
+        expect(expandAresMultiplayerScoreBars("score~~.pcx")).toEqual([
+            "score01.pcx", "score02.pcx", "score03.pcx", "score04.pcx", "score05.pcx",
+            "score06.pcx", "score07.pcx", "score08.pcx", "score09.pcx", "score10.pcx",
+        ]);
+        expect(expandAresMultiplayerScoreBars("score.pcx")).toEqual(["score.pcx"]);
+        expect(expandAresMultiplayerScoreBars(undefined)).toEqual([]);
     });
 
     test("preserves data-defined country metadata in runtime Country objects", () => {
