@@ -4,6 +4,14 @@ import * as THREE from 'three';
 import SPE from './speRuntime';
 import { patchSpeGroup } from './speCompat';
 const PARTICLE_COUNT = 1000;
+export interface DamageSmokeFxOptions {
+    /** Ares ParticleSystem cap; prevents the legacy 1000-particle fallback. */
+    particleCap?: number;
+    /** Authored Particle velocity, when present. */
+    velocity?: number;
+    /** Authored Particle deacceleration, when present. */
+    deacc?: number;
+}
 export class DamageSmokeFx {
     private static textureCache = new Map<any, THREE.Texture>();
     private gameObject: any;
@@ -20,16 +28,18 @@ export class DamageSmokeFx {
     private lastUpdateMillis?: number;
     private firstUpdateMillis?: number;
     private timeLeft?: number;
+    private options: DamageSmokeFxOptions;
     static clearTextureCache() {
         this.textureCache.forEach(texture => texture.dispose());
         this.textureCache.clear();
     }
-    constructor(gameObject: any, smokeArt: any, shpFile: any, palette: any, gameSpeed: any) {
+    constructor(gameObject: any, smokeArt: any, shpFile: any, palette: any, gameSpeed: any, options: DamageSmokeFxOptions = {}) {
         this.gameObject = gameObject;
         this.smokeArt = smokeArt;
         this.shpFile = shpFile;
         this.palette = palette;
         this.gameSpeed = gameSpeed;
+        this.options = options;
         this.lifetimeSeconds = Number.POSITIVE_INFINITY;
         this.finishRequested = false;
     }
@@ -55,7 +65,7 @@ export class DamageSmokeFx {
                     frameCount: this.shpFile.numImages,
                     loop: 1
                 },
-                maxParticleCount: PARTICLE_COUNT,
+                maxParticleCount: this.getParticleCount(),
                 hasPerspective: false,
                 transparent: true,
                 alphaTest: 0,
@@ -68,12 +78,13 @@ export class DamageSmokeFx {
             const rate = (this.smokeArt.art.getBool("Normalized") ? 2 : 1) * animProps.rate;
             const activeMultiplier = rate / 10;
             this.particleMaxAge = (2 * this.shpFile.numImages) / animProps.rate;
-            const velocity = 9 * rate;
-            const acceleration = 0.05 * rate;
+            const particleCount = this.getParticleCount();
+            const velocity = (this.options.velocity ?? 9) * rate;
+            const acceleration = (this.options.deacc ?? 0.05) * rate;
             this.particleEmitter = new SPE.Emitter({
-                particleCount: PARTICLE_COUNT,
+                particleCount,
                 maxAge: { value: this.particleMaxAge },
-                activeMultiplier: activeMultiplier / (PARTICLE_COUNT / this.particleMaxAge),
+                activeMultiplier: activeMultiplier / (particleCount / this.particleMaxAge),
                 position: { value: this.computeEmitterPosition() },
                 acceleration: {
                     value: new THREE.Vector3(0, -acceleration, 0),
@@ -90,6 +101,13 @@ export class DamageSmokeFx {
             });
             this.particleGroup.addEmitter(this.particleEmitter);
         }
+    }
+    private getParticleCount(): number {
+        const cap = this.options.particleCap;
+        if (cap === undefined || !Number.isFinite(cap) || cap <= 0) {
+            return 128;
+        }
+        return Math.min(PARTICLE_COUNT, Math.max(8, Math.ceil(cap * 8)));
     }
     computeEmitterPosition() {
         return this.gameObject.position.worldPosition

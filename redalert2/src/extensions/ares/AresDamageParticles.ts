@@ -6,12 +6,9 @@
  * already-resolved particle-system definitions supplied by a caller.
  */
 
-export interface AresDamageParticleSystem {
-    /** Authored ParticleSystem ID; casing is retained. */
-    id: string;
-    /** ParticleSystem BehavesLike value used by the vanilla fallback. */
-    behavesLike?: string;
-}
+import type { AresParticleSystemRules } from "@/extensions/ares/AresParticleSystems";
+
+export type AresDamageParticleSystem = AresParticleSystemRules;
 
 export interface AresDamageParticleRules {
     /** Whether the techno is an InfantryType. */
@@ -48,12 +45,13 @@ function normalizeSystem(
     const id = typeof system?.id === "string" ? system.id.trim() : "";
     if (!id) return undefined;
 
-    const behavesLike = typeof system.behavesLike === "string"
-        ? system.behavesLike.trim()
-        : undefined;
-    return behavesLike
-        ? { id, behavesLike }
-        : { id };
+    return {
+        ...system,
+        id,
+        behavesLike: typeof system.behavesLike === "string"
+            ? system.behavesLike.trim() || undefined
+            : undefined,
+    };
 }
 
 function copySystems(

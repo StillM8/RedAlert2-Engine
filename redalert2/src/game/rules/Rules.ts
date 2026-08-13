@@ -26,6 +26,12 @@ import { isNotNullOrUndefined } from "@/util/typeGuard";
 import { Weapon } from "@/game/Weapon";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 import { AresCountryRegistry, AresSideRegistry } from "@/extensions/ares/AresSides";
+import {
+    parseAresParticleSystemRules,
+    parseAresParticleTypeRules,
+    type AresParticleSystemRules,
+    type AresParticleTypeRules,
+} from "@/extensions/ares/AresParticleSystems";
 interface IniFile {
     getSection(name: string): IniSection | undefined;
     getOrCreateSection(name: string): IniSection;
@@ -100,12 +106,18 @@ export class Rules {
     private superWeaponRules = new Map<string, SuperWeaponRules>();
     private cachedWeaponRules = new Map<string, WeaponRules>();
     private cachedProjectileRules = new Map<string, ProjectileRules>();
+    /** Parsed Ares ParticleSystem definitions, shared by all TechnoTypes. */
+    public readonly aresParticleSystemRules: ReadonlyMap<string, AresParticleSystemRules>;
+    /** Parsed Ares Particle definitions referenced by ParticleSystems. */
+    public readonly aresParticleTypeRules: ReadonlyMap<string, AresParticleTypeRules>;
     constructor(ini: IniFile, logger?: Logger) {
         this.ini = ini;
         this.logger = logger;
         this.armorRegistry = ArmorRegistry.fromIni(ini);
         this.sideRegistry = AresSideRegistry.fromIni(ini);
         this.countryRegistry = AresCountryRegistry.fromIni(ini, this.sideRegistry);
+        this.aresParticleTypeRules = parseAresParticleTypeRules(ini);
+        this.aresParticleSystemRules = parseAresParticleSystemRules(ini, this.aresParticleTypeRules);
         this.init();
     }
     hasObject(name: string, type: ObjectType): boolean {
@@ -457,7 +469,16 @@ export class Rules {
         typeMap.forEach((typeName, id) => {
             const section = this.ini.getSection(typeName);
             if (section) {
-                const rules = new ObjectRulesFactory().create(objectType, section, this.general, id as any, this.armorRegistry, this.sideRegistry);
+                const rules = new ObjectRulesFactory().create(
+                    objectType,
+                    section,
+                    this.general,
+                    id as any,
+                    this.armorRegistry,
+                    this.sideRegistry,
+                    this.aresParticleSystemRules,
+                    this.aresParticleTypeRules,
+                );
                 rulesMap.set(typeName, rules as any);
             }
             else {
@@ -494,7 +515,16 @@ export class Rules {
         if (!section.has("Insignificant")) {
             section.set("Insignificant", "yes");
         }
-        const rules = new ObjectRulesFactory().create(type, section, this.general, entry[0] as any, this.armorRegistry, this.sideRegistry);
+        const rules = new ObjectRulesFactory().create(
+            type,
+            section,
+            this.general,
+            entry[0] as any,
+            this.armorRegistry,
+            this.sideRegistry,
+            this.aresParticleSystemRules,
+            this.aresParticleTypeRules,
+        );
         this.allObjectRules.get(type)?.set(name, rules as any);
         return true;
     }

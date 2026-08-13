@@ -44,4 +44,42 @@ describe("Ares damage-particle render integration", () => {
         expect(animationLookups).toBe(0);
         expect(effectsAdded).toBe(0);
     });
+
+    test("resolves a parsed ParticleSystem image instead of hardcoding SGRYSMK1", () => {
+        let animationName = "";
+        let effectsAdded = 0;
+        const plugin = new DamageSmokePlugin(
+            {
+                healthTrait: { health: 40 },
+                isDestroyed: false,
+                position: { worldPosition: new THREE.Vector3() },
+                rules: { damageSmokeOffset: new THREE.Vector3() },
+            },
+            {
+                hasObject: () => true,
+                getAnimation: (name: string) => {
+                    animationName = name;
+                    return {
+                        paletteType: "anim",
+                        art: { getBool: () => false },
+                    };
+                },
+            },
+            { getPalette: () => ({}) },
+            { findByObjectArt: () => ({}) },
+            { value: 1 },
+            [{
+                id: "CustomSmokeSys",
+                holdsWhat: "CustomSmoke",
+                behavesLike: "Smoke",
+                particleCap: 4,
+                particle: { id: "CustomSmoke", image: "CUSTOMSMOKE" },
+            }],
+        );
+        plugin.onCreate({ addEffect: () => { effectsAdded++; } });
+        plugin.update(0);
+
+        expect(animationName).toBe("CUSTOMSMOKE");
+        expect(effectsAdded).toBe(1);
+    });
 });

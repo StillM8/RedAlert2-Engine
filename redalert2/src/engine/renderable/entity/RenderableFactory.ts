@@ -28,6 +28,7 @@ import { ShipWakeTrailPlugin } from "@/engine/renderable/entity/plugin/ShipWakeT
 import { ObjectCloakPlugin } from "@/engine/renderable/entity/plugin/ObjectCloakPlugin";
 import { Debris } from "@/engine/renderable/entity/Debris";
 import { ShpAggregator } from "@/engine/renderable/builder/ShpAggregator";
+import type { AresParticleSystemRules } from "@/extensions/ares/AresParticleSystems";
 interface Position {
     x: number;
     y: number;
@@ -40,6 +41,7 @@ interface GameEntity {
     rules: {
         moveSound?: string;
         damageParticleSystems: any[];
+        damageParticleSystemDefinitions?: AresParticleSystemRules[];
         aresDamageParticles?: AresDamageParticleSelection;
         locomotor: LocomotorType;
     };
@@ -74,6 +76,7 @@ interface Rules {
     };
     audioVisual: {
         chronoSparkle1: any;
+        conditionYellow: number;
     };
     combatDamage: {
         ivanIconFlickerRate: number;
@@ -81,6 +84,8 @@ interface Rules {
 }
 interface Art {
     getObject(name: string, type: ObjectType): any;
+    getAnimation(name: string): any;
+    hasObject(name: string, type: ObjectType): boolean;
 }
 interface MapRenderable {
     terrainLayer?: any;
@@ -88,6 +93,7 @@ interface MapRenderable {
     smudgeLayer?: any;
 }
 interface ImageFinder {
+    findByObjectArt(art: any): any;
 }
 interface Palettes {
     get(name: string): any;
@@ -137,9 +143,11 @@ interface RenderableEntity {
  * using the existing DamageParticleSystems list.
  */
 export function getDamageSmokeParticleSystems(
-    rules: Pick<GameEntity["rules"], "damageParticleSystems" | "aresDamageParticles">,
+    rules: Pick<GameEntity["rules"], "damageParticleSystems" | "damageParticleSystemDefinitions" | "aresDamageParticles">,
 ): readonly any[] {
-    return rules.aresDamageParticles?.damageSmokeParticleSystems ?? rules.damageParticleSystems;
+    return rules.aresDamageParticles?.damageSmokeParticleSystems ??
+        rules.damageParticleSystemDefinitions ??
+        rules.damageParticleSystems;
 }
 
 export class RenderableFactory {
@@ -238,10 +246,6 @@ export class RenderableFactory {
             }
             else if (entity.isVehicle()) {
                 renderable = new Vehicle(entity, this.rules, this.art, this.imageFinder, this.theater, this.voxels, this.voxelAnims, palette, this.camera, this.lighting, this.debugWireframes, this.gameSpeed, selectionModel, this.vxlBuilderFactory, this.useSpriteBatching, pipOverlay, this.worldSound);
-                const damageSmokeParticleSystems = getDamageSmokeParticleSystems(entity.rules);
-                if (damageSmokeParticleSystems.length) {
-                    plugins.push(new DamageSmokePlugin(entity, this.art, this.theater, this.imageFinder, this.gameSpeed, damageSmokeParticleSystems));
-                }
                 if (entity.rules.locomotor === LocomotorType.Ship ||
                     entity.rules.locomotor === LocomotorType.Hover) {
                     plugins.push(new ShipWakeTrailPlugin(entity, this.rules, this.art, this.theater, this.imageFinder, this.gameSpeed));
@@ -264,6 +268,18 @@ export class RenderableFactory {
             }
             else {
                 throw new Error("Unhandled game object type " + entity.type);
+            }
+            const damageSmokeParticleSystems = getDamageSmokeParticleSystems(entity.rules);
+            if (damageSmokeParticleSystems.length) {
+                plugins.push(new DamageSmokePlugin(
+                    entity,
+                    this.art,
+                    this.theater,
+                    this.imageFinder,
+                    this.gameSpeed,
+                    damageSmokeParticleSystems,
+                    this.rules.audioVisual.conditionYellow,
+                ));
             }
             if (entity.tntChargeTrait) {
                 plugins.push(new TntFxPlugin(entity as any, entity.tntChargeTrait, this.rules.combatDamage.ivanIconFlickerRate, renderable, this.imageFinder, this.art, this.alliances, this.localPlayer, this.worldSound, (name: string) => this.createAnim(name)));

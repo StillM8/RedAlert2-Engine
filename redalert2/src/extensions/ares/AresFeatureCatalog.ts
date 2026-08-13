@@ -636,10 +636,10 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         multiplayerStatus: "partial",
         deterministic: true,
         verificationStatus: "synthetic",
-        tests: ["AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
+        tests: ["AresParticleSystems.test.ts", "AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. BehavesLike fallback is metadata-aware: the pure adapter filters when ParticleSystem metadata is supplied, while the current TechnoRules path lacks that metadata lookup and preserves the vanilla candidate list. The resolved smoke list reaches the existing vehicle render gate; ParticleSystem metadata lookup, health-threshold spawning/random selection, sparks, infantry/building/aircraft coverage, save/load, and multiplayer certification remain open.",
+        notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images now render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Spark movement particles, randomized candidate rolls, save/load, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-availability",

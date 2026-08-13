@@ -35,6 +35,8 @@ import { parseAresVeterancyRules } from "@/extensions/ares/AresVeterancy";
 import type { AresVeterancyRules } from "@/extensions/ares/AresVeterancy";
 import { parseAresChronoPrisonTechno } from "@/extensions/ares/AresChronoPrisons";
 import type { AresChronoPrisonTechnoRules } from "@/extensions/ares/AresChronoPrisons";
+import { resolveAresParticleSystems } from "@/extensions/ares/AresParticleSystems";
+import type { AresParticleSystemRules } from "@/extensions/ares/AresParticleSystems";
 interface House {
     name: string;
 }
@@ -208,6 +210,8 @@ export class TechnoRules extends ObjectRules {
     declare aresChronoPrison: AresChronoPrisonTechnoRules;
     /** Optional Ares damage-particle precedence resolved from this TechnoType. */
     declare aresDamageParticles?: AresDamageParticleSelection;
+    /** Resolved vanilla DamageParticleSystems with their Ares definitions. */
+    declare damageParticleSystemDefinitions: AresParticleSystemRules[];
     declare turret: boolean;
     declare turretCount: number;
     declare turretAnim: string;
@@ -854,6 +858,10 @@ export class TechnoRules extends ObjectRules {
         this.pitchSpeed = this.ini.getNumber("PitchSpeed", 0.25);
         this.pitchAngle = this.pitchSpeed >= 1 ? 0 : 20;
         this.damageParticleSystems = this.ini.getArray("DamageParticleSystems");
+        this.damageParticleSystemDefinitions = resolveAresParticleSystems(
+            this.damageParticleSystems,
+            this.generalRules?.aresParticleSystemRules,
+        );
         const hasAresDamageParticleFields = normalizedAresKeys.some((key: string) =>
             key === "damagesparks" ||
             key === "damagesmokeparticlesystems" ||
@@ -862,7 +870,7 @@ export class TechnoRules extends ObjectRules {
             ? resolveAresDamageParticleSelection({
                 isInfantry: this.type === ObjectType.Infantry,
                 cyborg: this.ini.getBool("Cyborg"),
-                damageParticleSystems: this.damageParticleSystems,
+                damageParticleSystems: this.damageParticleSystemDefinitions,
                 damageSmokeParticleSystems: getAresArray("DamageSmokeParticleSystems"),
                 damageSparksParticleSystems: getAresArray("DamageSparksParticleSystems"),
                 damageSparks: getAresBool("DamageSparks"),

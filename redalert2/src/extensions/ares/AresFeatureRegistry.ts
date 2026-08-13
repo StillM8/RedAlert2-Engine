@@ -74,8 +74,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults and BehavesLike fallback selection; the resolved smoke list reaches the existing vehicle render gate. The legacy plugin still renders SGRYSMK1, and ParticleSystem metadata lookup, health-threshold spawning/random selection, sparks, infantry/building/aircraft coverage, save/load, and multiplayer certification remain open.",
+        tests: ["AresParticleSystems.test.ts", "AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
+        notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images now render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Spark movement particles, randomized candidate rolls, save/load, and multiplayer certification remain open.",
     },
     {
         id: "ares.urban-combat",

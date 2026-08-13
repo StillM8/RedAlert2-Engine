@@ -9,8 +9,9 @@ export class AudioVisualRules {
     private chronoBlastDest: string = '';
     private chronoPlacement: string = '';
     private chronoSparkle1: string = '';
-    private conditionRed: number = 0;
-    private conditionYellow: number = 0;
+    /** Health fractions at which the retail engine enters red/yellow state. */
+    public conditionRed: number = 0;
+    public conditionYellow: number = 0;
     private creditTicks: string[] = [];
     private extraAircraftLight: number = 0;
     private extraInfantryLight: number = 0;
