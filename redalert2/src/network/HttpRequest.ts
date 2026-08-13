@@ -18,6 +18,27 @@ interface FetchAndParseOptions {
     url: string;
     type: 'text' | 'binary' | 'json';
 }
+
+function isTauriAssetUrl(url: string): boolean {
+    try {
+        return new URL(url, typeof window === 'undefined' ? undefined : window.location.href).hostname === 'tauri.localhost';
+    }
+    catch {
+        return false;
+    }
+}
+
+function looksLikeHtmlDocument(data: ArrayBuffer): boolean {
+    const prefix = new TextDecoder().decode(new Uint8Array(data).subarray(0, 512))
+        .replace(/^\uFEFF/, '')
+        .trimStart()
+        .toLocaleLowerCase('en-US');
+    return prefix.startsWith('<!doctype html')
+        || prefix.startsWith('<html')
+        || prefix.startsWith('<head')
+        || prefix.startsWith('<body');
+}
+
 export class HttpRequest {
     async fetchText(url: string, cancellationToken?: CancellationToken, options?: FetchOptions): Promise<string> {
         return await this.fetchAndParse({ url, type: "text" }, cancellationToken, options) as string;
@@ -67,9 +88,6 @@ export class HttpRequest {
             throw new DownloadError(`Fetch failed with status ${response.status}: ${response.statusText}`, undefined, response.status);
         }
         const contentType = response.headers.get("Content-Type");
-        if (contentType && contentType.includes("text/html") && !options?.allowHtmlMimeType) {
-            throw new DownloadError(`Fetch failed with invalid mime type "${contentType}" (HTTP status ${response.status})`);
-        }
         if (!response.body) {
             throw new DownloadError("Response has no body.");
         }
@@ -105,6 +123,17 @@ export class HttpRequest {
         for (const chunk of chunks) {
             completeBuffer.set(chunk, position);
             position += chunk.length;
+        }
+        if (contentType && contentType.includes("text/html") && !options?.allowHtmlMimeType) {
+            // Tauri's built-in asset server labels unknown static extensions
+            // such as .ini and .pkt as text/html even when it returned the
+            // correct bytes. Keep the normal HTML-shell guard, but accept a
+            // real packaged resource from the Tauri origin. A missing asset
+            // still returns the HTML shell and is rejected here.
+            const isValidTauriAsset = isTauriAssetUrl(url) && !looksLikeHtmlDocument(completeBuffer);
+            if (!isValidTauriAsset) {
+                throw new DownloadError(`Fetch failed with invalid mime type "${contentType}" (HTTP status ${response.status})`);
+            }
         }
         return completeBuffer.buffer;
     }

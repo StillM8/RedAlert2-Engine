@@ -76,6 +76,9 @@ const tauriBuildTarget = process.env.TAURI_ENV_PLATFORM === 'windows'
         : undefined;
 export default defineConfig({
     clearScreen: false,
+    define: {
+        __RA2_TAURI_BUILD__: JSON.stringify(isTauriBuild),
+    },
     plugins: [react(), serveGameResDev(), syncSevenZipWasm(), syncFfmpegCore(), ...(manualHttpsConfig || useHttp ? [] : [basicSsl()])],
     server: {
         host: tauriDevHost || '0.0.0.0',

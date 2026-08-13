@@ -41,7 +41,7 @@ export class MainMenu extends UiObject {
     private viewport: Viewport;
     private images: ImageMap;
     private jsxRenderer: JsxRenderer;
-    private videoSrc: string;
+    private videoSrc: string | File | undefined;
     private rootObjects: UiObject[] = [];
     private sidebarObjects: UiObject[] = [];
     private sidebarSlots: any[] = [];
@@ -64,7 +64,7 @@ export class MainMenu extends UiObject {
     private sidebarPreview!: SidebarPreview;
     private menuVideo!: HtmlView;
     private version!: HtmlView;
-    constructor(viewport: Viewport, images: ImageMap, jsxRenderer: JsxRenderer, videoSrc: string) {
+    constructor(viewport: Viewport, images: ImageMap, jsxRenderer: JsxRenderer, videoSrc: string | File | undefined) {
         super(new THREE.Object3D(), new HtmlContainer());
         this.viewport = viewport;
         this.images = images;

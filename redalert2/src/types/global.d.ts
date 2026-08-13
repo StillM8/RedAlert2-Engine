@@ -1,4 +1,5 @@
 declare global {
+    const __RA2_TAURI_BUILD__: boolean;
     interface Window {
         showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
     }

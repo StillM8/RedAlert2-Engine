@@ -27,6 +27,7 @@
     "ts:import_importing_long": "正在导入\"%s\"...\n\n这可能需要一分钟的时间。",
     "ts:import_converting_video": "正在准备菜单视频...\n\n这可能需要一分钟的时间。",
     "ts:import_converting_video_pg": "正在准备菜单视频...（%d%%）",
+    "ts:import_storing_video": "正在保留原始菜单视频...",
     "ts:import_failed": "无法导入游戏资源。请微信关注公众号 思牛逼 阅读里面文章获取解决方案！",
     "ts:import_file_not_found": "找不到文件\"%s\"。请微信关注公众号 思牛逼 阅读里面文章获取解决方案！",
     "ts:import_extracting": "正在解压 \"%s\"...",

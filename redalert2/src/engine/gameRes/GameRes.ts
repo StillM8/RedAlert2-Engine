@@ -11,7 +11,7 @@ import { ChecksumError } from './importError/ChecksumError';
 import { FileNotFoundError as GameResFileNotFoundError } from './importError/FileNotFoundError';
 import { NoStorageError } from './importError/NoStorageError';
 import { Crc32 } from '../../data/Crc32';
-import { isNativeShell } from '../../shell/nativeShell';
+import { isNativeShell, isTauriDesktopShell } from '../../shell/nativeShell';
 import { Palette } from '../../data/Palette';
 import { ShpFile } from '../../data/ShpFile';
 import { PcxFile } from '../../data/PcxFile';
@@ -71,6 +71,18 @@ function isContentImportSource(value: unknown): value is ContentImportSource {
         && Array.isArray(source.files)
         && typeof source.readFile === "function"
         && typeof source.dispose === "function";
+}
+
+function isOptionalTauntsNotFoundError(error: any): boolean {
+    const expectedName = Engine.rfsSettings.tauntsDir.toLocaleLowerCase("en-US");
+    const candidates = [error?.file, error?.fileName, error?.filename]
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.replace(/\\/g, "/").split("/").pop()?.toLocaleLowerCase("en-US"));
+    if (candidates.includes(expectedName)) {
+        return true;
+    }
+    return typeof error?.message === "string" &&
+        new RegExp(`(?:file|directory)\\s+"${Engine.rfsSettings.tauntsDir}"\\s+not found`, "i").test(error.message);
 }
 
 export class GameRes {
@@ -159,18 +171,28 @@ export class GameRes {
             console.warn("No storage adapters available.");
         }
         let currentConfig = persistedConfig;
-        if (!currentConfig && rfs) {
+        const desktopShell = isTauriDesktopShell();
+        let localGameFilesFound = false;
+        if (rfs && (!currentConfig || currentConfig.isCdn())) {
             const rootDir = rfs.getRootDirectory();
             console.log('[GameRes] Checking for existing game files. RFS rootDir:', rootDir);
-            if (rootDir && await this.lookForGameFiles(rootDir)) {
-                console.log('[GameRes] Found game files in local storage, creating config');
+            localGameFilesFound = !!rootDir && await this.lookForGameFiles(rootDir);
+            if (localGameFilesFound && (!currentConfig || currentConfig.isCdn())) {
+                console.log('[GameRes] Found local game files; selecting local resources instead of CDN');
                 currentConfig = new GameResConfig("");
                 currentConfig.source = GameResSource.Local;
                 configRequiresSave = true;
             }
-            else {
+            else if (!localGameFilesFound && !currentConfig) {
                 console.log('[GameRes] No game files found in local storage');
             }
+        }
+        if (currentConfig?.isCdn() && desktopShell) {
+            // The desktop app must not get stuck trying the web client's CDN
+            // before giving the user a chance to import a local installation.
+            console.info('[GameRes] Ignoring persisted CDN selection in Tauri desktop shell.');
+            currentConfig = undefined;
+            configRequiresSave = false;
         }
         else {
             console.log('[GameRes] Skipping game file check. currentConfig:', currentConfig, 'rfs:', rfs);
@@ -188,28 +210,10 @@ export class GameRes {
             }
         }
         if (currentConfig) {
-            const rfsRootDir = rfs?.getRootDirectory();
-            if (rfsRootDir && !currentConfig.isCdn()) {
-                // Older native builds could leave language.mix imported while
-                // failing to convert its Bink menu movie. Repair that state
-                // before the first menu is constructed; failures remain
-                // non-fatal so the playable game files are still usable.
-                try {
-                    const repaired = await new GameResImporter(this.appConfig, this.strings, this.sentry)
-                        .ensureMenuVideo(rfsRootDir, (text) => {
-                            if (text) {
-                                this.splashScreen.setLoadingText(text);
-                                console.info(text);
-                            }
-                        });
-                    if (repaired) {
-                        console.info('[GameRes] Menu video is ready.');
-                    }
-                }
-                catch (e) {
-                    console.warn('[GameRes] Menu video repair failed; continuing without video.', e);
-                }
-            }
+            // Campaign presentation assets are not part of the current boot
+            // contract. In particular, do not unpack or repair the retail Bink
+            // menu movie while initializing the multiplayer/skirmish engine.
+            // The menu remains usable with its static shell artwork.
             const splashBg = await this.loadSplashScreenBackground(rfs?.getRootDirectory(), modRfsDir, currentConfig);
             if (typeof splashBg === 'string') {
                 this.splashScreen.setBackgroundImage(splashBg);
@@ -249,7 +253,8 @@ export class GameRes {
                 createdBlobUrl = undefined;
             }
             console.log('[GameRes] Calling gameResBoxApi.promptForGameRes');
-            const userSelection = await gameResBoxApi.promptForGameRes(archiveUrlFallback, !!this.appConfig.gameresBaseUrl && !this.modName);
+            const canUseCdn = !!this.appConfig.gameresBaseUrl && !this.modName && !desktopShell;
+            const userSelection = await gameResBoxApi.promptForGameRes(archiveUrlFallback, canUseCdn);
             console.log('[GameRes] User selection from prompt:', userSelection);
             currentConfig = new GameResConfig(this.appConfig.gameresBaseUrl ?? "");
             configRequiresSave = true;
@@ -277,7 +282,7 @@ export class GameRes {
                 }
             }
             else {
-                selectedSource = GameResSource.Cdn;
+                selectedSource = canUseCdn ? GameResSource.Cdn : GameResSource.Local;
             }
             currentConfig.source = selectedSource;
             if (selectedSource !== GameResSource.Cdn) {
@@ -340,10 +345,27 @@ export class GameRes {
                         originalError: e.originalError,
                         userSelection: userSelection
                     });
-                    this.splashScreen.setLoadingText("");
-                    this.splashScreen.setBackgroundImage("");
-                    await onImportError(e, this.strings);
-                    continue;
+                    const rootDir = rfs?.getRootDirectory();
+                    let recoveredOptionalTaunts = false;
+                    if (rootDir && isOptionalTauntsNotFoundError(e)) {
+                        const missingRequiredFiles = await this.getMissingGameFiles(rootDir);
+                        if (missingRequiredFiles.length === 0) {
+                            try {
+                                await rootDir.getOrCreateDirectory(Engine.rfsSettings.tauntsDir, true);
+                            }
+                            catch (tauntsRecoveryError) {
+                                console.warn("Could not recreate optional Taunts directory after import; continuing without taunts.", tauntsRecoveryError);
+                            }
+                            console.warn("Optional Taunts directory was not found during import; continuing with core game assets.");
+                            recoveredOptionalTaunts = true;
+                        }
+                    }
+                    if (!recoveredOptionalTaunts) {
+                        this.splashScreen.setLoadingText("");
+                        this.splashScreen.setBackgroundImage("");
+                        await onImportError(e, this.strings);
+                        continue;
+                    }
                 }
                 finally {
                     this.splashScreen.setLoadingText("");
@@ -711,13 +733,13 @@ export class GameRes {
             "artcd.ini",
             "mpmodescd.ini",
             "mpfreeforallmd.ini",
+            // This is the multiplayer map manifest, not a campaign loader.
             "missions.pkt",
             "nodogengikills.ini",
             "ui.ini",
             "settings.png",
             "info.png",
             "creditscd.txt",
-            "missions.pkt",
             "menulogo.png",
         ];
         const files = await Promise.all(engineFiles.map(async (filename) => {

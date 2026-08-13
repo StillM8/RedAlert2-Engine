@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  redalert2_desktop_lib::run();
+    redalert2_desktop_lib::run();
 }

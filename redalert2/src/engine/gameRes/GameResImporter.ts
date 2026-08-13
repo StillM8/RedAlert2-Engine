@@ -10,7 +10,6 @@ import { Palette } from '../../data/Palette';
 import { ShpFile } from '../../data/ShpFile';
 import { ImageUtils } from '../gfx/ImageUtils';
 import * as stringUtils from '../../util/string';
-import { VideoConverter } from './VideoConverter';
 import { InvalidArchiveError } from './importError/InvalidArchiveError';
 import { FileNotFoundError as VfsFileNotFoundError } from '../../data/vfs/FileNotFoundError';
 import { IOError } from '../../data/vfs/IOError';
@@ -209,7 +208,6 @@ export class GameResImporter {
                 { entryName: "audio*.idx", matches: (name: string) => /^audio.*\.idx$/i.test(name) },
                 { entryName: "ares*.bag", matches: (name: string) => /^ares.*\.bag$/i.test(name) },
                 { entryName: "ares*.idx", matches: (name: string) => /^ares.*\.idx$/i.test(name) },
-                { entryName: tauntsDirName, matches: (_name: string) => false },
             ];
             const importedMixes = new Set<string>();
             for (const { entryName, matches } of extractionPlans) {
@@ -236,55 +234,52 @@ export class GameResImporter {
                 }
                 const emFsCurrentDirContents = sevenZipModule.FS.lookupPath(sevenZipModule.FS.cwd())["node"].contents;
                 const extractedEntryNames = Object.keys(emFsCurrentDirContents);
-                if (entryName !== tauntsDirName) {
-                    const extractedNames = extractedEntryNames.filter(matches);
-                    for (const extractedName of extractedNames) {
-                        onProgress(S.get("ts:import_importing", extractedName));
-                        try {
-                            const fileData = this.readFileFromEmFs(sevenZipModule.FS, extractedName);
-                            sevenZipModule.FS.unlink(extractedName);
-                            if (/\.mix$/i.test(extractedName)) {
-                                importedMixes.add(extractedName.toLocaleLowerCase("en-US"));
-                                await this.importMixArchive(fileData, targetRfsRootDir, onProgress, S);
-                            }
-                            else {
-                                await targetRfsRootDir.writeFile(fileData, extractedName.toLocaleLowerCase("en-US"));
-                            }
+                const extractedNames = extractedEntryNames.filter(matches);
+                for (const extractedName of extractedNames) {
+                    onProgress(S.get("ts:import_importing", extractedName));
+                    try {
+                        const fileData = this.readFileFromEmFs(sevenZipModule.FS, extractedName);
+                        sevenZipModule.FS.unlink(extractedName);
+                        if (/\.mix$/i.test(extractedName)) {
+                            importedMixes.add(extractedName.toLocaleLowerCase("en-US"));
+                            await this.importMixArchive(fileData, targetRfsRootDir, onProgress, S);
                         }
-                        catch (e: any) {
-                            if (e.errno === 44 && entryName !== "*.mix") {
-                                console.warn(`Resource "${extractedName}" disappeared from the archive extraction FS. Skipping.`);
-                                continue;
-                            }
-                            throw new GameResFileNotFoundError(extractedName);
+                        else {
+                            await targetRfsRootDir.writeFile(fileData, extractedName.toLocaleLowerCase("en-US"));
                         }
                     }
-                }
-                else {
-                    const tauntsDirInFs = extractedEntryNames.find(name => stringUtils.equalsIgnoreCase(name, tauntsDirName));
-                    if (tauntsDirInFs) {
-                        const tauntsDirNode = sevenZipModule.FS.lookupPath(tauntsDirInFs)["node"];
-                        const tauntFileNames = Object.keys(tauntsDirNode.contents).map(name => `${tauntsDirInFs}/${name}`);
-                        try {
-                            const targetTauntsDir = await targetRfsRootDir.getOrCreateDirectory(tauntsDirName, true);
-                            for (const tauntFilePath of tauntFileNames) {
-                                onProgress(S.get("ts:import_importing", tauntFilePath));
-                                const fileData = this.readFileFromEmFs(sevenZipModule.FS, tauntFilePath);
-                                sevenZipModule.FS.unlink(tauntFilePath);
-                                await targetTauntsDir.writeFile(fileData);
-                            }
+                    catch (e: any) {
+                        if (e.errno === 44 && entryName !== "*.mix") {
+                            console.warn(`Resource "${extractedName}" disappeared from the archive extraction FS. Skipping.`);
+                            continue;
                         }
-                        catch (e: any) {
-                            if (!(e instanceof DOMException || e instanceof IOError || e.errno === 44))
-                                throw e;
-                            console.warn("Failed to copy taunts folder. Skipping.", e);
-                        }
-                    }
-                    else {
-                        console.warn("Taunts folder not found in archive after extraction. Skipping.");
+                        throw new GameResFileNotFoundError(extractedName);
                     }
                 }
             }
+            // Multiplayer taunts are optional.  A number of retail archives
+            // either omit this directory or store it as `TAUNTS`; asking 7-Zip
+            // to extract the exact `Taunts` spelling can therefore produce a
+            // harmless "file not found" result.  Keep this separate from the
+            // required MIX extraction so that a taunt lookup can never abort
+            // an otherwise valid game-resource import.
+            await this.importOptionalArchiveTaunts(
+                sevenZipModule,
+                archiveName,
+                tauntsDirName,
+                targetRfsRootDir,
+                onProgress,
+                S,
+                () => {
+                    sevenZipExitCode = undefined;
+                    sevenZipErrorMessage = undefined;
+                },
+                () => ({
+                    code: sevenZipExitCode,
+                    message: sevenZipErrorMessage,
+                }),
+            );
+            await this.ensureTauntsDirectory(targetRfsRootDir, tauntsDirName);
             sevenZipModule.FS.unlink(archiveName);
             for (const requiredMix of REQUIRED_ROOT_MIXES) {
                 if (!importedMixes.has(requiredMix)) {
@@ -347,7 +342,7 @@ export class GameResImporter {
                 sourceTauntsDir = await sourceDirWrapper.getDirectory(tauntsDirInSource);
             }
             catch (e: any) {
-                if (!(e instanceof VfsFileNotFoundError || e instanceof IOError))
+                if (!(e instanceof VfsFileNotFoundError || e instanceof IOError || e instanceof DOMException))
                     throw e;
                 console.warn(`Taunts directory "${tauntsDirInSource}" not found in source (${e.name}). Skipping.`);
             }
@@ -361,14 +356,110 @@ export class GameResImporter {
                     }
                 }
                 catch (e: any) {
-                    if (!(e instanceof IOError))
+                    if (!(e instanceof IOError || e instanceof DOMException))
                         throw e;
                     console.warn("Failed to copy taunts folder from source. Skipping.", e);
                 }
             }
+            await this.ensureTauntsDirectory(targetRfsRootDir, tauntsDirName);
         }
         onProgress("Game assets successfully imported.");
     }
+
+    /**
+     * Keep the optional multiplayer-audio namespace present after every
+     * import. Some storage adapters do not preserve empty directories, so
+     * recreating it here prevents a later taunt lookup from being mistaken
+     * for a missing required game file.
+     */
+    private async ensureTauntsDirectory(targetRfsRootDir: RealFileSystemDir, tauntsDirName: string): Promise<void> {
+        try {
+            await targetRfsRootDir.getOrCreateDirectory(tauntsDirName, true);
+        }
+        catch (e) {
+            // Taunts are optional. A stale file with the same name, or a
+            // read-only storage adapter, must not invalidate the core import.
+            console.warn(`Could not recreate optional taunts directory "${tauntsDirName}"; continuing without taunts.`, e);
+        }
+    }
+
+    private async importOptionalArchiveTaunts(
+        sevenZipModule: SevenZipWasmModule,
+        archiveName: string,
+        tauntsDirName: string,
+        targetRfsRootDir: RealFileSystemDir,
+        onProgress: ImportProgressCallback,
+        S: Strings,
+        resetExitState: () => void,
+        getExitState: () => { code: number | undefined; message: string | undefined },
+    ): Promise<void> {
+        resetExitState();
+        try {
+            sevenZipModule.callMain(["x", "-ssc-", "-aoa", archiveName, tauntsDirName]);
+        }
+        catch (e) {
+            console.warn("Optional taunts extraction failed; continuing without taunts.", e);
+            return;
+        }
+        // 7-Zip uses exit code 1 for a missing optional entry.  Other errors
+        // are also non-fatal here because taunts are not needed to start a
+        // single-player game and should never mask a successful core import.
+        const exitState = getExitState();
+        if (exitState.code !== undefined && exitState.code !== 0) {
+            console.warn(`Optional taunts archive entry was not imported (7-Zip exit ${exitState.code}). Continuing without taunts.`, exitState.message);
+            return;
+        }
+        let extractedEntryNames: string[];
+        try {
+            const cwdNode = sevenZipModule.FS.lookupPath(sevenZipModule.FS.cwd())["node"];
+            extractedEntryNames = Object.keys(cwdNode?.contents ?? {});
+        }
+        catch (e) {
+            console.warn("Optional taunts directory could not be inspected; continuing without taunts.", e);
+            return;
+        }
+        const tauntsDirInFs = extractedEntryNames.find(name => stringUtils.equalsIgnoreCase(name, tauntsDirName));
+        if (!tauntsDirInFs) {
+            return;
+        }
+        let tauntsDirNode: any;
+        try {
+            tauntsDirNode = sevenZipModule.FS.lookupPath(tauntsDirInFs)["node"];
+        }
+        catch (e) {
+            console.warn(`Optional taunts directory "${tauntsDirInFs}" could not be opened; continuing without taunts.`, e);
+            return;
+        }
+        const tauntsContents = tauntsDirNode?.contents;
+        if (!tauntsContents || ArrayBuffer.isView(tauntsContents) || tauntsContents instanceof ArrayBuffer) {
+            console.warn(`Optional archive entry "${tauntsDirInFs}" is not a directory; continuing without taunts.`);
+            return;
+        }
+        const tauntFileNames = Object.keys(tauntsContents)
+            .filter(name => /\.wav$/i.test(name))
+            .map(name => `${tauntsDirInFs}/${name}`);
+        if (tauntFileNames.length === 0) {
+            return;
+        }
+        try {
+            const targetTauntsDir = await targetRfsRootDir.getOrCreateDirectory(tauntsDirName, true);
+            for (const tauntFilePath of tauntFileNames) {
+                onProgress(S.get("ts:import_importing", tauntFilePath));
+                try {
+                    const fileData = this.readFileFromEmFs(sevenZipModule.FS, tauntFilePath);
+                    sevenZipModule.FS.unlink(tauntFilePath);
+                    await targetTauntsDir.writeFile(fileData);
+                }
+                catch (e) {
+                    console.warn(`Optional taunt "${tauntFilePath}" could not be copied; continuing without it.`, e);
+                }
+            }
+        }
+        catch (e) {
+            console.warn("Failed to copy optional taunts; continuing without taunts.", e);
+        }
+    }
+
     private readFileFromEmFs(emFs: any, filePath: string): VirtualFile {
         emFs.chmod(filePath, 0o700);
         const fileNode = emFs.lookupPath(filePath)["node"];
@@ -399,10 +490,8 @@ export class GameResImporter {
         }
         else if (mixFileNameLower.match(/^(?:language|langmd)\.mix$/)) {
             onProgress(S.get("ts:import_importing_long", mixFileNameLower));
-            onProgress(S.get("ts:import_converting_video"));
-            await this.importVideo(mixVirtualFile, targetRfsRootDir, (progress) => {
-                onProgress(S.get("ts:import_converting_video_pg", (progress * 100).toFixed(0)));
-            });
+            onProgress(S.get("ts:import_storing_video"));
+            await this.importVideo(mixVirtualFile, targetRfsRootDir);
         }
         else if (mixFileNameLower.match(/ra2\.mix$/)) {
             const splashImageBlob = await this.importSplashImage(mixVirtualFile, targetRfsRootDir);
@@ -473,15 +562,21 @@ export class GameResImporter {
         }
     }
     /**
-     * Convert the retail Bink menu movie when it is not already present in
-     * origin-private storage. This is also used as a migration for folders
-     * imported by older Android builds, which copied language.mix but did not
-     * finish the conversion step.
+     * Keep the retail Bink menu movie in origin-private storage. Older builds
+     * stored a transcoded WebM, so those files remain valid during migration.
      */
     async ensureMenuVideo(targetRfsRootDir: RealFileSystemDir, onProgress?: (text?: string) => void): Promise<boolean> {
-        const webmFileName = Engine.getMenuVideoFileName();
-        if (await targetRfsRootDir.containsEntry(webmFileName)) {
+        const binkFileName = Engine.getMenuVideoFileName();
+        const legacyVideoNames = Engine.getActiveEngine() === EngineType.YurisRevenge
+            ? ["ra2ts_l_yr.webm", "ra2ts_l.webm"]
+            : ["ra2ts_l.webm", "ra2ts_l_yr.webm"];
+        if (await targetRfsRootDir.containsEntry(binkFileName)) {
             return true;
+        }
+        for (const legacyVideoName of legacyVideoNames) {
+            if (await targetRfsRootDir.containsEntry(legacyVideoName)) {
+                return true;
+            }
         }
         let languageMixVirtualFile: VirtualFile | undefined;
         const sourceMixes = Engine.getActiveEngine() === EngineType.YurisRevenge
@@ -505,51 +600,25 @@ export class GameResImporter {
             return false;
         }
         console.info(`[GameResImporter] Preparing ${EngineType[Engine.getActiveEngine()]} menu video from ${sourceMixName}`);
-        onProgress?.(this.strings.get("ts:import_converting_video"));
-        await this.importVideo(languageMixVirtualFile, targetRfsRootDir, (progress) => {
-            onProgress?.(this.strings.get("ts:import_converting_video_pg", (progress * 100).toFixed(0)));
-        });
-        return await targetRfsRootDir.containsEntry(webmFileName);
+        onProgress?.(this.strings.get("ts:import_storing_video"));
+        await this.importVideo(languageMixVirtualFile, targetRfsRootDir);
+        if (await targetRfsRootDir.containsEntry(binkFileName)) {
+            return true;
+        }
+        for (const legacyVideoName of legacyVideoNames) {
+            if (await targetRfsRootDir.containsEntry(legacyVideoName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private async importVideo(
         languageMixVirtualFile: VirtualFile,
         targetRfsRootDir: RealFileSystemDir,
-        onProgress?: (progress: number) => void,
     ): Promise<void> {
-        let ffmpeg: FFmpeg;
-        try {
-            ffmpeg = await this.createFFmpeg();
-        }
-        catch (e: any) {
-            if (e.message?.match(/Load failed|Failed to fetch/i)) {
-                const error = new DownloadError("Failed to load FFmpeg for video conversion");
-                (error as any).originalError = e;
-                throw error;
-            }
-            this.sentry?.captureException(new Error("FFmpeg creation failed for video import"));
-            console.error("Skipping video import due to FFmpeg creation failure.", e);
-            return;
-        }
         const langMix = new MixFile(languageMixVirtualFile.stream as DataStream);
-        console.log('[GameResImporter] language.mix loaded, checking detailed contents...');
-        console.log('[GameResImporter] File size:', languageMixVirtualFile.getSize(), 'bytes');
-        console.log('[GameResImporter] MixFile index size:', (langMix as any).index?.size || 'unknown');
-        if ((langMix as any).index) {
-            const index = (langMix as any).index as Map<number, any>;
-            console.log('[GameResImporter] language.mix index entries (first 20):');
-            let entryCount = 0;
-            for (const [hash, entry] of index.entries()) {
-                entryCount++;
-                console.log(`[GameResImporter]   Entry ${entryCount}: hash=0x${hash.toString(16).toUpperCase()}, offset=${entry.offset}, length=${entry.length}`);
-                if (entryCount >= 20) {
-                    console.log(`[GameResImporter]   ... and ${index.size - 20} more entries`);
-                    break;
-                }
-            }
-        }
-        const binkFileName = "ra2ts_l.bik";
-        const webmFileName = Engine.getMenuVideoFileName();
+        const binkFileName = Engine.getMenuVideoFileName();
         const videoFileVariants = [
             'ra2ts_l.bik', 'RA2TS_L.BIK', 'Ra2ts_l.bik', 'RA2TS_L.bik'
         ];
@@ -570,18 +639,14 @@ export class GameResImporter {
         }
         console.log(`[GameResImporter] Using video file: "${actualVideoFileName}"`);
         const binkFileEntry = langMix.openFile(actualVideoFileName);
-        let webmBuffer: Uint8Array;
-        try {
-            webmBuffer = await new VideoConverter().convertBinkVideo(ffmpeg, binkFileEntry, "webm", onProgress);
-        }
-        catch (e) {
-            this.sentry?.captureException(new Error(`Bink to WebM conversion failed for ${actualVideoFileName}`), { extra: { error: e } });
-            console.error("Bink video conversion failed, skipping menu video.", e);
+        const binkBytes = binkFileEntry.getBytes();
+        if (binkBytes.byteLength === 0) {
+            console.warn(`[GameResImporter] Bink video "${actualVideoFileName}" is empty; skipping menu video import`);
             return;
         }
-        const virtualWebmFile = VirtualFile.fromBytes(webmBuffer, webmFileName);
-        await targetRfsRootDir.writeFile(virtualWebmFile);
-        console.log(`[GameResImporter] ✅ Wrote converted menu video "${webmFileName}" (${webmBuffer.byteLength} bytes)`);
+        const virtualBinkFile = VirtualFile.fromBytes(binkBytes, binkFileName);
+        await targetRfsRootDir.writeFile(virtualBinkFile);
+        console.log(`[GameResImporter] ✅ Stored original menu video "${binkFileName}" (${binkBytes.byteLength} bytes)`);
     }
     private async createFFmpeg(): Promise<FFmpeg> {
         const ffmpegModule = await import("@ffmpeg/ffmpeg");

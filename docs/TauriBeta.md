@@ -8,9 +8,25 @@ the simulation engine, add a second renderer, or bundle retail game files.
 
 | Target | Command | Host requirement |
 | --- | --- | --- |
-| Windows | `bun run tauri:build` | Rust, MSVC C++ Build Tools, WebView2 |
+| Windows | `bun run tauri:build -- --target x86_64-pc-windows-msvc --no-bundle` | Windows, Rust, MSVC C++ Build Tools, WebView2 |
 | Linux | `bun run tauri:build` | Rust and WebKitGTK 4.1 development packages |
-| macOS | `bun run tauri:build` | Rust and Xcode Command Line Tools |
+| macOS | `bun run tauri:build -- --target universal-apple-darwin` | macOS, Rust, Xcode Command Line Tools |
+
+The macOS target is built as a universal bundle. It contains both
+`aarch64-apple-darwin` (Apple Silicon) and `x86_64-apple-darwin` (Intel), so
+the same `.app` or `.dmg` runs on both Mac architectures. Tauri must build it
+on macOS because the Apple SDK, linker, and WebKit frameworks are not
+available in WSL/Linux. The repository includes a manually-triggerable GitHub
+Actions workflow at `.github/workflows/tauri-macos.yml` for producing the
+unsigned universal bundle.
+
+For Windows portable releases, use the MSVC target. The MSVC WebView2 binding
+uses `WebView2LoaderStatic.lib`, so the result is one `redalert2-desktop.exe`
+instead of the GNU cross-build's EXE plus `WebView2Loader.dll`. This does not
+bundle the WebView2 browser runtime itself; the target Windows machine still
+needs WebView2 installed. The repository includes a manually-triggerable
+workflow at `.github/workflows/tauri-windows.yml` that verifies the single-file
+output.
 
 Run the desktop beta locally with:
 

@@ -55,6 +55,40 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
         val isGameResource = path == "gameres" || path.startsWith("gameres/")
         val isNativeDownload = path == "native-downloads" || path.startsWith("native-downloads/")
         val isNativeModImport = path == "native-mod-imports" || path.startsWith("native-mod-imports/")
+        val nativeMenuVideoPrefix = "native-media/android/menu-video/"
+        if (path.startsWith(nativeMenuVideoPrefix)) {
+            val filename = path.removePrefix(nativeMenuVideoPrefix)
+            if (filename.isEmpty() || filename.contains('/') ||
+                !listOf("ra2ts_l.bik", "ra2ts_l_yr.bik").any { it.equals(filename, ignoreCase = true) }) {
+                return errorResponse(403, "Forbidden")
+            }
+            val stream = openNativeMenuVideo(filename)
+                ?: return errorResponse(404, "Native menu video not found")
+            if (uri.getQueryParameter("probe") == "1") {
+                stream.close()
+                return WebResourceResponse(
+                    mimeType(filename),
+                    null,
+                    200,
+                    "OK",
+                    mapOf("Cache-Control" to "no-store"),
+                    ByteArrayInputStream(ByteArray(0)),
+                )
+            }
+            return WebResourceResponse(
+                mimeType(filename),
+                null,
+                200,
+                "OK",
+                mapOf(
+                    "Cache-Control" to "no-store",
+                    "Cross-Origin-Embedder-Policy" to "require-corp",
+                    "Cross-Origin-Opener-Policy" to "same-origin",
+                    "Cross-Origin-Resource-Policy" to "same-origin",
+                ),
+                stream,
+            )
+        }
         if (isNativeDownload) {
             val relativeDownloadPath = path.removePrefix("native-downloads/")
             val segments = relativeDownloadPath.split('/')
@@ -160,6 +194,21 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
         return openPackagedAsset(assetPath)
     }
 
+    /**
+     * Android-owned menu-video selection. The native import directory wins;
+     * packaged QA resources are the fallback. The web engine only sees this
+     * as a platform URL and never needs to know which storage was selected.
+     */
+    private fun openNativeMenuVideo(filename: String): InputStream? {
+        val privateRoot = File(context.filesDir, "gameres").canonicalFile
+        val privateFile = privateRoot.listFiles()
+            ?.firstOrNull { it.isFile && it.name.equals(filename, ignoreCase = true) }
+        if (privateFile != null) {
+            return FileInputStream(privateFile)
+        }
+        return openPackagedAsset("$GAME_RES_ROOT/$filename")
+    }
+
     private fun errorResponse(status: Int, message: String): WebResourceResponse {
         return WebResourceResponse(
             "text/plain",
@@ -203,6 +252,7 @@ class Ra2WebViewClient(private val context: Context) : WebViewClient() {
         "wav" -> "audio/wav"
         "webm" -> "video/webm"
         "mp4" -> "video/mp4"
+        "bik" -> "application/octet-stream"
         "woff" -> "font/woff"
         "woff2" -> "font/woff2"
         else -> "application/octet-stream"

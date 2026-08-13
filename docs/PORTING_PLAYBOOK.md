@@ -62,10 +62,18 @@ explicit local-only convenience and is not the normal packaging policy.
 The export is produced by `scripts/prepare-gameres.ts`, an offline
 re-implementation of the importer. It reads your retail MIXes directly, copies
 the core archives, transcodes the music (`theme.mix` WAV → MP3 via ffmpeg),
-converts the menu video (`ra2ts_l.bik` → WebM), extracts the English string
-table (`ra2.csf` out of `language.mix`), and renders the loading splash
+keeps the original menu video (`ra2ts_l*.bik`) for the shared WebAssembly Bink
+decoder, extracts the English string table (`ra2.csf` out of `language.mix`),
+and renders the loading splash
 (`glsl.shp` + `gls.pal` inside `ra2.mix` → PNG, with a from-scratch PNG encoder
 so the script needs no browser).
+
+Menu-video selection is platform-owned. Android exposes loose `.bik` files from
+`/native-media/android/menu-video/` through its Kotlin WebView client, while
+iOS exposes them from `Resources/GameRes` through
+`/native-media/ios/menu-video/` in `BundleSchemeHandler.swift`. The shared GUI
+tries that native source first and falls back to its OPFS/VFS extraction path
+when a normal user import contains only `language*.mix`.
 
 **First launch** (`src/shell/iosSeed.ts`): if the optional QA bundle is present,
 the shell copies its tree into OPFS, then marks the import as complete. This is

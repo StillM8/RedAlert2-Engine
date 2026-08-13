@@ -30,6 +30,7 @@
  "ts:import_importing_long": "Importing \"%s\"...\n\nThis may take a minute.",
  "ts:import_converting_video": "Preparing the menu video...\n\nThis may take a minute.",
  "ts:import_converting_video_pg": "Preparing the menu video... (%d%%)",
+ "ts:import_storing_video": "Keeping the original menu video...",
  "ts:import_failed": "Failed to import game assets.",
  "ts:import_file_not_found": "File \"%s\" not found.",
  "ts:import_archive_download_failed": "The download failed.\n\nPlease ensure that the specified URL is accessible and that the server accepts cross-origin (CORS) requests. Alternatively, you can manually download the file by right-clicking on the link below and selecting \"Save link as...\":\n\n%s\n\nOnce the download is complete, close this dialog and import the file directly, without opening it.",

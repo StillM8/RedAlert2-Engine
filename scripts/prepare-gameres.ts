@@ -6,10 +6,10 @@
  *
  * Produces:
  *   gameres-export/            retail core/profile MIX files, music/*.mp3,
- *                              ra2ts_l.webm (menu video), glsl.png (splash)
+ *                              ra2ts_l*.bik (menu video), glsl.png (splash)
  *   redalert2/public/general.csf   English in-game strings (from language.mix)
  *
- * Requires ffmpeg on PATH (brew install ffmpeg) for music/video conversion.
+ * Requires ffmpeg on PATH (brew install ffmpeg) for optional music conversion.
  * No game assets are committed to this repo — this script exists so a fresh
  * clone plus a legally-owned copy of the game can produce a working build.
  */
@@ -156,7 +156,7 @@ const RESOURCE_PROFILE = detectResourceProfile();
 const MEDIA_CONVERSION_AVAILABLE = hasFfmpeg();
 console.log(`== Preparing ${RESOURCE_PROFILE} game resources`);
 if (!MEDIA_CONVERSION_AVAILABLE) {
-    console.warn("== ffmpeg is unavailable; skipping optional music/video conversion");
+    console.warn("== ffmpeg is unavailable; skipping optional music conversion");
 }
 
 console.log("== Copying core mixes");
@@ -186,14 +186,21 @@ if (MEDIA_CONVERSION_AVAILABLE) {
     }
 }
 
-console.log("== Converting menu video (ra2ts_l.bik -> ra2ts_l.webm)");
-if (MEDIA_CONVERSION_AVAILABLE && langMix.containsFile("ra2ts_l.bik")) {
-    const bikPath = join(TMP, "ra2ts_l.bik");
-    extractTo(langMix, "ra2ts_l.bik", bikPath);
-    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", bikPath, "-c:v", "libvpx", "-b:v", "1M", "-an", join(OUT, "ra2ts_l.webm")]);
-    console.log("   ra2ts_l.webm");
+console.log("== Keeping original menu video (.bik)");
+let menuVideoMix = langMix;
+let menuVideoOutput = "ra2ts_l.bik";
+if (RESOURCE_PROFILE === "yr" && hasRetailFile("langmd.mix")) {
+    const yurisLanguageMix = openMix(retailFile("langmd.mix"));
+    if (yurisLanguageMix.containsFile("ra2ts_l.bik")) {
+        menuVideoMix = yurisLanguageMix;
+        menuVideoOutput = "ra2ts_l_yr.bik";
+    }
+}
+if (menuVideoMix.containsFile("ra2ts_l.bik")) {
+    extractTo(menuVideoMix, "ra2ts_l.bik", join(OUT, menuVideoOutput));
+    console.log(`   ${menuVideoOutput}`);
 } else {
-    console.warn("   (skip) ra2ts_l.bik not found in language.mix");
+    console.warn("   (skip) ra2ts_l.bik not found in the selected language mix");
 }
 
 console.log("== Extracting splash image (ra2.mix -> glsl.png)");
@@ -290,9 +297,12 @@ try {
 // --------------------------------------------------------------------------
 
 console.log("== Copying multiplayer taunts (Taunts/*.wav)");
+// Keep the optional namespace in the generated tree even when a particular
+// retail installation does not ship loose taunt WAVs. Empty directories are
+// useful to storage adapters that otherwise cannot represent this namespace.
+mkdirSync(join(OUT, "Taunts"), { recursive: true });
 try {
     const tauntsSrc = retailFile("Taunts");
-    mkdirSync(join(OUT, "Taunts"), { recursive: true });
     let tauntCount = 0;
     for (const entry of readdirSync(tauntsSrc)) {
         if (/\.wav$/i.test(entry)) {

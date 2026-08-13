@@ -6,7 +6,7 @@ import { MusicType } from '../../../../engine/sound/Music';
 import { MessageBoxApi } from '../../../component/MessageBoxApi';
 import { FullScreen } from '../../../FullScreen';
 import { getHumanReadableKey } from '@/gui/screen/options/component/getHumanReadableKey';
-import { isNativeShell } from '@/shell/nativeShell';
+import { isNativeShell, isTauriDesktopShell } from '@/shell/nativeShell';
 interface SidebarButton {
     label: string;
     tooltip?: string;
@@ -195,9 +195,14 @@ export class HomeScreen implements Screen {
         }
         catch (err) {
             console.error('Error toggling fullscreen:', err);
+            const failureMessage = isTauriDesktopShell()
+                ? 'Unable to change the native full screen mode\n\nTry pressing F11 or Alt+F again.'
+                : document.fullscreenElement
+                    ? 'Unable to exit full screen mode'
+                    : 'Unable to enter full screen mode\n\nPlease check your browser permission settings';
             await this.messageBoxApi.alert(document.fullscreenElement
                 ? 'Unable to exit full screen mode'
-                : 'Unable to enter full screen mode\n\nPlease check your browser permission settings', this.strings.get('GUI:OK') || 'OK');
+                : failureMessage, this.strings.get('GUI:OK') || 'OK');
         }
     }
 }

@@ -32,6 +32,7 @@ import { attachPerformanceOptions, installPerformanceDebugApi } from './performa
 import { inGameViewportActive } from './gui/inGameViewport';
 import { getGameProfile } from './engine/GameProfile';
 import { ContentRegistry } from './content/ContentRegistry';
+import { isTauriDesktopShell } from './shell/nativeShell';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -351,20 +352,13 @@ export class Application {
         }
     }
     private initializePreferredViewportSize(): void {
-        if (!this.hasLoadedGeneralOptionsFromStorage && this.generalOptions.graphics.resolution.value === undefined) {
-            const defaultViewportSize = {
-                width: this.config?.viewport?.width ?? 1024,
-                height: this.config?.viewport?.height ?? 768,
-            };
-            this.generalOptions.graphics.resolution.value = defaultViewportSize;
-            this.preferredViewportSize = defaultViewportSize;
-            console.log('[Application] Initialized preferred viewport size from config defaults', defaultViewportSize);
-            return;
-        }
+        // Keep an explicit user resolution when one exists. Tauri otherwise
+        // uses the config viewport as one logical surface and scales that
+        // surface uniformly to the available window.
         this.preferredViewportSize = this.generalOptions.graphics.resolution.value
             ? { ...this.generalOptions.graphics.resolution.value }
             : null;
-        console.log('[Application] Initialized preferred viewport size from options', this.preferredViewportSize);
+        console.log('[Application] Initialized preferred viewport size', this.preferredViewportSize ?? 'fit-window');
     }
     private bindPerformanceRuntimeVars(): void {
         const performanceOptions = this.generalOptions.performance;
@@ -432,7 +426,7 @@ export class Application {
         width: number;
         height: number;
     } {
-        if (this.preferredViewportSize === null) {
+        if (this.preferredViewportSize === null && !isTauriDesktopShell()) {
             return {
                 width: this.normalizeViewportDimension(availableSize.width, Application.MIN_DESKTOP_VIEWPORT.width),
                 height: this.normalizeViewportDimension(availableSize.height, Application.MIN_DESKTOP_VIEWPORT.height),
@@ -443,6 +437,15 @@ export class Application {
         const defaultHeight = this.config?.viewport?.height ?? 768;
         const targetWidth = requestedResolution?.width ?? defaultWidth;
         const targetHeight = requestedResolution?.height ?? defaultHeight;
+        if (isTauriDesktopShell()) {
+            // Keep one logical game surface for the canvas and HTML overlays.
+            // Tauri can then upscale that surface as one unit, preserving the
+            // original menu aspect ratio and keeping labels on their sprites.
+            return {
+                width: this.normalizeViewportDimension(targetWidth, Application.MIN_DESKTOP_VIEWPORT.width),
+                height: this.normalizeViewportDimension(targetHeight, Application.MIN_DESKTOP_VIEWPORT.height),
+            };
+        }
         return {
             width: this.normalizeViewportDimension(Math.min(availableSize.width, targetWidth), Application.MIN_DESKTOP_VIEWPORT.width),
             height: this.normalizeViewportDimension(Math.min(availableSize.height, targetHeight), Application.MIN_DESKTOP_VIEWPORT.height),
@@ -478,6 +481,9 @@ export class Application {
                     height: this.normalizeViewportDimension(height, mobileBase.height),
                 };
             }
+            if (isTauriDesktopShell()) {
+                return this.computeDesktopViewportSize(availableSize);
+            }
             return {
                 width: this.normalizeViewportDimension(availableSize.width, 2),
                 height: this.normalizeViewportDimension(availableSize.height, 2),
@@ -500,7 +506,7 @@ export class Application {
         const logicalSize = this.computeViewportSize(isFullScreen, availableSize, mobileLayout);
         const rawScale = Math.min(availableSize.width / logicalSize.width, availableSize.height / logicalSize.height);
         // Mobile layouts may upscale (tablets); desktop windows never do.
-        const scale = mobileLayout ? rawScale : Math.min(1, rawScale);
+        const scale = mobileLayout || isTauriDesktopShell() ? rawScale : Math.min(1, rawScale);
         return {
             x: 0,
             y: 0,
@@ -659,7 +665,10 @@ export class Application {
         Engine.setActiveEngine(profile === "ra2" ? EngineType.RedAlert2 : EngineType.YurisRevenge);
         let gameResConfig = this.loadGameResConfig(this.localPrefs);
         try {
-            const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "res/", this.sentry, profile);
+            // Tauri serves the frontend from a custom WebView origin. Keep
+            // bundled application resources root-relative so they cannot be
+            // resolved below a route or the shell's current document path.
+            const gameRes = new GameRes(this.getVersion(), modName || undefined, this.fsAccessLib, this.localPrefs, this.strings, this.rootEl, this.createSplashScreenInterface(), this.viewportAdapter, this.config, "/res/", this.sentry, profile);
             const { configToPersist, cdnResLoader } = await gameRes.init(gameResConfig, (error, strings) => this.handleGameResLoadError(error, strings), (error, strings) => this.handleGameResImportError(error, strings));
             this.loadGameStringsFromVfs();
             try {

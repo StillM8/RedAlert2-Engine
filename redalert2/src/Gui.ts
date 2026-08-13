@@ -1,5 +1,5 @@
 import { Renderer } from './engine/gfx/Renderer.js';
-import { isNativeShell } from './shell/nativeShell.js';
+import { isNativeShell, selectNativeMenuVideoSource } from './shell/nativeShell.js';
 import { UiScene } from './gui/UiScene.js';
 import { JsxRenderer } from './gui/jsx/JsxRenderer.js';
 import { BoxedVar } from './util/BoxedVar.js';
@@ -45,6 +45,14 @@ import { ClientApi } from './ClientApi.js';
 import { ModSelScreen } from './gui/screen/mainMenu/modSel/ModSelScreen.js';
 import type { ViewportRect } from './gui/Viewport.js';
 import { attachPerformanceOptions, installPerformanceDebugApi } from './performance/PerformanceRuntime.js';
+
+function menuVideoMimeType(filename: string): string {
+    const extension = filename.split("?")[0].split(".").pop()?.toLowerCase();
+    if (extension === "mp4") return "video/mp4";
+    if (extension === "webm") return "video/webm";
+    return "application/octet-stream";
+}
+
 export class Gui {
     private appVersion: string;
     private strings: Strings;
@@ -198,8 +206,19 @@ export class Gui {
         }
         console.log('[Gui] Getting main menu video URL');
         const videoFileName = Engine.getMenuVideoFileName();
+        const legacyVideoNames = Engine.getActiveEngine() === EngineType.YurisRevenge
+            ? ['ra2ts_l_yr.webm', 'ra2ts_l.webm', 'ra2ts_l_yr.mp4', 'menu.webm', 'menu.mp4']
+            : ['ra2ts_l.webm', 'ra2ts_l_yr.webm', 'ra2ts_l.mp4', 'menu.webm', 'menu.mp4', 'ra2ts_l.avi'];
         console.log('[Gui] Video file name:', videoFileName);
         try {
+            const nativeMenuVideo = await selectNativeMenuVideoSource([
+                videoFileName,
+                ...(Engine.getActiveEngine() === EngineType.YurisRevenge ? ['ra2ts_l.bik'] : []),
+            ]);
+            if (nativeMenuVideo) {
+                console.log('[Gui] Using platform-selected menu video:', nativeMenuVideo);
+                return nativeMenuVideo;
+            }
             if (Engine.rfs) {
                 console.log('[Gui] Checking RFS for video file...');
                 try {
@@ -208,12 +227,23 @@ export class Gui {
                     if (rfsContainsVideo) {
                         console.log('[Gui] Found video file in RFS:', videoFileName);
                         const fileData = await Engine.rfs.getRawFile(videoFileName);
-                        const videoFile = new File([fileData], videoFileName, { type: "video/webm" });
+                        const videoFile = new File([fileData], videoFileName, { type: menuVideoMimeType(videoFileName) });
                         console.log('[Gui] Created video File object from RFS:', videoFile.name, videoFile.size, 'bytes');
                         if (videoFile.size === 0) {
                             console.warn('[Gui] Video file from RFS is empty!');
                         }
                         else {
+                            return videoFile;
+                        }
+                    }
+                    for (const legacyVideoName of legacyVideoNames) {
+                        if (!(await Engine.rfs.containsEntry(legacyVideoName))) {
+                            continue;
+                        }
+                        console.log('[Gui] Found legacy menu video in RFS:', legacyVideoName);
+                        const fileData = await Engine.rfs.getRawFile(legacyVideoName);
+                        const videoFile = new File([fileData], legacyVideoName, { type: menuVideoMimeType(legacyVideoName) });
+                        if (videoFile.size > 0) {
                             return videoFile;
                         }
                     }
@@ -236,7 +266,7 @@ export class Gui {
             if (Engine.vfs.fileExists(videoFileName)) {
                 console.log('[Gui] Found video file in VFS:', videoFileName);
                 const fileData = Engine.vfs.openFile(videoFileName).asFile();
-                const videoFile = new File([fileData], videoFileName, { type: "video/webm" });
+                const videoFile = new File([fileData], videoFileName, { type: menuVideoMimeType(videoFileName) });
                 console.log('[Gui] Created video File object:', videoFile.name, videoFile.size, 'bytes');
                 if (videoFile.size === 0) {
                     console.warn('[Gui] Video file is empty!');
@@ -246,21 +276,16 @@ export class Gui {
             }
             else {
                 console.warn('[Gui] Video file not found in VFS:', videoFileName);
-                const alternativeNames = Engine.getActiveEngine() === EngineType.YurisRevenge
-                    ? ['ra2ts_l_yr.mp4', 'menu.webm', 'menu.mp4']
-                    : ['ra2ts_l.bik', 'ra2ts_l.mp4', 'menu.webm', 'menu.mp4', 'ra2ts_l.avi'];
-                for (const altName of alternativeNames) {
+                for (const altName of [
+                    ...(Engine.getActiveEngine() === EngineType.YurisRevenge ? ['ra2ts_l_yr.bik', 'ra2ts_l.bik'] : ['ra2ts_l.bik']),
+                    ...legacyVideoNames,
+                ]) {
                     console.log(`[Gui] Checking alternative video file: ${altName}`);
                     if (Engine.vfs.fileExists(altName)) {
                         console.log('[Gui] Found alternative video file:', altName);
-                        if (altName.endsWith('.bik')) {
-                            console.warn(`[Gui] Found .bik file but cannot play directly: ${altName}`);
-                            console.warn('[Gui] .bik files need to be converted to .webm during import process');
-                            continue;
-                        }
                         const fileData = Engine.vfs.openFile(altName).asFile();
                         const videoFile = new File([fileData], altName, {
-                            type: altName.endsWith('.mp4') ? "video/mp4" : "video/webm"
+                            type: menuVideoMimeType(altName),
                         });
                         console.log('[Gui] Created alternative video File object:', videoFile.name, videoFile.size, 'bytes');
                         return videoFile;

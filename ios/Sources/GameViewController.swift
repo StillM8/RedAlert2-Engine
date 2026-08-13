@@ -38,6 +38,7 @@ final class GameViewController: UIViewController, WKNavigationDelegate {
         let bootstrap = WKUserScript(
             source: """
             window.__RA2_SHELL__ = { platform: 'ios', version: '0.1.0', \
+            menuVideoRoot: '/native-media/ios/menu-video', \
             thermalState: '\(Self.thermalStateName(ProcessInfo.processInfo.thermalState))' };
             """,
             injectionTime: .atDocumentStart,

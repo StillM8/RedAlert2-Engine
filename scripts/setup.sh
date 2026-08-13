@@ -21,9 +21,9 @@ bold "Checking prerequisites..."
 command -v bun >/dev/null 2>&1 || die "bun is required. Install: curl -fsSL https://bun.sh/install | bash"
 echo "  bun $(bun --version)"
 if command -v ffmpeg >/dev/null 2>&1; then
-  echo "  ffmpeg OK (music/video conversion enabled)"
+  echo "  ffmpeg OK (music conversion enabled)"
 else
-  echo "  ffmpeg not found (optional music/video conversion will be skipped)"
+  echo "  ffmpeg not found (optional music conversion will be skipped)"
 fi
 
 # ------------------------------------------------------------ find retail

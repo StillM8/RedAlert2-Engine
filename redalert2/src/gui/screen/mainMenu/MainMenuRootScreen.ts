@@ -88,7 +88,7 @@ export class MainMenuRootScreen extends RootScreen {
         console.log('[MainMenuRootScreen] Creating view');
         console.log('[MainMenuRootScreen] Using menuViewport:', this.uiScene.menuViewport);
         console.log('[MainMenuRootScreen] Full viewport:', this.uiScene.viewport);
-        this.mainMenu = new MainMenu(this.uiScene.menuViewport, this.images, this.jsxRenderer, this.videoSrc as string);
+        this.mainMenu = new MainMenu(this.uiScene.menuViewport, this.images, this.jsxRenderer, this.videoSrc);
     }
     createViewAndController(): MainMenuController {
         console.log('[MainMenuRootScreen] Creating view and controller');

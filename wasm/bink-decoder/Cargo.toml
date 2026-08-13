@@ -1,0 +1,19 @@
+[package]
+name = "ra2-bink-decoder"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+infinitier_bik_decoder = "0.0.14"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

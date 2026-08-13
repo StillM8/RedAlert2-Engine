@@ -73,7 +73,7 @@ export class GameResBoxApi {
                                 }
                             }
                             catch (e) {
-                                console.error("Error importing Android game folder:", e);
+                                console.error("Error importing native game folder:", e);
                                 alert((e as Error).message || "Could not import the selected game folder.");
                             }
                             return;

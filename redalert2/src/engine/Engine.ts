@@ -52,8 +52,8 @@ export enum EngineType {
 export class Engine {
     public static readonly UI_ANIM_SPEED = 2;
     public static rfsSettings = {
-        menuVideoFileName: "ra2ts_l.webm",
-        menuVideoFileNameYr: "ra2ts_l_yr.webm",
+        menuVideoFileName: "ra2ts_l.bik",
+        menuVideoFileNameYr: "ra2ts_l_yr.bik",
         splashImgFileName: "glsl.png",
         mapDir: "maps",
         modDir: "mods",
@@ -240,6 +240,9 @@ export class Engine {
     }
     static initGameResSource(source: GameResSource): void {
         this.gameResSource = source;
+    }
+    static isGameResCdn(): boolean {
+        return this.gameResSource === GameResSource.Cdn;
     }
     static async initRfs(rootHandle: FileSystemDirectoryHandle): Promise<RealFileSystem> {
         // These directories are application-managed namespaces, not part of

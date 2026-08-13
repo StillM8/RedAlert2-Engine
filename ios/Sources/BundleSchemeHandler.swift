@@ -75,7 +75,18 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         let fileURL: URL
-        if relative == "gameres-bundle" || relative.hasPrefix("gameres-bundle/") {
+        let isNativeMenuVideo = relative.hasPrefix("native-media/ios/menu-video/")
+        if isNativeMenuVideo {
+            let filename = String(relative.dropFirst("native-media/ios/menu-video/".count))
+            guard !filename.isEmpty,
+                  !filename.contains("/"),
+                  ["ra2ts_l.bik", "ra2ts_l_yr.bik"].contains(where: { $0.caseInsensitiveCompare(filename) == .orderedSame }),
+                  let nativeFile = nativeMenuVideoFile(named: filename) else {
+                respond(urlSchemeTask, url: url, status: 404, mime: "text/plain", data: Data("native menu video not found".utf8))
+                return
+            }
+            fileURL = nativeFile
+        } else if relative == "gameres-bundle" || relative.hasPrefix("gameres-bundle/") {
             let bundledPath = relative == "gameres-bundle"
                 ? "manifest.json"
                 : String(relative.dropFirst("gameres-bundle/".count))
@@ -96,6 +107,11 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
 
         let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? nil
         let mime = mimeType(for: fileURL.pathExtension)
+
+        if isNativeMenuVideo && url.query?.split(separator: "&").contains(where: { $0 == "probe=1" }) == true {
+            respond(urlSchemeTask, url: url, status: 200, mime: mime, data: Data())
+            return
+        }
 
         if let size, size > Self.streamThreshold {
             streamFile(urlSchemeTask, url: url, fileURL: fileURL, size: size, mime: mime)
@@ -120,6 +136,25 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         // reference, so the address is free to be reused by a later task.
         streamStates.removeValue(forKey: ObjectIdentifier(urlSchemeTask))?.cancelled = true
         cancelLock.unlock()
+    }
+
+    private func nativeMenuVideoFile(named filename: String) -> URL? {
+        let allowed = ["ra2ts_l.bik", "ra2ts_l_yr.bik"]
+        guard allowed.contains(where: { $0.caseInsensitiveCompare(filename) == .orderedSame }) else {
+            return nil
+        }
+        let direct = gameResRoot.appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: direct.path) {
+            return direct
+        }
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: gameResRoot,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+        return entries.first(where: { $0.lastPathComponent.caseInsensitiveCompare(filename) == .orderedSame })
     }
 
     /// Deliver a large file in bounded chunks. WebKit is only ever holding one
@@ -205,6 +240,7 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         case "wav": return "audio/wav"
         case "webm": return "video/webm"
         case "mp4": return "video/mp4"
+        case "bik": return "application/octet-stream"
         case "woff": return "font/woff"
         case "woff2": return "font/woff2"
         case "ttf": return "font/ttf"
