@@ -335,6 +335,10 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
         sectionKind === "Weapon") {
         return "ares.weapon-visuals";
     }
+    if (/^ivanbomb\.(?:warhead|damage|detachable|destroysbridges|delay|attachsound|tickingsound|image|flickerrate|candetonatetimebomb|candetonatedeathbomb|detonateonsell|deathbomb|deathbombonallies)$/i.test(key) &&
+        sectionKind === "Weapon") {
+        return "ares.custom-ivan-bombs";
+    }
     if (/^(?:damageparticlesystems|damagesparks|damagesmokeparticlesystems|damagesparksparticlesystems)$/i.test(key)) {
         return "ares.damage-particle-systems";
     }

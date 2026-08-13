@@ -32,6 +32,7 @@ interface GameObject {
     };
     tntChargeTrait?: {
         hasCharge(): boolean;
+        canBeDisarmed?(): boolean;
     };
     parasiteableTrait?: {
         isInfested(): boolean;
@@ -61,6 +62,7 @@ interface WeaponRules {
 interface WarheadRules {
     electricAssault?: boolean;
     bombDisarm?: boolean;
+    ivanBomb?: boolean;
     mindControl?: boolean;
     parasite?: boolean;
     temporal?: boolean;
@@ -106,7 +108,8 @@ export class WeaponTargeting {
         else {
             if (this.gameObject.rules.attackCursorOnFriendlies || this.warheadRules.bombDisarm) {
                 this.targetChecks.push((target, context, alliances, forcefire, shift) => !shift && !!(!this.warheadRules.bombDisarm ||
-                    (target?.isTechno() && target.tntChargeTrait?.hasCharge())));
+                    (target?.isTechno() && target.tntChargeTrait?.hasCharge() &&
+                        target.tntChargeTrait?.canBeDisarmed?.() !== false)));
             }
             else {
                 this.targetChecks.push((target, context, alliances, forcefire) => !((!forcefire || this.warheadRules.mindControl) &&
@@ -121,7 +124,11 @@ export class WeaponTargeting {
                     (target.isVehicle() || target.isAircraft()) &&
                     target.parasiteableTrait?.isInfested()));
             }
-            if (this.gameObject.rules.ivan) {
+            // Ares permits any TechnoType to fire an Ivan-bomb warhead. The
+            // retail Ivan flag is still honored for vanilla behavior, but it
+            // must not be the gate that prevents a weapon-authored bomb from
+            // attaching to its target.
+            if (this.gameObject.rules.ivan || this.warheadRules.ivanBomb) {
                 this.targetChecks.push((target) => !(!target?.isTechno() || !target.tntChargeTrait || target.tntChargeTrait.hasCharge()));
             }
             if (this.warheadRules.parasite) {

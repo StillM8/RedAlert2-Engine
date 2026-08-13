@@ -13,6 +13,7 @@ import * as geometry from '@/game/math/geometry';
 import { RandomTileFinder } from '@/game/map/tileFinder/RandomTileFinder';
 import { clamp, lerp } from '@/util/math';
 import { TriggerAnimEvent } from '@/game/event/TriggerAnimEvent';
+import { AresIvanBombAttachEvent } from '@/game/event/AresIvanBombAttachEvent';
 import { MovementZone } from '@/game/type/MovementZone';
 import { StanceType } from './infantry/StanceType';
 import { MovePositionHelper } from './unit/MovePositionHelper';
@@ -41,6 +42,7 @@ import {
     getAresUrbanCombatPassThroughChance,
     resolveAresUrbanCombatHit,
 } from '@/extensions/ares/AresUrbanCombatRuntime';
+import { resolveAresIvanBombRules } from '@/extensions/ares/AresIvanBombs';
 export enum ProjectileState {
     Travel = 0,
     Impact = 1,
@@ -622,7 +624,7 @@ export class Projectile extends GameObject {
         const warhead = weapon.warhead;
         let damage = weapon.rules.damage;
         if (weapon.type === WeaponType.DeathWeapon && warhead.rules.ivanBomb) {
-            damage = game.rules.combatDamage.ivanDamage;
+            damage = this.resolveIvanBombRules(game).damage;
         }
         let totalDamage = damage * this.baseDamageMultiplier;
         if (weapon.type === WeaponType.DeathWeapon && this.fromObject) {
@@ -630,6 +632,24 @@ export class Projectile extends GameObject {
         }
         totalDamage *= this.veteranDamageMult;
         return totalDamage;
+    }
+    private resolveIvanBombRules(game: any, targetObj: any = this.target?.obj): any {
+        const source = this.fromObject;
+        const alliedTarget = !!targetObj && (
+            (source && typeof game.areFriendly === "function" && game.areFriendly(source, targetObj)) ||
+            (!source && targetObj.owner === this.fromPlayer)
+        );
+        return resolveAresIvanBombRules(
+            this.fromWeapon.rules.aresIvanBomb ?? {
+                deathBomb: false,
+                deathBombOnAllies: false,
+                destroysBridges: true,
+                detachable: true,
+                detonateOnSell: true,
+            },
+            game.rules.combatDamage,
+            alliedTarget,
+        );
     }
     /**
      * Applies the optional generic Urban Combat building rule before ordinary
@@ -703,10 +723,11 @@ export class Projectile extends GameObject {
     private detonate(game: any, collisionType: CollisionType = CollisionType.None): void {
         const weapon = this.fromWeapon;
         let warhead = weapon.warhead;
+        const targetObj = this.target.obj;
         const detonationZone = this.zone = this.collisionHelper.computeDetonationZone(this.tile, this.tileElevation, collisionType);
         const detonationTile = this.tile;
         if (weapon.type === WeaponType.DeathWeapon && warhead.rules.ivanBomb) {
-            warhead = new Warhead(game.rules.getWarhead(game.rules.combatDamage.ivanWarhead));
+            warhead = new Warhead(game.rules.getWarhead(this.resolveIvanBombRules(game).warhead));
         }
         const damage = this.computeBaseDamage(game);
         game.destroyObject(this);
@@ -721,7 +742,6 @@ export class Projectile extends GameObject {
             return;
         }
 
-        const targetObj = this.target.obj;
         let parasiteSuccess = false;
         // Flag for a parasite warhead instantly killing infantry (distinct from vehicle parasitism; after an infantry kill the attacking unit must return to the map)
         let parasiteInfantryKill = false;
@@ -763,17 +783,27 @@ export class Projectile extends GameObject {
                 !targetObj.tntChargeTrait.hasCharge() &&
                 !targetObj.isDestroyed &&
                 !targetObj.warpedOutTrait.isInvulnerable()) {
-                const delay = game.rules.combatDamage.ivanTimedDelay;
-                targetObj.tntChargeTrait.setCharge(delay, game.currentTick, {
+                const bombRules = this.resolveIvanBombRules(game, targetObj);
+                const planted = targetObj.tntChargeTrait.setCharge(bombRules.delay, game.currentTick, {
                     player: this.fromPlayer,
-                });
+                    weapon,
+                    obj: this.fromObject,
+                }, bombRules);
+                if (planted && bombRules.attachSound) {
+                    game.events.dispatch(new AresIvanBombAttachEvent(
+                        targetObj,
+                        bombRules.attachSound,
+                        this.fromPlayer,
+                    ));
+                }
             }
         }
         if (warhead.rules.bombDisarm) {
             shouldDetonate = false;
             if (targetObj?.isTechno() &&
                 targetObj.tntChargeTrait?.hasCharge() &&
-                !targetObj.isDestroyed) {
+                !targetObj.isDestroyed &&
+                targetObj.tntChargeTrait.canBeDisarmed?.() !== false) {
                 targetObj.tntChargeTrait.removeCharge();
             }
         }

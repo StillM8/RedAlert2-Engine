@@ -7,6 +7,10 @@ import {
     parseAresWeaponVisualRules,
     type AresWeaponVisualRules,
 } from '@/extensions/ares/AresWeaponVisuals';
+import {
+    parseAresIvanBombRules,
+    type AresIvanBombRules,
+} from '@/extensions/ares/AresIvanBombs';
 export class WeaponRules {
     private rules: any;
     public ambientDamage!: number;
@@ -47,6 +51,8 @@ export class WeaponRules {
     public aresChronoPrison!: AresChronoPrisonWeaponRules;
     /** Ares beam, electric-bolt, and wave presentation settings. */
     public aresWeaponVisuals!: AresWeaponVisualRules;
+    /** Ares weapon-local Ivan Bomb settings, resolved when a charge is planted. */
+    public aresIvanBomb!: AresIvanBombRules;
     constructor(rules: any) {
         this.rules = rules;
         this.parse();
@@ -92,5 +98,6 @@ export class WeaponRules {
         this.warhead = this.rules.getString("Warhead");
         this.aresChronoPrison = parseAresChronoPrisonWeapon(this.rules);
         this.aresWeaponVisuals = parseAresWeaponVisualRules(this.rules, this.isMagBeam);
+        this.aresIvanBomb = parseAresIvanBombRules(this.rules);
     }
 }

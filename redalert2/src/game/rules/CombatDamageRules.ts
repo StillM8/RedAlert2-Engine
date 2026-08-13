@@ -10,10 +10,13 @@ export class CombatDamageRules {
     private dMislWarhead: string = '';
     private flameDamage: string = '';
     private ironCurtainDuration: number = 0;
-    private ivanDamage: number = 0;
-    private ivanIconFlickerRate: number = 0;
-    private ivanTimedDelay: number = 0;
-    private ivanWarhead: string = '';
+    public ivanDamage: number = 0;
+    public ivanIconFlickerRate: number = 0;
+    public ivanTimedDelay: number = 0;
+    public ivanWarhead: string = '';
+    /** Retail global gates used when a planted bomb has no weapon override. */
+    public canDetonateTimeBomb: boolean = true;
+    public canDetonateDeathBomb: boolean = true;
     public openToppedRangeBonus: number = 1;
     private splashList: string[] = [];
     private v3EliteWarhead: string = '';
@@ -33,6 +36,8 @@ export class CombatDamageRules {
         this.ivanIconFlickerRate = ini.getNumber("IvanIconFlickerRate");
         this.ivanTimedDelay = ini.getNumber("IvanTimedDelay");
         this.ivanWarhead = ini.getString("IvanWarhead");
+        this.canDetonateTimeBomb = ini.getBool("CanDetonateTimeBomb", true);
+        this.canDetonateDeathBomb = ini.getBool("CanDetonateDeathBomb", true);
         // Retail rulesmd.ini keeps OpenToppedRangeBonus in [CombatDamage], not [General]
         this.openToppedRangeBonus = ini.getNumber("OpenToppedRangeBonus", 1);
         this.splashList = ini.getArray("SplashList");

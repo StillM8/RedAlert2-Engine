@@ -11,6 +11,7 @@ export class TntFxPlugin {
     private viewer: any;
     private worldSound: any;
     private animFactory: any;
+    private bombImageName = "BOMBCURS";
     private lastHasCharge: boolean = false;
     private animStepCount?: number;
     private bombAnim?: any;
@@ -29,7 +30,7 @@ export class TntFxPlugin {
         this.animFactory = animFactory;
     }
     onCreate(): void {
-        this.animStepCount = Math.floor(this.imageFinder.findByObjectArt(this.art.getObject("BOMBCURS", ObjectType.Animation)).numImages / 2);
+        this.refreshBombArt();
     }
     update(time: number): void {
         if (this.gameObject.isDestroyed || this.gameObject.isCrashing) {
@@ -40,6 +41,9 @@ export class TntFxPlugin {
             return;
         }
         const hasCharge = this.tntChargeTrait.hasCharge();
+        if (hasCharge) {
+            this.refreshBombArt();
+        }
         const chargeChanged = hasCharge !== this.lastHasCharge;
         let startFrame: number;
         if (hasCharge) {
@@ -57,12 +61,16 @@ export class TntFxPlugin {
             if (hasCharge) {
                 if (chargeChanged) {
                     this.soundHandle?.stop();
-                    this.soundHandle = this.worldSound?.playEffect(SoundKey.BombTickingSound, this.gameObject);
+                    this.soundHandle = this.worldSound?.playEffect(
+                        this.tntChargeTrait.getTickingSound?.() ?? SoundKey.BombTickingSound,
+                        this.gameObject,
+                        this.gameObject.owner,
+                    );
                 }
                 this.disposeBombAnim();
                 const chargeOwner = this.gameObject.tntChargeTrait.getChargeOwner();
                 if (!this.viewer.value || this.alliances.haveSharedIntel(chargeOwner, this.viewer.value)) {
-                    const anim = this.bombAnim = this.animFactory("BOMBCURS");
+                    const anim = this.bombAnim = this.animFactory(this.bombImageName);
                     anim.setRenderOrder(999995);
                     anim.create3DObject();
                     const props = anim.getAnimProps();
@@ -70,7 +78,8 @@ export class TntFxPlugin {
                     props.start = props.loopStart = startFrame;
                     props.end = startFrame + 2 - 1;
                     props.loopEnd = props.end;
-                    props.rate /= this.frameDurationTicks;
+                    const flickerRate = Math.max(1, this.tntChargeTrait.getFlickerRate?.(this.frameDurationTicks) ?? this.frameDurationTicks);
+                    props.rate /= flickerRate;
                     this.renderable.get3DObject()?.add(anim.get3DObject());
                 }
             }
@@ -93,5 +102,17 @@ export class TntFxPlugin {
     dispose(): void {
         this.disposeBombAnim();
         this.soundHandle?.stop();
+    }
+    private refreshBombArt(): void {
+        const requestedImage = this.tntChargeTrait.getBombImageName?.() || "BOMBCURS";
+        const hasRequestedImage = requestedImage === "BOMBCURS" ||
+            this.art.hasObject?.(requestedImage, ObjectType.Animation);
+        const imageName = hasRequestedImage ? requestedImage : "BOMBCURS";
+        if (this.bombImageName === imageName && this.animStepCount !== undefined) {
+            return;
+        }
+        this.bombImageName = imageName;
+        const image = this.imageFinder.findByObjectArt(this.art.getObject(imageName, ObjectType.Animation));
+        this.animStepCount = Math.max(1, Math.floor(image.numImages / 2));
     }
 }

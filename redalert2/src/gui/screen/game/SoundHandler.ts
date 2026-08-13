@@ -120,6 +120,9 @@ export class SoundHandler {
             case EventType.WeaponFire:
                 this.handleWeaponFireSound(event);
                 break;
+            case EventType.AresIvanBombAttach:
+                this.handleAresIvanBombAttachSound(event);
+                break;
             case EventType.InflictDamage:
                 this.handleDamageSound(event);
                 break;
@@ -250,6 +253,14 @@ export class SoundHandler {
         if (handle) {
             this.weaponLoopHandles.set(gameObject, { handle, soundName });
         }
+    }
+    private handleAresIvanBombAttachSound(event: any): void {
+        if (!event.soundName || !event.target?.position?.worldPosition) return;
+        this.worldSound.playEffect(
+            event.soundName,
+            event.target.position.worldPosition,
+            event.player,
+        );
     }
     /** Stop looping weapon reports whose shooter is gone or disengaged. */
     private updateWeaponLoops(): void {

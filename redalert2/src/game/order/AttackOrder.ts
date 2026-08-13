@@ -46,7 +46,7 @@ export class AttackOrder extends Order {
             return PointerType.C4;
         }
         if (this.ivanBombAllowed &&
-            this.sourceObject.rules.ivan &&
+            (this.sourceObject.rules.ivan || weapon?.warhead.rules.ivanBomb) &&
             weapon?.warhead.rules.ivanBomb) {
             return PointerType.Dynamite;
         }

@@ -87,6 +87,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Beam.Color/IsHouseColor/Duration/Amplitude, Bolt.Color1/2/3, Wave.IsLaser/IsBigLaser/Color/IsHouseColor/ReverseAgainst*, and standalone [WeaponTypes] declarations are parsed and consumed by the shared renderer/simulation path. Native wave lifecycle, persistence, and multiplayer certification remain open.",
     },
     {
+        id: "ares.custom-ivan-bombs",
+        description: "Ares weapon-local customizable Ivan Bombs",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresIvanBombs.test.ts"],
+        notes: "Weapon-local IvanBomb damage, warhead, delay, bridge, detachable, sell, image, flicker, and sound settings are parsed and consumed by the shared charge/targeting/presentation path. Remote-detonation UI, death-bomb lifecycle parity, persistence, and multiplayer certification remain open.",
+    },
+    {
         id: "ares.urban-combat",
         description: "Ares Urban Combat, trench, and advanced rubble rules",
         implemented: false,
