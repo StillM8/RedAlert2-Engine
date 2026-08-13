@@ -639,7 +639,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresParticleSystems.test.ts", "AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images now render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Spark movement particles, randomized candidate rolls, save/load, and multiplayer certification remain open.",
+        notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images now render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Authored spark systems now repeat through the shared movement-particle effect with authored colors, velocity, spawn radius, and cap, including the Cyborg default. Full non-smoke particle BehavesLike parity, save/load, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-availability",

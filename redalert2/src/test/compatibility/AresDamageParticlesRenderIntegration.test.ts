@@ -82,4 +82,39 @@ describe("Ares damage-particle render integration", () => {
         expect(animationName).toBe("CUSTOMSMOKE");
         expect(effectsAdded).toBe(1);
     });
+
+    test("spawns authored spark systems independently from smoke candidates", () => {
+        let effectsAdded = 0;
+        const plugin = new DamageSmokePlugin(
+            {
+                healthTrait: { health: 40 },
+                isDestroyed: false,
+                position: { worldPosition: new THREE.Vector3() },
+                rules: { damageSmokeOffset: new THREE.Vector3() },
+            },
+            { getAnimation: () => undefined },
+            { getPalette: () => ({}) },
+            { findByObjectArt: () => undefined },
+            { value: 1 },
+            [],
+            0.5,
+            [{
+                id: "CustomSparkSys",
+                holdsWhat: "CustomSpark",
+                behavesLike: "Spark",
+                particleCap: 6,
+                spawnFrames: 2,
+                particle: {
+                    id: "CustomSpark",
+                    minZVelocity: 40,
+                    colorList: [[255, 128, 0]],
+                },
+            }],
+            true,
+        );
+        plugin.onCreate({ addEffect: () => { effectsAdded++; } });
+        plugin.update(0);
+
+        expect(effectsAdded).toBe(1);
+    });
 });

@@ -121,7 +121,7 @@ export class DamageSmokeFx {
         if (this.particleEmitter) {
             this.particleEmitter.position.value = this.computeEmitterPosition();
         }
-        if (this.lastUpdateMillis) {
+        if (this.lastUpdateMillis !== undefined) {
             const deltaTime = timeMillis - this.lastUpdateMillis;
             this.particleGroup?.tick((deltaTime / 1000) * this.gameSpeed.value);
         }

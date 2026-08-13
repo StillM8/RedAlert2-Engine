@@ -42,6 +42,9 @@ interface GameEntity {
         moveSound?: string;
         damageParticleSystems: any[];
         damageParticleSystemDefinitions?: AresParticleSystemRules[];
+        damageSmokeParticleSystemDefinitions?: AresParticleSystemRules[];
+        damageSparksParticleSystemDefinitions?: AresParticleSystemRules[];
+        damageSparksEnabled?: boolean;
         aresDamageParticles?: AresDamageParticleSelection;
         locomotor: LocomotorType;
     };
@@ -118,6 +121,7 @@ interface DebugWireframes {
 interface DebugText {
 }
 interface GameSpeed {
+    value: number;
 }
 interface WorldSound {
 }
@@ -143,10 +147,19 @@ interface RenderableEntity {
  * using the existing DamageParticleSystems list.
  */
 export function getDamageSmokeParticleSystems(
-    rules: Pick<GameEntity["rules"], "damageParticleSystems" | "damageParticleSystemDefinitions" | "aresDamageParticles">,
+    rules: Pick<GameEntity["rules"], "damageParticleSystems" | "damageParticleSystemDefinitions" | "damageSmokeParticleSystemDefinitions" | "aresDamageParticles">,
 ): readonly any[] {
     return rules.aresDamageParticles?.damageSmokeParticleSystems ??
+        rules.damageSmokeParticleSystemDefinitions ??
         rules.damageParticleSystemDefinitions ??
+        rules.damageParticleSystems;
+}
+
+export function getDamageSparkParticleSystems(
+    rules: Pick<GameEntity["rules"], "damageParticleSystems" | "damageSparksParticleSystemDefinitions" | "aresDamageParticles">,
+): readonly any[] {
+    return rules.aresDamageParticles?.damageSparksParticleSystems ??
+        rules.damageSparksParticleSystemDefinitions ??
         rules.damageParticleSystems;
 }
 
@@ -270,7 +283,9 @@ export class RenderableFactory {
                 throw new Error("Unhandled game object type " + entity.type);
             }
             const damageSmokeParticleSystems = getDamageSmokeParticleSystems(entity.rules);
-            if (damageSmokeParticleSystems.length) {
+            const damageSparkParticleSystems = getDamageSparkParticleSystems(entity.rules);
+            if (damageSmokeParticleSystems.length ||
+                (entity.rules.damageSparksEnabled && damageSparkParticleSystems.length)) {
                 plugins.push(new DamageSmokePlugin(
                     entity,
                     this.art,
@@ -279,6 +294,8 @@ export class RenderableFactory {
                     this.gameSpeed,
                     damageSmokeParticleSystems,
                     this.rules.audioVisual.conditionYellow,
+                    damageSparkParticleSystems,
+                    entity.rules.damageSparksEnabled,
                 ));
             }
             if (entity.tntChargeTrait) {

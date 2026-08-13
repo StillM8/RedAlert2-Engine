@@ -74,4 +74,25 @@ describe("Ares damage-particle TechnoRules integration", () => {
         expect(rules.aresDamageParticles?.damageSmokeParticleSystems).toEqual([]);
         expect(rules.aresDamageParticles?.damageSparksParticleSystems).toEqual([]);
     });
+
+    test("keeps vanilla smoke and spark candidates separate when metadata is available", () => {
+        const section = new IniSection("CyborgWithParticleMetadata");
+        section.set("Cyborg", "yes");
+        section.set("DamageParticleSystems", "SparkSys,SmokeSys");
+        const systems = new Map([
+            ["sparksys", { id: "SparkSys", behavesLike: "Spark" }],
+            ["smokesys", { id: "SmokeSys", behavesLike: "Smoke" }],
+        ]);
+        const rules = new TechnoRules(
+            ObjectType.Infantry,
+            section,
+            0,
+            { aresParticleSystemRules: systems },
+            new ArmorRegistry(),
+        );
+
+        expect(rules.damageSmokeParticleSystemDefinitions.map(system => system.id)).toEqual(["SmokeSys"]);
+        expect(rules.damageSparksParticleSystemDefinitions.map(system => system.id)).toEqual(["SparkSys"]);
+        expect(rules.damageSparksEnabled).toBe(true);
+    });
 });

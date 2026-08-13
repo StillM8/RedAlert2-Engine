@@ -212,6 +212,12 @@ export class TechnoRules extends ObjectRules {
     declare aresDamageParticles?: AresDamageParticleSelection;
     /** Resolved vanilla DamageParticleSystems with their Ares definitions. */
     declare damageParticleSystemDefinitions: AresParticleSystemRules[];
+    /** Smoke candidates after the retail/Ares BehavesLike filter. */
+    declare damageSmokeParticleSystemDefinitions: AresParticleSystemRules[];
+    /** Spark candidates after the retail/Ares BehavesLike filter. */
+    declare damageSparksParticleSystemDefinitions: AresParticleSystemRules[];
+    /** Effective DamageSparks flag, including the infantry/Cyborg default. */
+    declare damageSparksEnabled: boolean;
     declare turret: boolean;
     declare turretCount: number;
     declare turretAnim: string;
@@ -862,19 +868,23 @@ export class TechnoRules extends ObjectRules {
             this.damageParticleSystems,
             this.generalRules?.aresParticleSystemRules,
         );
+        const resolvedDamageParticleSelection = resolveAresDamageParticleSelection({
+            isInfantry: this.type === ObjectType.Infantry,
+            cyborg: this.ini.getBool("Cyborg"),
+            damageParticleSystems: this.damageParticleSystemDefinitions,
+            damageSmokeParticleSystems: getAresArray("DamageSmokeParticleSystems"),
+            damageSparksParticleSystems: getAresArray("DamageSparksParticleSystems"),
+            damageSparks: getAresBool("DamageSparks"),
+        });
+        this.damageSmokeParticleSystemDefinitions = resolvedDamageParticleSelection.damageSmokeParticleSystems;
+        this.damageSparksParticleSystemDefinitions = resolvedDamageParticleSelection.damageSparksParticleSystems;
+        this.damageSparksEnabled = resolvedDamageParticleSelection.damageSparksEnabled;
         const hasAresDamageParticleFields = normalizedAresKeys.some((key: string) =>
             key === "damagesparks" ||
             key === "damagesmokeparticlesystems" ||
             key === "damagesparksparticlesystems");
         this.aresDamageParticles = hasAresDamageParticleFields
-            ? resolveAresDamageParticleSelection({
-                isInfantry: this.type === ObjectType.Infantry,
-                cyborg: this.ini.getBool("Cyborg"),
-                damageParticleSystems: this.damageParticleSystemDefinitions,
-                damageSmokeParticleSystems: getAresArray("DamageSmokeParticleSystems"),
-                damageSparksParticleSystems: getAresArray("DamageSparksParticleSystems"),
-                damageSparks: getAresBool("DamageSparks"),
-            })
+            ? resolvedDamageParticleSelection
             : undefined;
         const damageSmokeOffsetArray = this.ini.getNumberArray("DamageSmokeOffset", undefined, [0, 0, 0]);
         this.damageSmokeOffset = new Vector3(damageSmokeOffsetArray[0], damageSmokeOffsetArray[2] / Math.SQRT2, damageSmokeOffsetArray[1]);
