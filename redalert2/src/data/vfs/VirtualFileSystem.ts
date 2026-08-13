@@ -67,6 +67,10 @@ interface ArchiveRecord {
 interface RfsEntryIndex {
     byPath: Map<string, string[]>;
     byLeaf: Map<string, string[]>;
+    entries: Array<{
+        path: string;
+        directoryIndex: number;
+    }>;
 }
 
 export interface ExtraMixLoadOptions {
@@ -88,6 +92,25 @@ function compareResourcePaths(a: string, b: string): number {
         return a.length - b.length;
     }
     return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function duplicatePathSuffixCount(path: string): number {
+    return path.split("/").filter((segment) => /\s+\(\d+\)$/.test(segment)).length;
+}
+
+/**
+ * Compare loose-file candidates using the same precedence as RealFileSystem:
+ * later mounted directories are overlays. Within one directory, prefer the
+ * unsuffixed file-provider path, then the shortest and lexically stable path.
+ */
+function compareMountedEntryPrecedence(
+    a: { path: string; directoryIndex: number },
+    b: { path: string; directoryIndex: number },
+): number {
+    return a.directoryIndex - b.directoryIndex ||
+        duplicatePathSuffixCount(b.path) - duplicatePathSuffixCount(a.path) ||
+        b.path.length - a.path.length ||
+        (a.path < b.path ? 1 : a.path > b.path ? -1 : 0);
 }
 
 /**
@@ -279,18 +302,35 @@ export class VirtualFileSystem {
     }
     private async getRfsEntryIndex(): Promise<RfsEntryIndex> {
         if (!this.rfs) {
-            return { byPath: new Map(), byLeaf: new Map() };
+            return { byPath: new Map(), byLeaf: new Map(), entries: [] };
         }
         if (!this.rfsEntryIndex) {
             this.rfsEntryIndex = (async () => {
                 const byPath = new Map<string, string[]>();
                 const byLeaf = new Map<string, string[]>();
-                for await (const entry of this.rfs!.getEntriesRecursive()) {
+                const entries: Array<{ path: string; directoryIndex: number }> = [];
+                const layeredRfs = this.rfs as RealFileSystem & {
+                    getEntriesRecursiveWithDirectoryIndex?: () => AsyncGenerator<{
+                        entryName: string;
+                        directoryIndex: number;
+                    }, void, undefined>;
+                };
+                const mountedEntries = layeredRfs.getEntriesRecursiveWithDirectoryIndex
+                    ? layeredRfs.getEntriesRecursiveWithDirectoryIndex()
+                    : this.rfs!.getEntriesRecursive();
+                for await (const mountedEntry of mountedEntries) {
+                    const entry = typeof mountedEntry === "string"
+                        ? mountedEntry
+                        : mountedEntry.entryName;
+                    const directoryIndex = typeof mountedEntry === "string"
+                        ? 0
+                        : mountedEntry.directoryIndex;
                     const normalized = tryNormalizeGamePath(entry);
                     if (!normalized) {
                         this.logger.warn(`Ignoring unsafe real-file-system entry "${entry}".`);
                         continue;
                     }
+                    entries.push({ path: normalized, directoryIndex });
                     const pathKey = gamePathKey(normalized);
                     const leafKey = gamePathKey(gamePathLeaf(normalized));
                     const pathEntries = byPath.get(pathKey) ?? [];
@@ -312,7 +352,7 @@ export class VirtualFileSystem {
                 };
                 for (const entries of byPath.values()) sortEntries(entries);
                 for (const entries of byLeaf.values()) sortEntries(entries);
-                return { byPath, byLeaf };
+                return { byPath, byLeaf, entries };
             })();
         }
         return this.rfsEntryIndex;
@@ -888,19 +928,38 @@ export class VirtualFileSystem {
         // payloads are still handled by their dedicated loaders.
         const extensionsToLoad = ["ini", "csf", "shp", "pal", "pcx"];
         const excludeSet = new Set<string>((options?.exclude || []).map((file) => gamePathKey(file)));
-        const filesForMemArchive: VirtualFile[] = [];
         const rfsIndex = await this.getRfsEntryIndex();
-        const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
-        const standaloneEntries = rfsEntries.filter((entryName) => {
-            const normalizedEntryName = normalizeGamePath(entryName);
+        const standaloneCandidates = new Map<string, {
+            path: string;
+            directoryIndex: number;
+        }>();
+        for (const candidate of rfsIndex.entries) {
+            const normalizedEntryName = normalizeGamePath(candidate.path);
             const lowerEntryName = normalizedEntryName.toLocaleLowerCase("en-US");
             const excluded = excludeSet.has(gamePathKey(normalizedEntryName)) ||
                 excludeSet.has(gamePathKey(gamePathLeaf(normalizedEntryName)));
             const isLooseRootWav = lowerEntryName.endsWith(".wav") && !normalizedEntryName.includes("/");
             const isStandaloneResource = extensionsToLoad
                 .some((extension) => lowerEntryName.endsWith("." + extension));
-            return (isStandaloneResource || isLooseRootWav) && !excluded;
-        });
+            if (!(isStandaloneResource || isLooseRootWav) || excluded) {
+                continue;
+            }
+            const pathKey = gamePathKey(normalizedEntryName);
+            const previous = standaloneCandidates.get(pathKey);
+            if (!previous || compareMountedEntryPrecedence(candidate, previous) > 0) {
+                standaloneCandidates.set(pathKey, {
+                    path: normalizedEntryName,
+                    directoryIndex: candidate.directoryIndex,
+                });
+            }
+        }
+        const standaloneEntries = [...standaloneCandidates.values()]
+            .sort((a, b) => compareResourcePaths(a.path, b.path));
+        const looseFilesByAlias = new Map<string, {
+            file: VirtualFile;
+            path: string;
+            directoryIndex: number;
+        }>();
         // File-system handles are asynchronous. Reading a small bounded batch
         // in parallel removes the serialized per-file storage latency without
         // turning a large imported mod into an unbounded read burst. Promise.all
@@ -908,13 +967,11 @@ export class VirtualFileSystem {
         const readBatchSize = 8;
         for (let batchStart = 0; batchStart < standaloneEntries.length; batchStart += readBatchSize) {
             const batch = standaloneEntries.slice(batchStart, batchStart + readBatchSize);
-            const batchFiles = await Promise.all(batch.map(async (entryName) => {
-                const aliases: VirtualFile[] = [];
+            await Promise.all(batch.map(async (entry) => {
                 try {
-                    const file = await this.rfs.openFile(entryName);
+                    const file = await this.rfs!.openFile(entry.path);
                     if (file) {
-                        const normalizedEntryName = normalizeGamePath(entryName);
-                        const normalizedSegments = normalizedEntryName.split("/");
+                        const normalizedSegments = entry.path.split("/");
                         // Imported archives are often stored below a picker
                         // folder (for example `Install/MIX/rulesmo.ini`).
                         // Engine lookups use the game-relative name, so keep
@@ -922,23 +979,32 @@ export class VirtualFileSystem {
                         // paths such as `rules/units.ini`.
                         for (let aliasStart = 0; aliasStart < normalizedSegments.length; aliasStart++) {
                             const alias = normalizedSegments.slice(aliasStart).join("/");
-                            aliases.push(VirtualFile.fromBytes(file.getBytes(), alias));
+                            const aliasFile = VirtualFile.fromBytes(file.getBytes(), alias);
+                            const aliasKey = gamePathKey(alias);
+                            const previous = looseFilesByAlias.get(aliasKey);
+                            const candidate = {
+                                file: aliasFile,
+                                path: entry.path,
+                                directoryIndex: entry.directoryIndex,
+                            };
+                            if (!previous || compareMountedEntryPrecedence(candidate, previous) > 0) {
+                                looseFilesByAlias.set(aliasKey, candidate);
+                            }
                         }
                     }
-                    return aliases;
                 }
                 catch (e) {
                     if (e instanceof FileNotFoundError) {
-                        this.logger.warn(`Standalone file ${entryName} not found during VFS loadStandaloneFiles.`);
-                        return aliases;
+                        this.logger.warn(`Standalone file ${entry.path} not found during VFS loadStandaloneFiles.`);
+                        return;
                     }
                     else {
                         throw e;
                     }
                 }
             }));
-            filesForMemArchive.push(...batchFiles.flat());
         }
+        const filesForMemArchive = [...looseFilesByAlias.values()].map(({ file }) => file);
         if (filesForMemArchive.length > 0) {
             const memArchive = new MemArchive();
             for (const vf of filesForMemArchive) {

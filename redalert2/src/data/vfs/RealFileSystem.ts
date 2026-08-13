@@ -173,12 +173,27 @@ export class RealFileSystem {
         }
     }
     async *getEntriesRecursive(): AsyncGenerator<string, void, undefined> {
-        for (const dir of this.directories) {
+        for await (const { entryName } of this.getEntriesRecursiveWithDirectoryIndex()) {
+            yield entryName;
+        }
+    }
+
+    /**
+     * Enumerate mounted files together with the layer that supplied them.
+     * Directory order is the VFS precedence order: the root installation is
+     * index 0 and explicitly mounted overlays are added after it.
+     */
+    async *getEntriesRecursiveWithDirectoryIndex(): AsyncGenerator<{
+        entryName: string;
+        directoryIndex: number;
+    }, void, undefined> {
+        for (let directoryIndex = 0; directoryIndex < this.directories.length; directoryIndex++) {
+            const dir = this.directories[directoryIndex];
             const options = dir === this.rootDirectory
                 ? { skipRootDirectories: this.excludedRootDirectoryKeys }
                 : undefined;
             for await (const entryName of dir.getEntriesRecursive("", options)) {
-                yield entryName;
+                yield { entryName, directoryIndex };
             }
         }
     }

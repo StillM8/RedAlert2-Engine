@@ -190,6 +190,35 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.openFile("radar.shp").getBytes()).toEqual(new Uint8Array([4, 5, 6]));
     });
 
+    test("resolves case-insensitive standalone collisions by mounted-layer precedence", async () => {
+        const files = new Map([
+            ["INI/Map Code/Free For All.ini", VirtualFile.fromBytes(new TextEncoder().encode("base"), "Free For All.ini")],
+            ["INI/Map Code/Free for All.ini", VirtualFile.fromBytes(new TextEncoder().encode("overlay"), "Free for All.ini")],
+            ["INI (1)/Map Code/Free for All.ini", VirtualFile.fromBytes(new TextEncoder().encode("duplicate"), "Free for All.ini")],
+        ]);
+        const rfs = {
+            async *getEntriesRecursiveWithDirectoryIndex() {
+                yield { entryName: "INI/Map Code/Free For All.ini", directoryIndex: 0 };
+                yield { entryName: "INI/Map Code/Free for All.ini", directoryIndex: 1 };
+                yield { entryName: "INI (1)/Map Code/Free for All.ini", directoryIndex: 1 };
+            },
+            async openFile(filename: string) {
+                const file = files.get(filename);
+                if (!file) throw new FileNotFoundError(filename);
+                return file;
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await expect(vfs.loadStandaloneFiles()).resolves.toBeUndefined();
+
+        expect(vfs.openFile("Map Code/Free For All.ini").readAsString()).toBe("overlay");
+    });
+
     test("reuses the imported-storage index across resource consumers", async () => {
         let scans = 0;
         const files = new Map([
