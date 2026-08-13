@@ -118,22 +118,37 @@ describe("Ares customizable veterancy", () => {
     test("parses the MO-authored fields and preserves documented defaults", () => {
         const omitted = parseAresVeterancyRules(new IniSection("Vanilla"));
         expect(omitted).toEqual({
+            fromPassengers: true,
             fromAirstrike: false,
             promotePassengers: false,
+            passengerModifier: 1,
+            airstrikeModifier: 1,
             spawnOwnerModifier: 0,
+            spawnModifier: 1,
             mindControlSelfModifier: 0,
+            mindControlVictimModifier: 1,
         });
 
         const section = new IniSection("MOUnit");
+        section.set("Experience.FromPassengers", "no");
         section.set("Experience.FromAirstrike", "100%");
         section.set("Experience.PromotePassengers", "yes");
+        section.set("Experience.PassengerModifier", "50%");
+        section.set("Experience.AirstrikeModifier", "75%");
         section.set("Experience.SpawnOwnerModifier", "75%");
+        section.set("Experience.SpawnModifier", "80%");
         section.set("Experience.MindControlSelfModifier", "100%");
+        section.set("Experience.MindControlVictimModifier", "25%");
         expect(parseAresVeterancyRules(section)).toEqual({
+            fromPassengers: false,
             fromAirstrike: true,
             promotePassengers: true,
+            passengerModifier: 0.5,
+            airstrikeModifier: 0.75,
             spawnOwnerModifier: 0.75,
+            spawnModifier: 0.79998779296875,
             mindControlSelfModifier: 1,
+            mindControlVictimModifier: 0.25,
         });
 
         const rules = new TechnoRules(ObjectType.Vehicle, section, 0, {}, new ArmorRegistry());
@@ -279,5 +294,78 @@ describe("Ares customizable veterancy", () => {
             game,
         );
         expect(recipients).toEqual([]);
+    });
+
+    test("applies the documented passenger, airstrike, spawn, and mind-control modifiers", () => {
+        const attacker = player("Attacker");
+        const victim = player("Victim");
+        const vehicle = techno(attacker, {
+            openTopped: true,
+            aresVeterancy: {
+                fromPassengers: false,
+                fromAirstrike: false,
+                promotePassengers: false,
+                passengerModifier: 0.5,
+                airstrikeModifier: 0.75,
+                spawnOwnerModifier: 0.5,
+                spawnModifier: 0.25,
+                mindControlSelfModifier: 0.25,
+                mindControlVictimModifier: 0.5,
+            },
+        });
+        const passenger = techno(attacker, {});
+        vehicle.openToppedTrait = { getPassenger: () => passenger };
+        const dead = target(victim);
+        const game = gameFor(vehicle, dead);
+
+        destroyTarget(game, vehicle, dead);
+        expect(vehicle.veteranLevel).toBe(VeteranLevel.None);
+        expect((vehicle.veteranTrait as any).xp).toBe(0);
+
+        const designator = techno(attacker, {
+            aresVeterancy: {
+                fromAirstrike: true,
+                airstrikeModifier: 0.75,
+            },
+        });
+        const plane = techno(attacker, {});
+        const planeDead = target(victim);
+        destroyTarget(game, plane, planeDead, {
+            aresAttribution: { airstrikeDesignator: designator },
+        });
+        expect(designator.veteranLevel).toBe(VeteranLevel.Veteran);
+        expect((designator.veteranTrait as any).xp).toBe(24);
+
+        const spawner = techno(attacker, {
+            aresVeterancy: {
+                spawnOwnerModifier: 0.5,
+                spawnModifier: 0.25,
+            },
+        });
+        const spawn = techno(attacker, {});
+        spawn.spawnLinkTrait = { getParent: () => spawner };
+        const spawnDead = target(victim);
+        destroyTarget(game, spawn, spawnDead);
+        expect((spawn.veteranTrait as any).xp).toBe(25);
+        expect((spawner.veteranTrait as any).xp).toBe(50);
+
+        const controller = techno(attacker, {
+            aresVeterancy: {
+                mindControlSelfModifier: 0.25,
+            },
+        });
+        const captured = techno(attacker, {
+            aresVeterancy: {
+                mindControlVictimModifier: 0.5,
+            },
+        });
+        captured.mindControllableTrait = {
+            getController: () => controller,
+            getOriginalOwner: () => player("Original"),
+        };
+        const capturedDead = target(victim);
+        destroyTarget(game, captured, capturedDead);
+        expect((captured.veteranTrait as any).xp).toBe(50);
+        expect((controller.veteranTrait as any).xp).toBe(25);
     });
 });

@@ -57,7 +57,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresCustomizableVeterancy.test.ts"],
-        notes: "MO-authored Experience.FromAirstrike, Experience.PromotePassengers, Experience.SpawnOwnerModifier, Experience.MindControlSelfModifier, and Trainable are normalized and routed through generic kill-credit attribution. Airstrike designator, elite passenger, spawned-owner, mind-controller, and Trainable=no decisions are covered; omitted Ares passenger/airstrike modifier fields, full occupier/passenger lifecycle, presentation, persistence, AI, and multiplayer certification remain open.",
+        notes: "Trainable and all documented Experience.* passenger, airstrike, spawn, and mind-control modifiers are normalized and routed through generic deterministic kill-credit attribution. Airstrike designator, passenger gating/promotion, spawned-owner, mind-controller, and Trainable=no decisions are covered; full occupier/passenger lifecycle, presentation, persistence, AI, and multiplayer certification remain open.",
     },
     {
         id: "ares.bounty",

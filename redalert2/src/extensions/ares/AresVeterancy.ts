@@ -1,46 +1,61 @@
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
 
 export interface AresVeterancyRules {
+    /** Allow an open-topped/gunner transport to gain experience from passengers. */
+    fromPassengers: boolean;
     /** The airstrike designator receives credit instead of the called-in aircraft. */
     fromAirstrike: boolean;
     /** An elite gunner/open-topped vehicle passes new kill experience to its passenger. */
     promotePassengers: boolean;
+    /** Experience multiplier when a passenger is the credited recipient. */
+    passengerModifier: number;
+    /** Experience multiplier when an airstrike designator is the credited recipient. */
+    airstrikeModifier: number;
     /** Additional experience awarded to the owner of a spawned unit. */
     spawnOwnerModifier: number;
+    /** Experience multiplier retained by a spawned unit. */
+    spawnModifier: number;
     /** Additional experience awarded to a mind controller. */
     mindControlSelfModifier: number;
+    /** Experience multiplier retained by a mind-controlled unit. */
+    mindControlVictimModifier: number;
 }
 
 interface IniSectionLike {
     has(key: string): boolean;
     getBool(key: string, defaultValue?: boolean): boolean;
+    getString?(key: string, defaultValue?: string): string;
     getFixed?(key: string, defaultValue?: number): number;
     getNumber(key: string, defaultValue?: number): number;
 }
 
-/**
- * Parse only the customizable-veterancy fields authored by Mental Omega.
- * The omitted values are the documented Ares defaults.
- */
+/** Parse the documented customizable-veterancy fields with Ares defaults. */
 export function parseAresVeterancyRules(section: IniSectionLike): AresVeterancyRules {
     return {
+        fromPassengers: readBoolean(section, "Experience.FromPassengers", true),
         fromAirstrike: readBoolean(section, "Experience.FromAirstrike"),
         promotePassengers: section.getBool("Experience.PromotePassengers"),
+        passengerModifier: readModifier(section, "Experience.PassengerModifier", 1),
+        airstrikeModifier: readModifier(section, "Experience.AirstrikeModifier", 1),
         spawnOwnerModifier: readModifier(section, "Experience.SpawnOwnerModifier", 0),
+        spawnModifier: readModifier(section, "Experience.SpawnModifier", 1),
         mindControlSelfModifier: readModifier(section, "Experience.MindControlSelfModifier", 0),
+        mindControlVictimModifier: readModifier(section, "Experience.MindControlVictimModifier", 1),
     };
 }
 
 /**
- * Ares documents FromAirstrike as boolean. Some shipped MO map overrides use
- * the equivalent percentage spelling (100%/0%), so accept non-zero numeric
- * boolean values without changing the documented yes/no behavior.
+ * Ares documents the source-selection fields as boolean. Some shipped map
+ * overrides use the equivalent percentage spelling (100%/0%), so accept
+ * non-zero numeric boolean values without changing yes/no behavior.
  */
-function readBoolean(section: IniSectionLike, key: string): boolean {
-    const value = section.getBool(key);
-    if (value || !section.has(key)) return value;
+function readBoolean(section: IniSectionLike, key: string, defaultValue: boolean = false): boolean {
+    const raw = section.getString?.(key, "")?.trim().toLocaleLowerCase("en-US") ?? "";
+    if (!raw) return defaultValue;
+    if (["yes", "1", "true", "on"].includes(raw)) return true;
+    if (["no", "0", "false", "off"].includes(raw)) return false;
     const numeric = section.getFixed?.(key, Number.NaN);
-    return Number.isFinite(numeric) && numeric !== 0;
+    return Number.isFinite(numeric) ? numeric !== 0 : section.getBool(key, defaultValue);
 }
 
 function readModifier(section: IniSectionLike, key: string, defaultValue: number): number {
@@ -79,11 +94,17 @@ export function createAresKillAttribution(killer: any): AresKillAttribution {
 }
 
 function rulesFor(object: any): AresVeterancyRules {
-    return object?.rules?.aresVeterancy ?? {
+    return {
+        fromPassengers: true,
         fromAirstrike: false,
         promotePassengers: false,
+        passengerModifier: 1,
+        airstrikeModifier: 1,
         spawnOwnerModifier: 0,
+        spawnModifier: 1,
         mindControlSelfModifier: 0,
+        mindControlVictimModifier: 1,
+        ...object?.rules?.aresVeterancy,
     };
 }
 
@@ -120,33 +141,64 @@ export function resolveAresVeterancyRecipients(
     const recipients = new Map<any, AresVeterancyRecipient>();
     const sourceRules = rulesFor(source);
     let sourceReceivesCredit = isTrainable(source);
+    let sourceMultiplier = 1;
+
+    const sourceController = source.mindControllableTrait?.getController?.();
+    if (sourceController) {
+        sourceMultiplier *= sourceRules.mindControlVictimModifier;
+    }
 
     const designator = attribution.airstrikeDesignator;
     if (designator && rulesFor(designator).fromAirstrike) {
         sourceReceivesCredit = false;
-        addRecipient(recipients, designator, 1);
+        addRecipient(recipients, designator, rulesFor(designator).airstrikeModifier);
     }
 
     const passenger = attribution.passenger;
-    if (sourceReceivesCredit &&
-        sourceRules.promotePassengers &&
-        source.veteranLevel >= VeteranLevel.Elite &&
-        (source.rules?.openTopped || source.rules?.gunner) &&
-        passenger) {
-        sourceReceivesCredit = false;
-        addRecipient(recipients, passenger, 1);
-    }
-
-    if (sourceReceivesCredit) {
-        addRecipient(recipients, source, 1);
+    if (passenger) {
+        if (!sourceRules.fromPassengers) {
+            sourceReceivesCredit = false;
+        }
+        else if (sourceReceivesCredit &&
+            sourceRules.promotePassengers &&
+            source.veteranLevel >= VeteranLevel.Elite &&
+            (source.rules?.openTopped || source.rules?.gunner) &&
+            passenger) {
+            // A mind-controlled open-topped unit does not pass passenger XP to
+            // a non-allied passenger/controller relationship.
+            const passengerController = source.mindControllableTrait?.getController?.();
+            const passengerControllerAllowed = !passengerController ||
+                !gameManager?.areFriendly ||
+                gameManager.areFriendly(passengerController, source);
+            sourceReceivesCredit = false;
+            if (passengerControllerAllowed) {
+                addRecipient(recipients, passenger, sourceRules.passengerModifier * sourceMultiplier);
+            }
+        }
     }
 
     const spawner = attribution.spawner;
+    if (spawner && isTrainable(source) && isTrainable(spawner)) {
+        const spawnerRules = rulesFor(spawner);
+        sourceMultiplier *= spawnerRules.spawnModifier;
+        if (spawner.mindControllableTrait?.getController?.()) {
+            sourceMultiplier *= spawnerRules.mindControlVictimModifier;
+        }
+    }
+
+    if (sourceReceivesCredit) {
+        addRecipient(recipients, source, sourceMultiplier);
+    }
+
     if (spawner &&
         isTrainable(source) &&
         isTrainable(spawner) &&
         rulesFor(spawner).spawnOwnerModifier !== 0) {
-        addRecipient(recipients, spawner, rulesFor(spawner).spawnOwnerModifier);
+        const spawnerRules = rulesFor(spawner);
+        const spawnerMindControlMultiplier = spawner.mindControllableTrait?.getController?.()
+            ? spawnerRules.mindControlVictimModifier
+            : 1;
+        addRecipient(recipients, spawner, spawnerRules.spawnOwnerModifier * spawnerMindControlMultiplier);
     }
 
     const controller = source.mindControllableTrait?.getController?.();
