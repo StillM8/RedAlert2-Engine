@@ -706,7 +706,12 @@ export class VirtualFileSystem {
                         this.deferredExtraMixFiles.delete(key);
                         continue;
                     }
-                    const added = await this.addMixFile(deferred.filename, {
+                    // Preserve real mounted base/overlay layers when the
+                    // deferred archive finally becomes necessary. Falling
+                    // straight through addMixFile() would select only one RFS
+                    // owner and discard a same-name fallback layer.
+                    const layeredArchives = await this.addMixFilesFromMountedLayers(deferred.filename, profile);
+                    const added = layeredArchives > 0 || await this.addMixFile(deferred.filename, {
                         ...this.metadataForExtraMix(deferred.filename, profile),
                         ...(deferred.metadata ?? {}),
                         ...(deferred.rfsFile ? { provenance: [deferred.rfsFile] } : {}),
@@ -854,6 +859,16 @@ export class VirtualFileSystem {
             // candidates. The inventory already tells us whether this leaf
             // exists in any base/overlay layer.
             if (!rfsIndex.byLeaf.has(gamePathKey(gamePathLeaf(fileToTry)))) {
+                continue;
+            }
+            // RealFileSystem's layered-open path must obey the same defer gate
+            // as the lightweight single-file path below. Previously this call
+            // opened every ~300 MB profile archive before the gate was tested,
+            // which made native cold start parse the complete mod payload.
+            if (profileFilesReady) {
+                const rfsEntry = await findEntryByLeaf(fileToTry);
+                this.deferExtraMixFile(fileToTry, rfsEntry, this.metadataForExtraMix(fileToTry, profile));
+                deferredArchives++;
                 continue;
             }
             const layeredArchives = await this.addMixFilesFromMountedLayers(fileToTry, profile);

@@ -586,7 +586,14 @@ export class Engine {
             await this.vfs.loadDeferredExtraMixFiles(this.getActiveEngine(), this.getActiveProfile());
             this.loadConfiguredMapLists(combinedMapList);
         }
-        await this.vfs.loadDeferredMapArchives(this.getActiveEngine(), this.getActiveProfile());
+        // A profile-declared multiplayer catalog is authoritative for the
+        // lobby. Do not synchronously mount every standalone MMX/YRO map pack
+        // just to rediscover entries that are already in that catalog. Loose
+        // custom maps are still scanned below, and the selected map is loaded
+        // through MapFileLoader when it is needed.
+        if (!explicitMapListReady) {
+            await this.vfs.loadDeferredMapArchives(this.getActiveEngine(), this.getActiveProfile());
+        }
         for (const archiveName of this.vfs.listArchives()) {
             const pktFileName = archiveName.toLowerCase().replace(/\.[^.]+$/, "") + ".pkt";
             if (this.vfs.fileExists(pktFileName)) {

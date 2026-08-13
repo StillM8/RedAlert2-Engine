@@ -498,6 +498,7 @@ describe("VirtualFileSystem resource precedence", () => {
             ["expandmo95.mix", createEmptyMixBytes()],
             ["multimo.mix", createEmptyMixBytes()],
         ]);
+        const layeredReads: string[] = [];
         const rfs = {
             async *getEntriesRecursive() {
                 yield* files.keys();
@@ -506,6 +507,15 @@ describe("VirtualFileSystem resource precedence", () => {
                 const bytes = files.get(filename.toLocaleLowerCase("en-US"));
                 if (!bytes) throw new FileNotFoundError(filename);
                 return VirtualFile.fromBytes(bytes, filename);
+            },
+            async openFilesFromLayers(filename: string) {
+                const normalized = filename.toLocaleLowerCase("en-US");
+                const bytes = files.get(normalized);
+                if (!bytes) {
+                    return [];
+                }
+                layeredReads.push(normalized);
+                return [{ file: VirtualFile.fromBytes(bytes, filename), directoryIndex: 0 }];
             },
         } as any;
         const vfs = new VirtualFileSystem(rfs, {
@@ -522,10 +532,12 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.hasArchive("expandmo95.mix")).toBe(false);
         expect(vfs.hasArchive("multimo.mix")).toBe(true);
         expect(vfs.openFile("rulesmo.ini").readAsString()).toBe("[Rules]");
+        expect(layeredReads).toEqual(["expandmo99.mix"]);
 
         await vfs.loadDeferredExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
 
         expect(vfs.hasArchive("expandmo95.mix")).toBe(true);
+        expect(layeredReads).toEqual(["expandmo99.mix", "expandmo95.mix"]);
     });
 
     test("falls back to the base MIX when an active overlay has the same filename", async () => {

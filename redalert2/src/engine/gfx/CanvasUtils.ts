@@ -89,6 +89,20 @@ export class CanvasUtils {
         return canvas;
     }
     static async canvasToBlob(canvas: HTMLCanvasElement, mimeType: string = "image/png"): Promise<Blob> {
+        // Android WebView can take several seconds to deliver a toBlob()
+        // callback even for the small PCX/SHP canvases used by the game UI.
+        // The synchronous encoder avoids that callback stall and is safe here
+        // because these canvases are short-lived resource conversions, not
+        // the frame-rendering surface. Keep the asynchronous path for regular
+        // browsers and desktop shells.
+        if (typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent)) {
+            try {
+                return this.dataUrlToBlob(canvas.toDataURL(mimeType));
+            }
+            catch (error) {
+                console.warn('Android canvas dataURL encoding failed; falling back to toBlob().', error);
+            }
+        }
         let blob = await new Promise<Blob | null>((resolve) => {
             try {
                 canvas.toBlob((blob) => {
@@ -103,7 +117,7 @@ export class CanvasUtils {
         if (!blob) {
             console.warn('Failed to convert canvas to blob. Falling back to dataURL generation.');
             try {
-                blob = this.dataUrlToBlob(canvas.toDataURL());
+                blob = this.dataUrlToBlob(canvas.toDataURL(mimeType));
             }
             catch (error) {
                 throw new Error(`Failed to generate image from canvas using fallback ${error}`);

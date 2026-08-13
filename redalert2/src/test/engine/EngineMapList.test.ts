@@ -30,6 +30,7 @@ MaxPlayers=2
 GameModes=Standard
 `));
         let deferredGameplayLoads = 0;
+        let deferredMapArchiveLoads = 0;
         const openedFiles: string[] = [];
         const customMap = new TextEncoder().encode(`
 [Basic]
@@ -51,7 +52,7 @@ GameMode=standard
             (Engine as any).loadedMapListFiles = new Set(["ini/mentalomegamaps.ini"]);
             Engine.vfs = {
                 loadDeferredExtraMixFiles: async () => { deferredGameplayLoads++; },
-                loadDeferredMapArchives: async () => undefined,
+                loadDeferredMapArchives: async () => { deferredMapArchiveLoads++; },
                 listArchives: () => [],
                 fileExists: () => false,
                 listRfsFileEntries: async () => [
@@ -77,6 +78,7 @@ GameMode=standard
             const result = await Engine.loadMapList();
 
             expect(deferredGameplayLoads).toBe(0);
+            expect(deferredMapArchiveLoads).toBe(0);
             expect(openedFiles).toEqual(["Maps/Custom.map"]);
             expect(result.getByName("MapsMO/Standard/Known.map")).toBeDefined();
             expect(result.getByName("maps/custom.map")?.uiName).toBe("NOSTR:Custom Arena");
