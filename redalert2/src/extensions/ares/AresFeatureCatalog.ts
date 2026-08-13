@@ -277,7 +277,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         verificationStatus: "synthetic", deterministic: true,
         tests: ["AresAttachEffect.test.ts", "AresAttachEffectRuntime.test.ts", "AresAttachEffectTraitBridge.test.ts", "AresAttachEffectObjectFactory.test.ts", "AresAttachEffectCombat.test.ts", "AresAttachEffectCombatCallsites.test.ts"],
         dependencies: ["ares.effective-ini"], targetModUsage: "required",
-        notes: "AttachEffect fields for TechnoTypes and Warheads are parsed and normalized; ObjectFactory registration and the generic trait cover automatic TechnoType spawn timing, renewal, protection retry, active instances, reapplication/stacking decisions, expiry, entry discard, aggregate numeric modifiers, and the generic combat callsites apply effective Speed/Armor/Firepower/ROF decisions. Animation/cloak hooks, transport/temporal lifecycle, save/load, and deterministic multiplayer replay remain open.",
+        notes: "AttachEffect fields for TechnoTypes and Warheads are parsed and normalized; ObjectFactory registration and the generic trait cover automatic TechnoType spawn timing, renewal, protection retry, active instances, reapplication/stacking decisions, expiry, entry discard, aggregate numeric modifiers, and the generic combat callsites apply effective Speed/Armor/Firepower/ROF decisions. Authored animations now attach to every techno renderable, loop with the unit, and are removed/recreated across cloak and TemporalHidesAnim transitions. Residual animation damage, full transport/temporal state replay, save/load, and deterministic multiplayer replay remain open.",
     },
     "new/custombuildingfoundations.rst": {
         capabilityId: "ares.custom-foundations",
@@ -391,7 +391,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         verificationStatus: "synthetic", deterministic: true,
         tests: ["AresChronoPrisons.test.ts", "AresChronoPrisonRuntimeDecision.test.ts", "AresChronoPrisonBridge.test.ts"],
         dependencies: ["ares.effective-ini"], targetModUsage: "required",
-        notes: "Abductor, Abductor.Temporal, Abductor.ChangeOwner, health gates, PassengerTurret, and ImmuneToAbduction are parsed and evaluated through detached generic snapshots. Passenger insertion/removal, temporal lifecycle ownership, owner mutation, turret switching, save/load, and multiplayer synchronization remain open.",
+        notes: "Abductor, Abductor.Temporal, Abductor.ChangeOwner, health gates, PassengerTurret, and ImmuneToAbduction are parsed into the shared rules model. Live vehicle holds now absorb eligible units, preserve conventional damage on rejection, complete temporal abduction at erase time, emit the configured animation/events, and switch PassengerTurret by passenger count. Building/infantry passenger-hold edge cases, PSIONICSIMMUNE veteran ability parity, save/load, and multiplayer synchronization remain open.",
     },
     "new/newpoweredunitlogic.rst": {
         capabilityId: "ares.powered-by",

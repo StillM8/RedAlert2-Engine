@@ -49,14 +49,18 @@ export interface AresAttachEffectTraitAdvanceResult extends AresAttachEffectAdva
     automaticApply?: AresAttachEffectApplyResult;
 }
 
+export interface AresAttachEffectPresentation {
+    effectId: AresAttachEffectId;
+    animation?: string;
+    temporalHidesAnim: boolean;
+}
+
 /**
  * Generic gameplay bridge for Ares AttachEffect state.
  *
- * The trait owns only effect instances and their aggregate numeric modifiers.
- * It deliberately does not mutate movement, armor, weapon, cloak, animation,
- * save, or network services. A later ObjectFactory/runtime integration can
- * register this trait and consume its state and decisions at the appropriate
- * shared hooks.
+ * The trait owns effect instances, aggregate numeric modifiers, and the
+ * presentation state consumed by the shared render plugin. It deliberately
+ * does not mutate movement, armor, weapon, cloak, save, or network services.
  */
 export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUnspawn {
     private instances: AresAttachEffectInstance[];
@@ -64,6 +68,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     private automaticEffect?: AresAttachEffectBinding;
     private automaticPhase: AresAttachEffectAutomaticPhase = "inactive";
     private automaticRemainingDelay = 0;
+    private presentationRevision = 0;
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
         this.instances = (options.instances ?? []).map(instance => ({ ...instance }));
@@ -93,6 +98,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 this.automaticPhase = "active";
                 this.automaticRemainingDelay = 0;
             }
+            this.presentationRevision++;
         }
         else if (effectId === this.automaticEffect?.effectId && result.decision === "ignored-zero-duration") {
             this.automaticPhase = "disabled";
@@ -105,6 +111,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     advance(): AresAttachEffectTraitAdvanceResult {
         const result = advanceAresAttachEffects(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
+        if (result.expiredEffectIds.length) this.presentationRevision++;
         let automaticApply: AresAttachEffectApplyResult | undefined;
 
         if (this.automaticEffect &&
@@ -135,6 +142,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     discardOnEntry(): AresAttachEffectRemovalResult {
         const result = discardAresAttachEffectsOnEntry(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
+        if (result.removedEffectIds.length) this.presentationRevision++;
         if (this.automaticEffect &&
             result.removedEffectIds.includes(this.automaticEffect.effectId)) {
             this.automaticPhase = "disabled";
@@ -153,6 +161,24 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             phase: this.automaticPhase,
             remainingDelay: this.automaticRemainingDelay,
         };
+    }
+
+    /** Active animation definitions consumed by the shared render plugin. */
+    getPresentationEffects(): readonly AresAttachEffectPresentation[] {
+        return this.instances.flatMap((instance) => {
+            const definition = this.definitions.get(instance.effectId);
+            if (!definition || !definition.animation) return [];
+            return [{
+                effectId: instance.effectId,
+                animation: definition.animation,
+                temporalHidesAnim: definition.temporalHidesAnim,
+            }];
+        });
+    }
+
+    /** Changes whenever an effect is applied, refreshed, stacked, or removed. */
+    getPresentationRevision(): number {
+        return this.presentationRevision;
     }
 
     /**

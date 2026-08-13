@@ -1,4 +1,8 @@
 import { ObjectRules } from './ObjectRules';
+import {
+    parseAresChronoPrisonWeapon,
+    type AresChronoPrisonWeaponRules,
+} from '@/extensions/ares/AresChronoPrisons';
 export class WeaponRules {
     private rules: any;
     public ambientDamage!: number;
@@ -34,6 +38,8 @@ export class WeaponRules {
     public suicide!: boolean;
     public useSparkParticles!: boolean;
     public warhead!: string;
+    /** Generic Ares Abductor/Chrono Prison behavior for this weapon. */
+    public aresChronoPrison!: AresChronoPrisonWeaponRules;
     constructor(rules: any) {
         this.rules = rules;
         this.parse();
@@ -76,5 +82,6 @@ export class WeaponRules {
         this.suicide = this.rules.getBool("Suicide");
         this.useSparkParticles = this.rules.getBool("UseSparkParticles");
         this.warhead = this.rules.getString("Warhead");
+        this.aresChronoPrison = parseAresChronoPrisonWeapon(this.rules);
     }
 }

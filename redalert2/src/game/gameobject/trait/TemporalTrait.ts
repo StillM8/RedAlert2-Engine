@@ -5,6 +5,7 @@ import { NotifyDestroy } from './interface/NotifyDestroy';
 import { NotifyTick } from './interface/NotifyTick';
 import { GameObject } from '@/game/gameobject/GameObject';
 import { World } from '@/game/World';
+import { applyAresChronoPrison } from '@/extensions/ares/AresChronoPrisonIntegration';
 export class TemporalTrait {
     private gameObject: GameObject;
     private ticksWhenWarpedOut: boolean = true;
@@ -29,6 +30,21 @@ export class TemporalTrait {
                 const damage = weapon.rules.damage;
                 this.eraseTicks -= damage;
                 if (this.eraseTicks <= 0) {
+                    const chronoDecision = applyAresChronoPrison(
+                        attacker,
+                        gameObject,
+                        weapon.rules,
+                        world as any,
+                        {
+                            phase: "temporal-erasure",
+                            warheadIsTemporal: weapon.warhead?.rules?.temporal === true,
+                            warheadCanAffect: true,
+                        },
+                    );
+                    if (chronoDecision.eligible) {
+                        this.eraseTicks = undefined;
+                        break;
+                    }
                     gameObject.deathType = DeathType.Temporal;
                     world.destroyObject(gameObject, { player: attacker.owner, obj: attacker, weapon }, true);
                     this.eraseTicks = undefined;
@@ -71,6 +87,14 @@ export class TemporalTrait {
             this.currentTarget = undefined;
             this.currentWeapon = undefined;
         }
+    }
+    /** Release all temporal attackers before Ares moves this unit into limbo. */
+    releaseAttackersForAresAbduction(world: World): void {
+        for (const attacker of [...this.attackers]) {
+            attacker.temporalTrait?.releaseCurrentTarget?.(world);
+        }
+        this.attackers.clear();
+        this.eraseTicks = undefined;
     }
     [NotifyDestroy.onDestroy](gameObject: GameObject, world: World): void {
         this.releaseCurrentTarget(world);

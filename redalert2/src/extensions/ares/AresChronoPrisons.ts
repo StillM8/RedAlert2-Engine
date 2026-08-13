@@ -1,10 +1,9 @@
 /**
  * Normalized Ares Chrono Prison / Abductor data.
  *
- * This adapter is intentionally separate from WeaponRules and TechnoRules:
- * those classes do not yet model the abduction effect or passenger-turret
- * presentation. It is therefore safe to parse the data now without making
- * ordinary RA2/YR rules behave as if the effect were implemented.
+ * The normalized model is shared by WeaponRules, TechnoRules, and the live
+ * integration seam. Defaults keep ordinary RA2/YR data on its existing path
+ * while authored Ares fields opt into the generic behavior.
  */
 
 export interface AresChronoPrisonSection {

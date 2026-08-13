@@ -21,6 +21,7 @@ import { InfantryDisguisePlugin } from "@/engine/renderable/entity/plugin/Infant
 import { PsychicDetectPlugin } from "@/engine/renderable/entity/building/PsychicDetectPlugin";
 import { TrailerSmokePlugin } from "@/engine/renderable/entity/plugin/TrailerSmokePlugin";
 import { DamageSmokePlugin } from "@/engine/renderable/entity/plugin/DamageSmokePlugin";
+import { AresAttachEffectPlugin } from "@/engine/renderable/entity/plugin/AresAttachEffectPlugin";
 import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import { LocomotorType } from "@/game/type/LocomotorType";
 import { ShipWakeTrailPlugin } from "@/engine/renderable/entity/plugin/ShipWakeTrailPlugin";
@@ -266,6 +267,9 @@ export class RenderableFactory {
             }
             if (entity.tntChargeTrait) {
                 plugins.push(new TntFxPlugin(entity as any, entity.tntChargeTrait, this.rules.combatDamage.ivanIconFlickerRate, renderable, this.imageFinder, this.art, this.alliances, this.localPlayer, this.worldSound, (name: string) => this.createAnim(name)));
+            }
+            if ((entity as any).aresAttachEffectTrait) {
+                plugins.push(new AresAttachEffectPlugin(entity, renderable));
             }
             plugins.push(new ObjectCloakPlugin(entity, this.localPlayer, this.alliances, renderable));
             plugins.forEach((plugin) => renderable.registerPlugin(plugin));

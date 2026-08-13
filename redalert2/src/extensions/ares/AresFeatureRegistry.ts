@@ -39,7 +39,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresChronoPrisons.test.ts", "AresChronoPrisonRuntimeDecision.test.ts", "AresChronoPrisonBridge.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "The documented Abductor, Abductor.Temporal, Abductor.ChangeOwner, health gates, PassengerTurret, and ImmuneToAbduction fields are normalized and evaluated through a detached generic bridge. Passenger insertion/removal, temporal lifecycle ownership, owner mutation, turret switching, save/load, and multiplayer synchronization remain open.",
+        notes: "The documented Abductor, Abductor.Temporal, Abductor.ChangeOwner, health gates, PassengerTurret, and ImmuneToAbduction fields are parsed into the shared rules model. Live vehicle holds now absorb eligible units, preserve conventional damage on rejection, complete temporal abduction at erase time, emit the configured animation/events, and switch PassengerTurret by passenger count. Building/infantry passenger-hold edge cases, PSIONICSIMMUNE veteran ability parity, save/load, and multiplayer synchronization remain open.",
     },
     {
         id: "ares.customizable-insignia",
@@ -442,7 +442,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresAttachEffect.test.ts", "AresAttachEffectRuntime.test.ts", "AresAttachEffectTraitBridge.test.ts", "AresAttachEffectObjectFactory.test.ts", "AresAttachEffectCombat.test.ts", "AresAttachEffectCombatCallsites.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "The documented AttachEffect fields are normalized for TechnoType and Warhead sections; ObjectFactory registration and a generic trait cover automatic TechnoType spawn timing, renewal, protection retry, effect instances, reapplication/stacking decisions, expiry, entry discard, aggregate numeric modifiers, and the generic combat callsites apply effective Speed/Armor/Firepower/ROF decisions. Animation/cloak hooks, transport/temporal lifecycle, save/load, and deterministic multiplayer replay remain open.",
+        notes: "The documented AttachEffect fields are normalized for TechnoType and Warhead sections; ObjectFactory registration and a generic trait cover automatic TechnoType spawn timing, renewal, protection retry, effect instances, reapplication/stacking decisions, expiry, entry discard, aggregate numeric modifiers, and the generic combat callsites apply effective Speed/Armor/Firepower/ROF decisions. Authored animations now attach to every techno renderable, loop with the unit, and are removed/recreated across cloak and TemporalHidesAnim transitions. Residual animation damage, full transport/temporal state replay, save/load, and deterministic multiplayer replay remain open.",
     },
     {
         id: "ares.unknown-key",

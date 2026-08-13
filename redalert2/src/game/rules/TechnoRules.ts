@@ -33,6 +33,8 @@ import { parseAresBountyTechnoRules } from "@/extensions/ares/AresBounty";
 import type { AresBountyTechnoRules } from "@/extensions/ares/AresBounty";
 import { parseAresVeterancyRules } from "@/extensions/ares/AresVeterancy";
 import type { AresVeterancyRules } from "@/extensions/ares/AresVeterancy";
+import { parseAresChronoPrisonTechno } from "@/extensions/ares/AresChronoPrisons";
+import type { AresChronoPrisonTechnoRules } from "@/extensions/ares/AresChronoPrisons";
 interface House {
     name: string;
 }
@@ -202,6 +204,8 @@ export class TechnoRules extends ObjectRules {
     declare aresAttachEffect?: AresAttachEffectDefinition;
     /** Optional Ares Chronoshift eligibility data authored on this TechnoType. */
     declare aresChronoshift?: AresChronoshiftRules;
+    /** Generic Ares Chrono Prison eligibility and turret behavior. */
+    declare aresChronoPrison: AresChronoPrisonTechnoRules;
     /** Optional Ares damage-particle precedence resolved from this TechnoType. */
     declare aresDamageParticles?: AresDamageParticleSelection;
     declare turret: boolean;
@@ -479,6 +483,7 @@ export class TechnoRules extends ObjectRules {
         this.hijackerLeaveSound = this.ini.getString("VehicleThief.LeaveSound") || undefined;
         this.aresBounty = parseAresBountyTechnoRules(this.ini);
         this.aresVeterancy = parseAresVeterancyRules(this.ini);
+        this.aresChronoPrison = parseAresChronoPrisonTechno(this.ini);
         const prerequisiteRules = parseAresPrerequisiteRules(this.ini);
         this.prerequisiteLists = prerequisiteRules.alternativeLists;
         this.prerequisite = this.prerequisiteLists[0] ?? [];

@@ -28,6 +28,7 @@ import {
 } from "@/extensions/ares/AresAttachEffectCombat";
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import type { AresAttachEffectApplyResult } from "@/extensions/ares/AresAttachEffectRuntime";
+import { applyAresChronoPrison } from "@/extensions/ares/AresChronoPrisonIntegration";
 interface GameObject {
     isSpawned: boolean;
     isDisposed: boolean;
@@ -75,6 +76,11 @@ interface TechnoObject extends GameObject {
     crashableTrait?: CrashableTrait;
     submergibleTrait?: SubmergibleTrait;
     delayedKillTrait?: DelayedKillTrait;
+    transportTrait?: {
+        units: GameObject[];
+        getMaxCapacity(): number;
+        getOccupiedCapacity(): number;
+    };
     empTrait?: {
         isUnderEMP(): boolean;
         getRemainingFrames?(): number;
@@ -167,6 +173,11 @@ interface GameWorld {
     generateRandomInt(min: number, max: number): number;
     generateRandom?(): number;
     changeObjectOwner?(obj: GameObject, newOwner: Player): void;
+    limboObject(obj: GameObject, limboData: { selected: boolean; controlGroup?: number; inTransport: boolean }): void;
+    getUnitSelection?(): {
+        isSelected?(obj: GameObject): boolean;
+        getOrCreateSelectionModel?(obj: GameObject): { getControlGroupNumber?(): number | undefined };
+    };
     getCivilianPlayer?(): Player | undefined;
     getAllPlayers?(): Player[];
     areAllied?(player1: Player, player2: Player): boolean;
@@ -511,6 +522,34 @@ export class Warhead {
                     damage = 0;
                 }
             }
+            const verses = obj.isTechno() ? (this.rules.verses.get(obj.rules.armor) ?? 1) : 1;
+            const aresEffectsAllowed = (!this.rules.effectsRequireVerses || verses !== 0) &&
+                (!this.rules.effectsRequireDamage || damage > 0);
+            if (aresEffectsAllowed && sourceObj && sourceObj !== obj && obj.isUnit() &&
+                (sourceObj as TechnoObject).transportTrait) {
+                const chronoDecision = applyAresChronoPrison(
+                    sourceObj,
+                    obj,
+                    weapon,
+                    gameWorld as any,
+                    {
+                        warheadIsTemporal: this.rules.temporal,
+                        warheadCanAffect: true,
+                    },
+                );
+                if (chronoDecision.eligible) {
+                    if (obj === target.obj) {
+                        directHitTarget = obj;
+                    }
+                    continue;
+                }
+                // Temporal abductors are completed by TemporalTrait at the
+                // erase point; they must not fall through to conventional
+                // detonation while waiting for that lifecycle.
+                if (chronoDecision.waitForTemporalErasure) {
+                    continue;
+                }
+            }
             const empApplied = this.applyEmp(obj, weaponInfo, gameWorld);
             if (empApplied && obj.isTechno() && !obj.isAircraft() &&
                 obj.rules.empThreshold !== undefined &&
@@ -524,9 +563,6 @@ export class Warhead {
                 continue;
             }
             const attachEffectApplied = this.applyAresAttachEffect(obj, gameWorld);
-            const verses = obj.isTechno() ? (this.rules.verses.get(obj.rules.armor) ?? 1) : 1;
-            const aresEffectsAllowed = (!this.rules.effectsRequireVerses || verses !== 0) &&
-                (!this.rules.effectsRequireDamage || damage > 0);
             const killDriverApplied = aresEffectsAllowed && this.rules.killDriver && obj.isTechno() &&
                 sourceObj &&
                 applyAresKillDriver(obj as any, sourceObj, gameWorld as any, {

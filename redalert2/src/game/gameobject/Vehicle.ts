@@ -17,6 +17,7 @@ import { LocomotorType } from "@/game/type/LocomotorType";
 import { HoverBobTrait } from "@/game/gameobject/trait/HoverBobTrait";
 import { CrateBonuses } from "@/game/gameobject/unit/CrateBonuses";
 import { TilterTrait } from "@/game/gameobject/trait/TilterTrait";
+import { AresPassengerTurretTrait } from "@/game/gameobject/trait/AresPassengerTurretTrait";
 export const ROCKING_TICKS = 34;
 interface RockingState {
     ticksLeft: number;
@@ -39,6 +40,10 @@ interface VehicleRules {
     landable: boolean;
     parasiteable: boolean;
     locomotor: LocomotorType;
+    aresChronoPrison?: {
+        passengerTurret: boolean;
+    };
+    turretCount?: number;
 }
 interface GameRules {
     general: {
@@ -100,6 +105,9 @@ export class Vehicle extends Techno {
             if (rules.openTopped) {
                 vehicle.openToppedTrait = new OpenToppedTrait();
                 vehicle.traits.add(vehicle.openToppedTrait);
+            }
+            if (rules.aresChronoPrison?.passengerTurret) {
+                vehicle.traits.add(new AresPassengerTurretTrait());
             }
         }
         if (rules.turret) {
