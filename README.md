@@ -107,6 +107,13 @@ The practical rule for compatibility is:
 - mods that require an unimplemented Ares feature, a custom native DLL, or a
   separate renderer still require additional engine work.
 
+Startup is also profile-driven. The engine mounts the selected profile's
+required rules, art, AI, sound, and presentation layers first, then defers
+large gameplay MIX layers until a match needs them. A profile-declared
+multiplayer catalog is used directly by the lobby, so entering Skirmish does
+not require mounting and rescanning every standalone map pack. No imported
+archive is rewritten or bundled into the application by this process.
+
 ## The story of the effort
 
 The engine ran in a desktop browser on day one. Everything between that and
@@ -338,6 +345,11 @@ neutral Red Alert 2 baseline until another Mods selection is made.
 Retail game files are not bundled; import your legally-owned installation on
 first launch. For local QA only, Android accepts
 `./scripts/build-android.sh --with-gameres`.
+
+The Android WebView uses a platform-safe image conversion path for the small
+legacy PCX/SHP UI resources, avoiding the multi-second `canvas.toBlob()` delay
+found on some Android WebView versions. This changes only the temporary UI
+conversion; the original imported artwork remains untouched.
 
 The Android release is a single app (`com.ammaar.ra2android` in release and
 `com.ammaar.ra2android.debug` in debug). Retail game files are not bundled;
