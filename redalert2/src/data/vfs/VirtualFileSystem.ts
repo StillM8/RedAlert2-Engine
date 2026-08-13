@@ -7,7 +7,15 @@ import { FileNotFoundError } from "./FileNotFoundError";
 import { MemArchive } from "./MemArchive";
 import { VirtualFile } from "./VirtualFile";
 import type { RealFileSystem } from "./RealFileSystem";
-import { gamePathKey, gamePathLeaf, normalizeGamePath, tryNormalizeGamePath } from "../../engine/GamePath";
+import {
+    canonicalizeFileProviderCopyPath,
+    compareFileProviderCopyGeneration,
+    gamePathKey,
+    gamePathLeaf,
+    normalizeGamePath,
+    parseFileProviderCopySuffix,
+    tryNormalizeGamePath,
+} from "../../engine/GamePath";
 import type { GameProfileDescriptor, GameProfileId } from "../../engine/GameProfile";
 import { ResourceLayer, type ResourceSource } from "./ResourceLayer";
 interface VfsLogger {
@@ -69,6 +77,7 @@ interface RfsEntryIndex {
     byLeaf: Map<string, string[]>;
     entries: Array<{
         path: string;
+        effectivePath: string;
         directoryIndex: number;
     }>;
 }
@@ -94,21 +103,17 @@ function compareResourcePaths(a: string, b: string): number {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
-function duplicatePathSuffixCount(path: string): number {
-    return path.split("/").filter((segment) => /\s+\(\d+\)$/.test(segment)).length;
-}
-
 /**
  * Compare loose-file candidates using the same precedence as RealFileSystem:
- * later mounted directories are overlays. Within one directory, prefer the
- * unsuffixed file-provider path, then the shortest and lexically stable path.
+ * later mounted directories are overlays. Within one directory, a later
+ * file-provider copy generation replaces the earlier copy coherently.
  */
 function compareMountedEntryPrecedence(
     a: { path: string; directoryIndex: number },
     b: { path: string; directoryIndex: number },
 ): number {
     return a.directoryIndex - b.directoryIndex ||
-        duplicatePathSuffixCount(b.path) - duplicatePathSuffixCount(a.path) ||
+        compareFileProviderCopyGeneration(a.path, b.path) ||
         b.path.length - a.path.length ||
         (a.path < b.path ? 1 : a.path > b.path ? -1 : 0);
 }
@@ -122,14 +127,6 @@ export function isCampaignOnlyMixFilename(filename: string): boolean {
     const leaf = gamePathKey(gamePathLeaf(filename));
     return /^(?:movie|movies|mov(?:md|mo))\d*\.mix$/.test(leaf) ||
         /^(?:campaign|mission|missions)(?:md|mo)?\d*\.mix$/.test(leaf);
-}
-
-/** Files renamed by file managers after a duplicate copy are not canonical
- * game containers. If the canonical name exists, mounting the suffixed copy
- * can make a corrupt/partial archive win over the real layer. */
-function canonicalDuplicateMixFilename(filename: string): string | undefined {
-    const match = filename.match(/^(.*)\s+\(\d+\)(\.mix)$/i);
-    return match ? `${match[1]}${match[2]}` : undefined;
 }
 
 export class VirtualFileSystem {
@@ -259,7 +256,7 @@ export class VirtualFileSystem {
      */
     async listRfsFiles(): Promise<string[]> {
         const index = await this.getRfsEntryIndex();
-        return [...new Set([...index.byPath.values()].flat())].sort(compareResourcePaths);
+        return index.entries.map(({ path }) => path).sort(compareResourcePaths);
     }
     resolve(filename: string): VfsResolution {
         const normalized = this.resolveFilename(filename);
@@ -306,9 +303,12 @@ export class VirtualFileSystem {
         }
         if (!this.rfsEntryIndex) {
             this.rfsEntryIndex = (async () => {
-                const byPath = new Map<string, string[]>();
-                const byLeaf = new Map<string, string[]>();
-                const entries: Array<{ path: string; directoryIndex: number }> = [];
+                interface IndexedEntry {
+                    path: string;
+                    effectivePath: string;
+                    directoryIndex: number;
+                }
+                const rawEntries: Array<{ path: string; directoryIndex: number }> = [];
                 const layeredRfs = this.rfs as RealFileSystem & {
                     getEntriesRecursiveWithDirectoryIndex?: () => AsyncGenerator<{
                         entryName: string;
@@ -330,29 +330,85 @@ export class VirtualFileSystem {
                         this.logger.warn(`Ignoring unsafe real-file-system entry "${entry}".`);
                         continue;
                     }
-                    entries.push({ path: normalized, directoryIndex });
-                    const pathKey = gamePathKey(normalized);
-                    const leafKey = gamePathKey(gamePathLeaf(normalized));
-                    const pathEntries = byPath.get(pathKey) ?? [];
-                    pathEntries.push(normalized);
-                    byPath.set(pathKey, pathEntries);
-                    const leafEntries = byLeaf.get(leafKey) ?? [];
-                    leafEntries.push(normalized);
-                    byLeaf.set(leafKey, leafEntries);
-                    const canonicalDuplicate = canonicalDuplicateMixFilename(gamePathLeaf(normalized));
-                    if (canonicalDuplicate) {
-                        const canonicalKey = gamePathKey(canonicalDuplicate);
-                        const canonicalEntries = byLeaf.get(canonicalKey) ?? [];
-                        canonicalEntries.push(normalized);
-                        byLeaf.set(canonicalKey, canonicalEntries);
+                    rawEntries.push({ path: normalized, directoryIndex });
+                }
+
+                const fileKeysByDirectory = new Map<number, Set<string>>();
+                const directoryKeysByDirectory = new Map<number, Set<string>>();
+                for (const entry of rawEntries) {
+                    const files = fileKeysByDirectory.get(entry.directoryIndex) ?? new Set<string>();
+                    files.add(gamePathKey(entry.path));
+                    fileKeysByDirectory.set(entry.directoryIndex, files);
+                    const directories = directoryKeysByDirectory.get(entry.directoryIndex) ?? new Set<string>();
+                    const segments = entry.path.split("/");
+                    for (let length = 1; length < segments.length; length++) {
+                        directories.add(gamePathKey(segments.slice(0, length).join("/")));
+                    }
+                    directoryKeysByDirectory.set(entry.directoryIndex, directories);
+                }
+
+                const effectivePath = (entry: { path: string; directoryIndex: number }): string => {
+                    const segments = entry.path.split("/");
+                    const canonicalSegments: string[] = [];
+                    const files = fileKeysByDirectory.get(entry.directoryIndex) ?? new Set<string>();
+                    const directories = directoryKeysByDirectory.get(entry.directoryIndex) ?? new Set<string>();
+                    for (let index = 0; index < segments.length; index++) {
+                        const segment = segments[index];
+                        const duplicate = parseFileProviderCopySuffix(segment);
+                        if (!duplicate) {
+                            canonicalSegments.push(segment);
+                            continue;
+                        }
+                        const canonicalCandidate = [...canonicalSegments, duplicate.canonicalSegment].join("/");
+                        const hasCanonicalSibling = index < segments.length - 1
+                            ? directories.has(gamePathKey(canonicalCandidate))
+                            : files.has(gamePathKey(canonicalCandidate));
+                        canonicalSegments.push(hasCanonicalSibling ? duplicate.canonicalSegment : segment);
+                    }
+                    return canonicalSegments.join("/");
+                };
+
+                const indexedEntries: IndexedEntry[] = rawEntries.map((entry) => ({
+                    ...entry,
+                    effectivePath: effectivePath(entry),
+                }));
+                const pathCandidates = new Map<string, IndexedEntry[]>();
+                const leafCandidates = new Map<string, IndexedEntry[]>();
+                const selectedByPath = new Map<string, IndexedEntry>();
+                for (const entry of indexedEntries) {
+                    const pathKey = gamePathKey(entry.effectivePath);
+                    const leafKey = gamePathKey(gamePathLeaf(entry.effectivePath));
+                    const paths = pathCandidates.get(pathKey) ?? [];
+                    paths.push(entry);
+                    pathCandidates.set(pathKey, paths);
+                    const leaves = leafCandidates.get(leafKey) ?? [];
+                    leaves.push(entry);
+                    leafCandidates.set(leafKey, leaves);
+                    const previous = selectedByPath.get(pathKey);
+                    if (!previous || compareMountedEntryPrecedence(entry, previous) > 0) {
+                        selectedByPath.set(pathKey, entry);
                     }
                 }
-                const sortEntries = (entries: string[]): void => {
-                    entries.sort(compareResourcePaths);
+                const sortCandidates = (candidates: IndexedEntry[]): void => {
+                    candidates.sort((a, b) =>
+                        compareMountedEntryPrecedence(b, a) ||
+                        compareResourcePaths(a.path, b.path));
                 };
-                for (const entries of byPath.values()) sortEntries(entries);
-                for (const entries of byLeaf.values()) sortEntries(entries);
-                return { byPath, byLeaf, entries };
+                const byPath = new Map<string, string[]>();
+                const byLeaf = new Map<string, string[]>();
+                for (const [key, candidates] of pathCandidates) {
+                    sortCandidates(candidates);
+                    byPath.set(key, candidates.map(({ path }) => path));
+                }
+                for (const [key, candidates] of leafCandidates) {
+                    sortCandidates(candidates);
+                    byLeaf.set(key, candidates.map(({ path }) => path));
+                }
+                return {
+                    byPath,
+                    byLeaf,
+                    entries: [...selectedByPath.values()],
+                };
             })();
         }
         return this.rfsEntryIndex;
@@ -368,20 +424,14 @@ export class VirtualFileSystem {
         let provenance: string[] = [];
         let resolution: VfsResolution | undefined;
         if (this.rfs) {
+            const preferredEntry = await this.findRfsEntry(filename);
             try {
-                file = await this.rfs.openFile(filename);
-                provenance = [normalizeGamePath(filename)];
+                file = await this.rfs.openFile(preferredEntry ?? filename);
+                provenance = [preferredEntry ?? normalizeGamePath(filename)];
             }
             catch (e) {
                 if (!(e instanceof FileNotFoundError)) {
                     throw e;
-                }
-            }
-            if (!file) {
-                const fallbackEntry = await this.findRfsEntry(filename);
-                if (fallbackEntry) {
-                    file = await this.rfs.openFile(fallbackEntry);
-                    provenance = [fallbackEntry];
                 }
             }
         }
@@ -466,30 +516,26 @@ export class VirtualFileSystem {
             file: VirtualFile;
             directoryIndex: number;
         }>;
-        const filesByDirectory = new Map<number, Array<{ file: VirtualFile; directoryIndex: number }>>();
+        const selectedByDirectory = new Map<number, { file: VirtualFile; directoryIndex: number }>();
         for (const layeredFile of layeredFiles) {
-            const directoryFiles = filesByDirectory.get(layeredFile.directoryIndex) ?? [];
-            directoryFiles.push(layeredFile);
-            filesByDirectory.set(layeredFile.directoryIndex, directoryFiles);
+            const previous = selectedByDirectory.get(layeredFile.directoryIndex);
+            if (!previous || compareFileProviderCopyGeneration(
+                layeredFile.file.filename,
+                previous.file.filename,
+            ) > 0) {
+                selectedByDirectory.set(layeredFile.directoryIndex, layeredFile);
+            }
         }
         let loaded = 0;
-        for (const { file, directoryIndex } of layeredFiles) {
-            const directoryFiles = filesByDirectory.get(directoryIndex) ?? [file];
-            const hasDuplicateVariants = directoryFiles.length > 1;
-            const largestVariantSize = Math.max(...directoryFiles.map(({ file: candidate }) => candidate.getSize()));
-            const isLargestVariant = file.getSize() === largestVariantSize;
+        for (const { file, directoryIndex } of [...selectedByDirectory.values()]
+            .sort((a, b) => a.directoryIndex - b.directoryIndex)) {
             const metadata = {
                 ...this.metadataForExtraMix(filename, profile),
                 // The root installation is the fallback layer; each
                 // explicitly mounted directory after it is an active overlay.
-                // If a file provider renamed a second same-name MIX, the
-                // largest copy is normally the full/base archive and the
-                // smaller copy is its patch.
                 layer: directoryIndex === 0
                     ? ResourceLayer.ModCore
-                    : hasDuplicateVariants && isLargestVariant
-                        ? ResourceLayer.ModCore
-                        : ResourceLayer.ModPatch,
+                    : ResourceLayer.ModPatch,
                 source: "mod" as const,
                 profile: profile?.id,
                 id: `${filename}:${file.filename}:${directoryIndex}`,
@@ -770,15 +816,16 @@ export class VirtualFileSystem {
             return;
         }
         const rfsIndex = await this.getRfsEntryIndex();
-        const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
+        const rfsEntries = rfsIndex.entries.map(({ path }) => path).sort(compareResourcePaths);
         const findEntryByLeaf = async (filename: string): Promise<string | undefined> => {
             // RealFileSystem exposes a fast leaf index. Keep the VFS boundary
             // compatible with lightweight providers used by tests and by
             // platform import adapters that only implement the core methods.
+            const indexed = rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
             const preferred = typeof (this.rfs as any).findEntryByLeaf === "function"
                 ? await (this.rfs as any).findEntryByLeaf(filename) as string | undefined
                 : undefined;
-            return preferred ?? rfsIndex.byLeaf.get(gamePathKey(gamePathLeaf(filename)))?.[0];
+            return indexed ?? preferred;
         };
         let profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
         let deferredArchives = 0;
@@ -836,8 +883,8 @@ export class VirtualFileSystem {
                 skippedCampaignArchives++;
                 continue;
             }
-            const canonicalDuplicate = canonicalDuplicateMixFilename(filename);
-            if (canonicalDuplicate && rfsIndex.byLeaf.has(gamePathKey(canonicalDuplicate))) {
+            const canonicalDuplicate = canonicalizeFileProviderCopyPath(filename);
+            if (canonicalDuplicate !== filename && rfsIndex.byLeaf.has(gamePathKey(canonicalDuplicate))) {
                 continue;
             }
             const preferred = await findEntryByLeaf(filename);
@@ -874,7 +921,7 @@ export class VirtualFileSystem {
                     return;
                 }
                 const rfsIndex = await this.getRfsEntryIndex();
-                const rfsEntries = [...new Set([...rfsIndex.byPath.values()].flat())].sort(compareResourcePaths);
+                const rfsEntries = rfsIndex.entries.map(({ path }) => path).sort(compareResourcePaths);
                 await this.loadMapArchives(engineType, profile, rfsEntries);
             })();
             this.deferredMapArchivesPromise = loadPromise.catch((error) => {
@@ -931,10 +978,11 @@ export class VirtualFileSystem {
         const rfsIndex = await this.getRfsEntryIndex();
         const standaloneCandidates = new Map<string, {
             path: string;
+            effectivePath: string;
             directoryIndex: number;
         }>();
         for (const candidate of rfsIndex.entries) {
-            const normalizedEntryName = normalizeGamePath(candidate.path);
+            const normalizedEntryName = normalizeGamePath(candidate.effectivePath);
             const lowerEntryName = normalizedEntryName.toLocaleLowerCase("en-US");
             const excluded = excludeSet.has(gamePathKey(normalizedEntryName)) ||
                 excludeSet.has(gamePathKey(gamePathLeaf(normalizedEntryName)));
@@ -948,7 +996,8 @@ export class VirtualFileSystem {
             const previous = standaloneCandidates.get(pathKey);
             if (!previous || compareMountedEntryPrecedence(candidate, previous) > 0) {
                 standaloneCandidates.set(pathKey, {
-                    path: normalizedEntryName,
+                    path: candidate.path,
+                    effectivePath: candidate.effectivePath,
                     directoryIndex: candidate.directoryIndex,
                 });
             }
@@ -971,24 +1020,28 @@ export class VirtualFileSystem {
                 try {
                     const file = await this.rfs!.openFile(entry.path);
                     if (file) {
-                        const normalizedSegments = entry.path.split("/");
                         // Imported archives are often stored below a picker
                         // folder (for example `Install/MIX/rulesmo.ini`).
                         // Engine lookups use the game-relative name, so keep
                         // every suffix alias while retaining nested include
-                        // paths such as `rules/units.ini`.
-                        for (let aliasStart = 0; aliasStart < normalizedSegments.length; aliasStart++) {
-                            const alias = normalizedSegments.slice(aliasStart).join("/");
-                            const aliasFile = VirtualFile.fromBytes(file.getBytes(), alias);
-                            const aliasKey = gamePathKey(alias);
-                            const previous = looseFilesByAlias.get(aliasKey);
-                            const candidate = {
-                                file: aliasFile,
-                                path: entry.path,
-                                directoryIndex: entry.directoryIndex,
-                            };
-                            if (!previous || compareMountedEntryPrecedence(candidate, previous) > 0) {
-                                looseFilesByAlias.set(aliasKey, candidate);
+                        // paths such as `rules/units.ini`. Also expose the
+                        // canonical path of a recognized provider-copy tree.
+                        const aliasSources = new Set([entry.effectivePath, entry.path]);
+                        for (const aliasSource of aliasSources) {
+                            const normalizedSegments = aliasSource.split("/");
+                            for (let aliasStart = 0; aliasStart < normalizedSegments.length; aliasStart++) {
+                                const alias = normalizedSegments.slice(aliasStart).join("/");
+                                const aliasFile = VirtualFile.fromBytes(file.getBytes(), alias);
+                                const aliasKey = gamePathKey(alias);
+                                const previous = looseFilesByAlias.get(aliasKey);
+                                const aliasCandidate = {
+                                    file: aliasFile,
+                                    path: entry.path,
+                                    directoryIndex: entry.directoryIndex,
+                                };
+                                if (!previous || compareMountedEntryPrecedence(aliasCandidate, previous) > 0) {
+                                    looseFilesByAlias.set(aliasKey, aliasCandidate);
+                                }
                             }
                         }
                     }

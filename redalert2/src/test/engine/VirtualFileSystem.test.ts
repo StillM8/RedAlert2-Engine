@@ -190,17 +190,19 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.openFile("radar.shp").getBytes()).toEqual(new Uint8Array([4, 5, 6]));
     });
 
-    test("resolves case-insensitive standalone collisions by mounted-layer precedence", async () => {
+    test("resolves standalone collisions by mounted layer and coherent duplicate-copy generation", async () => {
         const files = new Map([
             ["INI/Map Code/Free For All.ini", VirtualFile.fromBytes(new TextEncoder().encode("base"), "Free For All.ini")],
-            ["INI/Map Code/Free for All.ini", VirtualFile.fromBytes(new TextEncoder().encode("overlay"), "Free for All.ini")],
-            ["INI (1)/Map Code/Free for All.ini", VirtualFile.fromBytes(new TextEncoder().encode("duplicate"), "Free for All.ini")],
+            ["INI/Map Code/Free for All.ini", VirtualFile.fromBytes(new TextEncoder().encode("old mod"), "Free for All.ini")],
+            ["INI (1)/Map Code/Free for All.ini", VirtualFile.fromBytes(new TextEncoder().encode("new mod"), "Free for All.ini")],
+            ["INI (1)/Map Code/New Mode.ini", VirtualFile.fromBytes(new TextEncoder().encode("new only"), "New Mode.ini")],
         ]);
         const rfs = {
             async *getEntriesRecursiveWithDirectoryIndex() {
                 yield { entryName: "INI/Map Code/Free For All.ini", directoryIndex: 0 };
                 yield { entryName: "INI/Map Code/Free for All.ini", directoryIndex: 1 };
                 yield { entryName: "INI (1)/Map Code/Free for All.ini", directoryIndex: 1 };
+                yield { entryName: "INI (1)/Map Code/New Mode.ini", directoryIndex: 1 };
             },
             async openFile(filename: string) {
                 const file = files.get(filename);
@@ -216,7 +218,12 @@ describe("VirtualFileSystem resource precedence", () => {
 
         await expect(vfs.loadStandaloneFiles()).resolves.toBeUndefined();
 
-        expect(vfs.openFile("Map Code/Free For All.ini").readAsString()).toBe("overlay");
+        expect(vfs.openFile("Map Code/Free For All.ini").readAsString()).toBe("new mod");
+        expect(vfs.openFile("INI/Map Code/New Mode.ini").readAsString()).toBe("new only");
+        expect(await vfs.listRfsFiles()).toEqual([
+            "INI (1)/Map Code/New Mode.ini",
+            "INI (1)/Map Code/Free for All.ini",
+        ]);
     });
 
     test("reuses the imported-storage index across resource consumers", async () => {
@@ -524,16 +531,17 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.debugListFileOwners("rulesmo.ini")).toEqual(["expandmo99.mix"]);
     });
 
-    test("treats file-manager duplicate MIX names as a full archive plus patch", async () => {
-        const patchMix = createMixBytes([
-            ["overlay-only.ini", new TextEncoder().encode("overlay")],
-        ]);
-        const baseMix = new Uint8Array([
+    test("replaces a duplicate MIX as one coherent generation instead of merging by size", async () => {
+        const oldMix = new Uint8Array([
             ...createMixBytes([
-                ["rulesmo.ini", new TextEncoder().encode("[Rules]\nBase=yes")],
-                ["base-only.ini", new TextEncoder().encode("base")],
+                ["rulesmo.ini", new TextEncoder().encode("[Rules]\nVersion=old")],
+                ["old-only.ini", new TextEncoder().encode("old")],
             ]),
             ...new Uint8Array(128),
+        ]);
+        const newMix = createMixBytes([
+            ["rulesmo.ini", new TextEncoder().encode("[Rules]\nVersion=new")],
+            ["new-only.ini", new TextEncoder().encode("new")],
         ]);
         const rfs = {
             async *getEntriesRecursive() {
@@ -548,8 +556,8 @@ describe("VirtualFileSystem resource precedence", () => {
                     return [];
                 }
                 return [
-                    { file: VirtualFile.fromBytes(patchMix, "expandmo99.mix"), directoryIndex: 1 },
-                    { file: VirtualFile.fromBytes(baseMix, "expandmo99 (1).mix"), directoryIndex: 1 },
+                    { file: VirtualFile.fromBytes(oldMix, "expandmo99.mix"), directoryIndex: 1 },
+                    { file: VirtualFile.fromBytes(newMix, "expandmo99 (1).mix"), directoryIndex: 1 },
                 ];
             },
         } as any;
@@ -561,11 +569,12 @@ describe("VirtualFileSystem resource precedence", () => {
 
         await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
 
-        expect(vfs.openFile("rulesmo.ini").readAsString()).toContain("Base=yes");
-        expect(vfs.openFile("base-only.ini").readAsString()).toBe("base");
-        expect(vfs.openFile("overlay-only.ini").readAsString()).toBe("overlay");
+        expect(vfs.openFile("rulesmo.ini").readAsString()).toContain("Version=new");
+        expect(vfs.openFile("new-only.ini").readAsString()).toBe("new");
+        expect(vfs.fileExists("old-only.ini")).toBe(false);
         expect(vfs.listArchives()).toContain("expandmo99.mix");
         expect(vfs.listArchives()).not.toContain("expandmo99 (1).mix");
+        expect(vfs.explain("rulesmo.ini").winner?.provenance).toContain("expandmo99 (1).mix");
     });
 
     test("defers standalone map archives without deferring profile MIX files", async () => {

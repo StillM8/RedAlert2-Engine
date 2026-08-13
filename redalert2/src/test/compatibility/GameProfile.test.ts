@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { detectContentProfile, detectGameProfile, getGameProfile, validateMentalOmegaInstallation } from '@/engine/GameProfile';
-import { gamePathKey, normalizeGamePath } from '@/engine/GamePath';
+import {
+    canonicalizeFileProviderCopyPath,
+    compareFileProviderCopyGeneration,
+    gamePathKey,
+    normalizeGamePath,
+    parseFileProviderCopySuffix,
+} from '@/engine/GamePath';
 
 describe('GameProfile detection', () => {
     test('detects Red Alert 2 when Yuri archives are absent', () => {
@@ -139,5 +145,22 @@ describe('GamePath', () => {
         expect(() => normalizeGamePath('../rules.ini')).toThrow();
         expect(() => normalizeGamePath('/absolute/rules.ini')).toThrow();
         expect(() => normalizeGamePath('unsafe:name.ini')).toThrow();
+    });
+
+    test('parses file-provider copy generations without changing authored paths implicitly', () => {
+        expect(parseFileProviderCopySuffix('expandmo99 (1).mix')).toEqual({
+            canonicalSegment: 'expandmo99.mix',
+            copyIndex: 1,
+        });
+        expect(parseFileProviderCopySuffix('INI (2)')).toEqual({
+            canonicalSegment: 'INI',
+            copyIndex: 2,
+        });
+        expect(parseFileProviderCopySuffix('Arena (1).map')?.canonicalSegment).toBe('Arena.map');
+        expect(parseFileProviderCopySuffix('Arena.map')).toBeUndefined();
+        expect(canonicalizeFileProviderCopyPath('INI (1)/Map Code/rules (2).ini'))
+            .toBe('INI/Map Code/rules.ini');
+        expect(compareFileProviderCopyGeneration('INI (1)/rules.ini', 'INI/rules (2).ini'))
+            .toBeGreaterThan(0);
     });
 });

@@ -1,7 +1,13 @@
 import { FileNotFoundError } from "./FileNotFoundError";
 import { RealFileSystemDir } from "./RealFileSystemDir";
 import type { VirtualFile } from "./VirtualFile";
-import { gamePathKey, gamePathLeaf, normalizeGamePath } from "../../engine/GamePath";
+import {
+    canonicalizeFileProviderCopyPath,
+    compareFileProviderCopyGeneration,
+    gamePathKey,
+    gamePathLeaf,
+    normalizeGamePath,
+} from "../../engine/GamePath";
 export interface RFSConstructorOptions {
     /**
      * Root-level directories owned by the engine rather than by the active
@@ -101,11 +107,11 @@ export class RealFileSystem {
     }
 
     /**
-     * Open every same-name MIX family from the mounted directory layers in
-     * base-to-overlay order. A mod can replace only part of a MIX archive, so
-     * callers need both the base archive and the selected overlay archive to
-     * provide entry-level fallback. File-provider suffixes such as " (1)"
-     * are treated as members of the same family.
+     * Open one deterministic owner of a same-name MIX in each mounted layer.
+     * Distinct mounted directories are real base/overlay layers. Names such
+     * as `expand99 (1).mix` inside one directory are duplicate-copy
+     * generations, not an implicit MIX patch format; the latest generation
+     * replaces the earlier copy as a whole.
      */
     async openFilesFromLayers(filename: string): Promise<Array<{ file: VirtualFile; directoryIndex: number }>> {
         const result: Array<{ file: VirtualFile; directoryIndex: number }> = [];
@@ -113,27 +119,30 @@ export class RealFileSystem {
         const canonicalLeaf = gamePathKey(gamePathLeaf(normalizedFilename));
         const isVariant = (entryName: string): boolean => {
             const leaf = gamePathLeaf(entryName);
-            const canonical = leaf.match(/^(.*)\s+\(\d+\)(\.mix)$/i);
-            return gamePathKey(canonical ? `${canonical[1]}${canonical[2]}` : leaf) === canonicalLeaf;
+            return gamePathKey(canonicalizeFileProviderCopyPath(leaf)) === canonicalLeaf;
         };
         for (let directoryIndex = 0; directoryIndex < this.directories.length; directoryIndex++) {
             const directory = this.directories[directoryIndex];
-            const candidateNames = new Set<string>([normalizedFilename]);
-            // Android file providers preserve duplicate files by appending
-            // " (1)" to the second copy. Treat those names as one MIX layer
-            // family so a full archive and its patch can coexist in one mod.
+            const candidateNames = new Set<string>();
             for await (const entryName of directory.getEntries()) {
                 if (isVariant(entryName)) {
                     candidateNames.add(entryName);
                 }
             }
-            const opened: Array<{ file: VirtualFile; directoryIndex: number }> = [];
-            for (const candidateName of candidateNames) {
+            if (!candidateNames.size) {
+                candidateNames.add(normalizedFilename);
+            }
+            const orderedCandidates = [...candidateNames].sort((a, b) =>
+                compareFileProviderCopyGeneration(b, a) ||
+                gamePathKey(a).localeCompare(gamePathKey(b)),
+            );
+            for (const candidateName of orderedCandidates) {
                 try {
-                    opened.push({
+                    result.push({
                         file: await directory.openFile(candidateName),
                         directoryIndex,
                     });
+                    break;
                 }
                 catch (e) {
                     if (!(e instanceof FileNotFoundError)) {
@@ -141,15 +150,6 @@ export class RealFileSystem {
                     }
                 }
             }
-            // A larger duplicate is normally the full/base archive and the
-            // smaller one is the patch. Mounting in this order lets the VFS
-            // assign explicit core/patch precedence independent of picker
-            // enumeration order.
-            opened.sort((a, b) =>
-                b.file.getSize() - a.file.getSize() ||
-                gamePathKey(a.file.filename).localeCompare(gamePathKey(b.file.filename)),
-            );
-            result.push(...opened);
         }
         return result;
     }
