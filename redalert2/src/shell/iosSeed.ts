@@ -357,14 +357,21 @@ export function isTauriDesktopShell(): boolean {
         || !!(window as any).__TAURI_INTERNALS__;
 }
 
-function nativeGameResRoot(): string {
+/**
+ * Resolve a native custom-protocol mount for each desktop shell transport.
+ * Wry exposes registered protocols as http(s)://<scheme>.localhost on
+ * Windows and Android, while Linux/macOS retain <scheme>://localhost.
+ */
+export function nativeResourceRoot(scheme: 'gameres' | 'modres'): string {
     if (typeof window !== 'undefined' &&
         (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
-        // Wry exposes custom protocols as http(s)://<scheme>.localhost on
-        // Windows and Android. Linux and macOS retain scheme://localhost.
-        return 'http://gameres.localhost';
+        return `http://${scheme}.localhost`;
     }
-    return 'gameres://localhost';
+    return `${scheme}://localhost`;
+}
+
+function nativeGameResRoot(): string {
+    return nativeResourceRoot('gameres');
 }
 
 async function pickTauriGameDirectory(): Promise<boolean> {
@@ -494,7 +501,7 @@ async function pickTauriModSource(
         path: normalizeGamePath(file.path),
         size: Number(file.size) || 0,
     }));
-    const baseUrl = `modres://localhost/${encodeURIComponent(result.token)}`;
+    const baseUrl = `${nativeResourceRoot('modres')}/${encodeURIComponent(result.token)}`;
     let disposed = false;
     return {
         kind,

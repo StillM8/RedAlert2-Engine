@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { computeSeedFingerprint, seedSentinelMatches, selectNativeMenuVideoSource, type SeedManifest } from '@/shell/iosSeed';
+import {
+    computeSeedFingerprint,
+    nativeResourceRoot,
+    seedSentinelMatches,
+    selectNativeMenuVideoSource,
+    type SeedManifest,
+} from '@/shell/iosSeed';
 
 const manifest: SeedManifest = {
     files: [
@@ -9,6 +15,40 @@ const manifest: SeedManifest = {
 };
 
 describe('native shell game-resource seeding', () => {
+    test('uses localhost custom protocols for scheme-based desktop shells', () => {
+        const previousWindow = (globalThis as any).window;
+        (globalThis as any).window = { location: { protocol: 'tauri:' } };
+        try {
+            expect(nativeResourceRoot('gameres')).toBe('gameres://localhost');
+            expect(nativeResourceRoot('modres')).toBe('modres://localhost');
+        }
+        finally {
+            if (previousWindow === undefined) {
+                delete (globalThis as any).window;
+            }
+            else {
+                (globalThis as any).window = previousWindow;
+            }
+        }
+    });
+
+    test('uses localhost HTTP mounts for Wry HTTP-based shells', () => {
+        const previousWindow = (globalThis as any).window;
+        (globalThis as any).window = { location: { protocol: 'http:' } };
+        try {
+            expect(nativeResourceRoot('gameres')).toBe('http://gameres.localhost');
+            expect(nativeResourceRoot('modres')).toBe('http://modres.localhost');
+        }
+        finally {
+            if (previousWindow === undefined) {
+                delete (globalThis as any).window;
+            }
+            else {
+                (globalThis as any).window = previousWindow;
+            }
+        }
+    });
+
     test('computes the same fingerprint regardless of manifest order', async () => {
         const reordered = { files: [...manifest.files].reverse() };
 
