@@ -11,6 +11,7 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 import { TechnoRules } from "@/game/rules/TechnoRules";
 import { ChronoSphereEffect } from "@/game/superweapon/ChronoSphereEffect";
+import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 
 describe("Ares Chronoshift eligibility", () => {
     test("uses documented defaults and honors Allow/IsVehicle overrides", () => {
@@ -132,11 +133,25 @@ describe("Ares Chronoshift eligibility", () => {
 [Chrono]
 Type=ChronoSphere
 Chronosphere.ReconsiderBuildings=no
+Chronosphere.KillOrganic=no
+Chronosphere.KillTeleporters=yes
+Chronosphere.AffectsIronCurtain=yes
+Chronosphere.AffectsUnwarpable=no
+Chronosphere.AffectsUndeployable=yes
+Chronosphere.BlowUnplaceable=no
+Chronosphere.KillCargo=yes
 SW.AffectsTarget=Infantry,Buildings
 `);
         const definition = parseAresSuperWeaponDefinition(ini.getSection("Chrono")!);
         expect(definition).toMatchObject({
             chronosphereReconsiderBuildings: false,
+            chronosphereKillOrganic: false,
+            chronosphereKillTeleporters: true,
+            chronosphereAffectsIronCurtain: true,
+            chronosphereAffectsUnwarpable: false,
+            chronosphereAffectsUndeployable: true,
+            chronosphereBlowUnplaceable: false,
+            chronosphereKillCargo: true,
             swAffectsTarget: "Infantry,Buildings",
         });
     });
@@ -212,7 +227,7 @@ SW.AffectsTarget=Infantry,Buildings
         expect((vanillaEffect as any).objectsToTeleport).toHaveLength(1);
     });
 
-    test("does not invent building teleportation when IsVehicle is enabled", () => {
+    test("chronoshifts IsVehicle buildings through the shared eligibility path", () => {
         const building = {
             tile: { rx: 4, ry: 4, z: 0, onBridgeLandType: false },
             isUnit: () => false,
@@ -229,6 +244,8 @@ SW.AffectsTarget=Infantry,Buildings
                 aresChronoshift: { allow: true, isVehicle: true },
             },
             invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isActive: () => false, setActive: (active: boolean) => { building.warped = active; } },
+            warped: false,
         } as any;
         const effect = new ChronoSphereEffect(
             "ChronoSphere",
@@ -245,9 +262,199 @@ SW.AffectsTarget=Infantry,Buildings
                 getGroundObjectsOnTile: () => [],
             },
             getWorld: () => ({ getAllObjects: () => [building] }),
-            destroyObject: () => { throw new Error("building was incorrectly sent through unit teleportation"); },
+            destroyObject: () => { throw new Error("building should be queued for the building teleport path"); },
         } as any);
 
+        expect((effect as any).objectsToTeleport).toHaveLength(1);
+    });
+
+    test("relocates eligible buildings using their full foundation", () => {
+        const sourceTile = { rx: 4, ry: 4, z: 0, onBridgeLandType: false };
+        const destinationTile = { rx: 10, ry: 10, z: 0, onBridgeLandType: false };
+        const getTile = (rx: number, ry: number) => {
+            if (rx === sourceTile.rx && ry === sourceTile.ry) return sourceTile;
+            if (rx === destinationTile.rx && ry === destinationTile.ry) return destinationTile;
+            return { rx, ry, z: 0, onBridgeLandType: false };
+        };
+        const transitions: string[] = [];
+        const building = {
+            tile: sourceTile,
+            isSpawned: true,
+            isDisposed: false,
+            isUnit: () => false,
+            isBuilding: () => true,
+            isInfantry: () => false,
+            isAircraft: () => false,
+            isVehicle: () => false,
+            onBridge: false,
+            tileElevation: 0,
+            art: { foundation: { width: 2, height: 2 } },
+            getFoundation: () => ({ width: 2, height: 2 }),
+            rules: {
+                organic: false,
+                teleporter: false,
+                speedType: 0,
+                aresChronoshift: { allow: true, isVehicle: true },
+            },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: {
+                isActive: () => false,
+                setActive: (active: boolean) => transitions.push(`warp:${active}`),
+            },
+        } as any;
+        const game = {
+            rules: { general: { chronoDelay: 0, padAircraft: [] } },
+            map: {
+                tiles: { getByMapCoords: getTile },
+                mapBounds: { isWithinBounds: () => true },
+                tileOccupation: {
+                    calculateTilesForGameObject: (tile: any) => [
+                        getTile(tile.rx, tile.ry),
+                        getTile(tile.rx + 1, tile.ry),
+                        getTile(tile.rx, tile.ry + 1),
+                        getTile(tile.rx + 1, tile.ry + 1),
+                    ],
+                },
+                terrain: {
+                    getPassableSpeed: () => 1,
+                    findObstacles: () => [],
+                },
+                getGroundObjectsOnTile: (tile: any) => tile === sourceTile ? [building] : [],
+            },
+            limboObject: (object: any, data: any) => {
+                transitions.push("limbo");
+                object.limboData = data;
+                object.isSpawned = false;
+            },
+            unlimboObject: (object: any, tile: any) => {
+                transitions.push("unlimbo");
+                object.limboData = undefined;
+                object.tile = tile;
+                object.isSpawned = true;
+            },
+            getWorld: () => ({ getAllObjects: () => [building] }),
+            destroyObject: () => { throw new Error("a placeable building should not be destroyed"); },
+        } as any;
+
+        const effect = new ChronoSphereEffect(
+            "ChronoSphere",
+            {} as any,
+            sourceTile,
+            destinationTile,
+        );
+        effect.onStart(game);
+        effect.onTick(game);
+
+        expect(transitions).toEqual(["warp:true", "limbo", "unlimbo", "warp:false"]);
+        expect(building.tile).toBe(destinationTile);
+        expect(building.isSpawned).toBe(true);
+    });
+
+    test("keeps an eligible building at its source when BlowUnplaceable is disabled", () => {
+        const sourceTile = { rx: 4, ry: 4, z: 0, onBridgeLandType: false };
+        const getTile = (rx: number, ry: number) => rx === sourceTile.rx && ry === sourceTile.ry
+            ? sourceTile
+            : { rx, ry, z: 0, onBridgeLandType: false };
+        const destroyed: any[] = [];
+        const transitions: boolean[] = [];
+        const building = {
+            tile: sourceTile,
+            isSpawned: true,
+            isDisposed: false,
+            isUnit: () => false,
+            isBuilding: () => true,
+            isInfantry: () => false,
+            isAircraft: () => false,
+            isVehicle: () => false,
+            onBridge: false,
+            tileElevation: 0,
+            getFoundation: () => ({ width: 2, height: 2 }),
+            rules: {
+                organic: false,
+                teleporter: false,
+                speedType: 0,
+                aresChronoshift: { allow: true, isVehicle: true },
+            },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: {
+                isActive: () => false,
+                setActive: (active: boolean) => transitions.push(active),
+            },
+        } as any;
+        const game = {
+            rules: { general: { chronoDelay: 0 } },
+            map: {
+                tiles: { getByMapCoords: getTile },
+                mapBounds: { isWithinBounds: () => true },
+                tileOccupation: { calculateTilesForGameObject: () => [] },
+                terrain: { findObstacles: () => [] },
+                getGroundObjectsOnTile: (tile: any) => tile === sourceTile ? [building] : [],
+            },
+            getWorld: () => ({ getAllObjects: () => [building] }),
+            destroyObject: (object: any) => destroyed.push(object),
+            limboObject: () => { throw new Error("an unplaceable building should stay at the source"); },
+            unlimboObject: () => { throw new Error("an unplaceable building should stay at the source"); },
+        } as any;
+
+        const effect = new ChronoSphereEffect(
+            "ChronoSphere",
+            {} as any,
+            sourceTile,
+            getTile(10, 10),
+            undefined,
+            { blowUnplaceable: false },
+        );
+        effect.onStart(game);
+        effect.onTick(game);
+
+        expect((effect as any).objectsToTeleport).toHaveLength(1);
+        expect(destroyed).toHaveLength(0);
+        expect(transitions).toEqual([true, false]);
+        expect(building.tile).toBe(sourceTile);
+    });
+
+    test("kills teleporter units when KillTeleporters is enabled even if they are non-organic", () => {
+        const sourceTile = { rx: 4, ry: 4, z: 0, onBridgeLandType: false };
+        const destinationTile = { rx: 10, ry: 10, z: 0, onBridgeLandType: false };
+        const teleporter = {
+            tile: sourceTile,
+            isSpawned: true,
+            isDisposed: false,
+            isUnit: () => true,
+            isBuilding: () => false,
+            isInfantry: () => false,
+            isAircraft: () => false,
+            isVehicle: () => true,
+            onBridge: false,
+            tileElevation: 0,
+            rules: { organic: false, teleporter: true, aresChronoshift: { allow: true } },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isActive: () => false, setActive: () => undefined },
+        } as any;
+        const destroyed: any[] = [];
+        const game = {
+            rules: { general: { chronoDelay: 0 } },
+            map: {
+                tiles: { getByMapCoords: (rx: number, ry: number) =>
+                    rx === sourceTile.rx && ry === sourceTile.ry ? sourceTile : destinationTile },
+                tileOccupation: { calculateTilesForGameObject: () => [destinationTile] },
+                getGroundObjectsOnTile: (tile: any) => tile === sourceTile ? [teleporter] : [],
+            },
+            getWorld: () => ({ getAllObjects: () => [teleporter] }),
+            destroyObject: (object: any) => destroyed.push(object),
+        } as any;
+        const effect = new ChronoSphereEffect(
+            "ChronoSphere",
+            {} as any,
+            sourceTile,
+            destinationTile,
+            undefined,
+            { killOrganic: false, killTeleporters: true },
+        );
+
+        effect.onStart(game);
+
+        expect(destroyed).toEqual([teleporter]);
         expect((effect as any).objectsToTeleport).toHaveLength(0);
     });
 
@@ -344,6 +551,158 @@ SW.AffectsTarget=Infantry,Buildings
         vanillaEffect.onTick(game);
 
         expect(destroyed).toEqual([nonCrushable]);
+        expect(teleports).toBe(1);
+    });
+
+    test("honors ChronoInfantryCrush=no when an infantry shifter lands on a vehicle", () => {
+        const sourceTile = { rx: 4, ry: 4, z: 0, onBridgeLandType: false };
+        const destinationTile = { rx: 10, ry: 10, z: 0, onBridgeLandType: false };
+        let teleports = 0;
+        const shifter = {
+            tile: sourceTile,
+            isSpawned: true,
+            isDisposed: false,
+            isUnit: () => true,
+            isBuilding: () => false,
+            isInfantry: () => true,
+            isAircraft: () => false,
+            isVehicle: () => false,
+            onBridge: false,
+            tileElevation: 0,
+            stance: 0,
+            rules: {
+                organic: false,
+                teleporter: true,
+                speedType: 0,
+                movementZone: 0,
+                aresChronoshift: { allow: true, crushable: true },
+            },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isActive: () => false, setActive: () => undefined },
+            moveTrait: { teleportUnitToTile: () => { teleports++; } },
+        } as any;
+        const target = {
+            tile: destinationTile,
+            isDisposed: false,
+            isUnit: () => true,
+            isBuilding: () => false,
+            isInfantry: () => false,
+            isAircraft: () => false,
+            isVehicle: () => true,
+            onBridge: false,
+            tileElevation: 0,
+            rules: {},
+        } as any;
+        const destroyed: any[] = [];
+        const game = {
+            rules: { general: { chronoDelay: 0, chronoInfantryCrush: false, padAircraft: [] } },
+            map: {
+                tiles: {
+                    getByMapCoords: (rx: number, ry: number) => {
+                        if (rx === sourceTile.rx && ry === sourceTile.ry) return sourceTile;
+                        if (rx === destinationTile.rx && ry === destinationTile.ry) return destinationTile;
+                        return { rx, ry, z: 0, onBridgeLandType: false };
+                    },
+                },
+                mapBounds: { isWithinBounds: () => true },
+                tileOccupation: {
+                    getBridgeOnTile: () => undefined,
+                    calculateTilesForGameObject: () => [destinationTile],
+                },
+                getGroundObjectsOnTile: (tile: any) => tile === sourceTile
+                    ? [shifter]
+                    : tile === destinationTile
+                        ? [target]
+                        : [],
+                terrain: { getPassableSpeed: () => 1, findObstacles: () => [] },
+                getTileZone: () => ZoneType.Land,
+            },
+            destroyObject: (object: any) => destroyed.push(object),
+            getWorld: () => ({ getAllObjects: () => [shifter] }),
+        } as any;
+        const effect = new ChronoSphereEffect(
+            "ChronoSphere",
+            {} as any,
+            sourceTile,
+            destinationTile,
+        );
+
+        effect.onStart(game);
+        effect.onTick(game);
+
+        expect(destroyed).toEqual([shifter]);
+        expect(target.isDestroyed).not.toBe(true);
+        expect(teleports).toBe(0);
+    });
+
+    test("kills transport cargo before chronoshifting the carrier when KillCargo is enabled", () => {
+        const sourceTile = { rx: 4, ry: 4, z: 0, onBridgeLandType: false };
+        const destinationTile = { rx: 10, ry: 10, z: 0, onBridgeLandType: false };
+        const passengers = [
+            { isDestroyed: false },
+            { isDestroyed: false },
+        ];
+        let teleports = 0;
+        const carrier = {
+            tile: sourceTile,
+            isSpawned: true,
+            isDisposed: false,
+            isUnit: () => true,
+            isBuilding: () => false,
+            isInfantry: () => false,
+            isAircraft: () => false,
+            isVehicle: () => true,
+            onBridge: false,
+            tileElevation: 0,
+            rules: {
+                organic: false,
+                teleporter: false,
+                speedType: 0,
+                movementZone: 0,
+                aresChronoshift: { allow: true },
+            },
+            transportTrait: { units: passengers },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isActive: () => false, setActive: () => undefined },
+            moveTrait: { teleportUnitToTile: () => { teleports++; } },
+        } as any;
+        const destroyed: any[] = [];
+        const game = {
+            rules: { general: { chronoDelay: 0, padAircraft: [] } },
+            map: {
+                tiles: {
+                    getByMapCoords: (rx: number, ry: number) =>
+                        rx === sourceTile.rx && ry === sourceTile.ry ? sourceTile : destinationTile,
+                },
+                mapBounds: { isWithinBounds: () => true },
+                tileOccupation: {
+                    getBridgeOnTile: () => undefined,
+                    calculateTilesForGameObject: () => [destinationTile],
+                },
+                getGroundObjectsOnTile: (tile: any) => tile === sourceTile ? [carrier] : [],
+                terrain: { getPassableSpeed: () => 1, findObstacles: () => [] },
+                getTileZone: () => ZoneType.Land,
+            },
+            destroyObject: (object: any) => {
+                object.isDestroyed = true;
+                destroyed.push(object);
+            },
+            getWorld: () => ({ getAllObjects: () => [carrier] }),
+        } as any;
+        const effect = new ChronoSphereEffect(
+            "ChronoSphere",
+            {} as any,
+            sourceTile,
+            destinationTile,
+            undefined,
+            { killCargo: true },
+        );
+
+        effect.onStart(game);
+        effect.onTick(game);
+
+        expect(destroyed).toEqual(passengers);
+        expect(carrier.transportTrait.units).toHaveLength(0);
         expect(teleports).toBe(1);
     });
 });

@@ -331,6 +331,13 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     if (/^chronoshift\.(?:allow|isvehicle|crushable)$/i.test(key)) {
         return "ares.chronoshift";
     }
+    if (/^chronoinfantrycrush$/i.test(key) && sectionKind === "General") {
+        return "ares.chronoshift";
+    }
+    if (/^chronosphere\.(?:reconsiderbuildings|killorganic|killteleporters|affectsironcurtain|affectsunwarpable|affectsundeployable|blowunplaceable|killcargo)$/i.test(key) &&
+        sectionKind === "SuperWeapon") {
+        return "ares.chronoshift";
+    }
     if (/^(?:beam\.(?:color|ishousecolor|duration|amplitude)|bolt\.color[123]|wave\.(?:islaser|isbiglaser|color|ishousecolor|reverseagainst(?:vehicles|aircraft|buildings|infantry|others)))$/i.test(key) &&
         sectionKind === "Weapon") {
         return "ares.weapon-visuals";

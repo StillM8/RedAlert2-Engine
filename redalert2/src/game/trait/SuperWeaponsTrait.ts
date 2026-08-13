@@ -371,6 +371,13 @@ export class SuperWeaponsTrait {
                         {
                             affectedTargets: sourceRules.ares?.swAffectsTarget,
                             reconsiderBuildings: sourceRules.ares?.chronosphereReconsiderBuildings,
+                            killOrganic: sourceRules.ares?.chronosphereKillOrganic,
+                            killTeleporters: sourceRules.ares?.chronosphereKillTeleporters,
+                            affectsIronCurtain: sourceRules.ares?.chronosphereAffectsIronCurtain,
+                            affectsUnwarpable: sourceRules.ares?.chronosphereAffectsUnwarpable,
+                            affectsUndeployable: sourceRules.ares?.chronosphereAffectsUndeployable,
+                            blowUnplaceable: sourceRules.ares?.chronosphereBlowUnplaceable,
+                            killCargo: sourceRules.ares?.chronosphereKillCargo,
                         },
                     ));
                     this.chronoSphereSources.delete(i);
@@ -424,6 +431,13 @@ export class SuperWeaponsTrait {
                     t.push(new ChronoSphereEffect(o, i, s, a, e.ares?.swRange, {
                         affectedTargets: e.ares?.swAffectsTarget,
                         reconsiderBuildings: e.ares?.chronosphereReconsiderBuildings,
+                        killOrganic: e.ares?.chronosphereKillOrganic,
+                        killTeleporters: e.ares?.chronosphereKillTeleporters,
+                        affectsIronCurtain: e.ares?.chronosphereAffectsIronCurtain,
+                        affectsUnwarpable: e.ares?.chronosphereAffectsUnwarpable,
+                        affectsUndeployable: e.ares?.chronosphereAffectsUndeployable,
+                        blowUnplaceable: e.ares?.chronosphereBlowUnplaceable,
+                        killCargo: e.ares?.chronosphereKillCargo,
                     }));
                     break;
                 case SuperWeaponType.PsychicDominator:

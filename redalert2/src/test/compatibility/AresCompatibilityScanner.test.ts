@@ -111,12 +111,21 @@ Chronoshift.Crushable=no
 
 [ChronoBuilding]
 Chronoshift.IsVehicle=yes
+
+[General]
+ChronoInfantryCrush=no
+
+[SuperWeaponTypes]
+0=ChronoLift
+
+[ChronoLift]
+Chronosphere.BlowUnplaceable=no
 `,
             },
         ]);
 
         const usage = report.featureUsage.find((item) => item.featureId === "ares.chronoshift");
-        expect(usage?.occurrences).toBe(3);
+        expect(usage?.occurrences).toBe(5);
         expect(usage?.support?.implemented).toBe(false);
         expect(report.unclassifiedKeys).toBe(0);
     });

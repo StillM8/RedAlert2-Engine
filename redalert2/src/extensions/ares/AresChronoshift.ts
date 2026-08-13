@@ -25,6 +25,20 @@ export interface AresChronosphereEligibilityRules {
     affectedTargets?: readonly unknown[] | unknown;
     /** Chronosphere.ReconsiderBuildings; defaults to yes. */
     reconsiderBuildings?: unknown;
+    /** Chronosphere.KillOrganic; defaults to yes. */
+    killOrganic?: unknown;
+    /** Chronosphere.KillTeleporters; defaults to no. */
+    killTeleporters?: unknown;
+    /** Chronosphere.AffectsIronCurtain; defaults to no. */
+    affectsIronCurtain?: unknown;
+    /** Chronosphere.AffectsUnwarpable; defaults to yes. */
+    affectsUnwarpable?: unknown;
+    /** Chronosphere.AffectsUndeployable; defaults to no. */
+    affectsUndeployable?: unknown;
+    /** Chronosphere.BlowUnplaceable; defaults to yes. */
+    blowUnplaceable?: unknown;
+    /** Chronosphere.KillCargo; defaults to no. */
+    killCargo?: unknown;
 }
 
 export interface AresChronoshiftEligibilityInput {

@@ -252,7 +252,7 @@ const IMPLEMENTED_AVAILABILITY_FIELDS = new Set([
 ]);
 
 const REPORT_NOTE_OVERRIDES: Readonly<Record<string, string>> = {
-    "ares.chronoshift": "Chronoshift.Allow, Chronoshift.IsVehicle, and Chronoshift.Crushable are parsed; pure eligibility decisions cover ReconsiderBuildings and SW.AffectsTarget defaults, unit candidates are filtered through the existing Chronosphere path, and non-crushable collision handling is integrated. Buildings remain outside that lifecycle, while KillCargo, transport side effects, save/load, and multiplayer/lockstep certification remain open.",
+    "ares.chronoshift": "Chronoshift.Allow, Chronoshift.IsVehicle, Chronoshift.Crushable, ChronoInfantryCrush, and the documented Chronosphere kill/affect/placement controls are parsed and consumed by the shared Chronosphere path. Vehicle-type and explicitly undeployable buildings use foundation-aware relocation, cargo can be killed deterministically, and non-crushable/infantry-crush collisions follow authored rules. Full transport side effects, save/load, and multiplayer/lockstep certification remain open.",
     "ares.damage-particle-systems": "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. BehavesLike fallback is metadata-aware: the pure adapter filters when ParticleSystem metadata is supplied, while the current TechnoRules path lacks that metadata lookup and preserves the vanilla candidate list. The resolved smoke list reaches the existing vehicle render gate; ParticleSystem metadata lookup, health-threshold spawning/random selection, sparks, infantry/building/aircraft coverage, save/load, and multiplayer certification remain open.",
 };
 

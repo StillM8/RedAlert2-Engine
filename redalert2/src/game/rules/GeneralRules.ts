@@ -83,6 +83,8 @@ export class GeneralRules {
     public chronoMinimumDelay!: number;
     public chronoRangeMinimum!: number;
     public chronoTrigger!: boolean;
+    /** Ares global rule controlling whether infantry may crush non-infantry during Chronoshift. */
+    public chronoInfantryCrush!: boolean;
     public bridgeVoxelMax!: number;
     public cliffBackImpassability!: number;
     public closeEnough!: number;
@@ -153,6 +155,7 @@ export class GeneralRules {
         this.chronoMinimumDelay = ini.getNumber('ChronoMinimumDelay');
         this.chronoRangeMinimum = ini.getNumber('ChronoRangeMinimum');
         this.chronoTrigger = ini.getBool('ChronoTrigger', true);
+        this.chronoInfantryCrush = ini.getBool('ChronoInfantryCrush', true);
         this.cliffBackImpassability = ini.getNumber('CliffBackImpassability', 2);
         this.cloakDelay = ini.getNumber('CloakDelay');
         this.closeEnough = ini.getNumber('CloseEnough');

@@ -177,6 +177,20 @@ export interface AresSuperWeaponDefinition {
     sidebarPcx?: string;
     /** Chronosphere.ReconsiderBuildings; absent means the Ares default. */
     chronosphereReconsiderBuildings?: boolean;
+    /** Chronosphere.KillOrganic; absent means the Ares default. */
+    chronosphereKillOrganic?: boolean;
+    /** Chronosphere.KillTeleporters; absent means the Ares default. */
+    chronosphereKillTeleporters?: boolean;
+    /** Chronosphere.AffectsIronCurtain; absent means the Ares default. */
+    chronosphereAffectsIronCurtain?: boolean;
+    /** Chronosphere.AffectsUnwarpable; absent means the Ares default. */
+    chronosphereAffectsUnwarpable?: boolean;
+    /** Chronosphere.AffectsUndeployable; absent means the Ares default. */
+    chronosphereAffectsUndeployable?: boolean;
+    /** Chronosphere.BlowUnplaceable; absent means the Ares default. */
+    chronosphereBlowUnplaceable?: boolean;
+    /** Chronosphere.KillCargo; absent means the Ares default. */
+    chronosphereKillCargo?: boolean;
 
     /** Shared Ares availability/grant fields. */
     requiredHouses?: string[];
@@ -321,6 +335,13 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swSound: getString(section, "SW.Sound"),
         sidebarPcx: getString(section, "SidebarPCX"),
         chronosphereReconsiderBuildings: getBool(section, "Chronosphere.ReconsiderBuildings"),
+        chronosphereKillOrganic: getBool(section, "Chronosphere.KillOrganic"),
+        chronosphereKillTeleporters: getBool(section, "Chronosphere.KillTeleporters"),
+        chronosphereAffectsIronCurtain: getBool(section, "Chronosphere.AffectsIronCurtain"),
+        chronosphereAffectsUnwarpable: getBool(section, "Chronosphere.AffectsUnwarpable"),
+        chronosphereAffectsUndeployable: getBool(section, "Chronosphere.AffectsUndeployable"),
+        chronosphereBlowUnplaceable: getBool(section, "Chronosphere.BlowUnplaceable"),
+        chronosphereKillCargo: getBool(section, "Chronosphere.KillCargo"),
         requiredHouses: getArray(section, "SW.RequiredHouses"),
         forbiddenHouses: getArray(section, "SW.ForbiddenHouses"),
         auxBuildings: getArray(section, "SW.AuxBuildings"),
