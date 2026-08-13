@@ -331,6 +331,10 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     if (/^chronoshift\.(?:allow|isvehicle|crushable)$/i.test(key)) {
         return "ares.chronoshift";
     }
+    if (/^(?:beam\.(?:color|ishousecolor|duration|amplitude)|bolt\.color[123]|wave\.(?:islaser|isbiglaser|color|ishousecolor))$/i.test(key) &&
+        sectionKind === "Weapon") {
+        return "ares.weapon-visuals";
+    }
     if (/^(?:damageparticlesystems|damagesparks|damagesmokeparticlesystems|damagesparksparticlesystems)$/i.test(key)) {
         return "ares.damage-particle-systems";
     }

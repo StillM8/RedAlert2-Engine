@@ -17,8 +17,7 @@ import { quaternionFromVec3 } from "@/game/math/geometry";
 import { PaletteType } from "@/engine/type/PaletteType";
 import * as THREE from "three";
 export class Projectile {
-    private static sonicWaveGeometry?: THREE.PlaneGeometry;
-    private static sonicWaveMaterial?: THREE.MeshBasicMaterial;
+    private static waveGeometries = new Map<number, THREE.PlaneGeometry>();
     public gameObject: any;
     public rules: any;
     public imageFinder: any;
@@ -182,25 +181,39 @@ export class Projectile {
         this.shpRenderable!.setFrame(frame);
     }
     createObjects(parent: THREE.Object3D): void {
-        if (this.gameObject.fromWeapon.rules.isSonic) {
-            if (!Projectile.sonicWaveGeometry) {
-                Projectile.sonicWaveGeometry = this.createSonicWaveGeometry();
+        const weaponRules = this.gameObject.fromWeapon.rules;
+        const weaponVisuals = weaponRules.aresWeaponVisuals;
+        const isWave = weaponRules.isSonic ||
+            weaponVisuals?.waveIsLaser ||
+            weaponVisuals?.waveIsBigLaser;
+        if (isWave) {
+            // Ares deliberately preserves the old engine's counter-intuitive
+            // naming: Wave.IsLaser is the wider mesh, while Wave.IsBigLaser is
+            // the narrower one (see Antares' WaveType mapping).
+            const widthScale = weaponVisuals?.waveIsLaser
+                ? 1.35
+                : weaponVisuals?.waveIsBigLaser
+                    ? 0.72
+                    : 1;
+            const geometryKey = Math.round(widthScale * 100);
+            let geometry = Projectile.waveGeometries.get(geometryKey);
+            if (!geometry) {
+                geometry = this.createSonicWaveGeometry(widthScale);
+                Projectile.waveGeometries.set(geometryKey, geometry);
             }
-            if (!Projectile.sonicWaveMaterial) {
-                Projectile.sonicWaveMaterial = new THREE.MeshBasicMaterial({
-                    color: 0xbcbc,
-                    blending: THREE.CustomBlending,
-                    blendEquation: THREE.AddEquation,
-                    blendSrc: THREE.DstColorFactor,
-                    blendDst: THREE.OneFactor,
-                    transparent: true,
-                    opacity: 0.25,
-                    alphaTest: 0.01,
-                    depthTest: false,
-                    depthWrite: false,
-                });
-            }
-            const mesh = new (this.useMeshInstancing ? BatchedMesh : THREE.Mesh)(Projectile.sonicWaveGeometry, Projectile.sonicWaveMaterial);
+            const material = new THREE.MeshBasicMaterial({
+                color: this.getWaveColor(weaponRules),
+                blending: THREE.CustomBlending,
+                blendEquation: THREE.AddEquation,
+                blendSrc: THREE.DstColorFactor,
+                blendDst: THREE.OneFactor,
+                transparent: true,
+                opacity: weaponRules.isSonic ? 0.25 : 0.45,
+                alphaTest: 0.01,
+                depthTest: false,
+                depthWrite: false,
+            });
+            const mesh = new (this.useMeshInstancing ? BatchedMesh : THREE.Mesh)(geometry, material);
             mesh.rotation.order = "YXZ";
             mesh.rotation.x = -Math.PI / 2;
             mesh.rotation.y = THREE.MathUtils.degToRad(this.gameObject.direction);
@@ -256,8 +269,8 @@ export class Projectile {
             }
         }
     }
-    createSonicWaveGeometry(): THREE.PlaneGeometry {
-        const geometry = new THREE.PlaneGeometry(Coords.LEPTONS_PER_TILE, Coords.LEPTONS_PER_TILE / 3, 10, 10);
+    createSonicWaveGeometry(widthScale = 1): THREE.PlaneGeometry {
+        const geometry = new THREE.PlaneGeometry(Coords.LEPTONS_PER_TILE, (Coords.LEPTONS_PER_TILE / 3) * widthScale, 10, 10);
         const positionAttribute = geometry.getAttribute("position") as THREE.BufferAttribute;
         for (let i = 0; i < positionAttribute.count; i++) {
             const x = positionAttribute.getX(i);
@@ -266,6 +279,20 @@ export class Projectile {
             positionAttribute.setY(i, newY);
         }
         return geometry;
+    }
+    private getWaveColor(weaponRules: any): THREE.Color {
+        const visuals = weaponRules.aresWeaponVisuals;
+        const ownerColor = this.gameObject.fromPlayer?.color?.asHex?.();
+        if (visuals?.waveIsHouseColor && ownerColor !== undefined) {
+            return new THREE.Color(ownerColor);
+        }
+        if (visuals?.waveColor) {
+            const [r, g, b] = visuals.waveColor;
+            return new THREE.Color(r / 255, g / 255, b / 255);
+        }
+        // This retains the existing YR sonic tint. Ares' enabled laser waves
+        // use the documented purple default when no Wave.Color is authored.
+        return new THREE.Color(weaponRules.isSonic ? 0xbcbc : 0x400060);
     }
     onCreate(renderableManager: any): void {
         this.renderableManager = renderableManager;
@@ -346,20 +373,44 @@ export class Projectile {
             }
             const endPos = this.gameObject.target.getWorldCoords();
             const palette = this.specialPalette;
-            const innerColor = new THREE.Color(palette.getColorAsHex(weaponRules.isAlternateColor ? 5 : 10));
-            const outerColor = new THREE.Color(palette.getColorAsHex(15));
+            const defaultColors = [
+                new THREE.Color(palette.getColorAsHex(weaponRules.isAlternateColor ? 5 : 10)),
+                new THREE.Color(palette.getColorAsHex(weaponRules.isAlternateColor ? 5 : 10)),
+                new THREE.Color(palette.getColorAsHex(15)),
+            ];
+            const boltColors = (weaponRules.aresWeaponVisuals?.boltColors ?? []).map((color: any, index: number) => {
+                if (!color) return defaultColors[index];
+                const [r, g, b] = color;
+                return new THREE.Color(r / 255, g / 255, b / 255);
+            });
+            const innerColor = boltColors[0] ?? defaultColors[0];
+            const outerColor = boltColors[2] ?? defaultColors[2];
             const duration = 1 / this.gameSpeed.value;
-            const teslaFx = new TeslaFx(startPos, endPos, innerColor, outerColor, duration);
+            const teslaFx = new TeslaFx(startPos, endPos, innerColor, outerColor, duration, boltColors);
             renderableManager.addEffect(teslaFx);
         }
         if (weaponRules.isRadBeam) {
             const startPos = this.gameObject.position.worldPosition.clone();
             const endPos = this.gameObject.target.getWorldCoords().clone();
-            const color = this.gameObject.fromWeapon.warhead.rules.temporal
+            const visuals = weaponRules.aresWeaponVisuals;
+            const vanillaColor = this.gameObject.fromWeapon.warhead.rules.temporal
                 ? new THREE.Color(...this.rules.audioVisual.chronoBeamColor.map((c: number) => c / 255))
                 : new THREE.Color(...this.rules.radiation.radColor.map((c: number) => c / 255));
-            const duration = 1 / this.gameSpeed.value;
-            const radBeamFx = new RadBeamFx(this.camera, startPos, endPos, color, duration, 1);
+            const ownerColor = this.gameObject.fromPlayer?.color?.asHex?.();
+            let color = vanillaColor;
+            if (visuals?.beamIsHouseColor && ownerColor !== undefined) {
+                color = new THREE.Color(ownerColor);
+            }
+            else if (visuals?.beamColor) {
+                const [r, g, b] = visuals.beamColor;
+                color = new THREE.Color(r / 255, g / 255, b / 255);
+            }
+            const durationFrames = Math.max(1, visuals?.beamDuration ?? 15);
+            const duration = durationFrames /
+                GameSpeed.BASE_TICKS_PER_SECOND /
+                this.gameSpeed.value;
+            const amplitude = Math.max(0, visuals?.beamAmplitude ?? Coords.LEPTONS_PER_TILE / 6);
+            const radBeamFx = new RadBeamFx(this.camera, startPos, endPos, color, duration, 1, amplitude);
             renderableManager.addEffect(radBeamFx);
         }
         if (this.objectArt.useLineTrail) {

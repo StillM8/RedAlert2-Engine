@@ -3,6 +3,10 @@ import {
     parseAresChronoPrisonWeapon,
     type AresChronoPrisonWeaponRules,
 } from '@/extensions/ares/AresChronoPrisons';
+import {
+    parseAresWeaponVisualRules,
+    type AresWeaponVisualRules,
+} from '@/extensions/ares/AresWeaponVisuals';
 export class WeaponRules {
     private rules: any;
     public ambientDamage!: number;
@@ -40,6 +44,8 @@ export class WeaponRules {
     public warhead!: string;
     /** Generic Ares Abductor/Chrono Prison behavior for this weapon. */
     public aresChronoPrison!: AresChronoPrisonWeaponRules;
+    /** Ares beam, electric-bolt, and wave presentation settings. */
+    public aresWeaponVisuals!: AresWeaponVisualRules;
     constructor(rules: any) {
         this.rules = rules;
         this.parse();
@@ -83,5 +89,6 @@ export class WeaponRules {
         this.useSparkParticles = this.rules.getBool("UseSparkParticles");
         this.warhead = this.rules.getString("Warhead");
         this.aresChronoPrison = parseAresChronoPrisonWeapon(this.rules);
+        this.aresWeaponVisuals = parseAresWeaponVisualRules(this.rules);
     }
 }

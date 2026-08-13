@@ -37,7 +37,7 @@ export class LaserFx {
         }
     }
     update(timeMillis: number): void {
-        if (!this.firstUpdateMillis) {
+        if (this.firstUpdateMillis === undefined) {
             this.firstUpdateMillis = timeMillis;
         }
         this.timeLeft = Math.max(0, 1 - (timeMillis - this.firstUpdateMillis) / (1000 * this.durationSeconds));

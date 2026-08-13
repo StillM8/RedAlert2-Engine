@@ -32,6 +32,7 @@ import {
     type AresParticleSystemRules,
     type AresParticleTypeRules,
 } from "@/extensions/ares/AresParticleSystems";
+import { parseAresWeaponTypeNames } from "@/extensions/ares/AresWeaponVisuals";
 interface IniFile {
     getSection(name: string): IniSection | undefined;
     getOrCreateSection(name: string): IniSection;
@@ -599,6 +600,9 @@ export class Rules {
     }
     private buildWeaponsList(): void {
         const weaponNames = new Set<string>();
+        for (const weaponName of parseAresWeaponTypeNames(this.ini)) {
+            weaponNames.add(weaponName);
+        }
         weaponNames.add(this.general.dropPodWeapon);
         for (const superWeapon of this.superWeaponRules.values()) {
             if (superWeapon.weaponType) {

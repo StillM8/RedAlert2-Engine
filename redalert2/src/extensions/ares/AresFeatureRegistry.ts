@@ -78,6 +78,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images now render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Authored spark systems now repeat through the shared movement-particle effect with authored colors, velocity, spawn radius, and cap, including the Cyborg default. Full non-smoke particle BehavesLike parity, save/load, and multiplayer certification remain open.",
     },
     {
+        id: "ares.weapon-visuals",
+        description: "Ares weapon beam, electric-bolt, and wave visual extensions",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresWeaponVisuals.test.ts"],
+        notes: "Beam.Color/IsHouseColor/Duration/Amplitude, Bolt.Color1/2/3, Wave.IsLaser/IsBigLaser/Color/IsHouseColor, and standalone [WeaponTypes] declarations are parsed and consumed by the shared renderer. Native wave direction/ambient-damage, persistence, and multiplayer certification remain open.",
+    },
+    {
         id: "ares.urban-combat",
         description: "Ares Urban Combat, trench, and advanced rubble rules",
         implemented: false,

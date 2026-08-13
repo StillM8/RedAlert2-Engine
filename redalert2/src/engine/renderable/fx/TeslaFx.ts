@@ -12,6 +12,7 @@ export class TeslaFx {
     private targetPos: THREE.Vector3;
     private primaryColor: THREE.Color;
     private secondaryColor: THREE.Color;
+    private boltColors?: readonly THREE.Color[];
     private durationSeconds: number;
     private bolts: TeslaBoltRuntime[];
     private boltMeshes: THREE.Object3D[];
@@ -19,12 +20,13 @@ export class TeslaFx {
     private target?: THREE.Object3D;
     private firstUpdateMillis?: number;
     private timeLeft: number = 1;
-    constructor(sourcePos: THREE.Vector3, targetPos: THREE.Vector3, primaryColor: THREE.Color, secondaryColor: THREE.Color, durationSeconds: number) {
+    constructor(sourcePos: THREE.Vector3, targetPos: THREE.Vector3, primaryColor: THREE.Color, secondaryColor: THREE.Color, durationSeconds: number, boltColors?: readonly THREE.Color[]) {
         this.sourcePos = sourcePos;
         this.targetPos = targetPos;
         this.primaryColor = primaryColor;
         this.secondaryColor = secondaryColor;
         this.durationSeconds = durationSeconds;
+        this.boltColors = boltColors;
         this.bolts = [];
         this.boltMeshes = [];
     }
@@ -38,8 +40,9 @@ export class TeslaFx {
         if (!this.target) {
             this.target = new THREE.Object3D();
             this.target.name = "fx_tesla";
-            const primaryHex = this.primaryColor.getHex();
-            const colors = [primaryHex, primaryHex, this.secondaryColor.getHex()];
+            const colors = this.boltColors?.length === 3
+                ? this.boltColors.map((color) => color.getHex())
+                : [this.primaryColor.getHex(), this.primaryColor.getHex(), this.secondaryColor.getHex()];
             colors.forEach((color) => {
                 try {
                     const { mesh, bolt } = this.createBolt(color);
@@ -54,7 +57,7 @@ export class TeslaFx {
         }
     }
     update(timeMillis: number): void {
-        if (!this.firstUpdateMillis) {
+        if (this.firstUpdateMillis === undefined) {
             this.firstUpdateMillis = timeMillis;
         }
         const elapsedSeconds = (timeMillis - this.firstUpdateMillis) / 1000;

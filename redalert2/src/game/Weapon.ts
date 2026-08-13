@@ -217,7 +217,9 @@ export class Weapon {
         if (!projectileRules.rot ||
             projectileRules.inviso ||
             (weaponRules as any).isLaser ||
-            (weaponRules as any).isElectricBolt) {
+            (weaponRules as any).isElectricBolt ||
+            (weaponRules as any).aresWeaponVisuals?.waveIsLaser ||
+            (weaponRules as any).aresWeaponVisuals?.waveIsBigLaser) {
             return Number.POSITIVE_INFINITY;
         }
         return (weaponRules as any).speed;

@@ -10,18 +10,20 @@ export class RadBeamFx {
     private color: THREE.Color;
     private durationSeconds: number;
     private width: number;
+    private maxAmplitude: number;
     private amplitude: number = 0;
     private container?: any;
     private lineMesh?: THREE.Mesh;
     private firstUpdateMillis?: number;
     private timeLeft: number = 1;
-    constructor(camera: THREE.Camera, sourcePos: THREE.Vector3, targetPos: THREE.Vector3, color: THREE.Color, durationSeconds: number, width: number) {
+    constructor(camera: THREE.Camera, sourcePos: THREE.Vector3, targetPos: THREE.Vector3, color: THREE.Color, durationSeconds: number, width: number, maxAmplitude: number = Coords.LEPTONS_PER_TILE / 6) {
         this.camera = camera;
         this.sourcePos = sourcePos;
         this.targetPos = targetPos;
         this.color = color;
         this.durationSeconds = durationSeconds;
         this.width = width;
+        this.maxAmplitude = maxAmplitude;
     }
     setContainer(container: any): void {
         this.container = container;
@@ -36,11 +38,11 @@ export class RadBeamFx {
         }
     }
     update(timeMillis: number): void {
-        if (!this.firstUpdateMillis) {
+        if (this.firstUpdateMillis === undefined) {
             this.firstUpdateMillis = timeMillis;
         }
         this.timeLeft = Math.max(0, 1 - (timeMillis - this.firstUpdateMillis) / (1000 * this.durationSeconds));
-        const newAmplitude = truncToDecimals((Coords.LEPTONS_PER_TILE / 6) * (1 - this.timeLeft), 1);
+        const newAmplitude = truncToDecimals(this.maxAmplitude * (1 - this.timeLeft), 1);
         if (newAmplitude !== this.amplitude) {
             this.amplitude = newAmplitude;
             this.lineMesh!.geometry.dispose();
