@@ -14,6 +14,7 @@ export {
  installShellDebugLog,
  installShellRepl,
  isNativeShell,
+ isTauriDesktopShell,
  selectNativeMenuVideoSource,
  pickGameDirectoryFromShell,
  seedGameResFromShell,

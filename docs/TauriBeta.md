@@ -24,6 +24,12 @@ After importing content, select it from **Menu → Mods**. The selected entry is
 persisted and the engine reloads from that entry on the next launch; the
 desktop shell does not expose a separate runtime/profile boot selector.
 
+The desktop Mods screen provides separate **Import ZIP...** and **Import
+Folder...** actions. ZIP archives are extracted by the Tauri shell before the
+shared TypeScript content importer copies the files into private app storage;
+an already-extracted mod folder is copied directly. The application still
+ships without RA2, Yuri's Revenge, Mental Omega, or any other game archives.
+
 ## Mobile implementations
 
 Tauri is intentionally desktop-only. Android continues to use the existing

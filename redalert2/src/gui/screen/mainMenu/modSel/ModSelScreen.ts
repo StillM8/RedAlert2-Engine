@@ -22,7 +22,7 @@ import { ModStatus } from "@/gui/screen/mainMenu/modSel/ModStatus";
 import { CancellationTokenSource, OperationCanceledError } from "@puzzl/core/lib/async/cancellation";
 import { ModDownloadPrompt } from "@/gui/screen/mainMenu/modSel/ModDownloadPrompt";
 import type { ArchiveSource } from "@/data/ArchiveSource";
-import { canImportModFromShell, downloadModFromShell, importModFromShell } from "@/shell/nativeShell";
+import { canImportModFromShell, downloadModFromShell, importModFromShell, isTauriDesktopShell } from "@/shell/nativeShell";
 import { ContentRegistry, type ContentLibraryItem } from "@/content/ContentRegistry";
 import { EngineType } from "@/engine/EngineType";
 interface ModManager {
@@ -289,24 +289,15 @@ export class ModSelScreen extends MainMenuScreen {
                 },
             },
             {
-                label: this.strings.get("GUI:ImportMod"),
-                tooltip: this.strings.get("STT:ImportMod"),
+                label: isTauriDesktopShell()
+                    ? this.strings.get("GUI:ImportModArchive")
+                    : this.strings.get("GUI:ImportMod"),
+                tooltip: isTauriDesktopShell()
+                    ? this.strings.get("STT:ImportModArchive")
+                    : this.strings.get("STT:ImportMod"),
                 onClick: async () => {
                     if (canImportModFromShell()) {
-                        try {
-                            this.messageBoxApi.show(this.strings.get("ts:import_preparing_for_import"));
-                            const imported = await importModFromShell(undefined, (progress) => {
-                                this.messageBoxApi.updateText(progress);
-                            });
-                            this.messageBoxApi.destroy();
-                            if (imported) {
-                                await this.refreshImportedMod(imported);
-                            }
-                        }
-                        catch (error) {
-                            this.messageBoxApi.destroy();
-                            this.handleModImportError(error);
-                        }
+                        await this.importFromShell(isTauriDesktopShell() ? "archives" : "auto");
                         return;
                     }
                     try {
@@ -330,6 +321,15 @@ export class ModSelScreen extends MainMenuScreen {
                     }
                 },
             },
+            ...(isTauriDesktopShell()
+                ? [{
+                    label: this.strings.get("GUI:ImportModFolder"),
+                    tooltip: this.strings.get("STT:ImportModFolder"),
+                    onClick: async () => {
+                        await this.importFromShell("directory");
+                    },
+                }]
+                : []),
             {
                 label: this.strings.get("GUI:UninstallMod"),
                 tooltip: this.strings.get("STT:UninstallMod"),
@@ -413,6 +413,22 @@ export class ModSelScreen extends MainMenuScreen {
             ? "builtin:yr"
             : "builtin:ra2";
         this.modManager.loadContent(baseContent);
+    }
+    private async importFromShell(kind: "auto" | "directory" | "archives"): Promise<void> {
+        try {
+            this.messageBoxApi.show(this.strings.get("ts:import_preparing_for_import"));
+            const imported = await importModFromShell(undefined, (progress) => {
+                this.messageBoxApi.updateText(progress);
+            }, kind);
+            this.messageBoxApi.destroy();
+            if (imported) {
+                await this.refreshImportedMod(imported);
+            }
+        }
+        catch (error) {
+            this.messageBoxApi.destroy();
+            this.handleModImportError(error);
+        }
     }
     private async downloadMod(mod: Mod): Promise<ArchiveSource> {
         const downloadUrl = mod.meta.download;

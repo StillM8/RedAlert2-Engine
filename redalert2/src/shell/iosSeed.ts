@@ -60,6 +60,8 @@ export interface SeedManifest {
 
 const SEED_SENTINEL_FILE = '.ra2-shell-seed-sentinel.json';
 const SEED_SENTINEL_VERSION = 1;
+const USER_GAME_RES_ROOT = '/gameres';
+const BUNDLED_GAME_RES_ROOT = '/gameres-bundle';
 
 interface SeedSentinel {
     version: number;
@@ -343,13 +345,61 @@ export function isNativeShell(): boolean {
     return !!window.__RA2_SHELL__;
 }
 
+export function isTauriDesktopShell(): boolean {
+    const buildFlag = typeof __RA2_TAURI_BUILD__ !== 'undefined' && __RA2_TAURI_BUILD__;
+    if (typeof window === 'undefined') {
+        return buildFlag;
+    }
+    const location = window.location;
+    return buildFlag
+        || location.protocol === 'tauri:'
+        || location.hostname === 'tauri.localhost'
+        || !!(window as any).__TAURI_INTERNALS__;
+}
+
+function nativeGameResRoot(): string {
+    if (typeof window !== 'undefined' &&
+        (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+        // Wry exposes custom protocols as http(s)://<scheme>.localhost on
+        // Windows and Android. Linux and macOS retain scheme://localhost.
+        return 'http://gameres.localhost';
+    }
+    return 'gameres://localhost';
+}
+
+async function pickTauriGameDirectory(): Promise<boolean> {
+    const [{ open }, { invoke }] = await Promise.all([
+        import('@tauri-apps/plugin-dialog'),
+        import('@tauri-apps/api/core'),
+    ]);
+    const selected = await open({
+        directory: true,
+        multiple: false,
+        recursive: true,
+        title: "Select your Red Alert 2 / Yuri's Revenge folder",
+    });
+    const sourcePath = Array.isArray(selected) ? selected[0] : selected;
+    if (typeof sourcePath !== 'string' || !sourcePath) {
+        return false;
+    }
+    const result = await invoke<{ fileCount: number; totalBytes: number }>('import_game_directory', {
+        sourcePath,
+    });
+    console.info(`[nativeShell] Imported ${result.fileCount} game files (${result.totalBytes} bytes) from the selected desktop folder`);
+    return true;
+}
+
 export function canPickGameDirectoryFromShell(): boolean {
     ensureShellMarker();
-    return window.__RA2_SHELL__?.platform === 'android'
-        && typeof window.Ra2Android?.pickGameDirectory === 'function';
+    return isTauriDesktopShell()
+        || (window.__RA2_SHELL__?.platform === 'android'
+            && typeof window.Ra2Android?.pickGameDirectory === 'function');
 }
 
 export function pickGameDirectoryFromShell(): Promise<boolean> {
+    if (isTauriDesktopShell()) {
+        return pickTauriGameDirectory();
+    }
     if (!canPickGameDirectoryFromShell())
         return Promise.resolve(false);
     return new Promise((resolve, reject) => {
@@ -388,6 +438,12 @@ export interface NativeModImportResult {
     version: string;
 }
 
+interface TauriModImportResult {
+    token: string;
+    sourceName: string;
+    files: { path: string; size: number }[];
+}
+
 function canImportNativeModFromShell(): boolean {
     ensureShellMarker();
     return window.__RA2_SHELL__?.platform === 'android'
@@ -396,7 +452,78 @@ function canImportNativeModFromShell(): boolean {
 }
 
 export function canImportModFromShell(): boolean {
-    return canImportNativeModFromShell() || BrowserContentProvider.isAvailable();
+    return canImportNativeModFromShell() || isTauriDesktopShell() || BrowserContentProvider.isAvailable();
+}
+
+async function pickTauriModSource(
+    kind: ContentImportKind,
+    multiple: boolean,
+    onProgress?: ContentImportProgress,
+): Promise<ContentImportSource | undefined> {
+    const [{ open }, { invoke }] = await Promise.all([
+        import('@tauri-apps/plugin-dialog'),
+        import('@tauri-apps/api/core'),
+    ]);
+    const selected = await open(kind === 'directory'
+        ? {
+            directory: true,
+            multiple: false,
+            recursive: true,
+            title: 'Select an extracted mod folder',
+        }
+        : {
+            directory: false,
+            multiple,
+            filters: [{ name: 'Mod ZIP archives', extensions: ['zip'] }],
+            title: 'Select mod ZIP archive(s)',
+        });
+    const sourcePaths = (Array.isArray(selected) ? selected : selected ? [selected] : [])
+        .filter((path): path is string => typeof path === 'string' && path.length > 0);
+    if (!sourcePaths.length) {
+        return undefined;
+    }
+    onProgress?.(kind === 'directory' ? 'Preparing mod folder...' : 'Extracting mod ZIP archive...');
+    const result = await invoke<TauriModImportResult>('import_mod_source', {
+        sourcePaths,
+        sourceKind: kind,
+    });
+    if (!result?.token || !Array.isArray(result.files) || !result.files.length) {
+        throw new Error('The desktop mod importer returned no readable files');
+    }
+    const files = result.files.map((file) => ({
+        path: normalizeGamePath(file.path),
+        size: Number(file.size) || 0,
+    }));
+    const baseUrl = `modres://localhost/${encodeURIComponent(result.token)}`;
+    let disposed = false;
+    return {
+        kind,
+        name: result.sourceName || undefined,
+        files,
+        async readFile(path: string): Promise<ReadableStream<Uint8Array>> {
+            const normalizedPath = normalizeGamePath(path);
+            const response = await fetch(
+                `${baseUrl}/${normalizedPath.split('/').map(encodeURIComponent).join('/')}`,
+                { cache: 'no-store' },
+            );
+            if (!response.ok || !response.body) {
+                throw new Error(`Desktop mod file could not be read (${normalizedPath})`);
+            }
+            return response.body;
+        },
+        async dispose(): Promise<void> {
+            if (disposed) {
+                return;
+            }
+            disposed = true;
+            try {
+                await invoke('delete_mod_import', { token: result.token });
+            }
+            catch (error) {
+                console.warn('[nativeShell] Could not clean up desktop mod import', error);
+            }
+        },
+    };
 }
 
 async function pickNativeModSource(
@@ -549,6 +676,16 @@ export function getPlatformContentProvider(): PlatformContentProvider | undefine
             ),
         };
     }
+    if (isTauriDesktopShell()) {
+        return {
+            pickModDirectory: (onProgress) => pickTauriModSource('directory', false, onProgress),
+            pickModArchives: (options = {}) => pickTauriModSource(
+                'archives',
+                options.multiple !== false,
+                options.onProgress,
+            ),
+        };
+    }
     return BrowserContentProvider.isAvailable()
         ? new BrowserContentProvider()
         : undefined;
@@ -563,15 +700,22 @@ export function getPlatformContentProvider(): PlatformContentProvider | undefine
 export async function importModFromShell(
     requestedId?: string,
     onProgress?: (text: string) => void,
+    requestedKind: 'auto' | ContentImportKind = 'auto',
 ): Promise<NativeModImportResult | undefined> {
     const provider = getPlatformContentProvider();
     if (!provider)
         return undefined;
     const source = await (canImportNativeModFromShell()
-        ? (typeof window.Ra2Android?.pickModDirectory === 'function'
-            ? provider.pickModDirectory(onProgress)
-            : provider.pickModArchives({ multiple: true, onProgress }))
-        : provider.pickModArchives({ multiple: true, onProgress }));
+        ? (requestedKind === 'archives' && typeof window.Ra2Android?.pickModArchives === 'function'
+            ? provider.pickModArchives({ multiple: true, onProgress })
+            : typeof window.Ra2Android?.pickModDirectory === 'function'
+                ? provider.pickModDirectory(onProgress)
+                : provider.pickModArchives({ multiple: true, onProgress }))
+        : isTauriDesktopShell()
+            ? (requestedKind === 'directory'
+                ? provider.pickModDirectory(onProgress)
+                : provider.pickModArchives({ multiple: true, onProgress }))
+            : provider.pickModArchives({ multiple: true, onProgress }));
     if (!source) {
         window.Ra2Android?.finishModImport?.();
         return undefined;
@@ -732,16 +876,34 @@ export function downloadModFromShell(
 }
 
 /**
- * First-launch bootstrap for the native shell: copies the bundled, pre-imported
- * game resources (served by the shell at /gameres-bundle/) into origin-private
- * storage,
+ * First-launch bootstrap for a native shell: copies the shell's game-resource
+ * mount into origin-private storage,
  * then marks the import as complete exactly like GameResImporter would.
  *
  * No-op outside the shell, or once storage is already seeded.
  */
 export async function seedGameResFromShell(): Promise<void> {
-    if (!isNativeShell())
+    const tauriDesktop = isTauriDesktopShell();
+    if (!isNativeShell() && !tauriDesktop)
         return;
+    const seedRoots = tauriDesktop
+        ? [nativeGameResRoot()]
+        : [USER_GAME_RES_ROOT, BUNDLED_GAME_RES_ROOT];
+    let seedRoot: string | undefined;
+    for (const candidate of seedRoots) {
+        const probe = await fetch(`${candidate}/manifest.json`, { cache: 'no-store' });
+        if (probe.ok) {
+            seedRoot = candidate;
+            break;
+        }
+        if (probe.status !== 404) {
+            throw new Error(`Shell game-resource manifest failed (${probe.status})`);
+        }
+    }
+    if (!seedRoot) {
+        console.info('[nativeShell] No user or bundled game-resource mount; continuing with normal resource selection');
+        return;
+    }
     // Never trust the localStorage flag alone: an OS can purge origin storage
     // under disk pressure while localStorage survives, or vice versa. The seed
     // itself verifies per-file sizes and only copies what is missing or stale,
@@ -749,7 +911,7 @@ export async function seedGameResFromShell(): Promise<void> {
     let overlay: ReturnType<typeof createSeedOverlay> | undefined;
     let wroteFiles = 0;
     try {
-        wroteFiles = await runSeed((text) => {
+        wroteFiles = await runSeed(seedRoot, (text) => {
             overlay ??= createSeedOverlay();
             overlay.setText(text);
         });
@@ -785,20 +947,14 @@ function createSeedOverlay(): { setText: (text: string) => void; remove: () => v
     };
 }
 
-const BUNDLED_GAME_RES_ROOT = '/gameres-bundle';
-
-async function runSeed(onProgress: (text: string) => void): Promise<number> {
-    // This endpoint is deliberately separate from /gameres/. Native shells
-    // may expose an imported user's files at /gameres/, but those files are
-    // already in the browser's VFS and must never be mistaken for a packaged
-    // seed to validate and copy on every launch.
-    const manifestResponse = await fetch(`${BUNDLED_GAME_RES_ROOT}/manifest.json`);
+async function runSeed(seedRoot: string, onProgress: (text: string) => void): Promise<number> {
+    const manifestResponse = await fetch(`${seedRoot}/manifest.json`, { cache: 'no-store' });
     if (!manifestResponse.ok) {
         // A shell build may intentionally omit retail resources. Let the
         // normal GameRes flow render its import/CDN chooser rather than
         // aborting Application.main() before the UI exists.
         if (manifestResponse.status === 404) {
-            console.info('[nativeShell] No bundled game-resource manifest; continuing with normal resource selection');
+            console.info(`[nativeShell] No game-resource mount at ${seedRoot}; continuing with normal resource selection`);
             return 0;
         }
         throw new Error(`Shell seed manifest missing (${manifestResponse.status})`);
@@ -858,9 +1014,12 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
             copiedBytes += file.size;
             continue;
         }
-        const response = await fetch(`${BUNDLED_GAME_RES_ROOT}/${normalizedPath}`);
+        const response = await fetch(`${seedRoot}/${normalizedPath}`);
         if (!response.ok) {
-            throw new Error(`Failed to fetch bundled resource "${normalizedPath}" (${response.status})`);
+            throw new Error(`Failed to fetch native game resource "${normalizedPath}" (${response.status})`);
+        }
+        if (!response.body) {
+            throw new Error(`Native game resource "${normalizedPath}" returned an empty response body`);
         }
         const handle = await dir.getFileHandle(fileName, { create: true });
         const writable = await handle.createWritable();
@@ -884,6 +1043,6 @@ async function runSeed(onProgress: (text: string) => void): Promise<number> {
         // without a readable sentinel the next launch safely repairs it.
         console.warn('[nativeShell] Could not persist game-resource seed sentinel', error);
     }
-    console.log(`[nativeShell] Seeded ${manifest.files.length} files (${totalBytes} bytes, ${wroteFiles} written) from shell bundle`);
+    console.log(`[nativeShell] Seeded ${manifest.files.length} files (${totalBytes} bytes, ${wroteFiles} written) from ${seedRoot}`);
     return wroteFiles;
 }

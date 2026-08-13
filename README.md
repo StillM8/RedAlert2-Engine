@@ -382,13 +382,13 @@ bun install
 bun run dev
 ```
 
-Import your legally-owned game resources through the browser and use the same
-TypeScript simulation, Ares compatibility code, renderer, and tests used by
-the native shells. This is a browser runtime today, not a packaged native
-desktop application. A future Electron/Tauri/CEF shell could provide a
-one-click offline desktop package, but it would still wrap the same engine;
-the shell would own filesystem permissions, window lifecycle, controller
-input, and packaging.
+Import your legally-owned game resources through the browser or the Tauri
+desktop shell and use the same TypeScript simulation, Ares compatibility code,
+renderer, and tests used by the native shells. The Tauri shell is a packaged
+desktop wrapper around the same engine: it owns filesystem permissions, window
+lifecycle, controller input, and packaging, while the simulation remains
+shared. Its Mods menu can import either an extracted mod folder or one or more
+ZIP archives; retail game files are still supplied by the user.
 
 ## Where things are
 
