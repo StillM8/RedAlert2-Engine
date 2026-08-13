@@ -36,6 +36,11 @@ describe("Ares weapon visual extensions", () => {
             waveIsBigLaser: false,
             waveColor: [200, 100, 50],
             waveIsHouseColor: false,
+            waveReverseAgainstVehicles: false,
+            waveReverseAgainstAircraft: false,
+            waveReverseAgainstBuildings: false,
+            waveReverseAgainstInfantry: false,
+            waveReverseAgainstOthers: false,
         });
 
         const defaults = parseAresWeaponVisualRules(new IniSection("PlainWeapon"));
@@ -43,6 +48,11 @@ describe("Ares weapon visual extensions", () => {
         expect(defaults.beamAmplitude).toBe(40);
         expect(defaults.boltColors).toEqual([undefined, undefined, undefined]);
         expect(defaults.waveIsLaser).toBe(false);
+        expect(defaults.waveReverseAgainstVehicles).toBe(false);
+
+        const magBeam = new IniSection("MagneticBeam");
+        magBeam.set("IsMagBeam", "yes");
+        expect(parseAresWeaponVisualRules(magBeam).waveReverseAgainstVehicles).toBe(true);
     });
 
     test("routes weapon visual fields through WeaponRules", () => {
@@ -52,11 +62,13 @@ describe("Ares weapon visual extensions", () => {
         section.set("Warhead", "MOWarhead");
         section.set("Beam.Duration", "18");
         section.set("Wave.IsBigLaser", "yes");
+        section.set("Wave.ReverseAgainstBuildings", "true");
 
         const rules = new WeaponRules(section);
 
         expect(rules.aresWeaponVisuals.beamDuration).toBe(18);
         expect(rules.aresWeaponVisuals.waveIsBigLaser).toBe(true);
+        expect(rules.aresWeaponVisuals.waveReverseAgainstBuildings).toBe(true);
     });
 
     test("registers standalone Ares [WeaponTypes] declarations", () => {
@@ -80,11 +92,12 @@ Beam.Color=(255,0,0)
 Beam.Duration=12
 Bolt.Color1=(1,2,3)
 Wave.IsBigLaser=yes
+Wave.ReverseAgainstOthers=yes
 `,
         }]);
 
         const usage = report.featureUsage.find((entry) => entry.featureId === "ares.weapon-visuals");
-        expect(usage?.occurrences).toBe(4);
+        expect(usage?.occurrences).toBe(5);
         expect(usage?.definitionCount).toBe(1);
         expect(usage?.support?.runtimeImplemented).toBe(true);
     });

@@ -18,6 +18,11 @@ export interface AresWeaponVisualRules {
     waveIsBigLaser: boolean;
     waveColor?: AresRgb;
     waveIsHouseColor: boolean;
+    waveReverseAgainstVehicles: boolean;
+    waveReverseAgainstAircraft: boolean;
+    waveReverseAgainstBuildings: boolean;
+    waveReverseAgainstInfantry: boolean;
+    waveReverseAgainstOthers: boolean;
 }
 
 interface IniSectionLike {
@@ -60,7 +65,10 @@ function optionalRgb(section: IniSectionLike, key: string): AresRgb | undefined 
  * Missing Bolt colors intentionally stay undefined: the renderer supplies
  * the palette-dependent vanilla fallback independently for each color slot.
  */
-export function parseAresWeaponVisualRules(section: IniSectionLike): AresWeaponVisualRules {
+export function parseAresWeaponVisualRules(
+    section: IniSectionLike,
+    isMagBeam = section.getBool("IsMagBeam"),
+): AresWeaponVisualRules {
     return {
         beamColor: optionalRgb(section, "Beam.Color"),
         beamDuration: section.has("Beam.Duration")
@@ -79,6 +87,13 @@ export function parseAresWeaponVisualRules(section: IniSectionLike): AresWeaponV
         waveIsBigLaser: section.getBool("Wave.IsBigLaser"),
         waveColor: optionalRgb(section, "Wave.Color"),
         waveIsHouseColor: section.getBool("Wave.IsHouseColor"),
+        waveReverseAgainstVehicles: section.has("Wave.ReverseAgainstVehicles")
+            ? section.getBool("Wave.ReverseAgainstVehicles")
+            : isMagBeam,
+        waveReverseAgainstAircraft: section.getBool("Wave.ReverseAgainstAircraft"),
+        waveReverseAgainstBuildings: section.getBool("Wave.ReverseAgainstBuildings"),
+        waveReverseAgainstInfantry: section.getBool("Wave.ReverseAgainstInfantry"),
+        waveReverseAgainstOthers: section.getBool("Wave.ReverseAgainstOthers"),
     };
 }
 
@@ -96,4 +111,3 @@ export function parseAresWeaponTypeNames(ini: IniFileLike): string[] {
     }
     return names;
 }
-

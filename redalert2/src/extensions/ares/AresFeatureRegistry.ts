@@ -84,7 +84,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresWeaponVisuals.test.ts"],
-        notes: "Beam.Color/IsHouseColor/Duration/Amplitude, Bolt.Color1/2/3, Wave.IsLaser/IsBigLaser/Color/IsHouseColor, and standalone [WeaponTypes] declarations are parsed and consumed by the shared renderer. Native wave direction/ambient-damage, persistence, and multiplayer certification remain open.",
+        notes: "Beam.Color/IsHouseColor/Duration/Amplitude, Bolt.Color1/2/3, Wave.IsLaser/IsBigLaser/Color/IsHouseColor/ReverseAgainst*, and standalone [WeaponTypes] declarations are parsed and consumed by the shared renderer/simulation path. Native wave lifecycle, persistence, and multiplayer certification remain open.",
     },
     {
         id: "ares.urban-combat",

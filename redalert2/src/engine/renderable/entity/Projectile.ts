@@ -49,6 +49,7 @@ export class Projectile {
     public renderableManager?: any;
     public vxlBuilder?: any;
     public lineTrailFx?: LineTrailFx;
+    private waveReversed = false;
     constructor(gameObject: any, rules: any, imageFinder: any, voxels: any, voxelAnims: any, theater: any, palette: any, specialPalette: any, camera: any, gameSpeed: any, lighting: any, lightingDirector: any, vxlBuilderFactory: any, useSpriteBatching: boolean, useMeshInstancing: boolean) {
         this.gameObject = gameObject;
         this.rules = rules;
@@ -156,7 +157,7 @@ export class Projectile {
                 this.vxlRotWrapper.updateMatrix();
             }
             else if (this.sonicWaveMesh) {
-                this.sonicWaveMesh.rotation.y = THREE.MathUtils.degToRad(direction);
+                this.sonicWaveMesh.rotation.y = THREE.MathUtils.degToRad(direction + (this.waveReversed ? 180 : 0));
                 this.sonicWaveMesh.updateMatrix();
             }
         }
@@ -184,6 +185,7 @@ export class Projectile {
         const weaponRules = this.gameObject.fromWeapon.rules;
         const weaponVisuals = weaponRules.aresWeaponVisuals;
         const isWave = weaponRules.isSonic ||
+            weaponRules.isMagBeam ||
             weaponVisuals?.waveIsLaser ||
             weaponVisuals?.waveIsBigLaser;
         if (isWave) {
@@ -196,6 +198,7 @@ export class Projectile {
                     ? 0.72
                     : 1;
             const geometryKey = Math.round(widthScale * 100);
+            this.waveReversed = this.shouldReverseWave(weaponRules);
             let geometry = Projectile.waveGeometries.get(geometryKey);
             if (!geometry) {
                 geometry = this.createSonicWaveGeometry(widthScale);
@@ -216,7 +219,7 @@ export class Projectile {
             const mesh = new (this.useMeshInstancing ? BatchedMesh : THREE.Mesh)(geometry, material);
             mesh.rotation.order = "YXZ";
             mesh.rotation.x = -Math.PI / 2;
-            mesh.rotation.y = THREE.MathUtils.degToRad(this.gameObject.direction);
+            mesh.rotation.y = THREE.MathUtils.degToRad(this.gameObject.direction + (this.waveReversed ? 180 : 0));
             mesh.updateMatrix();
             mesh.matrixAutoUpdate = false;
             parent.add(mesh);
@@ -292,7 +295,16 @@ export class Projectile {
         }
         // This retains the existing YR sonic tint. Ares' enabled laser waves
         // use the documented purple default when no Wave.Color is authored.
-        return new THREE.Color(weaponRules.isSonic ? 0xbcbc : 0x400060);
+        return new THREE.Color(weaponRules.isSonic || weaponRules.isMagBeam ? 0xbcbc : 0x400060);
+    }
+    private shouldReverseWave(weaponRules: any): boolean {
+        const visuals = weaponRules.aresWeaponVisuals;
+        const target = this.gameObject.target?.obj;
+        if (target?.isVehicle?.()) return !!visuals?.waveReverseAgainstVehicles;
+        if (target?.isAircraft?.()) return !!visuals?.waveReverseAgainstAircraft;
+        if (target?.isBuilding?.()) return !!visuals?.waveReverseAgainstBuildings;
+        if (target?.isInfantry?.()) return !!visuals?.waveReverseAgainstInfantry;
+        return !!visuals?.waveReverseAgainstOthers;
     }
     onCreate(renderableManager: any): void {
         this.renderableManager = renderableManager;

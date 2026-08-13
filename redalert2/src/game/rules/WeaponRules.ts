@@ -21,6 +21,7 @@ export class WeaponRules {
     public isElectricBolt!: boolean;
     public isHouseColor!: boolean;
     public isLaser!: boolean;
+    public isMagBeam!: boolean;
     public isRadBeam!: boolean;
     public isSonic!: boolean;
     public laserDuration!: number;
@@ -63,6 +64,7 @@ export class WeaponRules {
         this.isElectricBolt = this.rules.getBool("IsElectricBolt");
         this.isHouseColor = this.rules.getBool("IsHouseColor");
         this.isLaser = this.rules.getBool("IsLaser");
+        this.isMagBeam = this.rules.getBool("IsMagBeam");
         this.isRadBeam = this.rules.getBool("IsRadBeam");
         this.isSonic = this.rules.getBool("IsSonic");
         this.laserDuration = this.rules.getNumber("LaserDuration");
@@ -89,6 +91,6 @@ export class WeaponRules {
         this.useSparkParticles = this.rules.getBool("UseSparkParticles");
         this.warhead = this.rules.getString("Warhead");
         this.aresChronoPrison = parseAresChronoPrisonWeapon(this.rules);
-        this.aresWeaponVisuals = parseAresWeaponVisualRules(this.rules);
+        this.aresWeaponVisuals = parseAresWeaponVisualRules(this.rules, this.isMagBeam);
     }
 }

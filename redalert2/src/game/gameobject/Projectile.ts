@@ -480,11 +480,14 @@ export class Projectile extends GameObject {
             }
         }
         const warhead = this.fromWeapon.warhead;
-        if (warhead.rules.sonic) {
+        if (this.isWaveWeapon() && this.fromWeapon.rules.ambientDamage !== 0) {
             const sonicRadius = (11 / 30) * Coords.LEPTONS_PER_TILE;
+            const waveDirection = this.velocity.lengthSq() > 0
+                ? this.velocity.clone()
+                : this.target.getWorldCoords().clone().sub(this.position.worldPosition);
             const sonicPos = this.position.worldPosition
                 .clone()
-                .add(this.velocity.clone().setLength(sonicRadius));
+                .add(waveDirection.lengthSq() > 0 ? waveDirection.setLength(sonicRadius) : waveDirection);
             const sonicTile = Coords.vecWorldToGround(sonicPos)
                 .multiplyScalar(1 / Coords.LEPTONS_PER_TILE)
                 .floor();
@@ -522,6 +525,13 @@ export class Projectile extends GameObject {
                 }
             }
         }
+    }
+    private isWaveWeapon(): boolean {
+        const weaponRules = this.fromWeapon.rules;
+        return weaponRules.isSonic ||
+            weaponRules.isMagBeam ||
+            weaponRules.aresWeaponVisuals?.waveIsLaser ||
+            weaponRules.aresWeaponVisuals?.waveIsBigLaser;
     }
     private isHoming(): boolean {
         return !!this.rot && !this.rules.arcing;
