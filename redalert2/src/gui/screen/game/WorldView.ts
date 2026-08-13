@@ -17,6 +17,7 @@ import { WarheadDetonateFxHandler } from '@/engine/renderable/fx/handler/Warhead
 import { SuperWeaponFxHandler } from '@/engine/renderable/fx/handler/SuperWeaponFxHandler';
 import { CrateFxHandler } from '@/engine/renderable/fx/handler/CrateFxHandler';
 import { BeaconFxHandler } from '@/engine/renderable/fx/handler/BeaconFxHandler';
+import { AresBountyFxHandler } from '@/engine/renderable/fx/handler/AresBountyFxHandler';
 import { VxlBuilderFactory } from '@/engine/renderable/builder/VxlBuilderFactory';
 export class WorldView {
     private disposables = new CompositeDisposable();
@@ -190,6 +191,9 @@ export class WorldView {
         const beaconFxHandler = new BeaconFxHandler(this.game, localPlayer, renderableManager as any, this.renderer, worldSound);
         beaconFxHandler.init();
         this.disposables.add(beaconFxHandler);
+        const bountyFxHandler = new AresBountyFxHandler(this.game, renderableManager as any, worldScene.camera);
+        bountyFxHandler.init();
+        this.disposables.add(bountyFxHandler);
         const handleLightingChange = (lightingData: any) => {
             worldScene.applyLighting(lighting);
             renderableManager.updateLighting();
@@ -209,7 +213,8 @@ export class WorldView {
             worldSound,
             renderableManager,
             superWeaponFxHandler,
-            beaconFxHandler
+            beaconFxHandler,
+            bountyFxHandler,
         };
     }
     handleViewportChange(viewport: any): void {

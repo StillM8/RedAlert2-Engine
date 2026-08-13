@@ -4,6 +4,7 @@ import {
     isAresSuperWeaponCameoVisible,
     isAresSuperWeaponTimerVisible,
     normalizeAresSuperWeaponPresentation,
+    resolveAresSuperWeaponViewerRelation,
 } from "@/extensions/ares/AresSuperWeaponPresentation";
 
 describe("Ares superweapon presentation adapter", () => {
@@ -52,6 +53,20 @@ describe("Ares superweapon presentation adapter", () => {
                 relation,
             ))).toEqual(results);
         }
+    });
+
+    test("resolves owner, allied, enemy, and observer timer viewers", () => {
+        const owner = { name: "Owner", isObserver: false };
+        const ally = { name: "Ally", isObserver: false };
+        const enemy = { name: "Enemy", isObserver: false };
+        const observer = { name: "Observer", isObserver: true };
+        const alliances = { areAllied: (first: any, second: any) => first === ally && second === owner };
+
+        expect(resolveAresSuperWeaponViewerRelation(owner, owner, alliances)).toBe("owner");
+        expect(resolveAresSuperWeaponViewerRelation(ally, owner, alliances)).toBe("ally");
+        expect(resolveAresSuperWeaponViewerRelation(enemy, owner, alliances)).toBe("enemy");
+        expect(resolveAresSuperWeaponViewerRelation(observer, owner, alliances)).toBe("observer");
+        expect(resolveAresSuperWeaponViewerRelation(undefined, owner, alliances)).toBe("observer");
     });
 
     test("normalizes authored groups and reads the existing raw extension shape", () => {

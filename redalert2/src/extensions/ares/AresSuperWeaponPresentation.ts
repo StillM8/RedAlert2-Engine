@@ -3,12 +3,23 @@
  *
  * This adapter intentionally does not render a cameo, own a timer, or mutate
  * shared SuperWeapon/UI state. It gives those consumers one generic decision
- * surface for ShowCameo, TimerVisibility, and Group when integration is
- * approved separately.
+ * surface for ShowCameo, TimerVisibility, and Group.
  */
 
 export type AresSuperWeaponTimerVisibility = "none" | "owner" | "allies" | "team" | "enemies" | "all";
 export type AresSuperWeaponViewerRelation = "owner" | "ally" | "enemy" | "observer";
+
+/** Resolve the relation used by the documented timer-visibility rules. */
+export function resolveAresSuperWeaponViewerRelation(
+    viewer: any,
+    owner: any,
+    alliances?: { areAllied?: (player1: any, player2: any) => boolean },
+): AresSuperWeaponViewerRelation {
+    if (!viewer?.isObserver && viewer === owner) return "owner";
+    if (viewer?.isObserver || !viewer) return "observer";
+    if (alliances?.areAllied?.(viewer, owner)) return "ally";
+    return "enemy";
+}
 
 export interface AresSuperWeaponPresentationRules {
     showCameo?: boolean | string;

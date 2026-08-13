@@ -5,6 +5,7 @@ import { DockTrait } from "@/game/gameobject/trait/DockTrait";
 import { SidebarModel, SidebarItemTargetType, SidebarItemStatus, SidebarCategory } from "./SidebarModel";
 import { SuperWeapon, SuperWeaponStatus } from "@/game/SuperWeapon";
 import { normalizeAresPcxCameos, resolveAresSidebarCameo, resolveAresTechnoCameo } from "@/extensions/ares/AresPcxCameos";
+import { isAresSuperWeaponCameoVisible } from "@/extensions/ares/AresSuperWeaponPresentation";
 type SidebarTechnoItem = {
     target: {
         type: SidebarItemTargetType.Techno;
@@ -133,31 +134,36 @@ export class CombatantSidebarModel extends SidebarModel {
         else {
             tab.items.length = 0;
         }
-        const items = superWeapons?.map((sw: any) => {
-            const status = superWeaponStatusToSidebarStatus.get(sw.status);
-            if (status === undefined) {
-                throw new Error(`Unhandled super weapon status "${sw.status}"`);
-            }
-            const item: SidebarSpecialItem = {
-                target: {
-                    type: SidebarItemTargetType.Special,
-                    rules: sw.rules,
-                },
-                cameo: sw.rules.sidebarImage,
-                cameoPcx: (() => {
-                    const resolution = resolveAresSidebarCameo(normalizeAresPcxCameos({
-                        sidebarPcx: sw.rules.sidebarPcx ?? sw.rules.ares?.sidebarPcx,
-                        sidebarImage: sw.rules.sidebarImage,
-                    }));
-                    return resolution.source === "pcx" ? resolution.assetName : undefined;
-                })(),
-                disabled: false,
-                progress: sw.getChargeProgress(),
-                quantity: 1,
-                status,
-            };
-            return item;
-        }) ?? [];
+        const items = superWeapons
+            ?.filter((sw: any) => isAresSuperWeaponCameoVisible({
+                swShowCameo: sw.rules.ares?.swShowCameo,
+                swAutoFire: sw.rules.ares?.swAutoFire,
+            }))
+            .map((sw: any) => {
+                const status = superWeaponStatusToSidebarStatus.get(sw.status);
+                if (status === undefined) {
+                    throw new Error(`Unhandled super weapon status "${sw.status}"`);
+                }
+                const item: SidebarSpecialItem = {
+                    target: {
+                        type: SidebarItemTargetType.Special,
+                        rules: sw.rules,
+                    },
+                    cameo: sw.rules.sidebarImage,
+                    cameoPcx: (() => {
+                        const resolution = resolveAresSidebarCameo(normalizeAresPcxCameos({
+                            sidebarPcx: sw.rules.sidebarPcx ?? sw.rules.ares?.sidebarPcx,
+                            sidebarImage: sw.rules.sidebarImage,
+                        }));
+                        return resolution.source === "pcx" ? resolution.assetName : undefined;
+                    })(),
+                    disabled: false,
+                    progress: sw.getChargeProgress(),
+                    quantity: 1,
+                    status,
+                };
+                return item;
+            }) ?? [];
         if (items.length) {
             tab.items.unshift(...items);
         }

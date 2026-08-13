@@ -79,31 +79,40 @@ export function selectAresBountyValue(rules: AresBountyTechnoRules, level: Veter
     return rules.rookieValue;
 }
 
-interface BountyPlayer {
+export interface AresBountyPlayer {
     country?: { givesBounty?: boolean };
     credits: number;
     getOwnedObjectsByType?(type: ObjectType, includeLimbo?: boolean): Array<{ name?: string; rules?: { name?: string } }>;
 }
 
-interface BountyObject {
-    owner?: BountyPlayer;
+export interface AresBountyObject {
+    owner?: AresBountyPlayer;
     rules?: {
         aresBounty?: AresBountyTechnoRules;
         name?: string;
     };
     veteranLevel?: VeteranLevel | number;
     isTechno?(): boolean;
-    mindControllableTrait?: { getOriginalOwner?(): BountyPlayer | undefined };
+    mindControllableTrait?: { getOriginalOwner?(): AresBountyPlayer | undefined };
 }
 
 interface BountyGame {
     rules?: {
         general?: { bountyEnablers?: string[] };
+        audioVisual?: { bountyDisplay?: boolean };
     };
-    areFriendly?(source: BountyObject, target: BountyObject): boolean;
+    areFriendly?(source: AresBountyObject, target: AresBountyObject): boolean;
 }
 
-function hasBountyEnabler(player: BountyPlayer, game: BountyGame): boolean {
+export interface AresBountyAward {
+    player: AresBountyPlayer;
+    source: AresBountyObject;
+    target: AresBountyObject;
+    amount: number;
+    display: boolean;
+}
+
+function hasBountyEnabler(player: AresBountyPlayer, game: BountyGame): boolean {
     const enablers = game.rules?.general?.bountyEnablers ?? [];
     if (enablers.length === 0) {
         return true;
@@ -117,28 +126,28 @@ function hasBountyEnabler(player: BountyPlayer, game: BountyGame): boolean {
 }
 
 /**
- * Award bounty for the same source shape used by Game.destroyObject(). This
- * handles weapon kills and crush kills because both provide killer.obj.
- * Returns the signed amount applied, or zero when the kill is not eligible.
+ * Resolve an eligible bounty without mutating credits. Keeping resolution
+ * separate lets the simulation apply the award and publish the presentation
+ * event from the same deterministic decision.
  */
-export function awardAresBounty(game: BountyGame, killer: any, target: BountyObject): number {
-    const source = killer?.obj as BountyObject | undefined;
-    const player = killer?.player as BountyPlayer | undefined;
+export function resolveAresBountyAward(game: BountyGame, killer: any, target: AresBountyObject): AresBountyAward | undefined {
+    const source = killer?.obj as AresBountyObject | undefined;
+    const player = killer?.player as AresBountyPlayer | undefined;
     if (!source || !player || !target?.isTechno?.()) {
-        return 0;
+        return undefined;
     }
 
     const hunterRules = source.rules?.aresBounty;
     if (!hunterRules?.enabled || !hasBountyEnabler(player, game)) {
-        return 0;
+        return undefined;
     }
 
     const victimOwner = target.mindControllableTrait?.getOriginalOwner?.() ?? target.owner;
     if (!victimOwner || victimOwner === player || victimOwner.country?.givesBounty === false) {
-        return 0;
+        return undefined;
     }
     if (game.areFriendly?.(source, { owner: victimOwner }) ?? false) {
-        return 0;
+        return undefined;
     }
 
     const value = selectAresBountyValue(target.rules?.aresBounty ?? {
@@ -148,6 +157,26 @@ export function awardAresBounty(game: BountyGame, killer: any, target: BountyObj
         veteranValue: 0,
         eliteValue: 0,
     }, target.veteranLevel ?? VeteranLevel.None);
-    player.credits = Math.max(0, player.credits + value);
-    return value;
+    return {
+        player,
+        source,
+        target,
+        amount: value,
+        display: hunterRules.display ?? game.rules?.audioVisual?.bountyDisplay ?? false,
+    };
+}
+
+export function applyAresBountyAward(award: AresBountyAward): number {
+    const { player, amount } = award;
+    player.credits = Math.max(0, player.credits + amount);
+    return amount;
+}
+
+/**
+ * Award bounty through the same source shape used by Game.destroyObject().
+ * Returns the signed amount applied, or zero when the kill is not eligible.
+ */
+export function awardAresBounty(game: BountyGame, killer: any, target: AresBountyObject): number {
+    const award = resolveAresBountyAward(game, killer, target);
+    return award ? applyAresBountyAward(award) : 0;
 }

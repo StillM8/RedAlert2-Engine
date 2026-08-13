@@ -46,7 +46,8 @@ import { WeaponType } from "./WeaponType";
 import { Warhead } from "./Warhead";
 import { NotifyObjectTraitAdd } from "./trait/interface/NotifyObjectTraitAdd";
 import { RadarOnOffEvent } from "./event/RadarOnOffEvent";
-import { awardAresBounty } from "@/extensions/ares/AresBounty";
+import { AresBountyAwardEvent } from "./event/AresBountyAwardEvent";
+import { applyAresBountyAward, resolveAresBountyAward } from "@/extensions/ares/AresBounty";
 export enum GameStatus {
     NotStarted = 0,
     Started = 1,
@@ -681,7 +682,20 @@ export class Game {
                 originalOwner.addUnitsLost(obj.type, 1);
             }
         }
-        awardAresBounty(this, killer, obj);
+        const bountyAward = resolveAresBountyAward(this, killer, obj);
+        if (bountyAward) {
+            applyAresBountyAward(bountyAward);
+            if (bountyAward.display) {
+                const position = obj.position?.worldPosition?.clone?.() ?? obj.position?.worldPosition;
+                this.events.dispatch(new AresBountyAwardEvent(
+                    bountyAward.player,
+                    bountyAward.source,
+                    bountyAward.target,
+                    bountyAward.amount,
+                    position,
+                ));
+            }
+        }
         obj.isDestroyed = true;
         if (obj.healthTrait) {
             obj.healthTrait.health = 0;

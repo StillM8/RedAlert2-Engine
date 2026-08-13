@@ -66,7 +66,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresBounty.test.ts"],
-        notes: "Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path. Amount presentation, save/load, and multiplayer certification remain open.",
+        notes: "Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. Save/load and multiplayer certification remain open.",
     },
     {
         id: "ares.damage-particle-systems",
@@ -237,7 +237,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresSuperWeaponAvailability.test.ts", "AresSuperWeapons.test.ts", "AresSuperWeaponPresentationAdapter.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "The generic parser/evaluator, owner adapter, provider-based grant/revoke lifecycle, AlwaysGranted handling, finite Shots tracking, and activation-time shot gate are implemented. The new presentation adapter only normalizes ShowCameo, TimerVisibility, and Group for future consumers; shared cameo/timer/group UI integration, full AI certification, charge-lifecycle edge coverage, persistence, and multiplayer/network certification remain partial.",
+        notes: "The generic parser/evaluator, owner adapter, provider-based grant/revoke lifecycle, AlwaysGranted handling, finite Shots tracking, activation-time shot gate, SW.ShowCameo sidebar filtering, and SW.TimerVisibility relation filtering are implemented. SW.Group remains normalized for AI/action consumers; full AI certification, charge-lifecycle edge coverage, persistence, and multiplayer/network certification remain partial.",
     },
     {
         id: "ares.superweapon-target-requirements",

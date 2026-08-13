@@ -7,6 +7,10 @@ import { SpriteUtils } from "@/engine/gfx/SpriteUtils";
 import { CanvasUtils } from "@/engine/gfx/CanvasUtils";
 import { GameSpeed } from "@/game/GameSpeed";
 import { formatTimeDuration } from "@/util/format";
+import {
+    isAresSuperWeaponTimerVisible,
+    resolveAresSuperWeaponViewerRelation,
+} from "@/extensions/ares/AresSuperWeaponPresentation";
 type Player = {
     defeated: boolean;
     color: {
@@ -42,6 +46,9 @@ type SuperWeaponTimersProps = UiComponentProps & {
     height: number;
     players: Player[];
     localPlayer?: Player;
+    alliances?: {
+        areAllied?: (player1: Player, player2: Player) => boolean;
+    };
     countdownTimer: CountdownTimer;
     stalemateDetectTrait?: StalemateDetectTrait;
     strings: {
@@ -133,7 +140,15 @@ export class SuperWeaponTimers extends UiComponent<SuperWeaponTimersProps> {
                         }[] = [];
                         if (superWeapons) {
                             for (const sw of superWeapons) {
-                                if (sw.rules.showTimer) {
+                                const relation = resolveAresSuperWeaponViewerRelation(
+                                    this.props.localPlayer,
+                                    player,
+                                    this.props.alliances,
+                                );
+                                if (isAresSuperWeaponTimerVisible({
+                                    showTimer: sw.rules.showTimer,
+                                    swTimerVisibility: sw.rules.ares?.swTimerVisibility,
+                                }, relation)) {
                                     timers.push({
                                         seconds: sw.getTimerSeconds(),
                                         label: this.props.strings.get(sw.rules.uiName),

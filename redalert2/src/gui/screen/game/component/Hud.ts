@@ -103,7 +103,7 @@ export class Hud extends UiObject {
     private menuContentContainer?: any;
     private menuContentContainerInner?: any;
     private menuContent?: any;
-    constructor(sideType: SideType, viewport: Viewport, images: Map<string, any>, palettes: Map<string, any>, cameoFilenames: string[] | AresPcxCameoAssetManifest, sidebarModel: SidebarModel, messageList: any, chatHistory: any, debugTextValue: any, debugTextEnabled: any, localPlayer: any, players: any, stalemateDetectTrait: any, countdownTimer: any, jsxRenderer: any, strings: any, commandBarButtonTypes: CommandBarButtonType[], persistentHoverTags: any, useYuriArt: boolean = false, presentation?: SidePresentation) {
+    constructor(sideType: SideType, viewport: Viewport, images: Map<string, any>, palettes: Map<string, any>, cameoFilenames: string[] | AresPcxCameoAssetManifest, sidebarModel: SidebarModel, messageList: any, chatHistory: any, debugTextValue: any, debugTextEnabled: any, localPlayer: any, players: any, stalemateDetectTrait: any, countdownTimer: any, jsxRenderer: any, strings: any, commandBarButtonTypes: CommandBarButtonType[], persistentHoverTags: any, useYuriArt: boolean = false, presentation?: SidePresentation, private alliances?: any) {
         super(new THREE.Object3D(), new HtmlContainer());
         this.sideType = sideType;
         this.presentation = presentation ?? resolveSidePresentation(undefined, sideType, useYuriArt);
@@ -499,6 +499,7 @@ export class Hud extends UiObject {
         }), jsx.jsx(SuperWeaponTimers, {
             localPlayer: this.localPlayer,
             players: this.players,
+            alliances: this.alliances,
             stalemateDetectTrait: this.stalemateDetectTrait,
             countdownTimer: this.countdownTimer,
             strings: this.strings,

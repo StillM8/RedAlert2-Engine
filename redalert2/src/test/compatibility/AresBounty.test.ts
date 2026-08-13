@@ -6,10 +6,12 @@ import {
     awardAresBounty,
     parseAresBountyGeneralRules,
     parseAresBountyTechnoRules,
+    resolveAresBountyAward,
     selectAresBountyValue,
 } from "@/extensions/ares/AresBounty";
 import { Game } from "@/game/Game";
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
+import { EventType } from "@/game/event/EventType";
 import { AudioVisualRules } from "@/game/rules/AudioVisualRules";
 import { TechnoRules } from "@/game/rules/TechnoRules";
 
@@ -165,5 +167,40 @@ describe("Ares Bounty", () => {
         game.areFriendly = () => false;
         expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(-50);
         expect(hunterOwner.credits).toBe(0);
+    });
+
+    test("publishes a display event from the actual destruction path", () => {
+        const hunterOwner = player("Hunter", true, 100);
+        const victimOwner = player("Victim");
+        const hunter = techno(hunterOwner, {
+            aresBounty: { enabled: true, value: 0, rookieValue: 0, veteranValue: 0, eliteValue: 0 },
+        });
+        const victim = techno(victimOwner, {
+            aresBounty: { enabled: false, value: 75, rookieValue: 75, veteranValue: 150, eliteValue: 300 },
+        }, VeteranLevel.Veteran);
+        victim.position = {
+            worldPosition: {
+                clone: () => ({ x: 12, y: 0, z: 34 }),
+            },
+        };
+        const game = gameFor(hunter, victim);
+        game.rules.audioVisual = { bountyDisplay: true };
+        const events: any[] = [];
+        game.events = { dispatch: (event: any) => events.push(event) };
+
+        const resolved = resolveAresBountyAward(game, { player: hunterOwner, obj: hunter }, victim);
+        expect(resolved).toMatchObject({ amount: 150, display: true });
+
+        game.destroyObject(victim, { player: hunterOwner, obj: hunter });
+
+        const event = events.find(candidate => candidate.type === EventType.AresBountyAward);
+        expect(event).toMatchObject({
+            player: hunterOwner,
+            source: hunter,
+            target: victim,
+            amount: 150,
+            position: { x: 12, y: 0, z: 34 },
+        });
+        expect(hunterOwner.credits).toBe(250);
     });
 });

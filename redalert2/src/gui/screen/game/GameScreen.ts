@@ -675,7 +675,7 @@ export class GameScreen extends RootScreen {
             presentationId: sidePresentation?.id,
             hudLayout: sidePresentation?.hudLayout,
         });
-        this.hudFactory = new HudFactory(hudSide, this.viewport.value, sidebarModel, messageList, chatHistory, game.debugText, this.runtimeVars.debugText, localPlayer.isObserver ? undefined : localPlayer, game.getCombatants(), game.stalemateDetectTrait, game.countdownTimer, cameoFilenames, this.jsxRenderer, this.strings, commandBarButtonList.buttons, this.runtimeVars.persistentHoverTags, useYuriArt, sidePresentation);
+        this.hudFactory = new HudFactory(hudSide, this.viewport.value, sidebarModel, messageList, chatHistory, game.debugText, this.runtimeVars.debugText, localPlayer.isObserver ? undefined : localPlayer, game.getCombatants(), game.stalemateDetectTrait, game.countdownTimer, cameoFilenames, this.jsxRenderer, this.strings, commandBarButtonList.buttons, this.runtimeVars.persistentHoverTags, useYuriArt, sidePresentation, game.alliances);
         this.disposables.add(() => this.hudFactory = undefined);
         const hud = this.hudFactory.create();
         this.hud = hud;

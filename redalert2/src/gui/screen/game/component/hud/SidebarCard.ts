@@ -234,6 +234,10 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             const pcxSlotObject = this.pcxSlotObjects[slotIndex];
             if (items.length - this.pagingOffset <= slotIndex) {
                 slotObject.get3DObject().visible = false;
+                const pcxObject = pcxSlotObject?.get3DObject();
+                if (pcxObject) {
+                    pcxObject.visible = false;
+                }
                 progressOverlay.get3DObject().visible = false;
                 labelObject.get3DObject().visible = false;
                 quantityObject.get3DObject().visible = false;
