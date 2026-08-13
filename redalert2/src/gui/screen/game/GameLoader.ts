@@ -31,9 +31,11 @@ import { isNotNullOrUndefined } from '@/util/typeGuard';
 import { resolveSideMixSelection, resolveSidePresentation, type SideDescriptor, type SidePresentation } from '@/extensions/ares/AresSides';
 import { createAresPcxCameoAssetManifest, isAresPcxCameoSize, normalizeAresPcxCameos, type AresPcxCameoAssetManifest, type AresPcxCameoDefinition } from '@/extensions/ares/AresPcxCameos';
 import { TextureUtils } from '@/engine/gfx/TextureUtils';
+import { Rules } from '@/game/rules/Rules';
 export class GameLoader {
     constructor(private appVersion: string, private workerHostApi: any, private cdnResourceLoader: any, private appResourceLoader: any, private rules: any, private gameModes: any, private sound: any, private iniLogger: any, private actionLogger: any, private speedCheat: any, private gameResConfig: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private debugBotIndex: any, private devMode: boolean) { }
     async load(gameId: string, timestamp: number, gameOptions: any, mapFile: any, playerName: string, isSinglePlayer: boolean, loadingScreenApi: any, cancellationToken?: any): Promise<any> {
+        await Engine.prepareMatchContent();
         const loadingPlayerInfos = this.resolveLoadingPlayerInfos(gameId, timestamp, gameOptions);
         loadingScreenApi.start(loadingPlayerInfos, gameOptions.mapTitle, playerName);
         try {
@@ -47,7 +49,10 @@ export class GameLoader {
     private resolveLoadingPlayerInfos(gameId: string, timestamp: number, gameOptions: any): any[] {
         const randomGen = GameOptRandomGen.factory(gameId, timestamp);
         const generatedColors = randomGen.generateColors(gameOptions);
-        const generatedCountries = randomGen.generateCountries(gameOptions, this.rules);
+        // The menu's injected Rules object predates deferred profile layers.
+        // Resolve random countries from the same refreshed rules snapshot that
+        // will be passed into GameFactory.
+        const generatedCountries = randomGen.generateCountries(gameOptions, new Rules(Engine.getRules()));
         return gameOptions.humanPlayers.map((player: any) => ({
             ...player,
             colorId: generatedColors.get(player) ?? player.colorId,
@@ -60,8 +65,9 @@ export class GameLoader {
         }
         // The boot path mounts only the profile's canonical override layer so
         // the menu can appear without parsing every large expansion MIX. A
-        // match needs the complete content graph before theater/game setup.
-        await Engine.vfs.loadDeferredExtraMixFiles(Engine.getActiveEngine(), Engine.getActiveProfile());
+        // match needs the complete content graph before theater/game setup;
+        // GameLoader.load prepared and refreshed it before resolving options.
+        await Engine.prepareMatchContent();
         this.clearStaticCaches();
         this.buildingImageDataCache.clear();
         try {

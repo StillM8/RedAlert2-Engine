@@ -7,6 +7,42 @@ import { MapList } from "@/engine/MapList";
 import type { GameModeEntry, GameModes } from "@/game/ini/GameModes";
 
 describe("Engine map discovery", () => {
+    test("prepares deferred match content once and refreshes effective rules", async () => {
+        const previous = {
+            activeEngine: Engine.getActiveEngine(),
+            activeProfile: (Engine as any).activeProfile,
+            vfs: Engine.vfs,
+            matchContentPromise: (Engine as any).matchContentPromise,
+            loadRules: (Engine as any).loadRules,
+        };
+        let deferredLoads = 0;
+        let rulesReloads = 0;
+        try {
+            (Engine as any).activeProfile = GAME_PROFILES["mental-omega"];
+            Engine.setActiveEngine(EngineType.YurisRevenge);
+            (Engine as any).matchContentPromise = undefined;
+            Engine.vfs = {
+                loadDeferredExtraMixFiles: async () => { deferredLoads++; },
+            } as any;
+            (Engine as any).loadRules = () => { rulesReloads++; };
+
+            await Promise.all([
+                Engine.prepareMatchContent(),
+                Engine.prepareMatchContent(),
+            ]);
+
+            expect(deferredLoads).toBe(1);
+            expect(rulesReloads).toBe(1);
+        }
+        finally {
+            Engine.vfs = previous.vfs;
+            (Engine as any).activeProfile = previous.activeProfile;
+            (Engine as any).matchContentPromise = previous.matchContentPromise;
+            (Engine as any).loadRules = previous.loadRules;
+            Engine.setActiveEngine(previous.activeEngine);
+        }
+    });
+
     test("does not mount deferred gameplay archives or read catalogued loose maps", async () => {
         const previous = {
             activeEngine: Engine.getActiveEngine(),

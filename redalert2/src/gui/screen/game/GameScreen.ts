@@ -202,6 +202,7 @@ export class GameScreen extends RootScreen {
                 this.disposables.add(() => this.debugMapFile = undefined);
             }
             mapFile = new MapFile(mapFileData);
+            await Engine.prepareMatchContent();
             const mapSupportError = MapSupport.check(mapFile, this.strings);
             if (mapSupportError) {
                 this.handleError(mapSupportError, mapSupportError);

@@ -222,6 +222,7 @@ export class Engine {
     private static mapListLoadPromise?: Promise<MapList>;
     private static mapListLoadScheduled = false;
     private static loadedMapListFiles = new Set<string>();
+    private static matchContentPromise?: Promise<void>;
     static getVersion(): string {
         return appVersion.split(".").slice(0, 2).join(".");
     }
@@ -261,6 +262,7 @@ export class Engine {
     static async initVfs(rfsInstance: RealFileSystem | undefined, logger: VfsLogger, profile: GameProfileDescriptor = GAME_PROFILES.ra2): Promise<VirtualFileSystem> {
         this.activeProfile = profile;
         this.vfs = new VirtualFileSystem(rfsInstance, logger);
+        this.matchContentPromise = undefined;
         this.iniSourceLoader = new IniSourceLoader(this.vfs);
         this.iniFiles.setVfs(this.vfs);
         this.palettes.setVfs(this.vfs);
@@ -293,6 +295,28 @@ export class Engine {
         const tauntsDir = await this.rfs?.findDirectory(this.rfsSettings.tauntsDir);
         this.taunts.setDir(tauntsDir?.getNativeHandle());
         return this.vfs;
+    }
+    /**
+     * Mount the profile's deferred gameplay layers before any match-time rules
+     * validation. The menu intentionally uses a lightweight rules snapshot;
+     * once the complete profile graph is available, refresh the effective
+     * INIs so map validation and GameFactory see the same content.
+     */
+    static async prepareMatchContent(): Promise<void> {
+        if (!this.vfs) {
+            throw new Error("File system not initialized");
+        }
+        if (!this.matchContentPromise) {
+            const loadPromise = (async () => {
+                await this.vfs!.loadDeferredExtraMixFiles(this.getActiveEngine(), this.getActiveProfile());
+                this.loadRules();
+            })();
+            this.matchContentPromise = loadPromise.catch((error) => {
+                this.matchContentPromise = undefined;
+                throw error;
+            });
+        }
+        await this.matchContentPromise;
     }
     static supportsTheater(theaterType: TheaterType): boolean {
         const currentEngine = this.getActiveEngine();
