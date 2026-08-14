@@ -25,11 +25,7 @@ interface GameTurnManager {
 }
 interface GameAnimationLoopOptions {
     skipFrames?: boolean;
-    // Maximum number of fixed-step simulation turns to execute in one render
-    // callback. A slow callback retains any remaining debt for the next
-    // callback instead of dropping turns and making the game run in slow
-    // motion. This is only an anti-spiral bound for long OS stalls.
-    maxCatchUpTurns?: number;
+    skipBudgetMillis?: number;
     // Live-readable render fps cap (0 = display rate). Sim ticks always run.
     frameLimit?: {
         value: number;
@@ -46,21 +42,6 @@ interface GameAnimationLoopOptions {
     runSimulationInBackground?: boolean;
     onError?(error: Error, isRenderError?: boolean): void;
 }
-
-export const DEFAULT_MAX_CATCH_UP_TURNS = 120;
-
-export function limitGameTurnsForFrame(
-    deltaFrames: number,
-    skipFrames: boolean,
-    maxCatchUpTurns = DEFAULT_MAX_CATCH_UP_TURNS,
-): number {
-    const dueTurns = Math.max(0, Math.floor(Number.isFinite(deltaFrames) ? deltaFrames : 0));
-    if (!skipFrames && dueTurns > 1) {
-        return 1;
-    }
-    return Math.min(dueTurns, Math.max(1, Math.floor(maxCatchUpTurns)));
-}
-
 export class GameAnimationLoop {
     private localPlayer: LocalPlayer;
     private renderer: Renderer;
@@ -106,18 +87,35 @@ export class GameAnimationLoop {
             if (this.turnMgrIsWaiting || (!this.options.skipFrames && deltaFrames > 1)) {
                 deltaFrames = 1;
             }
-            const turnsToRun = limitGameTurnsForFrame(
-                deltaFrames,
-                this.options.skipFrames ?? false,
-                this.options.maxCatchUpTurns,
-            );
-            for (let turn = 0; turn < turnsToRun; turn++) {
-                this.turnMgrIsWaiting = !this.tickGame(timestamp);
-                // lastGameFrame counts turns actually attempted. If the
-                // catch-up bound is reached, leaving the remaining debt here
-                // makes the next callback continue the simulation rather than
-                // silently slowing the world down.
-                this.lastGameFrame++;
+            if (this.options.skipBudgetMillis) {
+                // The old fixed 8 ms budget dropped every turn beyond the
+                // first when the phone rendered below the simulation rate.
+                // Scale the budget to the amount of simulation time that is
+                // due, while retaining a small configured floor and a bound
+                // for a long background/OS scheduling pause.
+                const turnMillis = this.gameTurnMgr.getTurnMillis();
+                let budget = Math.max(
+                    this.options.skipBudgetMillis,
+                    Math.min(100, deltaFrames * turnMillis),
+                );
+                while (deltaFrames > 0) {
+                    const startTime = performance.now();
+                    this.turnMgrIsWaiting = !this.tickGame(timestamp);
+                    this.lastGameFrame++;
+                    deltaFrames--;
+                    const elapsed = performance.now() - startTime;
+                    budget = Math.max(0, budget - elapsed);
+                    if (budget <= 0) {
+                        break;
+                    }
+                }
+            }
+            else {
+                while (deltaFrames > 0) {
+                    this.turnMgrIsWaiting = !this.tickGame(timestamp);
+                    this.lastGameFrame++;
+                    deltaFrames--;
+                }
             }
             // Render fps cap: sim ticks above always run at full rate, but
             // drawing is skipped until the next render slot. The half-frame

@@ -1159,7 +1159,7 @@ export class GameScreen extends RootScreen {
         this.installBackgroundLifecycle();
         this.gameAnimationLoop = new GameAnimationLoop(localPlayer, this.renderer, this.sound, this.gameTurnMgr, {
             skipFrames: true,
-            maxCatchUpTurns: 120,
+            skipBudgetMillis: 8,
             runSimulationInBackground: !this.isSinglePlayer,
             frameLimit: this.generalOptions.graphics.frameLimit,
             // Live getter, so an OS thermal transition mid-match takes effect on

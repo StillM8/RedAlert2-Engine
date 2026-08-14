@@ -396,7 +396,7 @@ export class ReplayScreen extends RootScreen {
         game.start();
         this.gameAnimationLoop = new GameAnimationLoop(undefined, this.renderer as any, this.sound, this.gameTurnMgr!, {
             skipFrames: true,
-            maxCatchUpTurns: 120,
+            skipBudgetMillis: 8,
             frameLimit: this.generalOptions.graphics.frameLimit,
             // Live getter, so an OS thermal transition mid-match takes effect on
             // the very next frame with nothing to subscribe or tear down.
