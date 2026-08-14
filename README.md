@@ -72,7 +72,31 @@ The stable branch does not claim full Ares or Mental Omega compatibility. New
 Ares behavior should be validated on `beta` first; only completed and
 regression-tested work should move into `main`.
 
-## Quick start: browser engine
+## Download a release
+
+For normal use, download a prebuilt package from the
+[GitHub Releases](https://github.com/StillM8/RedAlert2-Engine/releases) page.
+Building from source is optional for developers, contributors, and users who
+need a custom build.
+
+| Platform | Release download |
+| --- | --- |
+| Android | APK for direct installation on a compatible Android device |
+| Windows | Portable Windows executable or packaged Windows release |
+| macOS | Universal package for Apple Silicon and Intel Macs |
+| Linux | Tauri Linux package for the target distribution |
+
+Every release is engine-only. It does not include Red Alert 2, Yuri's Revenge,
+Mental Omega, or any other game archives. On first launch, import game files
+that you are entitled to use and select the content from **Menu → Mods**.
+
+iOS and iPadOS builds remain available from source because device installation
+requires an Apple developer team and signing configuration; see the
+[iOS build guide](ios/README.md).
+
+The source-build instructions below are optional.
+
+## Optional source build: browser engine
 
 ### Requirements
 
@@ -107,7 +131,7 @@ The importer reads the files you supply and writes local, gitignored
 development output under `gameres-export/` and generated web resources. It
 does not download or commit game archives.
 
-## Desktop builds: Windows, Linux, and macOS
+## Optional desktop builds from source: Windows, Linux, and macOS
 
 The desktop app uses the same TypeScript engine as the browser, Android, and
 iOS shells. Install the platform prerequisites first, then run these commands
@@ -165,7 +189,7 @@ ships without game files; users import their own content and select it from
 
 More desktop notes are in [`docs/TauriBeta.md`](docs/TauriBeta.md).
 
-## Mobile builds
+## Optional mobile builds from source
 
 The native shells are documented separately:
 
