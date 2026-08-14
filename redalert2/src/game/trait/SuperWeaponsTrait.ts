@@ -32,8 +32,11 @@ import {
     canAresSuperWeaponTransactMoney,
 } from "@/extensions/ares/AresSuperWeaponMoney";
 import {
+    createAresSuperWeaponAvailabilityOwnerSnapshot,
+    evaluateAresSuperWeaponAvailabilityForOwnerSnapshot,
     evaluateAresSuperWeaponAvailabilityForOwner,
     hasAresSuperWeaponAvailabilityConfiguration,
+    type AresSuperWeaponAvailabilityOwnerSnapshot,
 } from "@/extensions/ares/AresSuperWeaponAvailability";
 import {
     getAvailableBuildingSuperWeapon,
@@ -41,6 +44,23 @@ import {
 } from "@/game/gameobject/trait/SuperWeaponTrait";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
+    private aresAvailabilityRulesSource: any;
+    private aresAvailabilityRulesSourceSize = -1;
+    private aresAvailabilityRules: readonly any[] = [];
+    private aresAvailabilityResultCache = new WeakMap<object, Map<object, {
+        snapshot: AresSuperWeaponAvailabilityOwnerSnapshot;
+        shotsFired: number;
+        result: ReturnType<typeof evaluateAresSuperWeaponAvailabilityForOwnerSnapshot>;
+    }>>();
+    private readonly aresOwnerSnapshotCache = new WeakMap<object, {
+        collection: unknown;
+        size: number | undefined;
+        stateKey: string;
+        countryId?: string;
+        isAi: boolean;
+        defeated: boolean;
+        snapshot: AresSuperWeaponAvailabilityOwnerSnapshot;
+    }>();
     private readonly effectPresentationRules = new WeakMap<SuperWeaponEffect, {
         rules: any;
         noSfxWarning: boolean;
@@ -55,8 +75,9 @@ export class SuperWeaponsTrait {
         tile: any;
     }>();
     [NotifyTick.onTick](t: any) {
+        const aresAvailabilityRules = this.getAresAvailabilityRules(t);
         for (const e of t.getCombatants()) {
-            this.reconcileAresAvailability(e, t);
+            this.reconcileAresAvailability(e, t, aresAvailabilityRules);
             for (const i of e.superWeaponsTrait.getAll()) {
                 if (i.rules.isPowered) {
                     this.updateTimer(i, !i.owner.powerTrait?.isLowPower?.(), t.currentTick, t);
@@ -89,18 +110,86 @@ export class SuperWeaponsTrait {
         }
         this.effects = this.effects.filter((e) => e.status !== EffectStatus.Finished);
     }
-    private reconcileAresAvailability(player: any, world: any): void {
-        const rules = world?.rules?.superWeaponRules?.values?.();
-        if (!rules || !player.superWeaponsTrait) return;
+    private getAresAvailabilityRules(world: any): readonly any[] {
+        const source = world?.rules?.superWeaponRules;
+        const size = typeof source?.size === "number" ? source.size : -1;
+        if (source === this.aresAvailabilityRulesSource && size === this.aresAvailabilityRulesSourceSize) {
+            return this.aresAvailabilityRules;
+        }
+        this.aresAvailabilityRulesSource = source;
+        this.aresAvailabilityRulesSourceSize = size;
+        this.aresAvailabilityRules = source?.values
+            ? [...source.values()].filter((rules: any) => !!rules?.ares)
+            : [];
+        this.aresAvailabilityResultCache = new WeakMap();
+        return this.aresAvailabilityRules;
+    }
+    private getAresOwnerSnapshot(player: any): AresSuperWeaponAvailabilityOwnerSnapshot {
+        const collection = player?.buildings ?? player?.getOwnedObjectsByType?.(ObjectType.Building) ?? [];
+        const size = typeof collection?.size === "number"
+            ? collection.size
+            : typeof collection?.length === "number" ? collection.length : undefined;
+        let stateKey = "";
+        if (collection && typeof collection[Symbol.iterator] === "function") {
+            for (const building of collection as Iterable<any>) {
+                const rules = building?.rules ?? {};
+                stateKey += [
+                    building?.id ?? building?.name ?? "",
+                    building?.limboData ? "limbo" : "active",
+                    rules.superWeapon ?? "",
+                    rules.superWeapon2 ?? "",
+                    Array.isArray(rules.superWeapons) ? rules.superWeapons.join(",") : rules.superWeapons ?? "",
+                ].join("\u0001") + "\u0002";
+            }
+        }
+        const countryId = player?.country?.id ?? player?.country?.name;
+        const isAi = player?.isAi === true;
+        const defeated = player?.defeated === true;
+        const cached = typeof player === "object" && player !== null
+            ? this.aresOwnerSnapshotCache.get(player)
+            : undefined;
+        if (cached && cached.collection === collection && cached.size === size && cached.stateKey === stateKey &&
+            cached.countryId === countryId && cached.isAi === isAi && cached.defeated === defeated) {
+            return cached.snapshot;
+        }
+        const snapshot = createAresSuperWeaponAvailabilityOwnerSnapshot(player);
+        if (typeof player === "object" && player !== null) {
+            this.aresOwnerSnapshotCache.set(player, {
+                collection,
+                size,
+                stateKey,
+                countryId,
+                isAi,
+                defeated,
+                snapshot,
+            });
+        }
+        return snapshot;
+    }
+    private reconcileAresAvailability(player: any, world: any, rules: readonly any[]): void {
+        if (!rules.length || !player.superWeaponsTrait) return;
+        const snapshot = this.getAresOwnerSnapshot(player);
+        let playerResults = this.aresAvailabilityResultCache.get(player);
+        if (!playerResults) {
+            playerResults = new Map();
+            this.aresAvailabilityResultCache.set(player, playerResults);
+        }
         for (const superWeaponRules of rules) {
-            if (!superWeaponRules.ares) continue;
             const current = player.superWeaponsTrait.get(superWeaponRules.name);
-            const result = evaluateAresSuperWeaponAvailabilityForOwner(
-                superWeaponRules.ares,
-                player,
-                superWeaponRules.name,
-                current?.shotsFired ?? player.superWeaponsTrait.getAresShotsFired?.(superWeaponRules.name) ?? 0,
-            );
+            const shotsFired = current?.shotsFired ??
+                player.superWeaponsTrait.getAresShotsFired?.(superWeaponRules.name) ?? 0;
+            const cached = playerResults.get(superWeaponRules);
+            const result = cached?.snapshot === snapshot && cached.shotsFired === shotsFired
+                ? cached.result
+                : evaluateAresSuperWeaponAvailabilityForOwnerSnapshot(
+                    superWeaponRules.ares,
+                    snapshot,
+                    superWeaponRules.name,
+                    shotsFired,
+                );
+            if (!cached || cached.snapshot !== snapshot || cached.shotsFired !== shotsFired) {
+                playerResults.set(superWeaponRules, { snapshot, shotsFired, result });
+            }
             if (result.available) {
                 if (!current) {
                     const superWeapon = world.createSuperWeapon(superWeaponRules.name, player);

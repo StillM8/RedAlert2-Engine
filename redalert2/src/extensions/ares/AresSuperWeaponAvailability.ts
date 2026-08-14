@@ -1,5 +1,5 @@
 import { ObjectType } from "@/engine/type/ObjectType";
-import { buildingProvidesAresSuperWeapon } from "@/extensions/ares/AresSuperWeaponProviders";
+import { normalizeAresSuperWeaponProviders } from "@/extensions/ares/AresSuperWeaponProviders";
 
 /**
  * Pure availability rules for Ares superweapons.
@@ -51,6 +51,19 @@ export interface AresSuperWeaponOwnerLike {
         name?: string;
         rules?: { name?: string; superWeapon?: string; superWeapon2?: string; superWeapons?: string[] };
     }>;
+}
+
+/**
+ * Immutable building-state projection used by the runtime reconciliation
+ * loop. Provider slots are indexed once per ownership change instead of
+ * being normalized once for every Ares superweapon on every game tick.
+ */
+export interface AresSuperWeaponAvailabilityOwnerSnapshot {
+    countryId?: string;
+    isAi: boolean;
+    defeated: boolean;
+    ownedBuildingTypes: readonly string[];
+    providerBuildingTypesBySuperWeapon: ReadonlyMap<string, readonly string[]>;
 }
 
 export type AresSuperWeaponAvailabilityFailure =
@@ -106,6 +119,20 @@ export interface AresSuperWeaponAvailabilityResult {
 
 function normalize(value: string): string {
     return value.trim().toLocaleLowerCase("en-US");
+}
+
+function buildingName(building: { name?: string; rules?: { name?: string } }): string | undefined {
+    return building.name ?? building.rules?.name;
+}
+
+function ownerBuildings(owner: AresSuperWeaponOwnerLike): Iterable<{
+    name?: string;
+    rules?: { name?: string; superWeapon?: string; superWeapon2?: string; superWeapons?: string[] };
+}> {
+    // Keep the live-owner adapter's existing limbo semantics: Player's
+    // filtered query excludes buildings that are owned but not currently
+    // deployed. The world cache still keys off Player.buildings below.
+    return owner.getOwnedObjectsByType?.(ObjectType.Building) ?? owner.buildings ?? [];
 }
 
 function asValues(value: AresAvailabilityList | string | string[] | undefined): string[] {
@@ -240,6 +267,59 @@ export function evaluateAresSuperWeaponAvailability(
 }
 
 /**
+ * Create the owner-side state needed by all Ares superweapon gates. The
+ * snapshot is intentionally mod-neutral and can be safely cached by the
+ * world trait until the owner's building collection changes.
+ */
+export function createAresSuperWeaponAvailabilityOwnerSnapshot(
+    owner: AresSuperWeaponOwnerLike,
+): AresSuperWeaponAvailabilityOwnerSnapshot {
+    const buildings = [...ownerBuildings(owner)];
+    const ownedBuildingTypes = buildings
+        .map(buildingName)
+        .filter((name): name is string => !!name);
+    const providerBuildingTypesBySuperWeapon = new Map<string, string[]>();
+
+    for (const building of buildings) {
+        const name = buildingName(building);
+        if (!name) continue;
+        for (const provider of normalizeAresSuperWeaponProviders(building.rules ?? {})) {
+            const key = normalize(provider.name);
+            if (!key) continue;
+            const providerBuildings = providerBuildingTypesBySuperWeapon.get(key) ?? [];
+            providerBuildings.push(name);
+            providerBuildingTypesBySuperWeapon.set(key, providerBuildings);
+        }
+    }
+
+    return {
+        countryId: owner.country?.id ?? owner.country?.name,
+        isAi: owner.isAi === true,
+        defeated: owner.defeated === true,
+        ownedBuildingTypes,
+        providerBuildingTypesBySuperWeapon,
+    };
+}
+
+/** Evaluate one Ares superweapon against a previously-built owner snapshot. */
+export function evaluateAresSuperWeaponAvailabilityForOwnerSnapshot(
+    rules: AresSuperWeaponAvailabilityRules,
+    owner: AresSuperWeaponAvailabilityOwnerSnapshot,
+    superWeaponName: string,
+    shotsFired = 0,
+): AresSuperWeaponAvailabilityResult {
+    const providerBuildingTypes = owner.providerBuildingTypesBySuperWeapon.get(normalize(superWeaponName)) ?? [];
+    return evaluateAresSuperWeaponAvailability(rules, {
+        countryId: owner.countryId,
+        isAi: owner.isAi,
+        defeated: owner.defeated,
+        ownedBuildingTypes: owner.ownedBuildingTypes,
+        ownedProviderBuildingTypes: providerBuildingTypes,
+        shotsFired,
+    });
+}
+
+/**
  * Build the common availability context from a live owner without teaching
  * the evaluator about Player or Building classes. This is the single runtime
  * adapter used by grants, removal, UI-facing inventory, and activation gates.
@@ -250,25 +330,12 @@ export function evaluateAresSuperWeaponAvailabilityForOwner(
     superWeaponName: string,
     shotsFired = 0,
 ): AresSuperWeaponAvailabilityResult {
-    const buildings = owner.getOwnedObjectsByType
-        ? [...owner.getOwnedObjectsByType(ObjectType.Building)]
-        : [...(owner.buildings ?? [])];
-    const expectedSuperWeapon = normalize(superWeaponName);
-    const buildingName = (building: { name?: string; rules?: { name?: string } }): string | undefined =>
-        building.name ?? building.rules?.name;
-    const providerBuildings = buildings.filter((building) =>
-        buildingProvidesAresSuperWeapon(building, expectedSuperWeapon));
-
-    return evaluateAresSuperWeaponAvailability(rules, {
-        countryId: owner.country?.id ?? owner.country?.name,
-        isAi: owner.isAi === true,
-        defeated: owner.defeated === true,
-        ownedBuildingTypes: buildings.map(buildingName).filter((name): name is string => !!name),
-        ownedProviderBuildingTypes: providerBuildings
-            .map(buildingName)
-            .filter((name): name is string => !!name),
+    return evaluateAresSuperWeaponAvailabilityForOwnerSnapshot(
+        rules,
+        createAresSuperWeaponAvailabilityOwnerSnapshot(owner),
+        superWeaponName,
         shotsFired,
-    });
+    );
 }
 
 /** Generic name for consumers that do not need the Ares-prefixed adapter name. */
