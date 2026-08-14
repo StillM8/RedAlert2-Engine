@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.ammaar.ra2android"
+    namespace = "io.stillm8.rtsengine"
     compileSdk = 36
 
     buildFeatures {
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ammaar.ra2android"
+        applicationId = "io.stillm8.rtsengine"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

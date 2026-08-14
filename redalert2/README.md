@@ -1,7 +1,7 @@
-# Shared TypeScript engine
+# Shared TypeScript RTS engine
 
-This directory contains the shared Red Alert 2 engine and the Tauri desktop
-shell. Android and iOS package the same web build inside their native
+This directory contains the shared real-time strategy engine and the Tauri
+desktop shell. Android and iOS package the same web build inside their native
 WebView-based shells.
 
 The project started from the iOS/iPad rewrite at

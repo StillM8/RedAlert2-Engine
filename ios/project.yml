@@ -1,6 +1,6 @@
 name: RA2
 options:
-  bundleIdPrefix: com.ammaar
+  bundleIdPrefix: io.stillm8
   deploymentTarget:
     iOS: "16.0"
 settings:

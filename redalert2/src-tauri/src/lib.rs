@@ -1015,5 +1015,5 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running Red Alert 2 desktop application");
+        .expect("error while running Open RTS Engine desktop application");
 }

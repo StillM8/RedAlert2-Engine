@@ -1,12 +1,17 @@
-# Red Alert 2 Engine
+# Open RTS Engine
 
-Cross-platform TypeScript engine and native shells for Red Alert 2, Yuri's
-Revenge, and compatible community content.
+Cross-platform TypeScript engine and native shells for user-provided Red Alert
+2, Yuri's Revenge, and compatible community content.
 
 This repository contains the engine, platform integrations, import pipeline,
 and development tools. It does **not** contain Red Alert 2, Yuri's Revenge,
 Mental Omega, or any other game archives. Players must provide their own
 legally obtained game files through the platform's import flow.
+
+The distributable application is branded **Open RTS Engine**. References to
+Red Alert 2, Yuri's Revenge, Mental Omega, and other projects identify
+compatibility targets only; they are not the application's name and do not
+imply affiliation or endorsement.
 
 ## Project direction
 
@@ -252,9 +257,12 @@ need targeted verification.
 Do not commit or distribute proprietary Red Alert 2, Yuri's Revenge, or mod
 archives. Import content from a copy the user is entitled to use.
 
-Read [`LICENSE`](LICENSE) and [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
-before redistributing code. Components inherited from upstream projects and
-third-party dependencies may have additional attribution or license terms.
+The neutral application name and platform identifiers do not grant permission
+to use third-party code, art, audio, names, or game content. Review
+[`LICENSE`](LICENSE) and [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
+before redistributing code or builds. Components inherited from upstream
+projects and third-party dependencies may have additional attribution or
+license terms.
 Red Alert 2, Yuri's Revenge, Mental Omega, and related trademarks belong to
 their respective owners.
 

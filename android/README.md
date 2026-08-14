@@ -1,7 +1,7 @@
 # Android shell
 
-This directory contains the Kotlin/WebView shell for the shared Red Alert 2
-engine. The simulation, renderer, resource importer, Mods menu, and Ares
+This directory contains the Kotlin/WebView shell for the shared RTS engine.
+The simulation, renderer, resource importer, Mods menu, and Ares
 compatibility layer live in [`../redalert2/`](../redalert2/); Android supplies
 the lifecycle, storage, file picker, notifications, fullscreen handling, and
 APK packaging.
@@ -45,8 +45,13 @@ The debug and release application IDs are:
 
 | Build | Application ID |
 | --- | --- |
-| Debug | `com.ammaar.ra2android.debug` |
-| Release | `com.ammaar.ra2android` |
+| Debug | `io.stillm8.rtsengine.debug` |
+| Release | `io.stillm8.rtsengine` |
+
+The public application name is **Open RTS Engine**. These identifiers replace
+the old upstream-derived package identity; Android therefore treats the next
+build as a new application and does not migrate the old package's private
+storage automatically.
 
 Use `--no-web` to reuse an existing `redalert2/dist/` build. The normal build
 does not package RA2, Yuri's Revenge, Mental Omega, or any other game files.

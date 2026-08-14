@@ -1,4 +1,4 @@
-package com.ammaar.ra2android
+package io.stillm8.rtsengine
 
 import android.app.Activity
 import android.Manifest
@@ -487,7 +487,7 @@ class MainActivity : Activity() {
                     connectTimeout = 20_000
                     readTimeout = 45_000
                     requestMethod = "GET"
-                    setRequestProperty("User-Agent", "RedAlert2-Android/0.1")
+                    setRequestProperty("User-Agent", "OpenRTSEngine-Android/0.1")
                     setRequestProperty("Accept", "application/octet-stream,*/*")
                 }
                 job.connection = connection

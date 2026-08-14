@@ -60,8 +60,8 @@ fi
 
 # One product identity. Content selection belongs to the shared Mods menu,
 # not to an iOS app variant or a native URL/profile.
-export RA2_BUNDLE_ID="${RA2_BUNDLE_ID:-com.ammaar.ra2web}"
-export RA2_APP_NAME="${RA2_APP_NAME:-Red Alert 2 Engine}"
+export RA2_BUNDLE_ID="${RA2_BUNDLE_ID:-io.stillm8.rtsengine.ios}"
+export RA2_APP_NAME="${RA2_APP_NAME:-Open RTS Engine}"
 
 if [[ $SKIP_WEB -eq 0 ]]; then
   echo "==> Building web app"
