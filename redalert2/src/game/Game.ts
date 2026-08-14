@@ -676,13 +676,14 @@ export class Game {
         }
         if (obj.isTechno()) {
             const originalOwner = obj.mindControllableTrait?.getOriginalOwner() ?? obj.owner;
-            if (killer && (obj.isBuilding() || originalOwner.isCombatant())) {
-                killer.player.addUnitsKilled(obj.type, 1);
-                if (killer.player !== originalOwner && !this.alliances.areAllied(killer.player, originalOwner)) {
-                    killer.player.score += obj.rules.points;
+            const killerPlayer = killer?.player;
+            if (killerPlayer && (obj.isBuilding() || originalOwner?.isCombatant?.())) {
+                killerPlayer.addUnitsKilled?.(obj.type, 1);
+                if (originalOwner && killerPlayer !== originalOwner && !this.alliances.areAllied(killerPlayer, originalOwner)) {
+                    killerPlayer.score += obj.rules.points;
                 }
             }
-            if (!originalOwner.isNeutral) {
+            if (originalOwner && !originalOwner.isNeutral) {
                 originalOwner.addUnitsLost(obj.type, 1);
             }
         }

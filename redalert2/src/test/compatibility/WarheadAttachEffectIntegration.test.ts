@@ -149,4 +149,37 @@ describe("Warhead AttachEffect integration", () => {
             { effectId: "LazyAttachWarhead", remainingFrames: 3, discardOnEntry: false },
         ]);
     });
+
+    test("allows a target-cell healing warhead without a source object", () => {
+        const section = new IniSection("AreaHeal");
+        section.set("Verses", "1,1,1,1,1,100%");
+        const warhead = new Warhead(new WarheadRules(section) as any);
+        const target = makeTarget();
+        let healed = 0;
+        target.healthTrait = {
+            health: 50,
+            getHitPoints: () => 50,
+            healBy: (amount: number, source: any) => {
+                healed += amount;
+                expect(source).toBeUndefined();
+                target.healthTrait.health = 100;
+            },
+        };
+        const game = makeGame(target, target.tile);
+
+        expect(() => warhead.detonate(
+            game,
+            -25,
+            target.tile,
+            0,
+            target.position.worldPosition,
+            ZoneType.Land,
+            CollisionType.None,
+            { obj: target },
+            undefined,
+            false,
+            undefined,
+        )).not.toThrow();
+        expect(healed).toBe(25);
+    });
 });

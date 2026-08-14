@@ -33,6 +33,25 @@ describe("shared combat lifecycle safety", () => {
         expect(() => game.destroyObject({ id: 43, isDestroyed: false, isDisposed: true })).not.toThrow();
     });
 
+    test("does not require a player on non-attributed destruction cleanup", () => {
+        const game = Object.create(Game.prototype) as Game;
+        (game as any).traits = { filter: () => [] };
+        (game as any).events = { dispatch: () => undefined };
+        const target: any = {
+            isDestroyed: false,
+            isDisposed: false,
+            isCrashing: false,
+            isSpawned: false,
+            owner: undefined,
+            isTechno: () => true,
+            isBuilding: () => false,
+            onDestroy: () => undefined,
+            dispose: () => undefined,
+        };
+
+        expect(() => game.destroyObject(target, { obj: {} })).not.toThrow();
+    });
+
     test("releases a stale temporal attacker instead of throwing", () => {
         const target: any = {
             attackTrait: undefined,

@@ -92,8 +92,11 @@ could affect both vanilla and Ares matches:
 
 - stale projectile damage now ignores destroyed, disposed, crashing, or
   health-less targets;
+- target-cell healing/negative-damage warheads no longer require a concrete
+  attacker object, so generic area heals fail safely instead of throwing;
 - destruction is idempotent when multiple effects converge on one object, and
-  kill-notification attribution tolerates an absent attacker payload;
+  kill-notification/score attribution tolerates cleanup paths without a player
+  payload;
 - map sprite batching creates its parent lazily when streamed map objects arrive
   before the first render frame;
 - stale temporal attacker links are released instead of throwing during erase;

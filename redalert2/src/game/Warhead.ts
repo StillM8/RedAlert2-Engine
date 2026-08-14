@@ -607,9 +607,12 @@ export class Warhead {
                     continue;
                 const healthTrait = obj.healthTrait!;
                 if (finalDamage < 0) {
-                    if (!sourceObj)
-                        throw new Error("Expected healer object to be set");
-                    healthTrait.healBy(-finalDamage, sourceObj, gameWorld);
+                    // Target-cell effects such as Ares GenericWarhead can
+                    // intentionally heal without an attacking TechnoType.
+                    // HealthTrait/parasite cleanup already accepts an absent
+                    // healer, so do not turn a valid area heal into a match
+                    // crash merely because there is no source object.
+                    healthTrait.healBy(-finalDamage, sourceObj as any, gameWorld);
                     if (healthTrait.health === 100)
                         break;
                 }
