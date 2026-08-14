@@ -94,6 +94,8 @@ could affect both vanilla and Ares matches:
   health-less targets;
 - target-cell healing/negative-damage warheads no longer require a concrete
   attacker object, so generic area heals fail safely instead of throwing;
+- optional `DropPodWeapon=NotAWeapon`/`None` sentinels are excluded from the
+  shared weapon index, so map validation does not reject otherwise valid maps;
 - destruction is idempotent when multiple effects converge on one object, and
   kill-notification/score attribution tolerates cleanup paths without a player
   payload;

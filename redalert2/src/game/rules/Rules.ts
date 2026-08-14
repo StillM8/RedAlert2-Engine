@@ -603,16 +603,30 @@ export class Rules {
     }
     private buildWeaponsList(): void {
         const weaponNames = new Set<string>();
+        const addWeaponName = (weaponName: string | undefined): void => {
+            const normalized = weaponName?.trim();
+            if (!normalized) return;
+
+            // "None" is the normal empty reference. Ares/Antares content
+            // also commonly uses "NotAWeapon" for optional settings such as
+            // General.DropPodWeapon. Neither sentinel is a real weapon
+            // section and registering it makes map validation reject valid
+            // maps before the match can start.
+            const compact = normalized.toLocaleLowerCase("en-US").replace(/[^a-z0-9]/g, "");
+            if (compact === "none" || compact === "notaweapon") return;
+
+            weaponNames.add(normalized);
+        };
         for (const weaponName of parseAresWeaponTypeNames(this.ini)) {
-            weaponNames.add(weaponName);
+            addWeaponName(weaponName);
         }
-        weaponNames.add(this.general.dropPodWeapon);
+        addWeaponName(this.general.dropPodWeapon);
         for (const superWeapon of this.superWeaponRules.values()) {
             if (superWeapon.weaponType) {
-                weaponNames.add(superWeapon.weaponType);
+                addWeaponName(superWeapon.weaponType);
             }
         }
-        weaponNames.add(Weapon.NUKE_PAYLOAD_NAME);
+        addWeaponName(Weapon.NUKE_PAYLOAD_NAME);
         const allObjectRules = [
             ...this.buildingRules.values(),
             ...this.aircraftRules.values(),
@@ -641,7 +655,7 @@ export class Rules {
                 .filter(isNotNullOrUndefined)
                 .filter(weapon => weapon !== "");
             for (const weapon of weapons) {
-                weaponNames.add(weapon);
+                addWeaponName(weapon);
             }
         }
         let weaponIndex = 0;
