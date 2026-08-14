@@ -49,7 +49,7 @@ Compatibility is being built incrementally and is not claimed to be complete.
 | --- | --- |
 | Red Alert 2 | Shared engine and user-imported content path are active development targets |
 | Yuri's Revenge | Shared engine support is active development; import it as the base for YR content |
-| Ares | Generic, data-driven TypeScript compatibility layer under `redalert2/src/extensions/ares/`; work continues across parsing, runtime behavior, rendering, audio, save/load, AI, and multiplayer |
+| Ares | Generic, data-driven TypeScript compatibility layer under `redalert2/src/extensions/ares/`; established plumbing is kept on `main`, while ongoing feature work continues on `beta` |
 | Mental Omega | **Compatibility work in progress.** The project is working toward Mental Omega support through the required Yuri's Revenge and Ares behavior; full compatibility is not claimed |
 | Other mods | Supported as the required engine and Ares capabilities are implemented and tested |
 
@@ -57,6 +57,20 @@ Ares is part of the shared engine as a compatibility layer. It is not a
 separate DLL, a separate application, or a Mental Omega-only patch. The goal is
 for code to respond to declared rules and capabilities rather than to hardcode
 one mod's name.
+
+## Branch policy
+
+- [`main`](https://github.com/StillM8/RedAlert2-Engine/tree/main) is the
+  release-oriented branch. It contains the most compatible product checkpoint,
+  the single-app and Mods-menu workflow, platform shells, import pipeline, and
+  verified fixes suitable for release testing.
+- [`beta`](https://github.com/StillM8/RedAlert2-Engine/tree/beta) is the active
+  compatibility-development branch. It contains the ongoing generic Ares and
+  Mental Omega work before it is ready for the release line.
+
+The stable branch does not claim full Ares or Mental Omega compatibility. New
+Ares behavior should be validated on `beta` first; only completed and
+regression-tested work should move into `main`.
 
 ## Quick start: browser engine
 
