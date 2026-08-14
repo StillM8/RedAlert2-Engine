@@ -11,7 +11,7 @@ import { resolveAresCapabilityOrder } from "@/extensions/ares/AresCapabilityDepe
 describe("Ares documentation catalog", () => {
     test("contains the complete official leaf-document inventory", () => {
         const paths = ARES_DOCUMENTATION_DOCUMENTS.map((document) => document.path);
-        expect(paths.length).toBe(130);
+        expect(paths.length).toBe(131);
         expect(new Set(paths).size).toBe(paths.length);
         expect(paths.every((path) => path.endsWith(".rst"))).toBe(true);
         expect(paths).toContain("new/damageparticlesystems.rst");
@@ -31,8 +31,8 @@ describe("Ares documentation catalog", () => {
 
     test("reports a stable category summary", () => {
         const summary = getAresCatalogSummary();
-        expect(summary.documents).toBe(130);
-        expect(summary.capabilities).toBe(130);
+        expect(summary.documents).toBe(131);
+        expect(summary.capabilities).toBe(131);
         expect(summary.categories.new).toBeGreaterThan(0);
         expect(summary.categories.restored).toBeGreaterThan(0);
         expect(summary.categories.bugfix).toBeGreaterThan(0);

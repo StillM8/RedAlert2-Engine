@@ -38,6 +38,8 @@ export class ProjectileRules extends ObjectRules {
     public subjectToElevation!: boolean;
     public subjectToWalls!: boolean;
     public vertical!: boolean;
+    /** Ares smoke ParticleSystem emitted continuously while this projectile travels. */
+    public attachedSystem?: string;
     constructor(type: ObjectType, ini: any, index: number = -1, generalRules?: any) {
         super(type, ini, index, generalRules);
         this.parse();
@@ -83,5 +85,6 @@ export class ProjectileRules extends ObjectRules {
         this.subjectToElevation = this.ini.getBool("SubjectToElevation");
         this.subjectToWalls = this.ini.getBool("SubjectToWalls");
         this.vertical = this.ini.getBool("Vertical");
+        this.attachedSystem = this.ini.getString("AttachedSystem") || undefined;
     }
 }

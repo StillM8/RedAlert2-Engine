@@ -85,6 +85,7 @@ const DOCUMENTATION_PATHS: readonly string[] = [
     "new/newpoweredunitlogic.rst",
     "new/operator.rst",
     "new/pcxcameos.rst",
+    "new/projectiles/attachedsystem.rst",
     "new/prerequisites.rst",
     "new/prismforwarding.rst",
     "new/radarjammers.rst",
@@ -226,6 +227,7 @@ const DOCUMENTED_KEYS: Readonly<Record<string, readonly string[]>> = {
     "new/newpoweredunitlogic.rst": ["[UnitType]PoweredBy"],
     "new/operator.rst": ["[TechnoType]Operator"],
     "new/pcxcameos.rst": ["CameoPCX", "AltCameoPCX", "SidebarPCX"],
+    "new/projectiles/attachedsystem.rst": ["[Projectile]AttachedSystem"],
     "new/prerequisites.rst": ["Prerequisite.RequiredTheaters", "GenericPrerequisites", "Prerequisite.StolenTechs"],
     "new/prismforwarding.rst": ["PrismForwarding", "PrismForwarding.Targets", "PrismForwarding.MaxFeeds", "PrismForwarding.MaxChainLength", "PrismForwarding.SupportModifier", "PrismForwarding.SupportWeapon"],
     "new/radarjammers.rst": ["RadarJamRadius"],
@@ -335,6 +337,15 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
         dependencies: ["ares.effective-ini", "ares.dynamic-sides-countries"], targetModUsage: "required",
         notes: "Generic groups, alternatives, negatives, stolen tech, theater requirements, and factory-owner predicates are normalized; permanent plans have a versioned production-extension codec while direct full-game snapshot integration remains open.",
     },
+    "new/projectiles/attachedsystem.rst": {
+        capabilityId: "ares.projectile-extensions",
+        parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
+        presentationStatus: "partial", saveLoadStatus: "missing", multiplayerStatus: "partial",
+        verificationStatus: "synthetic", deterministic: true,
+        tests: ["AresProjectileExtensions.test.ts"],
+        dependencies: ["ares.effective-ini", "ares.damage-particle-systems"], targetModUsage: "required",
+        notes: "AttachedSystem is parsed on projectiles and smoke-only systems use the shared authored particle image renderer while the projectile travels. Non-smoke particle behavior, save/load, and multiplayer certification remain open.",
+    },
     "new/sidescountries.rst": {
         capabilityId: "ares.dynamic-sides-countries",
         parserStatus: "complete", normalizedModelStatus: "complete", runtimeStatus: "partial",
@@ -424,7 +435,7 @@ const OVERRIDES: Readonly<Record<string, CapabilityOverride>> = {
 
 /**
  * Runtime slices that span multiple official documentation sections. These
- * entries are separate from the 130-leaf official document inventory so the
+ * entries are separate from the 131-leaf official document inventory so the
  * report can distinguish a complete availability service from the still
  * partial aggregate superweapon surface.
  */

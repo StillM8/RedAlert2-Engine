@@ -8,6 +8,7 @@ import { HtmlContainer } from "@/gui/HtmlContainer";
 import { clamp } from "@/util/math";
 import { ObjectArt } from "@/game/art/ObjectArt";
 import { resolveSidebarItemTooltipText } from "@/gui/screen/game/TooltipTextResolver";
+import { SpriteUtils } from "@/engine/gfx/SpriteUtils";
 declare const THREE: any;
 enum LabelType {
     Ready = 0,
@@ -57,6 +58,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
     private labelObjects: any[] = [];
     private quantityObjects: any[] = [];
     private tagObjects: any[] = [];
+    private slotHitboxes: any[] = [];
     private justCreated: boolean = true;
     private lastItemCount: number = 0;
     private pagingOffset: number = 0;
@@ -147,7 +149,9 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
                         this.hoverSlotIndex = undefined;
                     }
                 },
-            }, jsx.jsx("sprite", {
+            }, jsx.jsx("mesh", {
+                zIndex: (zIndex ?? 0) + 0.25,
+            }, this.createSlotHitbox(slotSize)), jsx.jsx("sprite", {
                 image: "gclock2.shp",
                 palette: "sidebar.pal",
                 zIndex: 1,
@@ -189,6 +193,21 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
                 : []));
         }
         return children;
+    }
+    private createSlotHitbox(slotSize: { width: number; height: number }): any {
+        const geometry = SpriteUtils.createRectGeometry(slotSize.width, slotSize.height);
+        geometry.translate(slotSize.width / 2, slotSize.height / 2, 0);
+        const material = new THREE.MeshBasicMaterial({
+            transparent: true,
+            opacity: 0,
+            depthTest: false,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.frustumCulled = false;
+        this.slotHitboxes.push(mesh);
+        return mesh;
     }
     createSlotClickEvent(item: any, event: any): SlotClickEvent {
         return {
@@ -437,6 +456,13 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             side: THREE.DoubleSide,
         });
         return new THREE.Line(geometry, material);
+    }
+    onDispose(): void {
+        this.slotHitboxes.forEach((mesh) => {
+            mesh.geometry?.dispose?.();
+            mesh.material?.dispose?.();
+        });
+        this.slotHitboxes = [];
     }
     hide(): void {
         this.visible = false;

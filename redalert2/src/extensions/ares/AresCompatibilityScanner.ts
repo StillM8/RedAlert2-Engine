@@ -474,7 +474,7 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     }
     if (/^foundation$/i.test(key) && /custom/i.test(value)) return "ares.custom-foundations";
     if (/^foundation\.(?:x|y|\d+|outline(?:\.length|\.\d+)?)$/i.test(key)) return "ares.custom-foundations";
-    if (/^(splits|airburst(?:weapon|spread)?|cluster|proximity|aroundtarget|retarget(?:accuracy|self)?)\b/i.test(key)) {
+    if (/^(splits|airburst(?:weapon|spread)?|cluster|proximity|aroundtarget|retarget(?:accuracy|self)?|attachedsystem)\b/i.test(key)) {
         return "ares.projectile-extensions";
     }
     if (/^(stage|weaponstage|burstdelay|charge)\b/i.test(key)) return "ares.staged-weapons";

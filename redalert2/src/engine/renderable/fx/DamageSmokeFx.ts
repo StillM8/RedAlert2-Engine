@@ -110,9 +110,10 @@ export class DamageSmokeFx {
         return Math.min(PARTICLE_COUNT, Math.max(8, Math.ceil(cap * 8)));
     }
     computeEmitterPosition() {
+        const offset = this.gameObject.rules?.damageSmokeOffset;
         return this.gameObject.position.worldPosition
             .clone()
-            .add(this.gameObject.rules.damageSmokeOffset);
+            .add(offset instanceof THREE.Vector3 ? offset : new THREE.Vector3());
     }
     get3DObject() {
         return this.particleGroup?.mesh;

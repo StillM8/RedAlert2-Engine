@@ -443,7 +443,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresProjectileExtensions.test.ts"],
-        notes: "ProjectileRules now preserves Proximity, Airburst/AirburstWeapon, Cluster, AirburstSpread, AroundTarget, Splits, RetargetAccuracy, and RetargetSelf. Airburst cell fan-out and Splits target retargeting use deterministic native child projectiles with Antares defaults; full Proximity edge parity and projectile trajectory extensions beyond this MO-required slice remain open.",
+        notes: "ProjectileRules now preserves Proximity, Airburst/AirburstWeapon, Cluster, AirburstSpread, AroundTarget, Splits, RetargetAccuracy, RetargetSelf, and AttachedSystem. Airburst cell fan-out and Splits target retargeting use deterministic native child projectiles with Antares defaults; documented smoke-only AttachedSystem definitions resolve the authored ParticleSystem -> Particle -> Image chain and follow projectile movement; full Proximity edge parity, non-smoke particle behavior, and projectile trajectory extensions beyond this MO-required slice remain open.",
     },
     {
         id: "ares.custom-animation-palettes",

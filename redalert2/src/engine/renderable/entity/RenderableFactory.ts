@@ -22,6 +22,7 @@ import { PsychicDetectPlugin } from "@/engine/renderable/entity/building/Psychic
 import { TrailerSmokePlugin } from "@/engine/renderable/entity/plugin/TrailerSmokePlugin";
 import { DamageSmokePlugin } from "@/engine/renderable/entity/plugin/DamageSmokePlugin";
 import { AresAttachEffectPlugin } from "@/engine/renderable/entity/plugin/AresAttachEffectPlugin";
+import { AresAttachedSystemPlugin } from "@/engine/renderable/entity/plugin/AresAttachedSystemPlugin";
 import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import { LocomotorType } from "@/game/type/LocomotorType";
 import { ShipWakeTrailPlugin } from "@/engine/renderable/entity/plugin/ShipWakeTrailPlugin";
@@ -77,6 +78,7 @@ interface Rules {
     general: any;
     audioVisual: any;
     combatDamage: any;
+    aresParticleSystemRules?: ReadonlyMap<string, AresParticleSystemRules>;
     warheadRules?: ReadonlyMap<string, { aresAttachEffect?: unknown }>;
 }
 interface Art {
@@ -313,6 +315,20 @@ export class RenderableFactory {
         }
         if (entity.isProjectile()) {
             const projectile = new Projectile(entity, this.rules, this.imageFinder, this.voxels, this.voxelAnims, this.theater, palette, this.palettes.get("palette.pal"), this.camera, this.gameSpeed, this.lighting, this.lightingDirector, this.vxlBuilderFactory, this.useSpriteBatching, this.useMeshInstancing);
+            const attachedSystemName = (entity.rules as any).attachedSystem?.trim();
+            const attachedSystem = attachedSystemName
+                ? this.rules.aresParticleSystemRules?.get(attachedSystemName.toLocaleLowerCase("en-US"))
+                : undefined;
+            if (attachedSystem) {
+                plugins.push(new AresAttachedSystemPlugin(
+                    entity,
+                    this.art,
+                    this.theater,
+                    this.imageFinder,
+                    this.gameSpeed,
+                    attachedSystem,
+                ));
+            }
             plugins.forEach((plugin) => projectile.registerPlugin(plugin));
             return projectile;
         }

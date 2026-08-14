@@ -23,6 +23,7 @@ describe("Ares projectile Airburst/Splits", () => {
         section.set("RetargetAccuracy", "80%");
         section.set("RetargetSelf", "no");
         section.set("Proximity", "no");
+        section.set("AttachedSystem", "SpeederShotSys");
 
         const rules = new ProjectileRules(ObjectType.Projectile, section);
 
@@ -35,6 +36,7 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(rules.retargetAccuracy).toBe(0.8);
         expect(rules.retargetSelf).toBe(false);
         expect(rules.proximity).toBe(false);
+        expect(rules.attachedSystem).toBe("SpeederShotSys");
     });
 
     test("uses documented defaults when extension keys are absent", () => {
@@ -48,6 +50,7 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(rules.splits).toBe(false);
         expect(rules.retargetAccuracy).toBe(0);
         expect(rules.retargetSelf).toBe(true);
+        expect(rules.attachedSystem).toBeUndefined();
         expect(rules.proximity).toBe(false);
     });
 

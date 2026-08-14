@@ -28,6 +28,7 @@ import { ReplayStatsOverlay } from "@/gui/screen/game/component/hud/ReplayStatsO
 import { isAresPcxCameoSize, type AresPcxCameoAssetManifest } from "@/extensions/ares/AresPcxCameos";
 import { resolveSidebarTabIcon } from "@/gui/screen/game/component/hud/viewmodel/SidebarTabIconConfig";
 import { SidebarCategory } from "@/gui/screen/game/component/hud/viewmodel/SidebarModel";
+import { normalizeSidebarCameoFrame, type SidebarSlotSize } from "@/gui/screen/game/component/hud/SidebarCameo";
 declare const THREE: any;
 interface Viewport {
     x: number;
@@ -287,9 +288,9 @@ export class Hud extends UiObject {
         const cameoPalette = this.palettes.get("cameo.pal");
         if (!cameoPalette)
             throw new Error('Missing palette "cameo.pal"');
-        const cameoImages = this.buildCameoFile();
-        const cameoNameToIdMap = this.createCameoNameToIdMap();
         const sidebarSlotSize = { width: slotClockImg.width, height: slotClockImg.height };
+        const cameoImages = this.buildCameoFile(sidebarSlotSize);
+        const cameoNameToIdMap = this.createCameoNameToIdMap();
         const sidebarCardOffset = { x: 22, y: 1 };
         const sidebarCardPosition = usesAlliedCardGeometry
             ? { x: 5, y: 2 }
@@ -631,16 +632,14 @@ export class Hud extends UiObject {
         }
         return buttons;
     }
-    private buildCameoFile(): ShpFile {
+    private buildCameoFile(slotSize: SidebarSlotSize): ShpFile {
         const cameoFile = new ShpFile();
         cameoFile.filename = "agg_cameos.shp";
+        cameoFile.width = slotSize.width;
+        cameoFile.height = slotSize.height;
         this.cameoFilenames.forEach((filename) => {
             const image = this.getImage(filename);
-            if (!cameoFile.width)
-                cameoFile.width = image.width;
-            if (!cameoFile.height)
-                cameoFile.height = image.height;
-            cameoFile.addImage(image.getImage(0));
+            cameoFile.addImage(normalizeSidebarCameoFrame(image.getImage(0), slotSize));
         });
         return cameoFile;
     }
