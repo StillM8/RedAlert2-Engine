@@ -53,7 +53,13 @@ export abstract class VxlBuilder {
         if (!this.sections) {
             throw new Error("Vxl object must be built first");
         }
-        return this.sections.get(sectionName);
+        const expected = sectionName.trim().toLocaleLowerCase("en-US");
+        for (const [name, mesh] of this.sections) {
+            if (name.trim().toLocaleLowerCase("en-US") === expected) {
+                return mesh;
+            }
+        }
+        return undefined;
     }
     getLocalBoundingBox(): THREE.Box3 | undefined {
         return this.localBoundingBox;

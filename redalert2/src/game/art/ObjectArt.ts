@@ -250,17 +250,18 @@ export class ObjectArt {
     // Voxel rotor sections for rotorcraft whose art has no Rotors= key.
     // RA2/YR animate helicopter rotors in the exe, so retail art has NO
     // Rotor* keys at all — these are the section names read out of the
-    // shipped .vxl files. SHAD (Nighthawk) was the one the Siege Chopper
-    // entry was modelled on and was never actually added, so the Allied
-    // chopper had no rotors registered and fell back to the raw 2-frame
-    // HVA toggle: a ~36 degree twitch that reads as "not spinning".
+    // shipped .vxl files. The old CYLINDER* names were never present in
+    // these VXLs and caused unit creation to throw.
     private static readonly DEFAULT_ROTORS = new Map<string, string[]>([
-        ["SCHP", ["CYLINDER19", "CYLINDER57"]],
-        ["SHAD", ["CYLINDER18", "CYLINDER09"]],
+        ["SCHP", ["Main Rotor", "Rear Rotor"]],
+        ["SHAD", ["Main Rotor", "Rear Rotor"]],
     ]);
     get imageName(): string {
         return (this.image || this.rules.imageName) +
-            (this.rules.alternateArcticArt && ObjectArt.inSnowTheater ? "A" : "");
+            // AlternateArcticArt is an SHP-only retail/Ares feature. Applying
+            // the suffix to voxel vehicles or aircraft makes the renderer look
+            // for nonexistent imageA.vxl files on snow maps.
+            (this.type === ObjectType.Infantry && this.rules.alternateArcticArt && ObjectArt.inSnowTheater ? "A" : "");
     }
     get cameo(): string {
         const cameo = this.art.getString("Cameo") || ObjectArt.MISSING_CAMEO;
@@ -381,7 +382,9 @@ export class ObjectArt {
         if (!rotorNames.length) {
             // Retail animates helicopter rotors natively (no art key); supply
             // the voxel rotor section names for units artcd.ini doesn't cover.
-            rotorNames = ObjectArt.DEFAULT_ROTORS.get((this.art as any).name) ?? [];
+            const artName = String((this.art as any).name ?? "").toLocaleLowerCase("en-US");
+            rotorNames = [...ObjectArt.DEFAULT_ROTORS.entries()]
+                .find(([name]) => name.toLocaleLowerCase("en-US") === artName)?.[1] ?? [];
         }
         if (rotorNames.length) {
             const rotors: Rotor[] = [];

@@ -349,13 +349,13 @@ export class Aircraft {
         this.vxlBuilders.push(vxlBuilder);
         const builtObject = vxlBuilder.build();
         if (this.objectArt.rotors) {
-            this.rotors = this.objectArt.rotors.map((rotorConfig: any) => {
-                const section = vxlBuilder.getSection(rotorConfig.name);
-                if (!section) {
-                    throw new Error(`Aircraft "${this.objectRules.name}" VXL section "${rotorConfig.name}" not found`);
-                }
-                return section;
-            });
+            const rotorSections = this.objectArt.rotors.map((rotorConfig: any) => vxlBuilder.getSection(rotorConfig.name));
+            if (rotorSections.every(Boolean)) {
+                this.rotors = rotorSections as THREE.Object3D[];
+            }
+            else {
+                console.warn(`Aircraft "${this.objectRules.name}" has an incomplete rotor definition; smooth rotor animation disabled.`);
+            }
         }
         return builtObject;
     }

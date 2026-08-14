@@ -757,12 +757,15 @@ export class Vehicle {
                 s = this.mainVxl = i.build();
                 n.add(s),
                     this.objectArt.rotors &&
-                        (this.rotors = this.objectArt.rotors.map((e) => {
-                            var t = i.getSection(e.name);
-                            if (!t)
-                                throw new Error(`Vehicle "${this.objectRules.name}" VXL section "${e.name}" not found`);
-                            return t;
-                        }));
+                        (() => {
+                            const rotorSections = this.objectArt.rotors.map((rotor) => i.getSection(rotor.name));
+                            if (rotorSections.every(Boolean)) {
+                                this.rotors = rotorSections as THREE.Object3D[];
+                            }
+                            else {
+                                console.warn(`Vehicle "${this.objectRules.name}" has an incomplete rotor definition; smooth rotor animation disabled.`);
+                            }
+                        })();
             }
             else
                 console.warn(`VXL missing for vehicle ${this.objectRules.name}. Vxl file ${t} not found. `),
