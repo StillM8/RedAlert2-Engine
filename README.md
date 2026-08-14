@@ -1,380 +1,72 @@
-# Command & Conquer Red Alert 2, Yuri's Revenge & Mental Omega — TypeScript engine for desktop, iOS & Android
+# Red Alert 2 Engine
 
-<img width="800" height="450" alt="0808" src="https://github.com/user-attachments/assets/c8efcdb7-72c4-47b8-86a7-cecd25eb4ace" />
+Cross-platform TypeScript engine and native shells for Red Alert 2, Yuri's
+Revenge, and compatible community content.
 
+This repository contains the engine, platform integrations, import pipeline,
+and development tools. It does **not** contain Red Alert 2, Yuri's Revenge,
+Mental Omega, or any other game archives. Players must provide their own
+legally obtained game files through the platform's import flow.
 
-**Red Alert 2, Yuri's Revenge, and Mental Omega running on desktop, iPhone,
-iPad, and Android** — fully in English, with touch controls built for RTS (tap-select,
-drag-box, two-finger map grab, pinch zoom, long-press force-attack),
-mid-match save/load, retail-accurate lighting, and skirmish AI built out on top of Supalosa's
-Chrono Divide bot until you get a different opponent every match: per-match personalities ×
-strategic doctrines, the retail game's own 132 attack teams, superweapons
-fired like the original AI fired them, spies, garrisons, terror drones, and a roster that shifts every game.
+## Project direction
 
-No emulation, and no retail-binary rewrite: this is the Chrono Divide-lineage
-TypeScript engine, with its core simulation loop and determinism model kept
-shared across content entries. It is wrapped by a native Swift/WKWebView shell on
-iOS and a Kotlin/WebView shell on Android. Rendering uses WebGL through the
-platform browser runtime; native packages serve your imported retail assets
-offline.
+The product is one shared engine with platform shells:
 
-The repository also includes a Tauri 2 beta shell for Windows, Linux, and macOS
-under `redalert2/src-tauri/`. Android and iOS continue to use their existing
-native Kotlin and Swift/WKWebView shells. See
-[`docs/TauriBeta.md`](docs/TauriBeta.md) for desktop commands and prerequisites.
+- **Windows, Linux, and macOS:** Tauri 2 desktop shell
+- **Android:** Kotlin/WebView shell
+- **iOS and iPadOS:** Swift/WKWebView shell
 
-**No game assets are included or distributed.** You need your own copy of
-Red Alert 2 + Yuri's Revenge ([Steam](https://store.steampowered.com/app/2229850/),
-part of the C&C Ultimate Collection). One script imports everything from
-your install:
+The selected content is managed in **Menu → Mods**. Selecting a game or mod
+updates the persisted content route and reinitializes the shared engine. There
+are no separate application builds for Red Alert 2, Yuri's Revenge, or each
+mod.
 
-```sh
-./scripts/setup.sh /path/to/your/ra2/install
-```
+## Engine lineage
 
-## Why this port is shaped differently than Generals
+The current engine work started from the iOS/iPad rewrite at
+[`ammaarreshi/RedAlert2-Mac-iOS-iPad`](https://github.com/ammaarreshi/RedAlert2-Mac-iOS-iPad).
+That project wrapped the Chrono Divide/RA2WEB TypeScript engine in a native
+Swift shell. This repository has since grown into an independent,
+cross-platform engine project rather than a branch intended to merge back into
+that starting repository.
 
-The sibling project ([Generals-Mac-iOS-iPad](https://github.com/ammaarreshi/Generals-Mac-iOS-iPad))
-ports EA's released C++ engine: real engine, ARM64 compile, DXVK→MoltenVK
-underneath. **RA2 has no released engine source.** EA opened Tiberian Dawn and
-Red Alert 1 alongside the Remastered Collection in 2020, then in February 2025
-released the recovered originals plus Renegade and Generals — all under GPL v3
-*with EA's additional terms*, which is why GitHub classifies them as "Other"
-rather than plain GPL-3.0. No RA2 engine in either release. (EA has published
-the RA2/Tiberian Sun *mission editor* under GPL-3.0, which is not the same
-thing.) The engine source is widely believed lost, though that traces to
-community accounts rather than any statement from EA.
+The broader lineage includes the original Chrono Divide/RA2WEB work and the
+open engine tree that was used as an early reference:
 
-So there is no engine source to compile. The other route — x86 emulation of the
-retail binary, the way CnCNet-under-Wine works — is a non-starter on iOS.
+- [Chrono Divide / RA2WEB](https://www.ra2web.com/)
+- [`huangkaoya/redalert2`](https://github.com/huangkaoya/redalert2)
+- [`Supalosa/supalosa-chronodivide-bot`](https://github.com/Supalosa/supalosa-chronodivide-bot)
 
-What exists instead is a from-scratch reimplementation: Chrono Divide, rebuilt
-over years into a deterministic TypeScript sim + Three.js renderer, continued
-by the RA2WEB community. So the Generals playbook still applies — *preserve
-the battle-tested engine, swap the platform underneath it* — but the
-translation layer is different:
+The lineage is preserved for attribution and engineering context. The current
+repository is the independent home for the shared engine and its platform
+shells.
 
-| Generals port | This port |
-|---|---|
-| Real 2003 C++ engine, untouched | Real Chrono Divide-lineage TS engine, untouched where it counts |
-| DX8 → DXVK → Vulkan → MoltenVK → Metal | WebGL → ANGLE → Metal (Apple ships this in WebKit, JIT included) |
-| Filesystem rerouted into the bundle | User-imported assets stored in origin storage |
-| SDL touch → RTS touch semantics | Custom gesture engine → the engine's pointer layer |
-| "iOS owns your process" lifecycle work | Same, via the shell owning the WebView lifecycle |
+## Compatibility status
 
-And where the Generals engine came with its AI, its lighting, and its
-expansion content built in, here each of those became its own campaign —
-which is where most of the story below happened.
+Compatibility is being built incrementally and is not claimed to be complete.
 
-## One TypeScript engine, Mods-menu-selected content
+| Target | Status |
+| --- | --- |
+| Red Alert 2 | Shared engine and user-imported content path are active development targets |
+| Yuri's Revenge | Shared engine support is active development; import it as the base for YR content |
+| Ares | Generic, data-driven TypeScript compatibility layer under `redalert2/src/extensions/ares/`; work continues across parsing, runtime behavior, rendering, audio, save/load, AI, and multiplayer |
+| Mental Omega | **Compatibility work in progress.** The project is working toward Mental Omega support through the required Yuri's Revenge and Ares behavior; full compatibility is not claimed |
+| Other mods | Supported as the required engine and Ares capabilities are implemented and tested |
 
-This is one shared TypeScript game engine and renderer. Red Alert 2, Yuri's
-Revenge, Mental Omega, and other compatible mods are content entries in one
-library. The user selects an installed entry from **Menu → Mods**; that choice
-performs a clean engine reload and is remembered for the next launch. There is
-one Android app, one iOS app, and one desktop app rather than a separate build
-profile for each game:
+Ares is part of the shared engine as a compatibility layer. It is not a
+separate DLL, a separate application, or a Mental Omega-only patch. The goal is
+for code to respond to declared rules and capabilities rather than to hardcode
+one mod's name.
 
-| Content entry | Simulation family | Content and compatibility layer |
-|---|---|---|
-| Red Alert 2 | Red Alert 2 | Retail RA2 rules and resources |
-| Yuri's Revenge | Yuri's Revenge | Retail YR expansion rules and resources |
-| Mental Omega | Yuri's Revenge | Imported MO resources plus the shared Ares-compatible runtime |
+## Quick start: browser engine
 
-Ares is part of this build as a generic TypeScript compatibility layer under
-`redalert2/src/extensions/ares/`. It is not a separately installed DLL, a
-second engine, or a Mental Omega-only patch. The selected content descriptor
-declares its base game and required extensions; MO uses Yuri's Revenge plus
-Ares, while vanilla RA2/YR continue through their ordinary paths. The
-implementation must stay data-driven: code should respond to an Ares rule or
-capability, not to a hard-coded `Mental Omega` name.
+### Requirements
 
-The Ares layer is deliberately incremental. Parsing a key does not mean the
-whole feature is complete. The explicit registry and tests track parser,
-runtime, presentation, persistence, and multiplayer coverage separately.
-Current verified slices include data-defined sides/countries, additional armor,
-projectile extensions, attach effects, several superweapon handlers and
-targeting paths, and selected powered/veterancy/bounty/reverse-engineering
-bridges. Many features still need complete rendering/audio behavior,
-save/load integration, AI certification, and deterministic multiplayer
-certification. The project therefore does not yet claim full Ares or “all
-mods” parity.
+- [Bun](https://bun.sh/) 1.3 or newer
+- A modern browser with WebGL and Web Audio support
+- Your own Red Alert 2 and/or Yuri's Revenge installation for gameplay
 
-The practical rule for compatibility is:
-
-- vanilla RA2/YR mods using supported rules should run through the same engine;
-- Ares/MO mods run as their required Ares features become complete and tested;
-- mods that require an unimplemented Ares feature, a custom native DLL, or a
-  separate renderer still require additional engine work.
-
-Startup is also profile-driven. The engine mounts the selected profile's
-required rules, art, AI, sound, and presentation layers first, then defers
-large gameplay MIX layers until a match needs them. A profile-declared
-multiplayer catalog is used directly by the lobby, so entering Skirmish does
-not require mounting and rescanning every standalone map pack. No imported
-archive is rewritten or bundled into the application by this process.
-
-## The story of the effort
-
-The engine ran in a desktop browser on day one. Everything between that and
-"a full RA2+YR experience that plays great on an iPad" was the actual work.
-In rough chronological order:
-
-### Making it a product
-- **English, all the way down.** The fork was Chinese. In-game strings turned
-  out to be 99.98% recoverable from the retail English `ra2.csf` (one key was
-  a translator credit); ~38 source files of UI/comments/dev-tools were
-  translated by hand.
-- **A native shell with zero network dependency.** Custom URL-scheme handlers
-  serve the engine and its UI; users import their own game files into private
-  app storage. An optional local resource bundle remains available for QA, but
-  is not part of normal Android or iOS builds.
-- **Touch controls that feel like an RTS**, not a webpage: one-finger
-  tap/drag-box, two-finger 1:1 map grab, pinch zoom (which meant *unlocking
-  camera zoom in the engine* and making pan limits zoom-aware), long-press
-  force-attack, and cancelled touches that never ghost-click.
-- **Native-resolution rendering** (logical UI scale × devicePixelRatio into
-  the WebGL backing store) so an iPad mini renders the battlefield at
-  2560×1440 instead of an upscaled 1280×720 — which surfaced input-mapping
-  and shroud-seam bugs that only exist at fractional scales.
-- **Mid-match save/load**, built on the engine's replay system: a save is the
-  action log up to the saved tick; loading resimulates it deterministically
-  at maximum speed and hands control back. This forced a real determinism
-  audit (an RNG seed was silently losing millisecond precision in a
-  round-trip through the save format).
-
-### Making it Yuri's Revenge
-The engine had YR scaffolding but booted RA2-only. Getting to a **fully
-playable third faction** took three phases: engine-mode plumbing and md-asset
-import; the slave-miner economy (the faction's core loop — slaves, grinder,
-bio reactor occupancy power); and the exotics — Mastermind mind-control capacity (retail's
-overload self-damage is not modelled), Magnetron vehicle lifting, Tank Bunkers, Cloning Vats, Psychic
-Dominator and Genetic Mutator superweapons, Battle Fortress open-topped fire (proxied as the strongest
-passenger's weapon at a scaled rate, not five passengers firing), Robot Tanks with a live control-center dependency, Boris airstrikes,
-berserk gas. Plus the YR-specific crash archaeology: the retail `rulesmd.ini`
-*omits* ~25 `[AudioVisual]` keys that the YR binary hardcodes — the first
-move order in any YR game was a fatal crash until the engine learned the
-retail defaults.
-
-### Making it look right
-A 26-agent audit compared every asset and lighting path against retail
-seeded archives byte-identical to Steam, VXL parsing byte-equal to the
-CNCMaps reference implementation (not to the retail binary, which nothing here
-was compared against), all four voxel normal tables exact. The audit also
-found real divergences, all fixed: map `[Lighting]` ground term applied with
-the wrong sign, palette lighting multiplied in the wrong color domain (now
-exact gamma-domain math in the shaders), voxel shading rebuilt to the retail
-`palette × (0.8 + 1.3·dotNL) × cell light` model, invisible lamp buildings
-that should cast light without rendering (the source of YR's famous
-white-washed city blocks), and per-country loading-screen palettes (YR
-repainted every one; the engine was using the RA2 palette — hence the
-"16-bit-looking" load screens).
-
-### Making the AI worth playing
-The centerpiece, and the longest fight in the project. The stock bot idled
-behind three war factories, rushed the same conscripts every game, and once
-built twenty bio reactors. Five research-driven passes built the systems —
-and then a sixth pass discovered that several of them had never actually
-been running:
-
-1. **Diagnosis + the retail database.** The root causes were structural (army
-   units were only ever built when an attack mission requested them). The fix
-   came with a gift: the retail `aimd.ini` — 132 TaskForces, 165
-   AITriggerTypes — parsed and wired in as the attack-team library, with
-   conditions ("enemy owns ≥1 battle lab"), per-difficulty enables, and
-   outcome-weight feedback. Even the upstream bot project had this on its
-   wishlist.
-2. **Superweapons + squad brains.** A superweapon officer that fires nukes,
-   storms and dominators at the enemy's most valuable cluster, iron-curtains
-   its own armored push, chronoshifts vehicle squads, answers *your* launches
-   with Force Shield at retail's 90/50/10% by difficulty, and paradrops into
-   ongoing fights. Squads learned to retreat from lost fights (distilled from
-   OpenRA's attack-or-flee fuzzy logic), artillery holds stand-off range,
-   attacks arc in on center/flank/backdoor lanes.
-3. **No two skirmishes the same.** Per-match rolls: 6 personalities × 5
-   doctrines × an opening book × ±40% production-weight jitter × a mask that
-   benches a quarter of the attack-team deck each game. Country identity
-   (Iraq fields Desolators, Cuba terrorists, France Grand Cannons, Korea
-   Black Eagles). ~20 missing units and 6 missing buildings entered the
-   roster with micro-roles so specialists fight correctly — terror drones
-   hunt vehicles, commandos C4 buildings, demo trucks trade themselves for
-   structures. A counter-composition census answers what *you* build.
-4. **EA's own source code.** With RA1's `HOUSE.CPP` Expert AI and Generals'
-   skirmish AI open-sourced, the actual retail values replaced guesses:
-   trigger feedback at true retail strength (+20/−50 with the track-record
-   snowball), superweapon targeting from the real `AIIonCannon` value tables,
-   fire-on-ready timing, per-difficulty defense caps (easy AIs are nearly
-   undefended — that's what makes them beatable), the ±80% census misjudgment
-   that makes easy bots build wrong counters, grudge-based enemy focus, and
-   RA1's iconic fire-sale endgame.
-5. **Backporting the learnings.** OpenRA-style leader movement (the slowest
-   unit leads; pushes arrive as one fist), air discipline (flyers refuse
-   AA-saturated zones; air production pivots when you wall the sky), spy
-   infiltration (battle lab = stolen-tech units), Battle Fortress boarding,
-   and the RA1 desperation sell-ladder.
-
-6. **Finding out none of it was on.** A 19-agent review fixed 14 real bugs
-   and made the sim 2.2× faster — and the AI still played badly on device.
-   The reason is the most useful thing this project learned: **a bot that
-   does nothing throws nothing.** Error-free soak tests and per-tick
-   profiling both passed while large parts of the AI were inert. Three
-   defects were switching it off. A lobby validator written before "Brutal"
-   existed silently demoted every saved Brutal slot to Easy. A mission gate
-   nested a global `tick % 3` inside a per-bot phase-offset update —
-   arithmetic that, for most bots, is *never simultaneously true*, so they
-   ran no missions, no attacks and no superweapons for entire matches. And a
-   "failsafe" meant to unstick a dead bot queued buildings behind the real
-   queue controller's back, falling through to "extra power is always
-   useful" — forever. That single line is the true origin of the twenty bio
-   reactors, and its queue/cancel war with the real controller burned the
-   economy that should have been buying tanks.
-
-Then a 198-agent adversarial audit went looking for the rest, and confirmed
-72 findings across eleven dimensions. The pattern repeated: the same dead-gate
-arithmetic had also silenced the threat model for seven bots in eight (so
-defenses stopped at one of each type and nobody expanded); attack squads
-disbanded on their *first* update because a no-target timer started at zero;
-tech and superweapons scaled their desire by *current cash* while a healthy
-bot spends to zero, so those requests never formed; the war factory kept
-buying harvesters because miners outweighed tanks in the background pool;
-artillery was missing from that pool entirely; and bot reaction speed was
-derived from the wall clock against the game-speed slider, making every
-difficulty six times more sluggish per tick at the iPad's default speed than
-in the lab. Retail's hidden AI economy bonus (`AIVirtualPurifiers` — brutal
-refines ore at +100%) was simply never wired.
-
-The fix that matters most isn't in that list: **liveness is now asserted, not
-assumed.** `scripts/ai-liveness-probe.js` runs a mixed-difficulty match
-headlessly and fails the build if any bot stops thinking, stops forming
-attack waves, never projects force away from home, spams one structure, or
-accumulates queue cancels — and the iOS build script refuses `--device`
-without that sign-off. Alongside it is a habit rather than a tool: watch the
-game. Reveal the map, pan the camera onto each bot's base, screenshot it
-minute by minute, and judge it the way a player does. Every remaining issue
-in this list was found that way, not by a counter.
-
-### Making it cool (thermally)
-Frame-rate caps with the sim decoupled (60/30/uncapped graphics option,
-menus hard-capped at 30fps), no framebuffer preservation, scene-graph matrix
-auto-update disabled in favor of explicit updates, octree re-slotting only on
-tile changes — the earlier performance pass that took total frame CPU to
-~3.6ms, which the AI work then had to respect (and did — see the numbers
-above).
-
-Then the iPad still ran hot, and CPU profiling said the wrong thing: rendering
-at one-eighth the pixels saved only 5% of frame CPU. The GPU does its work
-asynchronously, so the bytes it drags through DRAM — the term that actually
-dominates power on a tile-based mobile GPU — never show up in a
-`performance.now()` delta. Measuring bytes instead found that the sprite
-batches were drawing all 10,000 preallocated slots every frame at 2.4%
-occupancy, the shadow map covered 233 tiles for a 31-tile view, every sprite
-atlas was RGBA8 carrying a single payload byte, and the palette shader ran
-nine `pow()` per fragment computing the identity function. Fixing those took
-the two biggest buffer terms about 5.7x lower, with shadows that are sharper rather than degraded (the shadows are *sharper*: refitting the box from a fixed 233-tile square to
-the visible rect plus a caster margin gives ~2.4x finer texels even at a
-quarter the map size). The shell now also reports `ProcessInfo.thermalState` to the
-page, so the renderer — never the simulation — throttles itself when iOS says
-the device is under thermal stress.
-
-**→ The complete engineering log: [docs/PORTING_PLAYBOOK.md](docs/PORTING_PLAYBOOK.md)**
-
-Like the Generals port, this is a **human + AI collaboration**: the
-engineering was done with AI — see [AI-USE.md](AI-USE.md) for which model did
-what — directed and playtested by a human who
-described symptoms like *"tapping the MCV won't detect the touch"* and *"one
-of the Yuri AIs just made like 20 bio reactors"* and owned every decision.
-
-## Quick start
-
-Prerequisites (one time):
-
-```sh
-xcode-select --install                  # plus full Xcode for device builds
-brew install xcodegen ffmpeg
-curl -fsSL https://bun.sh/install | bash
-```
-
-Clone and run the setup script against your own install:
-
-```sh
-git clone <this-repo> ra2-ios && cd ra2-ios
-./scripts/setup.sh "/path/to/steamapps/common/Command & Conquer Red Alert 2"
-```
-
-The script installs dependencies, verifies your retail files, and prepares a
-local, gitignored import for development (nothing is downloaded — everything
-comes from your copy). Normal native builds package only the engine; the app
-then asks each player to import their own game files:
-
-```sh
-./scripts/build-ios.sh                  # engine-only build + iPhone simulator
-./scripts/build-ios.sh --bundle-local-gameres  # optional local QA bundle
-RA2_TEAM_ID=<your-team-id> ./scripts/build-ios.sh --device   # iPhone/iPad
-```
-
-Find your team id in Xcode → Settings → Accounts. Install the device build
-with `xcrun devicectl device install app --device <id> <path to RA2.app>`.
-
-### Android builds
-
-Android is one product. The in-game Mods screen owns content switching; the
-native shell only provides storage, lifecycle, and file-picking services. The
-built-in Mod Menu entries are Red Alert 2 and Yuri's Revenge; imported
-packages stay separate and declare which base they require. Build the unified
-app from the repo root:
-
-```sh
-./scripts/build-android.sh
-./scripts/build-android.sh --release
-```
-
-Use `--device` to install and launch the unified debug app through `adb`:
-
-```sh
-./scripts/build-android.sh --device
-```
-
-The first launch opens the in-app game-resource setup. After the base files
-are imported, open **Menu → Mods**. Selecting Red Alert 2, Yuri's Revenge, or
-an imported mod performs a full engine reload and persists that choice for the
-next launch. A mod that requires YR uses the separately imported Yuri's
-Revenge base; it does not replace or merge the base install. If the selected
-content is removed, the stale route is cleared and the app returns to the
-neutral Red Alert 2 baseline until another Mods selection is made.
-
-Retail game files are not bundled; import your legally-owned installation on
-first launch. For local QA only, Android accepts
-`./scripts/build-android.sh --with-gameres`.
-
-The Android WebView uses a platform-safe image conversion path for the small
-legacy PCX/SHP UI resources, avoiding the multi-second `canvas.toBlob()` delay
-found on some Android WebView versions. This changes only the temporary UI
-conversion; the original imported artwork remains untouched.
-
-The Android release is a single app (`com.ammaar.ra2android` in release and
-`com.ammaar.ra2android.debug` in debug). Retail game files are not bundled;
-import your legally-owned installation on first launch. During the first
-import, the Android client converts the retail Bink menu movie to WebM and
-stores it with the imported files. Later launches reuse that file.
-
-Returning from Android Home or Back preserves the existing WebView and game
-session instead of booting a new session. While a single-player match is
-hidden, the shared engine writes an action-log checkpoint; if Android later
-kills the WebView, the next launch validates the app and selected content route
-before resuming that checkpoint. Multiplayer is not reconstructed from a local replay;
-its live network/session lifecycle remains separate.
-
-Desktop development (no Xcode needed):
-
-```sh
-cd redalert2 && RA2_HTTP=1 bun run dev
-# open http://localhost:4000/?shell=1  ← exercises the exact iOS boot path
-```
-
-### Desktop, Linux and macOS
-
-The same `redalert2/` engine can already run on Windows, Linux, and macOS in a
-modern desktop browser. No platform-specific simulation rewrite is required:
+Install dependencies and run the web client:
 
 ```sh
 cd redalert2
@@ -382,177 +74,156 @@ bun install
 bun run dev
 ```
 
-Import your legally-owned game resources through the browser or the Tauri
-desktop shell and use the same TypeScript simulation, Ares compatibility code,
-renderer, and tests used by the native shells. The Tauri shell is a packaged
-desktop wrapper around the same engine: it owns filesystem permissions, window
-lifecycle, controller input, and packaging, while the simulation remains
-shared. Its Mods menu can import either an extracted mod folder or one or more
-ZIP archives; retail game files are still supplied by the user.
+The development server runs at `http://127.0.0.1:4000`.
 
-## Where things are
-
-| Path | What it is |
-|---|---|
-| [`docs/PORTING_PLAYBOOK.md`](docs/PORTING_PLAYBOOK.md) | Engineering log: every failure mode, root cause, fix |
-| `redalert2/` | The engine (Bun + Vite + React + Three.js). Base: [huangkaoya/redalert2](https://github.com/huangkaoya/redalert2) @ `8c07f10` |
-| `redalert2/src/shell/` | Shell integration: first-launch asset seeding, shell detection, debug log pipe |
-| `redalert2/src/game/ai/thirdpartbot/builtIn/` | The skirmish AI: personalities, doctrines, retail trigger DB, superweapon officer, squad micro |
-| `redalert2/src/game/ai/.../ai-ini/aiTriggerDb.ts` | Parser/evaluator for the retail `aimd.ini` attack-team database |
-| `redalert2/src/game/ai/.../logic/superweapons.ts` | The superweapon officer (targeting, timing, anti-SW Force Shield) |
-| `redalert2/src/gui/screen/mainMenu/loadGame/` | Mid-match save/load (replay-backed) |
-| `redalert2/src/extensions/ares/` | Generic Ares-compatible parsing, adapters, handlers, and feature registry |
-| `ios/` | XcodeGen project: Swift shell, WKWebView, bundle scheme handler |
-| `android/` | Kotlin shell, WebView asset server, Android lifecycle, and unified app packaging |
-| `scripts/setup.sh` | One-shot setup: deps + retail import + next steps |
-| `scripts/prepare-gameres.ts` | The asset importer (what `setup.sh` runs for you) |
-| `scripts/build-ios.sh` | Web build → engine-only staging → xcodegen → xcodebuild |
-| `scripts/build-android.sh` | Web build → engine-only staging → Gradle APK → optional `adb` install |
-
-## What's upstream and what isn't
-
-This repo's history starts from the vendored engine, so the split is verifiable
-against upstream directly:
+Build and type-check the engine:
 
 ```sh
-git clone https://github.com/huangkaoya/redalert2 /tmp/upstream
-git -C /tmp/upstream checkout 8c07f10
-diff -rq /tmp/upstream/src redalert2/src | wc -l
+bun run typecheck:entry
+bun run build
 ```
 
-| | lines | whose |
-|---|---|---|
-| `redalert2/**` (engine, 1,300 files) | ~127,000 | Chrono Divide → RA2WEB → [huangkaoya/redalert2](https://github.com/huangkaoya/redalert2) @ `8c07f10` |
-| `redalert2/src/game/ai/thirdpartbot/**` | 7,367 upstream + ~4,400 here | [Supalosa's bot](https://github.com/Supalosa/supalosa-chronodivide-bot) — **no licence declared**, see Licence |
-| `ios/**` (Swift shell) | 444 lines of Swift | this repo |
-| `scripts/**` (import, build, probes) | ~2,600 | this repo |
+For a local asset-backed setup, run the importer from the repository root:
 
-Most of the port work is not in those two directories. Roughly 9,800 of the
-insertions land *inside* `redalert2/**` — Yuri's Revenge, the lighting fixes,
-touch controls and the AI all modify the engine tree rather than sitting beside
-it. The row above assigns that tree to upstream because upstream wrote the
-127,000 lines it started from, not because nothing was added to it.
-| `docs/`, `README` | ~1,200 | this repo |
+```sh
+./scripts/setup.sh "/path/to/your/Red Alert 2 installation"
+```
 
-On the English: the in-game strings are not translated by anyone here — they
-are extracted verbatim from the retail English `language.mix` by
-`scripts/prepare-gameres.ts`, i.e. Westwood's own text. The translation work in
-this repo is the source tree: ~680 lines of Chinese across 35 files, plus the
-UI plumbing to select the English tables.
+The importer reads the files you supply and writes local, gitignored
+development output under `gameres-export/` and generated web resources. It
+does not download or commit game archives.
 
-See [AI-USE.md](AI-USE.md) for which AI models were used and on what.
+## Desktop builds: Windows, Linux, and macOS
 
-## Licence
+The desktop app uses the same TypeScript engine as the browser, Android, and
+iOS shells. Install the platform prerequisites first, then run these commands
+from `redalert2/`:
 
-GPL-3.0, inherited from the upstream engine. The full text is in `LICENSE`.
+```sh
+bun install
+bun run tauri:beta:check
+bun run tauri:dev
+```
 
-The chain has a weak link and it is better to state it than to be told it.
-Upstream `huangkaoya/redalert2` ships GPL-3.0, but its own README says all rights
-belong to Chrono Divide's author, who has never open-sourced the engine. A
-licensor who says the rights are someone else's cannot make a GPL grant stick,
-so treat that grant as unverified rather than settled. This repository exists at
-Alexandru Ciucă's sufferance and comes down the day he asks.
+`tauri:beta:check` runs the engine type-check and production web build.
 
-Two related gaps, stated rather than buried:
+### Windows
 
-- The skirmish AI derives from **Supalosa's Chrono Divide bot**, which declares
-  no licence at all (`"license": "UNLICENSED"` in both package manifests, no
-  LICENSE file). His README invites forks, but that is not a grant. Used here
-  pending an explicit licence from him.
-- Vendored third-party components and their notices are listed in
-  [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Build the MSVC desktop target from Windows with Rust, MSVC C++ Build Tools,
+and WebView2 installed:
 
-**No built binary is distributed here, and none will be.** GPL-3.0 §6's
-Installation Information requirement cannot be satisfied under iOS code signing,
-so this ships as source you build with your own signing identity.
+```sh
+cd redalert2
+bun run tauri:build -- --target x86_64-pc-windows-msvc --no-bundle
+```
 
-Per EA's [C&C modding guidelines](https://www.ea.com/games/command-and-conquer/command-and-conquer-remastered/news/modding-faq),
-this project is free, non-commercial, and carries their required notice:
-*EA has not endorsed and does not support this product.*
+The target machine needs the WebView2 runtime. The `--no-bundle` build emits
+the portable executable instead of an installer bundle.
 
-## Lineage & credits
+### Linux
 
-This project stands on a chain of remarkable work, and this time we want to
-name all of it:
+Build on a Linux host with Rust and the WebKitGTK 4.1 development packages:
 
-**The engine lineage**
-- **[Chrono Divide](https://chronodivide.com)** by **Alexandru Ciucă** — the
-  from-scratch RA2 engine reimplementation this all descends from: a
-  deterministic, faithful RA2 simulation built in TypeScript over many
-  years. Never open-sourced by its author; see the disclaimer below.
-- **[RA2WEB](https://www.ra2web.com)** — the authorised Chinese-language
-  operation of the official client, which contributed the Chinese translation
-  and a mobile control panel back upstream. Not a fork: Chrono Divide has been
-  under continuous development by its author throughout.
-- **[huangkaoya/redalert2](https://github.com/huangkaoya/redalert2)** — the
-  React + Three.js refactor this repo builds on directly.
+```sh
+cd redalert2
+bun run tauri:build
+```
 
-**The AI's teachers**
-- **[Supalosa's Chrono Divide bot](https://github.com/Supalosa/supalosa-chronodivide-bot)**
-  (**no licence declared** — see Licence) — the foundation of the skirmish AI: missions, squads, threat maps,
-  and the scaffolding everything else was built into. Several fixes from its
-  newer branches (force-attack on disguised units, ammo gating, action
-  cooldowns) were ported back in.
-- **[OpenRA](https://github.com/OpenRA/OpenRA)** (GPL-3.0) — the squad-state
-  designs our combat micro learned from: the attack-or-flee evaluation,
-  leader-based squad movement, and the air-squad AA-safety rule. Algorithms
-  were studied and re-implemented for this engine, not copied.
-- **EA's official open-source releases** —
-  [CnC_Red_Alert](https://github.com/electronicarts/CnC_Red_Alert) (the
-  Expert AI in `HOUSE.CPP`: urgency systems, superweapon handling, the
-  fire-sale) and
-  [CnC_Generals_Zero_Hour](https://github.com/electronicarts/CnC_Generals_Zero_Hour)
-  (skirmish AI pacing and superweapon coordination). Releasing these was a
-  gift to the community; this project mined them gratefully.
-- **The retail `aimd.ini`** — Westwood's own AI designers authored the 132
-  attack teams and 165 triggers our bots now field. Their designers wrote
-  those; the bot just had to use them.
+Distribution package formats depend on the installed Tauri/Linux packaging
+dependencies.
 
-**The reference keepers**
-- **[ModEnc](https://modenc.renegadeprojects.com)** — the C&C modding
-  encyclopedia; the semantics of every ini key, script action, and AI knob
-  used here were verified against it.
-- **[CNCMaps / ccmaps-net](https://github.com/zzattack/ccmaps-net)** by
-  **zzattack** — the rendering reference used to verify VXL parsing and
-  reconstruct retail lighting math (`Palette.ApplyLighting`).
-- **[Project Perfect Mod](https://www.ppmsite.com)** and **DeeZire's RA2/YR
-  INI Editing Guide** — decades of community documentation on how this game
-  actually works.
-- **[CnCNet](https://cncnet.org)** and the wider C&C community — for keeping
-  these games alive for 25 years.
+### macOS
 
-**The tools**
-- [Three.js](https://threejs.org), [React](https://react.dev),
-  [Vite](https://vitejs.dev), [Bun](https://bun.sh),
-  [@timohausmann/quadtree-ts](https://github.com/timohausmann/quadtree-ts),
-  [js-logger](https://github.com/jonnyreeves/js-logger), and
-  [7-Zip](https://www.7-zip.org) (the WASM build powers in-browser archive
-  import).
-- [Claude Code](https://claude.com/claude-code), Gemini and GPT — see
-  [AI-USE.md](AI-USE.md) for the split. Claude Code did the
-  engineering.
+Build on macOS with Rust and Xcode Command Line Tools:
 
-**The originators**
-- **Westwood Studios** — for Red Alert 2 and Yuri's Revenge, still the high
-  point of the genre. © 2000–2001 Electronic Arts Inc. Command & Conquer,
-  Red Alert, and Yuri's Revenge are trademarks of Electronic Arts Inc.
+```sh
+cd redalert2
+bun run tauri:build -- --target universal-apple-darwin
+```
 
-If we've still missed anyone whose work this builds on, please open an
-issue — credit will be added, gladly.
+The universal target contains Apple Silicon and Intel macOS binaries. The
+Apple SDK and WebKit frameworks mean this target must be built on macOS; it is
+not a Linux/WSL cross-build.
 
-## Disclaimer
+The desktop shell supports both extracted folders and ZIP imports. It still
+ships without game files; users import their own content and select it from
+**Menu → Mods**.
 
-This is a non-profit fan project, not affiliated with Electronic Arts Inc.
-No copyright infringement is intended; all rights are held by their
-respective owners. The engine this builds on is published under GPL-3.0 (see
-Licence above), while the Chrono Divide/RA2WEB lineage it descends from states
-that its engine reconstruction remains the author's and that commercial use is
-prohibited. This project is non-commercial and takes no position between them.
+More desktop notes are in [`docs/TauriBeta.md`](docs/TauriBeta.md).
 
-No retail game assets or game archives are tracked or distributed with this
-repository. A legally-owned copy of Red Alert 2 + Yuri's Revenge is required;
-the importer only ever reads from *your* install, and normal native builds do
-not copy its output into the app.
+## Mobile builds
 
-If you are a rights holder and would like anything here changed or removed,
-open an issue and it will be handled immediately.
+The native shells are documented separately:
+
+- [Android build and import guide](android/README.md)
+- [iOS and iPadOS build and import guide](ios/README.md)
+
+Both normal mobile builds package the engine only. Local game resources can
+be staged for QA, but they are never part of the normal distributed build.
+
+## Repository layout
+
+```text
+redalert2/       Shared TypeScript/React/Vite/Three.js engine and Tauri shell
+android/         Kotlin/WebView Android shell
+ios/             Swift/WKWebView iOS and iPadOS shell
+scripts/         Import, build, and regression tooling
+docs/            Compatibility and engineering notes
+gameres-export/  Local imported resources; gitignored and not distributed
+```
+
+Important commands and locations:
+
+| Path or command | Purpose |
+| --- | --- |
+| `redalert2/src/engine/` | Rendering, audio, resource loading, and low-level engine services |
+| `redalert2/src/game/` | Rules, objects, maps, triggers, AI, and gameplay systems |
+| `redalert2/src/extensions/ares/` | Generic Ares-compatible parsing, adapters, handlers, and tests |
+| `redalert2/src/gui/` | Main menu, Mods menu, lobby, HUD, and in-game UI |
+| `scripts/setup.sh` | Local dependency setup and user-owned resource import |
+| `scripts/build-android.sh` | Web build, Android staging, Gradle APK, optional device install |
+| `scripts/build-ios.sh` | Web build, iOS staging, XcodeGen, and Xcode build |
+| `bun run debug:*` | Focused browser regression flows under `redalert2/` |
+
+## Verification
+
+Before submitting engine changes:
+
+```sh
+cd redalert2
+bun run typecheck:entry
+bun run build
+```
+
+When changing a specific system, run its focused regression flow as well. For
+example:
+
+```sh
+bun run debug:options
+bun run debug:skirmish
+bun run debug:game-res-init
+bun run debug:superweapon
+```
+
+A successful compile does not imply complete retail, Ares, or Mental Omega
+compatibility. Gameplay, imported-resource, and platform-shell paths still
+need targeted verification.
+
+## Assets, licensing, and attribution
+
+Do not commit or distribute proprietary Red Alert 2, Yuri's Revenge, or mod
+archives. Import content from a copy the user is entitled to use.
+
+Read [`LICENSE`](LICENSE) and [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
+before redistributing code. Components inherited from upstream projects and
+third-party dependencies may have additional attribution or license terms.
+Red Alert 2, Yuri's Revenge, Mental Omega, and related trademarks belong to
+their respective owners.
+
+## Acknowledgements
+
+- [`ammaarreshi/RedAlert2-Mac-iOS-iPad`](https://github.com/ammaarreshi/RedAlert2-Mac-iOS-iPad)
+- [Chrono Divide / RA2WEB](https://www.ra2web.com/)
+- [`huangkaoya/redalert2`](https://github.com/huangkaoya/redalert2)
+- [`Supalosa/supalosa-chronodivide-bot`](https://github.com/Supalosa/supalosa-chronodivide-bot)
+- The React, Three.js, TypeScript, Bun, Tauri, Kotlin, Swift, and open-source game-development communities
