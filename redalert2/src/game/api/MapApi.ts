@@ -2,6 +2,7 @@ import { SpeedType } from '@/game/type/SpeedType';
 import { TiberiumTrait } from '@/game/gameobject/trait/TiberiumTrait';
 import { TiberiumType } from '@/engine/type/TiberiumType';
 import { Vector2 } from '@/game/math/Vector2';
+import { ZoneType } from '@/game/gameobject/unit/ZoneType';
 interface Game {
     map: Map;
     getPlayerByName(name: string): Player;
@@ -32,6 +33,7 @@ interface Map {
         getBridgeOnTile(tile: any): {
             isHighBridge(): boolean;
         };
+        getTileZone(tile: any): ZoneType;
     };
     terrain: {
         getPassableSpeed(tile: any, speedType: SpeedType, isFoot: boolean, options: any): number;
@@ -102,6 +104,14 @@ export class MapApi {
     }
     getObjectsOnTile(tile: Tile) {
         return this.map.getObjectsOnTile(tile).map(obj => obj.id);
+    }
+    /**
+     * Return the effective land/water zone used by the simulation for a
+     * target cell. Ares superweapon AI masks are cell masks, not unit-flight
+     * zone masks, so expose the same TileOccupation decision to the bot.
+     */
+    getTileZone(tile: any): ZoneType {
+        return this.map.tileOccupation.getTileZone(tile);
     }
     hasBridgeOnTile(tile: Tile) {
         return !!tile.onBridgeLandType;

@@ -290,6 +290,12 @@ export class GameApi {
         })))
             .flat();
     }
+    /** Whether any combatant currently has a running effect of this SW type. */
+    isSuperWeaponEffectActive(type: any): boolean {
+        return this.game
+            .getCombatants()
+            .some((player: any) => player.superWeaponsTrait?.hasActiveEffect?.(type) === true);
+    }
     getGeneralRules(): any {
         return this.game.rules.general;
     }

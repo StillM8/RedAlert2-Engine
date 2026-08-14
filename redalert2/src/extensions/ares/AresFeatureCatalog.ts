@@ -575,7 +575,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresSuperWeaponAITargeting.test.ts", "AresSuperWeaponAIHost.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters"],
         targetModUsage: "required",
-        notes: "The built-in AI host is covered for EMPulse offensive and self-targeting, UnitDelivery landing areas, and DropPod outer-sector targeting; Firestorm is excluded because it has no target cell. Native YR constraints, specialized selectors, manual UseAITargeting flow, presentation, and target-content certification remain open.",
+        notes: "The built-in AI host now routes SW.AutoFire, enforces inactive LightningStorm/Dominator constraints and AI-required house/land/water/content masks, scores MultiMissile by ThreatPosed, handles true no-target/LightningRandom modes, gates HunterSeeker on a target house, and covers EMPulse offensive/self targeting, UnitDelivery landing areas, and DropPod outer-sector targeting. Iron Curtain waits for team-script activation and ForceShield only responds through the defense path; offensive/defensive preferred-cell state, specialized designator/inhibitor/range selectors, manual UseAITargeting flow, presentation, persistence, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-post-dependent",

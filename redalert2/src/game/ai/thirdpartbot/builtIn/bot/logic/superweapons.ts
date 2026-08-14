@@ -83,7 +83,10 @@ interface Cluster {
     y: number;
     count: number;
     infantry: number;
+    target?: UnitData;
 }
+
+type ClusterScoring = "ion" | "threat";
 
 function superWeaponIndex(superWeapon: { index?: unknown; type?: unknown }): number {
     const index = Number(superWeapon.index);
@@ -303,7 +306,13 @@ export class SuperweaponOfficer {
         superWeaponData?: any,
     ): boolean | undefined {
         const ares = superWeaponData?.ares;
-        if (!ares?.extensionType && !ares?.swAITargeting) {
+        if (!ares) {
+            return undefined;
+        }
+        // AutoFire also uses the Ares AI targeter even when UseAITargeting is
+        // absent. Keep ordinary vanilla entries on their existing path.
+        if (!ares.extensionType && !ares.swAITargeting &&
+            ares.swUseAITargeting !== true && ares.swAutoFire !== true) {
             return undefined;
         }
 
@@ -329,17 +338,33 @@ export class SuperweaponOfficer {
         const underAttack = missionController
             .getMissions()
             .some((mission) => mission instanceof DefenceMission && mission.getPriority() > 0);
-        // These two constraints are directly observable in the standalone
-        // host. Preferred-cell and active-effect constraints need corresponding
-        // state in the shared AI API and remain diagnostics-only for now.
         if (profile.constraints.includes("low-power") && !playerData.power.isLowPower) {
             return false;
         }
         if (profile.constraints.includes("attacked") && !underAttack) {
             return false;
         }
+        if (profile.constraints.includes("lightning-storm-inactive") &&
+            (game as any).isSuperWeaponEffectActive?.(SuperWeaponType.LightningStorm) === true) {
+            return false;
+        }
+        if (profile.constraints.includes("dominator-inactive") &&
+            (game as any).isSuperWeaponEffectActive?.(SuperWeaponType.PsychicDominator) === true) {
+            return false;
+        }
+        // Map actions 135/140 are optional in the bot API. A supplied host
+        // state is honored; without it, *_Cell_Set cannot fire and
+        // *_Cell_Clear is satisfied because no preferred cell is known.
+        const preferredCell = (kind: "offensive" | "defensive"): any =>
+            (game as any).getAresSuperWeaponTargetingCell?.(playerData.name, kind);
+        for (const constraint of profile.constraints) {
+            if (constraint === "offensive-cell-set" && !preferredCell("offensive")) return false;
+            if (constraint === "offensive-cell-clear" && preferredCell("offensive")) return false;
+            if (constraint === "defensive-cell-set" && !preferredCell("defensive")) return false;
+            if (constraint === "defensive-cell-clear" && preferredCell("defensive")) return false;
+        }
         const requiredTarget = (unit: UnitData): boolean =>
-            this.matchesAresAITarget(unit, profile.requiredTarget);
+            this.matchesAresAITarget(game, unit, profile.requiredTarget);
         const extension = String(ares.extensionType ?? "").toLocaleLowerCase("en-US");
         let target: any;
         switch (profile.mode) {
@@ -356,14 +381,34 @@ export class SuperweaponOfficer {
                         (cluster) => this.hasEmpulseCannonInRange(game, playerData.name, ares, cluster),
                         profile.requiredHouse,
                     )
-                    : this.bestEnemyCluster(game, playerData.name, false, requiredTarget);
+                    : this.bestEnemyCluster(
+                        game,
+                        playerData.name,
+                        false,
+                        requiredTarget,
+                        undefined,
+                        profile.requiredHouse,
+                    );
                 break;
             case "genetic-mutator":
-                target = this.bestEnemyCluster(game, playerData.name, true, requiredTarget);
+                target = this.bestEnemyCluster(
+                    game,
+                    playerData.name,
+                    true,
+                    requiredTarget,
+                    undefined,
+                    profile.requiredHouse,
+                );
                 break;
             case "stealth":
-                target = this.bestEnemyCluster(game, playerData.name, false, (unit) =>
-                    !!unit.isCloaked && requiredTarget(unit));
+                target = this.bestEnemyCluster(
+                    game,
+                    playerData.name,
+                    false,
+                    (unit) => !!unit.isCloaked && requiredTarget(unit),
+                    undefined,
+                    profile.requiredHouse,
+                );
                 break;
             case "paradrop":
                 target = extension === "unitdelivery"
@@ -380,12 +425,14 @@ export class SuperweaponOfficer {
                       this.firstEnemy(game, playerData.name)?.startLocation;
                 break;
             case "force-shield":
-                target = this.bestOwnBuildingCluster(game, playerData.name);
-                break;
+                // ForceShield responds to the last AIDefendAgainst launch;
+                // watchEnemyLaunches owns that response path. It must not
+                // spend a ready charge merely because the officer polled it.
+                return false;
             case "iron-curtain":
-                target = this.findArmoredPushCenter(game, missionController, 3) ??
-                    this.bestOwnBuildingCluster(game, playerData.name);
-                break;
+                // Ares waits for a team-script Iron Curtain request instead of
+                // auto-firing this mode.
+                return false;
             case "self": {
                 const provider = game
                     .getVisibleUnits(player.name, "self", (rules: any) =>
@@ -406,19 +453,41 @@ export class SuperweaponOfficer {
                 target = this.firstEnemy(game, playerData.name)?.startLocation;
                 break;
             case "no-target":
-            case "hunter-seeker":
-            case "attack":
-            case "low-power":
-            case "low-power-attack":
-            case "lightning-random":
                 target = extension === "empulse" && ares.empulseTargetSelf === true
                     ? this.findEmpulseCannonCell(game, playerData.name, ares)
-                    : matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
+                    : playerData.startLocation;
+                break;
+            case "hunter-seeker":
+                // The handler ignores the click cell, but Ares only lets this
+                // mode fire after the house has selected a favorite enemy.
+                if (!this.firstEnemy(game, playerData.name) ||
+                    game.getVisibleUnits(playerData.name, "enemy").length === 0) {
+                    return false;
+                }
+                target = playerData.startLocation;
+                break;
+            case "attack":
+                target = matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
+                break;
+            case "low-power":
+            case "low-power-attack":
+                target = playerData.startLocation;
+                break;
+            case "lightning-random":
+                target = this.findRandomMapCell(game);
                 break;
             case "none":
                 return false;
             case "multi-missile":
-                target = this.bestEnemyCluster(game, playerData.name, false, requiredTarget);
+                target = this.bestEnemyCluster(
+                    game,
+                    playerData.name,
+                    false,
+                    requiredTarget,
+                    undefined,
+                    profile.requiredHouse,
+                    "threat",
+                );
                 break;
             case "unknown":
                 return false;
@@ -441,13 +510,26 @@ export class SuperweaponOfficer {
         return true;
     }
 
+    /** Deterministic project-RNG cell selection for Ares LightningRandom. */
+    private findRandomMapCell(game: GameApi): Vector2 | null {
+        const size = (game.mapApi as any).getRealMapSize?.();
+        const width = Number(size?.width ?? size?.x);
+        const height = Number(size?.height ?? size?.y);
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+            return null;
+        }
+        const x = game.generateRandomInt(0, Math.max(0, Math.floor(width) - 1));
+        const y = game.generateRandomInt(0, Math.max(0, Math.floor(height) - 1));
+        return game.mapApi.getTile(x, y) ? new Vector2(x, y) : null;
+    }
+
     /**
      * Applies the content-mask portion of Antares' GetPotentialAITargets /
      * CanFireAt logic to the data exposed to the host bot. Cell-only masks
      * (land/water) cannot reject an empty centroid here, so the activation
      * path remains the final authority for those masks.
      */
-    private matchesAresAITarget(unit: UnitData, requiredTarget: string): boolean {
+    private matchesAresAITarget(game: GameApi, unit: UnitData, requiredTarget: string): boolean {
         const targets = new Set(requiredTarget
             .split(",")
             .map((token) => token.trim().toLocaleLowerCase("en-US"))
@@ -456,22 +538,31 @@ export class SuperweaponOfficer {
             return true;
         }
 
-        const typeTargets = ["infantry", "units", "buildings"].filter((target) => targets.has(target));
-        if (typeTargets.length > 0) {
-            const unitType = unit.type as any;
-            const matchesType = (targets.has("buildings") && unitType === ObjectType.Building) ||
-                (targets.has("infantry") && unitType === ObjectType.Infantry) ||
-                (targets.has("units") && (unitType === ObjectType.Vehicle || unitType === ObjectType.Aircraft));
-            if (!matchesType) return false;
+        const tile = game.mapApi.getTile(unit.tile.rx, unit.tile.ry);
+        const zone = tile && typeof (game.mapApi as any).getTileZone === "function"
+            ? (game.mapApi as any).getTileZone(tile)
+            : unit.zone;
+        if (targets.has("water") && zone !== ZoneType.Water) {
+            return false;
+        }
+        if (targets.has("land") && zone !== undefined && zone !== ZoneType.Ground) {
+            return false;
         }
 
-        if (targets.has("water") && unit.zone !== undefined && unit.zone !== ZoneType.Water) {
+        const typeTargets = ["infantry", "units", "buildings"].filter((target) => targets.has(target));
+        // An occupied candidate can never satisfy an empty-only AI mask. A
+        // future cell sampler can handle empty-cell targeting directly.
+        if (targets.has("empty") && typeTargets.length === 0) {
             return false;
         }
-        if (targets.has("land") && unit.zone === ZoneType.Water) {
-            return false;
+        if (!typeTargets.length) {
+            return true;
         }
-        return true;
+
+        const unitType = unit.type as any;
+        return (targets.has("buildings") && unitType === ObjectType.Building) ||
+            (targets.has("infantry") && unitType === ObjectType.Infantry) ||
+            (targets.has("units") && (unitType === ObjectType.Vehicle || unitType === ObjectType.Aircraft));
     }
 
     /**
@@ -578,6 +669,7 @@ export class SuperweaponOfficer {
         extraFilter?: (unit: UnitData) => boolean,
         clusterFilter?: (cluster: Cluster) => boolean,
         requiredHouse?: string,
+        scoring: ClusterScoring = "ion",
     ): Cluster | null {
         const enemyIds = this.getAresHouseUnitIds(game, playerName, requiredHouse);
         const buckets = new Map<number, Cluster>();
@@ -606,17 +698,24 @@ export class SuperweaponOfficer {
             // Retail category table dominates for structures; mobile blobs
             // still count by cost so an army with no visible base is a target.
             const categoryWeight = retailCategoryWeight(rules, isBuilding, this.config.difficultyId);
-            const value = infantryOnly
-                ? 100
-                : isBuilding
-                  ? (rules.cost ?? unit.maxHitPoints) * (categoryWeight / 50)
-                  : (rules.cost ?? unit.maxHitPoints);
+            const value = scoring === "threat"
+                ? (unit.isCloaked
+                    ? game.generateRandomInt(0, 100)
+                    : Number(rules.threatPosed ?? rules.threat ?? rules.cost ?? unit.maxHitPoints))
+                : infantryOnly
+                  ? 100
+                  : isBuilding
+                    ? (rules.cost ?? unit.maxHitPoints) * (categoryWeight / 50)
+                    : (rules.cost ?? unit.maxHitPoints);
             bucket.score += value;
             bucket.x += unit.tile.rx;
             bucket.y += unit.tile.ry;
             bucket.count++;
             if (isInfantry) {
                 bucket.infantry++;
+            }
+            if (!bucket.target || value > this.clusterTargetScore(bucket.target, scoring)) {
+                bucket.target = unit;
             }
         }
         let best: Cluster | null = null;
@@ -629,8 +728,11 @@ export class SuperweaponOfficer {
             }
             const candidate = {
                 ...bucket,
-                x: Math.round(bucket.x / bucket.count),
-                y: Math.round(bucket.y / bucket.count),
+                // Keep the candidate on a real eligible object. This lets
+                // range checks and AIRequiresTarget evaluate the same cell
+                // that will be sent to the activation action.
+                x: bucket.target?.tile.rx ?? Math.round(bucket.x / bucket.count),
+                y: bucket.target?.tile.ry ?? Math.round(bucket.y / bucket.count),
             };
             if (clusterFilter && !clusterFilter(candidate)) {
                 continue;
@@ -644,14 +746,24 @@ export class SuperweaponOfficer {
         }
         return {
             ...best,
-            x: best.x,
-            y: best.y,
+            x: best.target?.tile.rx ?? best.x,
+            y: best.target?.tile.ry ?? best.y,
         };
+    }
+
+    private clusterTargetScore(unit: UnitData, scoring: ClusterScoring): number {
+        if (scoring === "threat") {
+            return Number(unit.rules.threatPosed ?? unit.rules.threat ?? unit.rules.cost ?? unit.maxHitPoints);
+        }
+        return Number(unit.rules.cost ?? unit.maxHitPoints);
     }
 
     /** Maps Ares' AI-required house relation onto the standalone bot API. */
     private getAresHouseUnitIds(game: GameApi, playerName: string, rawHouse?: string): any[] {
         const house = normalizeAresSuperWeaponAIHouse(rawHouse);
+        if (house === "none" || house === "unknown") {
+            return [];
+        }
         const relations = house === "owner"
             ? ["self"]
             : house === "allies" || house === "team"

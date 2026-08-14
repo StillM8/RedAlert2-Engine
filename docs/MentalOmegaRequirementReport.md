@@ -14,6 +14,28 @@ The refreshed custom-superweapon inventory contains **96 custom-type definitions
 
 The planning figure of 14,104 sections was not reproduced by the current packed 3.3.6 roots: this audit distinguishes 14,137 section headers from 14,129 unique section names. The scanner's effective INI representation contains 214,218 key entries because its parser normalizes duplicate/array entries; the raw line audit remains the 214,282-key reference total.
 
+### Latest implementation checkpoint
+
+The current beta implementation batch started at `1b9c6a6250e76c28ee5f2a30cb09694f88bbdb88`. It extends the shared Ares superweapon AI host for the 149 MO-authored `SW.AITargeting` uses without adding Mental Omega-specific simulation branches. The aggregate counts above were not regenerated for this code-only change; the focused runtime and real-content checks below are current.
+
+| Check | Result |
+|---|---|
+| Full unit/regression suite | 581 passed, 0 failed, 1,924 expectations |
+| Type-check | passed |
+| Real MO content verifier | passed: 14 archives, 8 AttachedSystem projectile definitions, 0 failures |
+| AI stress harness | 25/50/100/200/300/500 units; 0 over-budget frames, maximum one turn per frame, maximum debt 22.2222 ms |
+
+Post-change simulation p50/p95/max (ms) from the deterministic AI and Mental Omega stress scenarios:
+
+| Units | AI | Mental Omega |
+|---:|---:|---:|
+| 25 | 0.0296 / 0.0535 / 0.0963 | 0.0332 / 0.1308 / 1.7928 |
+| 50 | 0.0626 / 0.0894 / 0.1191 | 0.0323 / 0.0652 / 0.0995 |
+| 100 | 0.0735 / 1.5947 / 6.2453 | 0.0799 / 6.6015 / 8.0152 |
+| 200 | 0.1628 / 0.6376 / 1.5650 | 0.2659 / 1.3359 / 7.3279 |
+| 300 | 0.3594 / 3.3343 / 4.6852 | 0.4951 / 3.9118 / 7.4069 |
+| 500 | 0.8612 / 7.2880 / 12.1818 | 1.0612 / 8.1249 / 12.8527 |
+
 ## 1. Canonical profile roots and raw counts
 
 The profile resolver is the single source of truth for runtime and audit file selection.

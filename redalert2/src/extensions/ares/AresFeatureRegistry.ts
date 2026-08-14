@@ -372,7 +372,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresSuperWeaponAITargeting.test.ts", "AresSuperWeaponAIHost.test.ts"],
-        notes: "Documented modes, required-house defaults, EMPulse cannon reachability/TargetSelf, UnitDelivery landing-area selection, and DropPod outer-sector selection are consumed by the built-in AI host; Firestorm is intentionally excluded because it has no target cell. Native YR constraints, specialized selectors, manual UseAITargeting flow, presentation, and target-content certification remain open.",
+        notes: "Documented modes, SW.AutoFire routing, inactive LightningStorm/Dominator constraints, AI-required house and land/water/content masks, ThreatPosed MultiMissile scoring, true no-target/LightningRandom behavior, HunterSeeker favorite-enemy gating, EMPulse cannon reachability/TargetSelf, UnitDelivery landing-area selection, and DropPod outer-sector selection are consumed by the built-in AI host. Iron Curtain waits for team-script activation and ForceShield only responds through the defense path; offensive/defensive preferred-cell state, specialized designator/inhibitor/range selectors, manual UseAITargeting flow, presentation, persistence, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-money",

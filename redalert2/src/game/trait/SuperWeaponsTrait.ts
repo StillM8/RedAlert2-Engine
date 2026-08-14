@@ -74,6 +74,13 @@ export class SuperWeaponsTrait {
         rules: any;
         tile: any;
     }>();
+
+    /** Read-only query used by Ares AI inactive-effect constraints. */
+    hasActiveEffect(type: any): boolean {
+        return this.effects.some((effect) =>
+            effect.status !== EffectStatus.Finished && effect.type === type,
+        );
+    }
     [NotifyTick.onTick](t: any) {
         const aresAvailabilityRules = this.getAresAvailabilityRules(t);
         for (const e of t.getCombatants()) {

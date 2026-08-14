@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { LandType } from "@/game/type/LandType";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { SuperWeaponStatus } from "@/game/SuperWeapon";
+import { SuperWeaponType } from "@/game/type/SuperWeaponType";
+import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { SuperweaponOfficer } from "@/game/ai/thirdpartbot/builtIn/bot/logic/superweapons";
 
 function unit(
@@ -31,6 +33,10 @@ function host(options: {
     ownStart?: { x: number; y: number };
     enemyStart?: { x: number; y: number };
     rally?: { x: number; y: number };
+    alliedPlayers?: string[];
+    tileZones?: Map<string, ZoneType>;
+    mapSize?: { width: number; height: number };
+    activeSuperWeaponType?: number;
 }) {
     const ownStart = options.ownStart ?? { x: 5, y: 5 };
     const enemyStart = options.enemyStart ?? { x: 40, y: 40 };
@@ -40,7 +46,7 @@ function host(options: {
     const game: any = {
         getCurrentTick: () => 75,
         getAllSuperWeaponData: () => [{ playerName: "AI", ...options.superWeapon }],
-        getPlayers: () => ["AI", "Enemy"],
+        getPlayers: () => ["AI", "Enemy", ...(options.alliedPlayers ?? [])],
         getPlayerData: (name: string) => ({
             name,
             isCombatant: true,
@@ -48,12 +54,17 @@ function host(options: {
             startLocation: name === "AI" ? ownStart : enemyStart,
             power: { isLowPower: false },
         }),
-        areAlliedPlayers: () => false,
+        areAlliedPlayers: (first: string, second: string) =>
+            (options.alliedPlayers ?? []).includes(first === "AI" ? second : first),
         getVisibleUnits: (playerName: string, relation: string, filter = () => true) => units
             .filter((item) => {
                 if (!filter(item.rules)) return false;
                 if (relation === "self") return item.owner === playerName;
-                if (relation === "enemy") return item.owner !== playerName;
+                const isAlly = (options.alliedPlayers ?? []).includes(
+                    playerName === "AI" ? item.owner : playerName,
+                );
+                if (relation === "enemy") return item.owner !== playerName && !isAlly;
+                if (relation === "allied") return item.owner === playerName || isAlly;
                 return true;
             })
             .map((item) => item.id),
@@ -61,8 +72,11 @@ function host(options: {
         generateRandomInt: () => 0,
         mapApi: {
             getTile: (x: number, y: number) => ({ x, y, rx: x, ry: y, landType: LandType.Clear }),
+            getTileZone: (tile: any) => options.tileZones?.get(`${tile.rx},${tile.ry}`) ?? ZoneType.Ground,
             getObjectsOnTile: () => [],
+            getRealMapSize: () => options.mapSize ?? { width: 64, height: 64 },
         },
+        isSuperWeaponEffectActive: (type: number) => type === options.activeSuperWeaponType,
     };
     const context: any = {
         game,
@@ -178,5 +192,147 @@ describe("Ares custom superweapon AI host path", () => {
             },
         });
         expect(firestorm.actions).toHaveLength(0);
+    });
+
+    test("AIRequiresTarget applies the map cell zone and keeps the chosen cell eligible", () => {
+        const ground = unit("ground", "Enemy", ObjectType.Vehicle, 4, 0);
+        const ship = unit("ship", "Enemy", ObjectType.Vehicle, 20, 20);
+        const { actions } = host({
+            units: [ground, ship],
+            tileZones: new Map([["20,20", ZoneType.Water]]),
+            superWeapon: {
+                index: 0,
+                name: "WaterStrike",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: {
+                    extensionType: "GenericWarhead",
+                    swAITargeting: "Offensive",
+                    swAIRequiresTarget: "Water,Units",
+                },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 20, ry: 20 });
+    });
+
+    test("AIRequiresHouse selects allied technos instead of silently forcing enemies", () => {
+        const ally = unit("ally-building", "Ally", ObjectType.Building, 8, 8);
+        const enemy = unit("enemy-building", "Enemy", ObjectType.Building, 40, 40);
+        const { actions } = host({
+            units: [ally, enemy],
+            alliedPlayers: ["Ally"],
+            superWeapon: {
+                index: 0,
+                name: "AllySupport",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: {
+                    extensionType: "GenericWarhead",
+                    swAITargeting: "Offensive",
+                    swAIRequiresTarget: "Buildings",
+                    swAIRequiresHouse: "Allies",
+                },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 8, ry: 8 });
+    });
+
+    test("MultiMissile uses ThreatPosed rather than cost for its target score", () => {
+        const expensive = unit("expensive", "Enemy", ObjectType.Building, 8, 8, {
+            cost: 10000,
+            threatPosed: 5,
+        });
+        const dangerous = unit("dangerous", "Enemy", ObjectType.Building, 40, 40, {
+            cost: 100,
+            threatPosed: 1000,
+        });
+        const { actions } = host({
+            units: [expensive, dangerous],
+            superWeapon: {
+                index: SuperWeaponType.MultiMissile,
+                name: "MultiMissile",
+                type: SuperWeaponType.MultiMissile,
+                typeId: "MultiMissile",
+                status: SuperWeaponStatus.Ready,
+                ares: { swAITargeting: "MultiMissile" },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 40, ry: 40 });
+    });
+
+    test("Iron Curtain and Force Shield do not auto-fire from a ready poll", () => {
+        const iron = host({
+            superWeapon: {
+                index: SuperWeaponType.IronCurtain,
+                name: "IronCurtain",
+                type: SuperWeaponType.IronCurtain,
+                typeId: "IronCurtain",
+                status: SuperWeaponStatus.Ready,
+                ares: { swAITargeting: "IronCurtain" },
+            },
+        });
+        const shield = host({
+            superWeapon: {
+                index: SuperWeaponType.ForceShield,
+                name: "ForceShield",
+                type: SuperWeaponType.ForceShield,
+                typeId: "ForceShield",
+                status: SuperWeaponStatus.Ready,
+                ares: { swAITargeting: "ForceShield" },
+            },
+        });
+
+        expect(iron.actions).toHaveLength(0);
+        expect(shield.actions).toHaveLength(0);
+    });
+
+    test("LightningRandom uses the project RNG and HunterSeeker waits for a target house", () => {
+        const random = host({
+            superWeapon: {
+                index: 0,
+                name: "RandomStrike",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: { extensionType: "GenericWarhead", swAITargeting: "LightningRandom" },
+            },
+            mapSize: { width: 20, height: 30 },
+        });
+        expect(random.actions).toHaveLength(1);
+        expect(random.actions[0][1]).toEqual({ rx: 0, ry: 0 });
+
+        const hunter = host({
+            superWeapon: {
+                index: 0,
+                name: "HunterSeeker",
+                typeId: "HunterSeeker",
+                status: SuperWeaponStatus.Ready,
+                ares: { extensionType: "HunterSeeker", swAITargeting: "HunterSeeker" },
+            },
+        });
+        expect(hunter.actions).toHaveLength(0);
+    });
+
+    test("inactive superweapon constraints block a launch while its effect is running", () => {
+        const blocked = host({
+            activeSuperWeaponType: SuperWeaponType.LightningStorm,
+            superWeapon: {
+                index: 0,
+                name: "StormFollowup",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: {
+                    extensionType: "GenericWarhead",
+                    swAITargeting: "Offensive",
+                    swAITargetingConstraints: "LightningStorm_Inactive",
+                },
+            },
+        });
+        expect(blocked.actions).toHaveLength(0);
     });
 });
