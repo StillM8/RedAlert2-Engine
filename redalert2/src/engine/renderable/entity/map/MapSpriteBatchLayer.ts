@@ -130,6 +130,10 @@ export class MapSpriteBatchLayer {
         return obj.art.paletteType + "_" + obj.art.customPaletteName;
     }
     addObject(obj: any): void {
+        // Map objects may spawn before the first render-frame creates the
+        // layer's parent object.  Build the layer lazily so asynchronous map
+        // loading cannot turn an otherwise valid sprite into a fatal error.
+        this.create3DObject();
         const batchKey = this.getBatchKey(obj);
         let builders = this.batchShpBuilders.get(batchKey);
         if (!builders) {
@@ -138,8 +142,6 @@ export class MapSpriteBatchLayer {
         }
         let availableBuilder = builders.find((builder) => !builder.isFull());
         if (!availableBuilder) {
-            if (!this.get3DObject())
-                throw new Error("Not implemented");
             const palette = this.theater.getPalette(obj.art.paletteType, obj.art.customPaletteName);
             const newBuilder = new BatchShpBuilder(this.aggregatedImageData.file, palette, this.camera, this.textureCache, undefined, undefined, undefined, Coords.ISO_WORLD_SCALE);
             builders.push(newBuilder);
@@ -159,8 +161,6 @@ export class MapSpriteBatchLayer {
         if (obj.art.hasShadow) {
             let shadowBuilder = this.shadowBatchShpBuilders.find((builder) => !builder.isFull());
             if (!shadowBuilder) {
-                if (!this.get3DObject())
-                    throw new Error("Not implemented");
                 const newShadowBuilder = new BatchShpBuilder(this.aggregatedImageData.file, ShadowRenderable.getOrCreateShadowPalette(), this.camera, this.textureCache, 0.5, true, undefined, Coords.ISO_WORLD_SCALE);
                 this.shadowBatchShpBuilders.push(newShadowBuilder);
                 const shadowMesh = newShadowBuilder.build();

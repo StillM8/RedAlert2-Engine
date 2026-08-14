@@ -23,9 +23,13 @@ export class TemporalTrait {
                 this.releaseCurrentTarget(world));
         if (this.eraseTicks !== undefined) {
             for (const attacker of this.attackers) {
-                const weapon = attacker.temporalTrait.currentWeapon;
-                if (!weapon) {
-                    throw new Error(`Attacker "${attacker.name}" is no longer targeting "${gameObject.name}"`);
+                const weapon = attacker.temporalTrait?.currentWeapon;
+                if (!weapon || attacker.isDestroyed || attacker.isDisposed) {
+                    // An attacker can be removed between target acquisition
+                    // and the target's next temporal tick.  Treat the stale
+                    // link as a released beam instead of crashing the match.
+                    attacker.temporalTrait?.releaseCurrentTarget?.(world);
+                    continue;
                 }
                 const damage = weapon.rules.damage;
                 this.eraseTicks -= damage;
@@ -50,6 +54,9 @@ export class TemporalTrait {
                     this.eraseTicks = undefined;
                     break;
                 }
+            }
+            if (!this.attackers.size) {
+                this.eraseTicks = undefined;
             }
         }
     }

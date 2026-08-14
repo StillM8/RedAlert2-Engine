@@ -667,8 +667,12 @@ export class Game {
         this.events.dispatch(new ObjectUnspawnEvent(obj));
     }
     destroyObject(obj: any, killer?: any, silent: boolean = false, skipEvents: boolean = false) {
-        if (obj.isDestroyed) {
-            throw new Error(`Object with ID "${obj.id}" is already destroyed`);
+        // Multiple effects can legitimately converge on the same target
+        // before the next object-update pass.  Destruction is a terminal
+        // operation, so a stale second request must be idempotent instead of
+        // crashing the simulation or awarding the kill twice.
+        if (obj.isDestroyed || obj.isDisposed) {
+            return;
         }
         if (obj.isTechno()) {
             const originalOwner = obj.mindControllableTrait?.getOriginalOwner() ?? obj.owner;
@@ -711,7 +715,7 @@ export class Game {
             if (dispatched.has(recipient.object)) continue;
             dispatched.add(recipient.object);
             recipient.object?.traits?.filter(NotifyTargetDestroy).forEach((trait: NotifyTargetDestroy) => {
-                trait[NotifyTargetDestroy.onDestroy](killer.obj, obj, killer.weapon, this, killAttribution);
+                trait[NotifyTargetDestroy.onDestroy](killer?.obj, obj, killer?.weapon, this, killAttribution);
             });
         }
         this.events.dispatch(new ObjectDestroyEvent(obj, killer, skipEvents));

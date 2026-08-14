@@ -29,8 +29,15 @@ export class AresAttachEffectPlugin {
 
     update(time?: number): void {
         const trait = this.gameObject.aresAttachEffectTrait;
-        if (!trait || this.gameObject.isDestroyed || this.gameObject.isCrashing) {
-            this.disposeAnimations();
+        if (!trait) {
+            // Warhead-owned effects install the trait lazily.  The plugin is
+            // registered up front so an effect can become visible later, but
+            // ordinary technos must keep the vanilla idle path allocation-free.
+            if (this.attachedAnimations.length) this.disposeAnimations();
+            return;
+        }
+        if (this.gameObject.isDestroyed || this.gameObject.isCrashing) {
+            if (this.attachedAnimations.length) this.disposeAnimations();
             return;
         }
 
@@ -70,6 +77,7 @@ export class AresAttachEffectPlugin {
     }
 
     private disposeAnimations(): void {
+        if (!this.attachedAnimations.length) return;
         const parent = this.renderable?.get3DObject?.();
         for (const attached of this.attachedAnimations) {
             const object = attached.animation.get3DObject?.();

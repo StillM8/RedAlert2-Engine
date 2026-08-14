@@ -389,7 +389,14 @@ export class Warhead {
         return damage > 0 ? Math.floor(damage) : Math.ceil(damage);
     }
     inflictDamage(damage: number, target: GameObject, weaponInfo: WeaponInfo | undefined, gameWorld: GameWorld, isDirectHit = false): boolean {
-        const healthTrait = target.healthTrait!;
+        // A projectile/effect can retain a target reference after another
+        // impact in the same simulation tick has removed that object.  The
+        // retail engine treats that as a stale hit, not as a second death.
+        // Keep direct callers safe as well as the normal canDamage path.
+        if (target.isDestroyed || target.isDisposed || target.isCrashing || !target.healthTrait) {
+            return false;
+        }
+        const healthTrait = target.healthTrait;
         if (damage === Number.POSITIVE_INFINITY) {
             damage = healthTrait.getHitPoints();
         }

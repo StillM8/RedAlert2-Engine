@@ -51,7 +51,7 @@ usage currently is:
 | EMP fields | 432 | 1 | 392 / 392 | implemented, presentation/persistence gaps remain |
 | Projectile Airburst/Splits extensions | 614 | 1 | 232 / 232 | parser/runtime slice implemented; Proximity and target-content flight certification remain open |
 | VehicleThief / CanDrive | 271 | 1 | 263 / 263 | generic enemy hijack and neutral DriverKilled reclaim are implemented; CanBeDriven, mind-control, and recovery/recycle semantics are wired, while integration gaps remain |
-| AttachEffect combat | 820 | 1 | 218 / 218 | parser/model complete; state, trait, and Speed/Armor/Firepower/ROF callsites wired; animation/cloak and transport/temporal lifecycle remain partial |
+| AttachEffect combat | 820 | 1 | 218 / 218 | parser/model complete; state, trait, combat modifiers, and attached animation visibility are wired; dynamic Cloakable behavior, residual damage, and transport/temporal lifecycle remain partial |
 | Bounty | 1,343 | 1 | 626 / 626 | parser/model complete; generic weapon/crush rewards, enablers, country gates, and rank values are wired; amount presentation, full-game persistence, and target-content certification remain |
 | Chronoshift eligibility | 1,176 | 1 | 1,141 / 1,141 | parser/model complete; Chronosphere kill/affect controls, vehicle-building relocation, cargo handling, and non-crushable/infantry-crush rules are wired; transport side effects, save/load, and lockstep certification remain partial |
 | PCX cameos | 708 | 1 | 525 / 525 | parser/model complete; 60x48 VFS discovery and validated manifest present; SHP-only sidebar display remains partial |
@@ -68,7 +68,7 @@ The local scan records **1,176 Chronoshift occurrences across 1,141 definitions*
 
 | Capability | Exact scan evidence | Official generic boundary | Current gap |
 | --- | --- | --- | --- |
-| AttachEffect combat | 820 occurrences; 218 definitions | `AttachEffect.SpeedMultiplier`, `ArmorMultiplier`, `FirepowerMultiplier`, `ROFMultiplier` plus existing duration/protection fields | Speed, armor, firepower, and ROF callsites are wired; animation/cloak hooks, transport/temporal lifecycle, save/load, and lockstep replay remain |
+| AttachEffect combat | 820 occurrences; 218 definitions | `AttachEffect.SpeedMultiplier`, `ArmorMultiplier`, `FirepowerMultiplier`, `ROFMultiplier` plus existing duration/protection fields | Speed, armor, firepower, ROF callsites, and attached animation visibility are wired; dynamic Cloakable behavior, residual damage, transport/temporal lifecycle, save/load, and lockstep replay remain |
 | Chronoshift eligibility | 1,176 occurrences; 1,141 definitions | `ChronoInfantryCrush`, `Chronoshift.*`, and `Chronosphere.*` kill/affect/placement controls | Transport side effects, save/load, and lockstep certification |
 | Bounty | 1,343 occurrences; 626 definitions | `BountyEnablers`, `Bounty`, `Bounty.Display`, value tiers, `BountyDisplay`, `GivesBounty` | Amount presentation, full-game persistence, multiplayer/lockstep certification, and target-content verification |
 | Customizable insignia | 855 occurrences; 401 definitions | `Insignia.*`, `InsigniaFrame.*`, `Insignia.ShowEnemy`, `EnemyInsignia` | Render-host and missing-asset certification, save/mod-hash, and multiplayer verification |
@@ -84,6 +84,31 @@ Mental Omega content is not all safely classifiable from INI spelling alone.
 That bucket is a diagnostic backlog, not a claim that every entry is an Ares
 mechanic. Development follows the report's measured MO usage and dependency
 order; only generic Ares capabilities exercised by MO are in scope.
+
+## Shared runtime audit
+
+The unrelated runtime pass found and fixed several generic failure seams that
+could affect both vanilla and Ares matches:
+
+- stale projectile damage now ignores destroyed, disposed, crashing, or
+  health-less targets;
+- destruction is idempotent when multiple effects converge on one object, and
+  kill-notification attribution tolerates an absent attacker payload;
+- map sprite batching creates its parent lazily when streamed map objects arrive
+  before the first render frame;
+- stale temporal attacker links are released instead of throwing during erase;
+- Ares AttachEffect presentation work is cached at factory creation and stays
+  idle until a target actually receives an effect.
+
+The remaining `Not implemented`/unsupported guards were audited separately.
+Object and renderable factories reject object kinds that are art-only, bridge
+ID calculators reject invalid `NotBridge` inputs, CrashableTrait rejects
+locomotors without a defined crash trajectory, and MiniLZO compression is
+unused by the runtime (only decompression is required). These are explicit
+fail-closed boundaries, not silently claimed Ares support. The next real Ares
+runtime gaps remain AttachEffect residual damage/dynamic Cloakable behavior,
+custom superweapon handler breadth and state persistence, and the transport,
+AI, save/load, and multiplayer portions called out in the tables above.
 
 ## Compatibility status
 

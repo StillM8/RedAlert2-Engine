@@ -184,6 +184,7 @@ export class RenderableFactory {
     private useSpriteBatching: boolean;
     private useMeshInstancing: boolean;
     private bridgeImageCache: Map<any, any>;
+    private hasWarheadAttachEffects: boolean;
     constructor(localPlayer: LocalPlayer, unitSelection: UnitSelection, alliances: Alliances, rules: Rules, art: Art, mapRenderable: MapRenderable | null, imageFinder: ImageFinder, palettes: Palettes, voxels: Voxels, voxelAnims: VoxelAnims, theater: Theater, camera: Camera, lighting: Lighting, lightingDirector: LightingDirector, debugWireframes: DebugWireframes, debugText: DebugText, gameSpeed: GameSpeed, worldSound: WorldSound | null, strings: Strings, flyerHelperOpt: FlyerHelperOpt, hiddenObjectsOpt: HiddenObjectsOpt, vxlBuilderFactory: VxlBuilderFactory, buildingImageDataCache: BuildingImageDataCache, useSpriteBatching: boolean = false, useMeshInstancing: boolean = false) {
         this.localPlayer = localPlayer;
         this.unitSelection = unitSelection;
@@ -211,6 +212,8 @@ export class RenderableFactory {
         this.useSpriteBatching = useSpriteBatching;
         this.useMeshInstancing = useMeshInstancing;
         this.bridgeImageCache = new Map();
+        this.hasWarheadAttachEffects = [...(this.rules.warheadRules?.values?.() ?? [])]
+            .some((warhead) => warhead.aresAttachEffect !== undefined);
     }
     createTransientAnim(name: string, callback?: any): TransientAnim {
         const artObject = this.art.getObject(name, ObjectType.Animation);
@@ -295,9 +298,7 @@ export class RenderableFactory {
             if (entity.tntChargeTrait) {
                 plugins.push(new TntFxPlugin(entity as any, entity.tntChargeTrait, this.rules.combatDamage.ivanIconFlickerRate, renderable, this.imageFinder, this.art, this.alliances, this.localPlayer, this.worldSound, (name: string) => this.createAnim(name)));
             }
-            const hasWarheadAttachEffects = [...(this.rules.warheadRules?.values?.() ?? [])]
-                .some((warhead) => warhead.aresAttachEffect !== undefined);
-            if ((entity as any).aresAttachEffectTrait || hasWarheadAttachEffects) {
+            if ((entity as any).aresAttachEffectTrait || this.hasWarheadAttachEffects) {
                 plugins.push(new AresAttachEffectPlugin(entity, renderable));
             }
             plugins.push(new ObjectCloakPlugin(entity, this.localPlayer, this.alliances, renderable));
