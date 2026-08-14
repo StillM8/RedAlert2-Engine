@@ -58,7 +58,7 @@ export class ShipWakeTrailPlugin {
                     const wakeAnim = this.art.getAnimation(this.rules.audioVisual.wake);
                     if (wakeAnim) {
                         const images = this.imageFinder.findByObjectArt(wakeAnim);
-                        const palette = this.theater.getPalette(wakeAnim.paletteType);
+                        const palette = this.theater.getPalette(wakeAnim.paletteType, wakeAnim.customPaletteName);
                         const spawnDelay = this.gameObject.art.spawnDelay;
                         this.trailerFx = new TrailerSmokeFx(this.trailPos, spawnDelay, wakeAnim, images, palette, this.gameSpeed);
                         this.renderableManager.addEffect(this.trailerFx);

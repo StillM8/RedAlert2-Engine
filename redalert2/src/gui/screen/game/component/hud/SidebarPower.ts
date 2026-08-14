@@ -30,6 +30,14 @@ type PipCount = {
     yellow: number;
     green: number;
 };
+
+type SidebarPowerFrame = {
+    width: number;
+    height: number;
+    imageData: Uint8Array;
+    x?: number;
+    y?: number;
+};
 enum PipType {
     None = 0,
     Green = 1,
@@ -37,6 +45,25 @@ enum PipType {
     Red = 3,
     Highlight = 4
 }
+
+/**
+ * SHP frames may be stored as a cropped rectangle with an authored offset
+ * inside the file canvas. Retail powerp frames happen to use x=0, while
+ * custom side archives can use the offset to keep the power rails aligned
+ * with their sidebar shell. Reconstruct the file canvas before stacking the
+ * frame vertically so both layouts use the same renderer.
+ */
+export function createSidebarPowerPip(
+    frame: SidebarPowerFrame,
+    canvasWidth: number = frame.width,
+    canvasHeight: number = Math.max(frame.height, (frame.y ?? 0) + frame.height),
+): IndexedBitmap {
+    const bitmap = new IndexedBitmap(canvasWidth, canvasHeight);
+    const frameBitmap = new IndexedBitmap(frame.width, frame.height, frame.imageData);
+    bitmap.drawIndexedImage(frameBitmap, frame.x ?? 0, frame.y ?? 0);
+    return bitmap;
+}
+
 function pipCountEquals(a: PipCount, b: PipCount): boolean {
     return a.green === b.green && a.yellow === b.yellow && a.red === b.red;
 }
@@ -76,7 +103,7 @@ export class SidebarPower extends UiComponent<SidebarPowerProps> {
             const img = powerImg.getImage(i);
             if (!img)
                 continue;
-            arr.push(new IndexedBitmap(img.width, img.height, img.imageData));
+            arr.push(createSidebarPowerPip(img, powerImg.width, powerImg.height));
         }
         return arr;
     }

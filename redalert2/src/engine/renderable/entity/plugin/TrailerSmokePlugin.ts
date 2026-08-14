@@ -34,7 +34,7 @@ export class TrailerSmokePlugin {
                 }
                 if (anim) {
                     const images = this.imageFinder.findByObjectArt(anim);
-                    const palette = this.theater.getPalette(anim.paletteType);
+                    const palette = this.theater.getPalette(anim.paletteType, anim.customPaletteName);
                     const spawnDelay = this.gameObject.art.spawnDelay;
                     this.trailerFx = new TrailerSmokeFx(this.gameObject.position.worldPosition, spawnDelay, anim, images, palette, this.gameSpeed);
                     this.renderableManager.addEffect(this.trailerFx);
@@ -47,7 +47,7 @@ export class TrailerSmokePlugin {
                 if (trailerAnim) {
                     const anim = this.art.getAnimation(trailerAnim);
                     const images = this.imageFinder.findByObjectArt(anim);
-                    const palette = this.theater.getPalette(anim.paletteType);
+                    const palette = this.theater.getPalette(anim.paletteType, anim.customPaletteName);
                     const spawnDelay = this.gameObject.isProjectile()
                         ? this.gameObject.art.spawnDelay
                         : this.gameObject.rules.trailerSeparation;
