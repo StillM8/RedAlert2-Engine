@@ -1,7 +1,7 @@
 [package]
 name = "redalert2-desktop"
 version = "0.1.0-beta.1"
-description = "Red Alert 2 cross-platform beta shell"
+description = "Open RTS Engine desktop shell"
 authors = ["StillM8"]
 license = ""
 repository = ""

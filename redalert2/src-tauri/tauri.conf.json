@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Red Alert 2",
+  "productName": "Open RTS Engine",
   "version": "0.1.0-beta.1",
-  "identifier": "com.stillm8.redalert2",
+  "identifier": "io.stillm8.rtsengine.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:4000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Red Alert 2",
+        "title": "Open RTS Engine",
         "width": 1280,
         "height": 720,
         "minWidth": 960,
@@ -30,8 +30,8 @@
     "active": true,
     "targets": "all",
     "category": "Game",
-    "shortDescription": "A cross-platform Red Alert 2 engine",
-    "longDescription": "A TypeScript and WebGL reimplementation of Red Alert 2 and Yuri's Revenge with Mods-menu-selected compatibility for Mental Omega.",
+    "shortDescription": "A cross-platform open real-time strategy engine",
+    "longDescription": "A TypeScript and WebGL real-time strategy engine that loads user-provided Red Alert 2, Yuri's Revenge, and compatible mod content.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,8 +1,8 @@
 # iOS and iPadOS shell
 
-This directory contains the Swift/WKWebView shell for the shared Red Alert 2
-engine. The TypeScript simulation, renderer, resource importer, Mods menu, and
-Ares compatibility layer live in [`../redalert2/`](../redalert2/); the iOS
+This directory contains the Swift/WKWebView shell for the shared RTS engine.
+The TypeScript simulation, renderer, resource importer, Mods menu, and Ares
+compatibility layer live in [`../redalert2/`](../redalert2/); the iOS
 target supplies the native lifecycle, bundle URL scheme, fullscreen landscape
 window, and Apple device integration.
 
@@ -74,6 +74,12 @@ RA2_TEAM_ID=<your-team-id> RA2_LIVENESS_OK=1 ./scripts/build-ios.sh --device
 Device builds also require the repository's AI-liveness check to have been
 run and confirmed. The script stages `redalert2/dist/`, generates
 `ios/RA2.xcodeproj` with XcodeGen, and invokes `xcodebuild`.
+
+The public application name is **Open RTS Engine**. The default bundle ID is
+`io.stillm8.rtsengine.ios`; set `RA2_BUNDLE_ID` when building with an Apple
+developer team that uses a different registered App ID. Changing the bundle ID
+creates a new iOS application and does not migrate the previous bundle's
+private storage automatically.
 
 ## Runtime content flow
 

@@ -1,4 +1,4 @@
-package com.ammaar.ra2android
+package io.stillm8.rtsengine
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -17,9 +17,9 @@ import android.os.IBinder
  */
 class ModImportKeepAliveService : Service() {
     companion object {
-        const val ACTION_START = "com.ammaar.ra2android.action.START_MOD_IMPORT"
-        const val ACTION_STOP = "com.ammaar.ra2android.action.STOP_MOD_IMPORT"
-        const val ACTION_UPDATE = "com.ammaar.ra2android.action.UPDATE_MOD_IMPORT"
+        const val ACTION_START = "io.stillm8.rtsengine.action.START_MOD_IMPORT"
+        const val ACTION_STOP = "io.stillm8.rtsengine.action.STOP_MOD_IMPORT"
+        const val ACTION_UPDATE = "io.stillm8.rtsengine.action.UPDATE_MOD_IMPORT"
 
         const val EXTRA_PROGRESS_TEXT = "progressText"
         const val EXTRA_COPIED_BYTES = "copiedBytes"

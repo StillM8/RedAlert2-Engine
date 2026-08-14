@@ -1,4 +1,4 @@
-package com.ammaar.ra2android
+package io.stillm8.rtsengine
 
 import android.content.Context
 import android.net.Uri

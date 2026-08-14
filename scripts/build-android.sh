@@ -37,12 +37,12 @@ die() { echo "error: $*" >&2; exit 1; }
 
 APK_NAME="app-${BUILD_TYPE}.apk"
 if [[ "$BUILD_TYPE" == "debug" ]]; then
-  PACKAGE_NAME=com.ammaar.ra2android.debug
+  PACKAGE_NAME=io.stillm8.rtsengine.debug
 else
   # No release keystore is checked into the repository; Gradle emits the
   # intentionally unsigned artifact for the app owner to sign.
   APK_NAME=app-release-unsigned.apk
-  PACKAGE_NAME=com.ammaar.ra2android
+  PACKAGE_NAME=io.stillm8.rtsengine
 fi
 
 if [[ $SKIP_WEB -eq 0 ]]; then

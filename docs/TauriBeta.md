@@ -56,5 +56,7 @@ handling is not being replaced by Tauri.
 ## Release identity
 
 The Tauri bundle is currently `0.1.0-beta.1` with identifier
-`com.stillm8.redalert2`. Update the version in `src-tauri/tauri.conf.json` and
-`src-tauri/Cargo.toml` together for the next beta.
+`io.stillm8.rtsengine.desktop` and product name **Open RTS Engine**. Update the
+version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` together for
+the next beta. The identifier is intentionally independent from the names of
+the games and mods whose content the engine can import.

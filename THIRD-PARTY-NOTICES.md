@@ -8,6 +8,20 @@ Modifications by this project are dated **2 August 2026** and are isolated to
 the commits after `c43e987`; reproduce the exact set with
 `git diff c43e987 HEAD --stat`.
 
+## Application identity
+
+The distributable application uses the neutral name **Open RTS Engine** and
+platform identifiers under `io.stillm8.rtsengine`. References to Red Alert 2,
+Yuri's Revenge, Mental Omega, and other projects identify compatibility
+targets only. This project is unaffiliated with Electronic Arts, Westwood,
+Chrono Divide, RA2WEB, or Mental Omega, and those references do not imply
+endorsement or permission to use their names, code, artwork, audio, or game
+content.
+
+No game archives are distributed. The identity change reduces avoidable brand
+confusion but is not a copyright or trademark clearance for the code or assets
+listed below; their licenses and provenance still require review.
+
 ---
 
 ## Red Alert 2 engine — `redalert2/**`
