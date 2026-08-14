@@ -21,6 +21,23 @@ export interface PerformanceMetricSnapshot {
     avgMs: number;
 }
 
+export interface GameScheduleFrameSample {
+    rafDeltaMs: number;
+    simulationTicks: number;
+    interpolation: number;
+}
+
+export interface PerformanceGameScheduleSnapshot {
+    sampleCount: number;
+    latest: GameScheduleFrameSample | null;
+    p95RafDeltaMs: number | null;
+    p99RafDeltaMs: number | null;
+    p95SimulationTicks: number | null;
+    p99SimulationTicks: number | null;
+    p95Interpolation: number | null;
+    p99Interpolation: number | null;
+}
+
 export interface PerformanceTelemetrySnapshot {
     enabled: boolean;
     options: PerformanceOptionSnapshot;
@@ -29,6 +46,7 @@ export interface PerformanceTelemetrySnapshot {
     gameFps: number | null;
     gameFrameMs: number | null;
     metrics: Record<string, PerformanceMetricSnapshot>;
+    gameSchedule: PerformanceGameScheduleSnapshot;
     updatedAt: number;
 }
 
@@ -39,20 +57,27 @@ const createFrameMetricState = (): FrameMetricState => ({
 });
 
 class PerformanceTelemetry {
+    private static readonly GAME_SCHEDULE_SAMPLE_LIMIT = 240;
     private readonly metrics = new Map<string, PerformanceMetricState>();
     private readonly uiFrame = createFrameMetricState();
     private readonly gameFrame = createFrameMetricState();
+    private readonly gameScheduleSamples: Array<GameScheduleFrameSample | undefined> = new Array(PerformanceTelemetry.GAME_SCHEDULE_SAMPLE_LIMIT);
+    private gameScheduleWriteIndex = 0;
+    private gameScheduleSampleCount = 0;
 
     constructor(private readonly isEnabled: () => boolean) {
     }
 
     reset(): void {
-        this.metrics.clear();
+        this.resetMetrics();
         this.resetFrames();
     }
 
     resetMetrics(): void {
         this.metrics.clear();
+        this.gameScheduleSamples.fill(undefined);
+        this.gameScheduleWriteIndex = 0;
+        this.gameScheduleSampleCount = 0;
     }
 
     private resetFrames(): void {
@@ -121,6 +146,27 @@ class PerformanceTelemetry {
         }
     }
 
+    recordGameScheduleFrame(sample: GameScheduleFrameSample): void {
+        if (!this.isEnabled()) {
+            return;
+        }
+        const normalized: GameScheduleFrameSample = {
+            rafDeltaMs: Number.isFinite(sample.rafDeltaMs) ? Math.max(0, sample.rafDeltaMs) : 0,
+            simulationTicks: Number.isFinite(sample.simulationTicks)
+                ? Math.max(0, Math.trunc(sample.simulationTicks))
+                : 0,
+            interpolation: Number.isFinite(sample.interpolation)
+                ? Math.min(1, Math.max(0, sample.interpolation))
+                : 0,
+        };
+        this.gameScheduleSamples[this.gameScheduleWriteIndex] = normalized;
+        this.gameScheduleWriteIndex = (this.gameScheduleWriteIndex + 1) % PerformanceTelemetry.GAME_SCHEDULE_SAMPLE_LIMIT;
+        this.gameScheduleSampleCount = Math.min(
+            PerformanceTelemetry.GAME_SCHEDULE_SAMPLE_LIMIT,
+            this.gameScheduleSampleCount + 1,
+        );
+    }
+
     snapshot(options: PerformanceOptionVars): PerformanceTelemetrySnapshot {
         const metrics = Array.from(this.metrics.entries()).reduce((acc, [key, metric]) => {
             acc[key] = {
@@ -139,8 +185,43 @@ class PerformanceTelemetry {
             gameFps: this.gameFrame.fps,
             gameFrameMs: this.gameFrame.frameMs,
             metrics,
+            gameSchedule: this.snapshotGameSchedule(),
             updatedAt: Date.now(),
         };
+    }
+
+    private snapshotGameSchedule(): PerformanceGameScheduleSnapshot {
+        const samples = this.getGameScheduleSamples();
+        const percentile = (selector: (sample: GameScheduleFrameSample) => number, fraction: number): number | null => {
+            if (!samples.length) {
+                return null;
+            }
+            const values = samples.map(selector).sort((left, right) => left - right);
+            return values[Math.min(values.length - 1, Math.floor(values.length * fraction))] ?? null;
+        };
+        const latest = samples.at(-1) ?? null;
+        return {
+            sampleCount: samples.length,
+            latest,
+            p95RafDeltaMs: percentile((sample) => sample.rafDeltaMs, 0.95),
+            p99RafDeltaMs: percentile((sample) => sample.rafDeltaMs, 0.99),
+            p95SimulationTicks: percentile((sample) => sample.simulationTicks, 0.95),
+            p99SimulationTicks: percentile((sample) => sample.simulationTicks, 0.99),
+            p95Interpolation: percentile((sample) => sample.interpolation, 0.95),
+            p99Interpolation: percentile((sample) => sample.interpolation, 0.99),
+        };
+    }
+
+    private getGameScheduleSamples(): GameScheduleFrameSample[] {
+        const samples: GameScheduleFrameSample[] = [];
+        const firstIndex = (this.gameScheduleWriteIndex - this.gameScheduleSampleCount + PerformanceTelemetry.GAME_SCHEDULE_SAMPLE_LIMIT) % PerformanceTelemetry.GAME_SCHEDULE_SAMPLE_LIMIT;
+        for (let index = 0; index < this.gameScheduleSampleCount; index++) {
+            const sample = this.gameScheduleSamples[(firstIndex + index) % PerformanceTelemetry.GAME_SCHEDULE_SAMPLE_LIMIT];
+            if (sample) {
+                samples.push(sample);
+            }
+        }
+        return samples;
     }
 
     private recordMetric(metricName: string, elapsedMs: number): void {
@@ -196,6 +277,10 @@ export function recordUiPerformanceFrame(timestamp: number): void {
 
 export function recordGamePerformanceFrame(timestamp: number): void {
     telemetry.recordFrame('game', timestamp);
+}
+
+export function recordGameScheduleFrame(sample: GameScheduleFrameSample): void {
+    telemetry.recordGameScheduleFrame(sample);
 }
 
 export function resetPerformanceTelemetry(): void {

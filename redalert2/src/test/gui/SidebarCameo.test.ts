@@ -1,8 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { ShpImage } from "@/data/ShpImage";
-import { normalizeSidebarCameoFrame } from "@/gui/screen/game/component/hud/SidebarCameo";
+import {
+    getSidebarSlotSpriteAlignment,
+    normalizeSidebarCameoFrame,
+} from "@/gui/screen/game/component/hud/SidebarCameo";
 
 describe("sidebar cameo frame normalization", () => {
+    test("uses the same top-left cell contract for SHP and PCX art", () => {
+        expect(getSidebarSlotSpriteAlignment("shp")).toEqual({ x: 1, y: 1 });
+        expect(getSidebarSlotSpriteAlignment("pcx")).toEqual({ x: -1, y: 1 });
+    });
+
     test("copies a cropped frame into the fixed slot canvas", () => {
         const image = new ShpImage(
             Uint8Array.from([1, 2, 3, 4, 5, 6]),

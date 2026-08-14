@@ -9,11 +9,14 @@ import { clamp } from "@/util/math";
 import { ObjectArt } from "@/game/art/ObjectArt";
 import { resolveSidebarItemTooltipText } from "@/gui/screen/game/TooltipTextResolver";
 import { SpriteUtils } from "@/engine/gfx/SpriteUtils";
+import { getSidebarSlotSpriteAlignment } from "@/gui/screen/game/component/hud/SidebarCameo";
 declare const THREE: any;
 enum LabelType {
     Ready = 0,
     OnHold = 1
 }
+const sidebarShpAlignment = getSidebarSlotSpriteAlignment("shp");
+const sidebarPcxAlignment = getSidebarSlotSpriteAlignment("pcx");
 interface SidebarCardProps extends UiComponentProps {
     x?: number;
     y?: number;
@@ -154,6 +157,8 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             }, this.createSlotHitbox(slotSize)), jsx.jsx("sprite", {
                 image: "gclock2.shp",
                 palette: "sidebar.pal",
+                alignX: sidebarShpAlignment.x,
+                alignY: sidebarShpAlignment.y,
                 zIndex: 1,
                 frame: 0,
                 opacity: 0.5,
@@ -183,10 +188,14 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             }), jsx.jsx("sprite", {
                 image: cameoImages,
                 palette: cameoPalette,
+                alignX: sidebarShpAlignment.x,
+                alignY: sidebarShpAlignment.y,
                 ref: (element: any) => this.slotObjects.push(element),
             }), cameoPcxImages?.length
                 ? jsx.jsx("sprite", {
                     images: cameoPcxImages,
+                    alignX: sidebarPcxAlignment.x,
+                    alignY: sidebarPcxAlignment.y,
                     hidden: true,
                     ref: (element: any) => this.pcxSlotObjects.push(element),
                 })

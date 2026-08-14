@@ -1,5 +1,5 @@
 import { IrcConnection } from "@/network/IrcConnection";
-import { recordGamePerformanceFrame } from "@/performance/PerformanceRuntime";
+import { recordGamePerformanceFrame, recordGameScheduleFrame } from "@/performance/PerformanceRuntime";
 interface LocalPlayer {
     isObserver: boolean;
 }
@@ -58,6 +58,7 @@ export class GameAnimationLoop {
     private rafId: number | undefined;
     private backgroundIntervalId: number | undefined;
     private lastRenderTime: number = 0;
+    private lastRafTimestamp: number | undefined;
     constructor(localPlayer: LocalPlayer, renderer: Renderer, sound: Sound, gameTurnMgr: GameTurnManager, options: GameAnimationLoopOptions = {}) {
         this.localPlayer = localPlayer;
         this.renderer = renderer;
@@ -84,6 +85,7 @@ export class GameAnimationLoop {
     private doFrame = (timestamp: number): void => {
         if (this.isStarted && !this.paused) {
             let deltaFrames = this.updateDeltaGameFrames(timestamp);
+            let simulationTicks = 0;
             if (this.turnMgrIsWaiting || (!this.options.skipFrames && deltaFrames > 1)) {
                 deltaFrames = 1;
             }
@@ -102,6 +104,7 @@ export class GameAnimationLoop {
                     const startTime = performance.now();
                     this.turnMgrIsWaiting = !this.tickGame(timestamp);
                     this.lastGameFrame++;
+                    simulationTicks++;
                     deltaFrames--;
                     const elapsed = performance.now() - startTime;
                     budget = Math.max(0, budget - elapsed);
@@ -114,9 +117,22 @@ export class GameAnimationLoop {
                 while (deltaFrames > 0) {
                     this.turnMgrIsWaiting = !this.tickGame(timestamp);
                     this.lastGameFrame++;
+                    simulationTicks++;
                     deltaFrames--;
                 }
             }
+            const turnMillis = this.gameTurnMgr.getTurnMillis();
+            const interpolation = getSimulationInterpolation(
+                timestamp - this.startTime!,
+                this.lastGameFrame,
+                turnMillis,
+            );
+            recordGameScheduleFrame({
+                rafDeltaMs: this.lastRafTimestamp === undefined ? 0 : timestamp - this.lastRafTimestamp,
+                simulationTicks,
+                interpolation,
+            });
+            this.lastRafTimestamp = timestamp;
             // Render fps cap: sim ticks above always run at full rate, but
             // drawing is skipped until the next render slot. The half-frame
             // slack keeps a 60 cap rendering every other frame on a 120 Hz
@@ -139,8 +155,6 @@ export class GameAnimationLoop {
             if (stats) {
                 stats.begin();
             }
-            const turnMillis = this.gameTurnMgr.getTurnMillis();
-            const interpolation = Math.max(0, (timestamp - (this.startTime! + this.lastGameFrame * turnMillis)) / turnMillis);
             this.updateRenderer(timestamp, interpolation);
             if (this.render()) {
                 if (stats) {
@@ -162,6 +176,7 @@ export class GameAnimationLoop {
             if (!this.paused) {
                 this.startTime = undefined;
                 this.lastGameFrame = 0;
+                this.lastRafTimestamp = undefined;
             }
             if (this.localPlayer && !this.localPlayer.isObserver) {
                 try {
@@ -201,6 +216,7 @@ export class GameAnimationLoop {
             this.paused = false;
             this.startTime = undefined;
             this.lastGameFrame = 0;
+            this.lastRafTimestamp = undefined;
             if (document.hidden) {
                 this.handleVisibilityChange();
             }
@@ -221,7 +237,7 @@ export class GameAnimationLoop {
         let deltaFrames = 0;
         if (this.startTime) {
             const elapsed = timestamp - this.startTime;
-            const currentFrame = Math.round(elapsed / turnMillis);
+            const currentFrame = getSimulationFrameForElapsed(elapsed, turnMillis);
             // Do not move lastGameFrame to the wall-clock target here. The
             // caller may have a simulation budget and must retain any turns
             // that could not be executed for the next animation frame.
@@ -298,4 +314,27 @@ export class GameAnimationLoop {
         this.stop();
         this.renderer.flush();
     }
+}
+
+/**
+ * Convert wall-clock time into the next authoritative simulation frame.
+ * Rounding would execute a turn halfway through its interval and produce a
+ * zero-alpha render immediately afterward, which is visible as cadence jitter.
+ */
+export function getSimulationFrameForElapsed(elapsed: number, turnMillis: number): number {
+    if (!Number.isFinite(elapsed) || !Number.isFinite(turnMillis) || turnMillis <= 0) {
+        return 0;
+    }
+    return Math.max(0, Math.floor(elapsed / turnMillis));
+}
+
+export function getSimulationInterpolation(
+    elapsed: number,
+    lastGameFrame: number,
+    turnMillis: number,
+): number {
+    if (!Number.isFinite(elapsed) || !Number.isFinite(lastGameFrame) || !Number.isFinite(turnMillis) || turnMillis <= 0) {
+        return 0;
+    }
+    return Math.min(1, Math.max(0, (elapsed - lastGameFrame * turnMillis) / turnMillis));
 }

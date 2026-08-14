@@ -5,6 +5,21 @@ export interface SidebarSlotSize {
     height: number;
 }
 
+export type SidebarSpriteSurface = "shp" | "pcx";
+
+/**
+ * Sidebar cells are laid out from their top-left corner. SHP and canvas
+ * sprites have different internal anchor conventions, so keep the conversion
+ * in one place instead of making each sidebar consumer guess at it.
+ */
+export function getSidebarSlotSpriteAlignment(
+    surface: SidebarSpriteSurface,
+): { x: number; y: number } {
+    return surface === "pcx"
+        ? { x: -1, y: 1 }
+        : { x: 1, y: 1 };
+}
+
 /**
  * Put a cropped SHP frame into the fixed canvas used by a sidebar slot.
  *

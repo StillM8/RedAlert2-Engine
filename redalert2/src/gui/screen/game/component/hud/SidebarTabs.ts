@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { jsx } from "@/gui/jsx/jsx";
 import { UiObject } from "@/gui/UiObject";
 import { UiComponent, UiComponentProps } from "@/gui/jsx/UiComponent";
+import { getSidebarSlotSpriteAlignment } from "@/gui/screen/game/component/hud/SidebarCameo";
 type TabImage = {
     width: number;
     height: number;
@@ -44,6 +45,7 @@ export class SidebarTabs extends UiComponent<SidebarTabsProps> {
     }
     defineChildren() {
         const { aggregatedImageData, images, palette, tabSpacing, onTabClick, sidebarModel, strings, } = this.props;
+        const tabAlignment = getSidebarSlotSpriteAlignment("shp");
         const children = [];
         for (let c = 0; c < 4; c++) {
             const img = images[c];
@@ -54,6 +56,8 @@ export class SidebarTabs extends UiComponent<SidebarTabsProps> {
             children.push(jsx("sprite", {
                 image: aggregatedImageData.file,
                 palette: palette,
+                alignX: tabAlignment.x,
+                alignY: tabAlignment.y,
                 x: (tabSpacing + img.width) * c,
                 tooltip: strings.get("Tip:Tab" + (c + 1)),
                 onClick: (e: MouseEvent) => {
