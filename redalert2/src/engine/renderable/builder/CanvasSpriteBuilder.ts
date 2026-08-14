@@ -130,7 +130,10 @@ export class CanvasSpriteBuilder {
         }
     }
     setExtraLight(extraLight: any): void {
-        throw new Error("Not implemented");
+        // Canvas UI sprites use MeshBasicMaterial and are intentionally
+        // unlit.  UiObjectSprite still sends the shared lighting callback so
+        // it can use the same interface as world SHP/VXL renderables; a
+        // canvas sprite therefore has nothing to update here.
     }
     setFrustumCulled(frustumCulled: boolean): void {
         this.frustumCulled = frustumCulled;

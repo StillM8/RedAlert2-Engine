@@ -77,6 +77,7 @@ interface Rules {
     general: any;
     audioVisual: any;
     combatDamage: any;
+    warheadRules?: ReadonlyMap<string, { aresAttachEffect?: unknown }>;
 }
 interface Art {
     getObject(name: string, type: ObjectType): any;
@@ -294,7 +295,9 @@ export class RenderableFactory {
             if (entity.tntChargeTrait) {
                 plugins.push(new TntFxPlugin(entity as any, entity.tntChargeTrait, this.rules.combatDamage.ivanIconFlickerRate, renderable, this.imageFinder, this.art, this.alliances, this.localPlayer, this.worldSound, (name: string) => this.createAnim(name)));
             }
-            if ((entity as any).aresAttachEffectTrait) {
+            const hasWarheadAttachEffects = [...(this.rules.warheadRules?.values?.() ?? [])]
+                .some((warhead) => warhead.aresAttachEffect !== undefined);
+            if ((entity as any).aresAttachEffectTrait || hasWarheadAttachEffects) {
                 plugins.push(new AresAttachEffectPlugin(entity, renderable));
             }
             plugins.push(new ObjectCloakPlugin(entity, this.localPlayer, this.alliances, renderable));

@@ -69,6 +69,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     private automaticPhase: AresAttachEffectAutomaticPhase = "inactive";
     private automaticRemainingDelay = 0;
     private presentationRevision = 0;
+    private animationRevision = 0;
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
         this.instances = (options.instances ?? []).map(instance => ({ ...instance }));
@@ -89,6 +90,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         definition: AresAttachEffectDefinition,
         options: { protectedByIronCurtainOrForceShield?: boolean } = {},
     ): AresAttachEffectApplyResult {
+        const previousDefinition = this.definitions.get(effectId);
         const result = applyAresAttachEffect(definition, effectId, this.instances, options);
         this.instances = result.instances.map(instance => ({ ...instance }));
 
@@ -98,7 +100,19 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 this.automaticPhase = "active";
                 this.automaticRemainingDelay = 0;
             }
-            this.presentationRevision++;
+            const effectWasAdded = result.decision === "applied" || result.decision === "stacked";
+            const animationDefinitionChanged = previousDefinition?.animation !== definition.animation ||
+                previousDefinition?.temporalHidesAnim !== definition.temporalHidesAnim;
+            // A non-cumulative reapply keeps the current animation running
+            // unless AnimResetOnReapply explicitly asks for a restart.  New
+            // stacks, expiry/removal, and authored animation changes still
+            // rebuild the attached presentation.
+            if (effectWasAdded || animationDefinitionChanged) {
+                this.presentationRevision++;
+            }
+            if (result.resetAnimation) {
+                this.animationRevision++;
+            }
         }
         else if (effectId === this.automaticEffect?.effectId && result.decision === "ignored-zero-duration") {
             this.automaticPhase = "disabled";
@@ -179,6 +193,11 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     /** Changes whenever an effect is applied, refreshed, stacked, or removed. */
     getPresentationRevision(): number {
         return this.presentationRevision;
+    }
+
+    /** Changes only when Ares explicitly requests an animation reset. */
+    getPresentationAnimationRevision(): number {
+        return this.animationRevision;
     }
 
     /**

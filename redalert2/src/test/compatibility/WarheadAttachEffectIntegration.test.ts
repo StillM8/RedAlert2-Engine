@@ -53,9 +53,17 @@ function makeGame(target: any, centerTile: any) {
             combatDamage: { splashList: [], c4Warhead: "" },
         },
         events: { dispatch: () => undefined },
+        addObjectTrait: (obj: any, trait: any) => obj.addTrait?.(trait),
         mapRadiationTrait: { createRadSite: () => undefined },
         gameOpts: { destroyableBridges: true },
     } as any;
+}
+
+function makeTargetWithoutAttachEffectTrait() {
+    const target = makeTarget();
+    delete target.aresAttachEffectTrait;
+    target.traits = { add: (trait: any) => { target.aresAttachEffectTrait = trait; } };
+    return target;
 }
 
 describe("Warhead AttachEffect integration", () => {
@@ -111,6 +119,34 @@ describe("Warhead AttachEffect integration", () => {
         );
         expect(target.aresAttachEffectTrait.getState()).toEqual([
             { effectId: "AttachWarhead", remainingFrames: 5, discardOnEntry: false },
+        ]);
+    });
+
+    test("lazily installs the shared trait for a target without TechnoType AttachEffect", () => {
+        const section = new IniSection("LazyAttachWarhead");
+        section.set("Verses", "1,1,1,1,1,100%");
+        section.set("AttachEffect.Duration", "3");
+        const warhead = new Warhead(new WarheadRules(section) as any);
+        const target = makeTargetWithoutAttachEffectTrait();
+        const game = makeGame(target, target.tile);
+
+        warhead.detonate(
+            game,
+            0,
+            target.tile,
+            0,
+            target.position.worldPosition,
+            ZoneType.Land,
+            CollisionType.None,
+            { obj: target },
+            undefined,
+            false,
+            undefined,
+        );
+
+        expect(target.aresAttachEffectTrait).toBeInstanceOf(AresAttachEffectTrait);
+        expect(target.aresAttachEffectTrait.getState()).toEqual([
+            { effectId: "LazyAttachWarhead", remainingFrames: 3, discardOnEntry: false },
         ]);
     });
 });

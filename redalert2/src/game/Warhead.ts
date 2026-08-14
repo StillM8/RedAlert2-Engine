@@ -28,6 +28,7 @@ import {
 } from "@/extensions/ares/AresAttachEffectCombat";
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import type { AresAttachEffectApplyResult } from "@/extensions/ares/AresAttachEffectRuntime";
+import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { applyAresChronoPrison } from "@/extensions/ares/AresChronoPrisonIntegration";
 interface GameObject {
     isSpawned: boolean;
@@ -69,6 +70,8 @@ interface TechnoObject extends GameObject {
             options?: { protectedByIronCurtainOrForceShield?: boolean },
         ): AresAttachEffectApplyResult;
     };
+    traits?: { add(trait: unknown): void };
+    addTrait?(trait: unknown): void;
     moveTrait: MoveTrait;
     unitOrderTrait: UnitOrderTrait;
     suppressionTrait?: SuppressionTrait;
@@ -183,6 +186,7 @@ interface GameWorld {
     getAllPlayers?(): Player[];
     areAllied?(player1: Player, player2: Player): boolean;
     unlimboObject?(obj: GameObject, tile: Position, skipSelection?: boolean): void;
+    addObjectTrait?(obj: GameObject, trait: unknown): void;
 }
 interface GameMap {
     tiles: Tile[][];
@@ -663,8 +667,25 @@ export class Warhead {
 
         const techno = target as TechnoObject;
         const verses = this.rules.verses.get(target.rules.armor) ?? 1;
-        if (!techno.aresAttachEffectTrait || verses === 0) {
+        if (verses === 0) {
             return undefined;
+        }
+
+        // Warhead-owned AttachEffects are valid on every TechnoType.  The
+        // trait is created lazily so ordinary retail units do not pay an
+        // idle per-tick cost when the loaded rules contain no AttachEffect.
+        if (!techno.aresAttachEffectTrait) {
+            const trait = new AresAttachEffectTrait();
+            techno.aresAttachEffectTrait = trait;
+            if (gameWorld.addObjectTrait) {
+                gameWorld.addObjectTrait(techno, trait);
+            }
+            else if (techno.addTrait) {
+                techno.addTrait(trait);
+            }
+            else {
+                techno.traits?.add(trait);
+            }
         }
 
         const result = techno.aresAttachEffectTrait.apply(

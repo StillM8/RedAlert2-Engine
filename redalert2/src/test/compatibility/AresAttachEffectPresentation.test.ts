@@ -40,10 +40,11 @@ function makeManager(created: any[]) {
             const props = { loopCount: 0 };
             const anim = {
                 name,
-                get3DObject: () => object,
-                create3DObject: () => undefined,
-                getAnimProps: () => props,
-                dispose: () => created.push(`disposed:${name}`),
+            get3DObject: () => object,
+            create3DObject: () => undefined,
+            getAnimProps: () => props,
+            update: (time: number) => created.push(`updated:${name}:${time}`),
+            dispose: () => created.push(`disposed:${name}`),
             };
             created.push(anim);
             return anim;
@@ -114,5 +115,33 @@ describe("Ares AttachEffect presentation", () => {
         trait.apply("MO", noAnimation);
         plugin.update();
         expect(renderable.children).toHaveLength(0);
+    });
+
+    test("advances attached animations and keeps them running on a non-resetting reapply", () => {
+        const noReset = { ...definition, animResetOnReapply: false };
+        const trait = new AresAttachEffectTrait({
+            definitions: new Map([["MO", noReset]]),
+        });
+        const gameObject: any = {
+            aresAttachEffectTrait: trait,
+            isDestroyed: false,
+            isCrashing: false,
+            cloakableTrait: { isCloaked: () => false },
+            warpedOutTrait: { isActive: () => false },
+        };
+        const renderable = makeRenderable();
+        const created: any[] = [];
+        const plugin = new AresAttachEffectPlugin(gameObject, { get3DObject: () => renderable.parent });
+        plugin.onCreate(makeManager(created));
+
+        trait.apply("MO", noReset);
+        plugin.update(100);
+        trait.apply("MO", noReset);
+        plugin.update(200);
+
+        expect(renderable.children).toHaveLength(1);
+        expect(created.filter((entry) => entry?.name === "MO_EFFECT_ANIM")).toHaveLength(1);
+        expect(created).toContain("updated:MO_EFFECT_ANIM:100");
+        expect(created).toContain("updated:MO_EFFECT_ANIM:200");
     });
 });

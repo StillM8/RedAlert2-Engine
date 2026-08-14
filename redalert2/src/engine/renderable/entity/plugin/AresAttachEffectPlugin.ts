@@ -15,6 +15,7 @@ export class AresAttachEffectPlugin {
     private renderableManager?: any;
     private attachedAnimations: AttachedAnimation[] = [];
     private lastRevision?: number;
+    private lastAnimationRevision?: number;
     private lastHidden?: boolean;
 
     constructor(gameObject: any, renderable: any) {
@@ -26,7 +27,7 @@ export class AresAttachEffectPlugin {
         this.renderableManager = renderableManager;
     }
 
-    update(): void {
+    update(time?: number): void {
         const trait = this.gameObject.aresAttachEffectTrait;
         if (!trait || this.gameObject.isDestroyed || this.gameObject.isCrashing) {
             this.disposeAnimations();
@@ -39,23 +40,24 @@ export class AresAttachEffectPlugin {
             effect.temporalHidesAnim && this.gameObject.warpedOutTrait?.isActive?.() === true);
         const hidden = hiddenByCloak || hiddenByTemporal;
         const revision = trait.getPresentationRevision?.() ?? 0;
-        if (revision === this.lastRevision && hidden === this.lastHidden) return;
+        const animationRevision = trait.getPresentationAnimationRevision?.() ?? revision;
+        const presentationChanged = revision !== this.lastRevision ||
+            animationRevision !== this.lastAnimationRevision ||
+            hidden !== this.lastHidden;
 
-        this.lastRevision = revision;
-        this.lastHidden = hidden;
-        this.disposeAnimations();
-        if (hidden || !effects.length || !this.renderableManager) return;
+        if (presentationChanged) {
+            this.lastRevision = revision;
+            this.lastAnimationRevision = animationRevision;
+            this.lastHidden = hidden;
+            this.disposeAnimations();
+            if (!hidden && effects.length && this.renderableManager) {
+                this.createAnimations(effects);
+            }
+        }
 
-        const parent = this.renderable.get3DObject?.();
-        if (!parent) return;
-        effects.forEach((effect) => {
-            if (!effect.animation) return;
-            const animation = this.renderableManager.createAnim(effect.animation, undefined, true);
-            animation.create3DObject();
-            animation.getAnimProps().loopCount = -1;
-            parent.add(animation.get3DObject());
-            this.attachedAnimations.push({ animation });
-        });
+        if (Number.isFinite(time)) {
+            this.attachedAnimations.forEach(({ animation }) => animation.update?.(time));
+        }
     }
 
     onRemove(): void {
@@ -75,5 +77,24 @@ export class AresAttachEffectPlugin {
             attached.animation.dispose?.();
         }
         this.attachedAnimations = [];
+    }
+
+    private createAnimations(effects: readonly AresAttachEffectPresentation[]): void {
+        const parent = this.renderable.get3DObject?.();
+        if (!parent || !this.renderableManager) return;
+        effects.forEach((effect) => {
+            if (!effect.animation) return;
+            const animation = this.renderableManager!.createAnim(effect.animation, undefined, true);
+            animation.create3DObject();
+            const props = animation.getAnimProps?.();
+            const object = animation.get3DObject?.();
+            if (!props || !object) {
+                animation.dispose?.();
+                return;
+            }
+            props.loopCount = -1;
+            parent.add(object);
+            this.attachedAnimations.push({ animation });
+        });
     }
 }
