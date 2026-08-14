@@ -1,65 +1,90 @@
-# Red Alert 2 Android shell
+# Android shell
 
-This module wraps the existing TypeScript/Three.js engine in an Android
-`WebView`. The game simulation, renderer, and generic Ares compatibility layer
-remain in `redalert2/`; this project supplies the Android lifecycle, fullscreen,
-power-state, renderer recovery, and offline resource-serving layer.
+This directory contains the Kotlin/WebView shell for the shared Red Alert 2
+engine. The simulation, renderer, resource importer, Mods menu, and Ares
+compatibility layer live in [`../redalert2/`](../redalert2/); Android supplies
+the lifecycle, storage, file picker, notifications, fullscreen handling, and
+APK packaging.
 
-This is one Android product. The in-game Mods screen is the user-facing
-content switcher. Selecting a built-in game or an imported mod from
-**Menu → Mods** writes the active route, persists it, and performs a full
-engine reload; there is no separate startup content/profile picker.
+See the [repository README](../README.md) for project lineage, compatibility
+scope, and the Windows/Linux/macOS builds.
 
-| Build | Package |
-|---|---|---|
-| debug | `com.ammaar.ra2android.debug` |
-| release | `com.ammaar.ra2android` |
+## Requirements
 
-## Local build
+- Bun 1.3 or newer
+- JDK 17
+- Android SDK with API 36 platform/build tools
+- Gradle available on `PATH`, or set `GRADLE_BIN` to a Gradle executable
+- `adb` for `--device` installation
 
-Normal Android builds are engine-only APKs. They do not package retail game
-files, even when `gameres-export/` exists in the checkout. Import a complete
-copy of your own legally-owned RA2/Yuri's Revenge base from the app's
-game-resource picker after installation. Mental Omega is imported separately
-from **Menu → Mods** as a YR-based mod.
+The repository currently uses the Gradle installation selected by
+`GRADLE_BIN`, `android/gradlew` when present, or the `gradle` command on
+`PATH`.
 
-Build and install the debug app:
+## Build from the repository root
+
+Build the normal engine-only debug APK:
+
+```sh
+./scripts/build-android.sh
+```
+
+Build the unsigned release APK:
+
+```sh
+./scripts/build-android.sh --release
+```
+
+Build, install, and launch the debug APK on a connected device:
 
 ```sh
 ./scripts/build-android.sh --device
 ```
 
-The first launch uses Red Alert 2 only as the neutral bootstrap. Switching
-content is done from **Menu → Mods** and reloads the shared engine. The last
-selected entry is used on the next launch until it is replaced or its base/mod
-files are removed. The list includes built-in Red Alert 2 and Yuri's Revenge
-entries plus imported mods. A YR-based mod remains separate from the YR base:
-import the legally-owned Yuri's Revenge files as the base game, then import
-the mod from the Mods screen. Connect a device with USB debugging enabled
-before using `--device`; the script installs and launches the unified package.
+The debug and release application IDs are:
 
-Large mod-folder imports run under a temporary low-priority Android
-notification and show copy progress in the app. The notification remains
-visible through the native copy and the final WebView storage copy, and the
-mod is not selectable until that second phase commits successfully.
+| Build | Application ID |
+| --- | --- |
+| Debug | `com.ammaar.ra2android.debug` |
+| Release | `com.ammaar.ra2android` |
 
-The script stages `redalert2/dist/` into `app/src/main/assets/WebDist/`. It
-removes any previously staged `GameRes/` directory for the default engine-only
-build, so old local assets cannot leak into a normal APK. The local
-`gameres-export/` directory is used only when explicitly requested for QA:
+Use `--no-web` to reuse an existing `redalert2/dist/` build. The normal build
+does not package RA2, Yuri's Revenge, Mental Omega, or any other game files.
+
+`--with-gameres` is an opt-in local QA mode only. It stages the local,
+gitignored `gameres-export/` directory into the APK and must never be used for
+the normal distributable build:
 
 ```sh
 ./scripts/build-android.sh --with-gameres
 ```
 
-That opt-in requires `gameres-export/`. Retail-derived files remain ignored and
-are never committed or distributed by default. `--no-gameres` remains accepted
-as a legacy alias for the default engine-only behavior.
+## Import and select content
 
-The packaged URL is HTTPS on Android's reserved app-assets origin. The custom
-WebView client adds the cross-origin isolation headers needed by the web build
-and keeps `/gameres/` for imported user content while reserving
-`/gameres-bundle/` for optional packaged seed assets. An engine-only APK returns
-404 for the latter, so an existing import is not rescanned as a bundled seed.
-When Android backgrounds the app, single-player writes a shared action-log
-checkpoint; multiplayer is not restored from that local checkpoint.
+On first launch, import your own game files through the in-app resource picker.
+After the base files are available, use **Menu → Mods** to select Red Alert 2,
+Yuri's Revenge, or an imported mod. The selection persists across launches and
+reinitializes the shared engine when changed.
+
+A Yuri's Revenge-based mod uses a separately imported Yuri's Revenge base.
+Mental Omega is **not claimed as fully compatible**; support is being built
+toward the Ares features that it requires. The app does not bundle Mental
+Omega or any other mod archive.
+
+Large folder imports run in the background with native progress notification.
+The imported content is stored in the app's private storage and is not written
+back into the repository.
+
+## Development notes
+
+The build script:
+
+1. Builds the shared web engine into `redalert2/dist/`.
+2. Stages it into `app/src/main/assets/WebDist/`.
+3. Removes any stale packaged `GameRes/` directory for normal builds.
+4. Runs the Android Gradle build.
+
+The Android shell keeps the WebView and selected content route when the app is
+backgrounded. Single-player checkpoints may be used after the operating system
+recreates the process; live multiplayer sessions are not reconstructed from a
+local checkpoint.
