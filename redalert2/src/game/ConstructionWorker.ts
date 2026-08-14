@@ -89,7 +89,7 @@ interface GameMap {
 interface Rules {
     getBuilding(name: string): any;
     getLandRules(landType: any): {
-        buildable: boolean;
+        isBuildable(): boolean;
         getSpeedModifier(speedType: SpeedType): number;
     };
 }
@@ -380,7 +380,7 @@ export class ConstructionWorker {
         }
         else {
             const landRules = this.rules.getLandRules(tile.landType);
-            return tile.rampType === 0 && landRules.buildable;
+            return tile.rampType === 0 && landRules.isBuildable();
         }
     }
     dispose(): void {

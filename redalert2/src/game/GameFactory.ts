@@ -37,10 +37,10 @@ import { BotManager } from './BotManager';
 import { isHumanPlayerInfo } from './gameopts/GameOpts';
 import { TheaterType } from '@/engine/TheaterType';
 interface GameMode {
-    type: string;
+    type: number;
 }
 interface GameModeRegistry {
-    getById(modeId: string): GameMode;
+    getById(modeId: number): GameMode;
 }
 interface PlayerInfo {
     countryId: string;
@@ -101,8 +101,9 @@ export class GameFactory {
         new ActionFactoryReg().register(actionFactory, game, undefined);
         this.setupGameTraits(game, rules, gameMap, alliances, gameOpts, skipStalemate, speedCheat);
         const productionTrait: ProductionTrait = game.traits.get(ProductionTrait) as ProductionTrait;
-        const theaterName = gameMap.theaterType !== undefined
-            ? TheaterType[gameMap.theaterType]
+        const theaterType = gameMap.getTheaterType();
+        const theaterName = theaterType !== undefined
+            ? TheaterType[theaterType]
             : undefined;
         const theater = theaterName && theaterName !== "None"
             ? theaterName

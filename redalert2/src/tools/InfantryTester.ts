@@ -119,7 +119,7 @@ export class InfantryTester {
         const unitSelection = new UnitSelection();
         const lighting = new Lighting();
         this.disposables.add(lighting);
-        const renderableFactory = new RenderableFactory(new BoxedVar(player) as any, unitSelection as any, alliances as any, this.rules as any, this.art as any, undefined as any, new ImageFinder(this.images, this.theater) as any, Engine.getPalettes() as any, Engine.getVoxels() as any, Engine.getVoxelAnims() as any, this.theater as any, this.worldScene.camera as any, new Lighting(), new LightingDirector(new Lighting().mapLighting as any, this.renderer as any, new BoxedVar(1) as any) as any, new BoxedVar(false) as any, new BoxedVar(false) as any, new BoxedVar(2) as any, null as any, new Strings({ TXT_PRIMARY: "Primary" }) as any, new BoxedVar(FlyerHelperMode.Selected) as any, new BoxedVar(false) as any, this.vxlBuilderFactory as any, new Map() as any);
+        const renderableFactory = new RenderableFactory(new BoxedVar(player) as any, unitSelection as any, alliances as any, this.rules as any, this.art as any, undefined as any, new ImageFinder(this.images, this.theater) as any, Engine.getPalettes() as any, Engine.getVoxels() as any, Engine.getVoxelAnims() as any, this.theater as any, this.worldScene.camera as any, lighting, new LightingDirector(lighting, this.renderer as any, new BoxedVar(1) as any) as any, new BoxedVar(false) as any, new BoxedVar(false) as any, new BoxedVar(2) as any, null as any, new Strings({ TXT_PRIMARY: "Primary" }) as any, new BoxedVar(FlyerHelperMode.Selected) as any, new BoxedVar(false) as any, this.vxlBuilderFactory as any, new Map() as any);
         const tileCollection = new TileCollection([
             { rx: 0, ry: 0, dx: 0, dy: 0, z: 0, tileNum: 0, subTile: 0 },
             { rx: 1, ry: 0, dx: 1, dy: 0, z: 0, tileNum: 0, subTile: 0 },
@@ -134,7 +134,7 @@ export class InfantryTester {
         const selectedColor = this.currentInfantryColor?.clone()
             ?? this.rules.getMultiplayerColors().get("DarkRed")?.clone()
             ?? new Color(255, 0, 0);
-        player.color = selectedColor;
+        (player as any).color = selectedColor;
         this.currentInfantryColor = selectedColor.clone();
         infantry.owner = player;
         infantry.position.tile = { rx: 1, ry: 1, z: 0, rampType: 0 };

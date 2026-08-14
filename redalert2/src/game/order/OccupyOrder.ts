@@ -75,7 +75,7 @@ export class OccupyOrder extends Order {
         return building.rules.bunker &&
             unit.isVehicle() &&
             !unit.rules.naval &&
-            unit.rules.locomotor !== LocomotorType.Fly &&
+            unit.rules.locomotor !== LocomotorType.Aircraft &&
             unit.rules.locomotor !== LocomotorType.Hover &&
             unit.rules.movementZone !== MovementZone.Fly &&
             this.game.areFriendly(unit, building) &&

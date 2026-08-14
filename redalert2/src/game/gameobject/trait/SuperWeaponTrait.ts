@@ -21,7 +21,7 @@ export class SuperWeaponTrait {
         this.removeSuperWeaponFromPlayerIfNeeded(oldOwner, newOwner);
         this.addSuperWeaponToPlayerIfNeeded(gameObject.owner, newOwner);
     }
-    private addSuperWeaponToPlayerIfNeeded(player: any, world: any): void {
+    public addSuperWeaponToPlayerIfNeeded(player: any, world: any): void {
         if (!player.superWeaponsTrait || player.superWeaponsTrait.has(this.name)) return;
         const rules = world?.rules?.getSuperWeapon?.(this.name);
         if (rules?.ares && !evaluateAresSuperWeaponAvailabilityForOwner(

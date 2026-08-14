@@ -69,21 +69,14 @@ interface GameEntity {
 interface LocalPlayer {
 }
 interface UnitSelection {
-    getOrCreateSelectionModel(entity: GameEntity): any;
+    getOrCreateSelectionModel(entity: any): any;
 }
 interface Alliances {
 }
 interface Rules {
-    general: {
-        paradrop: any;
-    };
-    audioVisual: {
-        chronoSparkle1: any;
-        conditionYellow: number;
-    };
-    combatDamage: {
-        ivanIconFlickerRate: number;
-    };
+    general: any;
+    audioVisual: any;
+    combatDamage: any;
 }
 interface Art {
     getObject(name: string, type: ObjectType): any;

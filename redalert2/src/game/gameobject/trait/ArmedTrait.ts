@@ -20,6 +20,8 @@ interface GameObject {
 }
 interface GameObjectRules {
     weaponCount?: number;
+    isGattling: boolean;
+    weaponStages: number;
     elitePrimary?: string;
     primary?: string;
     eliteSecondary?: string;

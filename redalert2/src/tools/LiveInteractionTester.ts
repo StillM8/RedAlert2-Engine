@@ -1207,7 +1207,7 @@ export class LiveInteractionTester {
                     if (landRules.getSpeedModifier(SpeedType.Float) <= 0) {
                         return false;
                     }
-                } else if (candidateTile.rampType !== 0 || !landRules.buildable) {
+                } else if (candidateTile.rampType !== 0 || !landRules.isBuildable()) {
                     return false;
                 }
             }

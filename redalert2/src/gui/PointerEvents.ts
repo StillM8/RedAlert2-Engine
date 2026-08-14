@@ -112,6 +112,9 @@ export class PointerEvents {
      * transformed canvas. Android delivers those touches to BODY, so without
      * this bridge they never enter the RTS gesture engine. */
     private edgeTouchActive = false;
+    setIntersectionsEnabled(enabled: boolean): void {
+        this.intersectionsEnabled = enabled;
+    }
     constructor(renderer: Renderer, lockModePointer: LockModePointer, document: Document, canvasMetrics: CanvasMetrics) {
         this.renderer = renderer;
         this.lockModePointer = lockModePointer;

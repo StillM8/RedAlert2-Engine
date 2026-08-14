@@ -14,6 +14,9 @@ export class LandRules {
         });
         return this;
     }
+    isBuildable(): boolean {
+        return this.buildable;
+    }
     getSpeedModifier(speedType: SpeedType): number {
         if (speedType === SpeedType.Foot &&
             this.speedModifiers.get(SpeedType.Track) === 0) {

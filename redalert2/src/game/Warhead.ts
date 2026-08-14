@@ -117,6 +117,7 @@ interface GameObjectRules {
     wall: boolean;
 }
 interface WarheadRules {
+    aresAttachEffect?: AresAttachEffectDefinition;
     temporal: boolean;
     radiation: boolean;
     psychicDamage: boolean;

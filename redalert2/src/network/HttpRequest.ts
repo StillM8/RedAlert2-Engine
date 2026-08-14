@@ -28,8 +28,9 @@ function isTauriAssetUrl(url: string): boolean {
     }
 }
 
-function looksLikeHtmlDocument(data: ArrayBuffer): boolean {
-    const prefix = new TextDecoder().decode(new Uint8Array(data).subarray(0, 512))
+function looksLikeHtmlDocument(data: ArrayBuffer | Uint8Array): boolean {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+    const prefix = new TextDecoder().decode(bytes.subarray(0, 512))
         .replace(/^\uFEFF/, '')
         .trimStart()
         .toLocaleLowerCase('en-US');

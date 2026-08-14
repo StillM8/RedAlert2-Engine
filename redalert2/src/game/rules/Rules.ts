@@ -39,11 +39,14 @@ interface IniFile {
 }
 interface IniSection {
     entries: Map<string, any>;
+    has(key: string): boolean;
+    set(key: string, value: string | string[]): void;
 }
 interface Logger {
     debug(message: string): void;
 }
 interface ObjectRules {
+    waterBound?: boolean;
     deathWeapon?: string;
     primary?: string;
     secondary?: string;

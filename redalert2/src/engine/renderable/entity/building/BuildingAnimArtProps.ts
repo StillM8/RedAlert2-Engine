@@ -34,12 +34,17 @@ const ANIM_PROP_NAMES = new Map<AnimationType, string[]>([
     [AnimationType.BUILDUP, ["Buildup"]],
     [AnimationType.UNBUILD, ["Buildup"]]
 ]);
+interface BuildingAnimConfig {
+    getString(key: string, defaultValue?: string): string | undefined;
+    getBool(key: string, defaultValue?: boolean): boolean;
+    getNumber(key: string, defaultValue?: number): number;
+}
 export class BuildingAnimArtProps {
     private animsByType: Map<AnimationType, BuildingAnimData[]>;
     constructor() {
         this.animsByType = new Map();
     }
-    read(config: IniSection, objectManager: any): void {
+    read(config: IniSection | BuildingAnimConfig, objectManager: any): void {
         ANIM_PROP_NAMES.forEach((propNames, type) => {
             const anims: BuildingAnimData[] = [];
             propNames.forEach((propName) => {

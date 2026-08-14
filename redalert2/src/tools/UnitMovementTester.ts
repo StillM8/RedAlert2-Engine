@@ -337,7 +337,7 @@ export class UnitMovementTester {
             (document.body.style as any).MozUserSelect = 'none';
             (document.body.style as any).msUserSelect = 'none';
             if (this.pointerEvents)
-                this.pointerEvents.intersectionsEnabled = false;
+                this.pointerEvents.setIntersectionsEnabled(false);
         };
         const onMouseMove = (ev: any) => {
             if (!this.dragStart)
@@ -482,7 +482,7 @@ export class UnitMovementTester {
             this.dragStart = undefined;
             this.isDragging = false;
             if (this.pointerEvents)
-                this.pointerEvents.intersectionsEnabled = true;
+                this.pointerEvents.setIntersectionsEnabled(true);
         };
         pointerEvents.addEventListener('canvas', 'mousedown', onMouseDown);
         pointerEvents.addEventListener('canvas', 'mousemove', onMouseMove);
@@ -510,7 +510,7 @@ export class UnitMovementTester {
             this.dragStart = undefined;
             this.isDragging = false;
             if (this.pointerEvents)
-                this.pointerEvents.intersectionsEnabled = true;
+                this.pointerEvents.setIntersectionsEnabled(true);
         };
         document.addEventListener('mouseup', onDocMouseUp, false);
         this.disposables.add(() => document.removeEventListener('mouseup', onDocMouseUp, false));

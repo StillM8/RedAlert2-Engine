@@ -11,8 +11,13 @@ interface CountryRules {
     uiTooltip?: string;
     presentationId?: string;
     flag?: string;
+    loadScreenTextName?: string;
+    loadScreenTextSpecialName?: string;
+    loadScreenTextBrief?: string;
+    loadScreenTextColor?: string;
     loadScreen?: string;
     loadScreenPalette?: string;
+    loadingTheme?: string;
     multiplay: boolean;
     isMultiplayerPassive: boolean;
     canBeDriven: boolean;
@@ -20,6 +25,7 @@ interface CountryRules {
     legacySideFallback: boolean;
     order: number;
     networkIndex: number;
+    listIndex: number;
     veteranAircraft: string[];
     veteranInfantry: string[];
     veteranUnits: string[];

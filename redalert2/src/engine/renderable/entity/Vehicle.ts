@@ -94,6 +94,17 @@ interface GameObjectInterface {
     warpedOutTrait: {
         isActive(): boolean;
     };
+    robotControlTrait?: {
+        isOffline(): boolean;
+    };
+    berserkTrait?: {
+        isActive(): boolean;
+    };
+    attackTrait?: {
+        currentTarget?: {
+            obj?: any;
+        };
+    };
     cloakableTrait?: {
         isCloaked(): boolean;
     };

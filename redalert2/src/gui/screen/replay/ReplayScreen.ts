@@ -100,6 +100,11 @@ interface Sound {
 interface KeyBinds {
 }
 interface GeneralOptions {
+    graphics: {
+        frameLimit: {
+            value: number;
+        };
+    };
 }
 interface ActionLogger {
 }

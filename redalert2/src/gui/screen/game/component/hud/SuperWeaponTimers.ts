@@ -22,6 +22,9 @@ type Player = {
             rules: {
                 showTimer: boolean;
                 uiName: string;
+                ares?: {
+                    swTimerVisibility?: string;
+                };
             };
         }>;
     };

@@ -206,7 +206,7 @@ export class ShpTester {
         };
         messageTimeout = setTimeout(addRandomMessage, 5000 * Math.random());
         this.disposables.add(() => clearTimeout(messageTimeout));
-        const hud = new Hud((player.country as any).side, uiScene.viewport, Engine.getImages() as any, Engine.getPalettes() as any, cameoDatabase, combatantSidebarModel, messageList, new ChatHistory(), new BoxedVar(""), new BoxedVar(false), undefined, [], new StalemateDetectTrait(), new CountdownTimer(), jsxRenderer, strings, Object.values(CommandBarButtonType).filter((value) => typeof value === "number") as CommandBarButtonType[]);
+        const hud = new Hud((player.country as any).side, uiScene.viewport, Engine.getImages() as any, Engine.getPalettes() as any, cameoDatabase, combatantSidebarModel, messageList, new ChatHistory(), new BoxedVar(""), new BoxedVar(false), undefined, [], new StalemateDetectTrait(), new CountdownTimer(), jsxRenderer, strings, Object.values(CommandBarButtonType).filter((value) => typeof value === "number") as CommandBarButtonType[], undefined);
         const minimap = new Minimap(game, player, 0xFFFFFF, rules.general.radar as any);
         minimap.setPointerEvents(pointer.pointerEvents);
         hud.setMinimap(minimap);

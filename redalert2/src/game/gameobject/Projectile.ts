@@ -702,8 +702,15 @@ export class Projectile extends GameObject {
         if (decision.kind === "building") return false;
 
         const weaponInfo = {
+            minRange: weapon.minRange,
+            range: weapon.range,
+            speed: weapon.speed,
+            type: weapon.type,
+            rules: weapon.rules,
+            projectileRules: weapon.projectileRules,
+            warhead,
+            weapon: weapon.rules,
             player: this.fromPlayer,
-            weapon,
             obj: this.fromObject,
         };
         if (decision.kind === "occupant-fatal") {
@@ -1146,7 +1153,7 @@ export class Projectile extends GameObject {
     ): any[] {
         const warhead = new Warhead(game.rules.getWarhead(airburstWarheadName));
         const range = 5;
-        const candidates = sortAresSplitCandidates(game.map.technosByTile?.queryRange?.(
+        const candidates = sortAresSplitCandidates<any>(game.map.technosByTile?.queryRange?.(
             new Box2(
                 new Vector2(anchorTile.rx - range, anchorTile.ry - range),
                 new Vector2(anchorTile.rx + range + 1, anchorTile.ry + range + 1),
