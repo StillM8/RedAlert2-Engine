@@ -83,6 +83,38 @@ describe("Ares damage-particle render integration", () => {
         expect(effectsAdded).toBe(1);
     });
 
+    test("keeps the retail smoke fallback for an unresolved flat particle ID", () => {
+        let animationName = "";
+        let effectsAdded = 0;
+        const plugin = new DamageSmokePlugin(
+            {
+                healthTrait: { health: 40 },
+                isDestroyed: false,
+                position: { worldPosition: new THREE.Vector3() },
+                rules: { damageSmokeOffset: new THREE.Vector3() },
+            },
+            {
+                hasObject: () => true,
+                getAnimation: (name: string) => {
+                    animationName = name;
+                    return {
+                        paletteType: "anim",
+                        art: { getBool: () => false },
+                    };
+                },
+            },
+            { getPalette: () => ({}) },
+            { findByObjectArt: () => ({}) },
+            { value: 1 },
+            [{ id: "MissingSmokeSystem" }],
+        );
+        plugin.onCreate({ addEffect: () => { effectsAdded++; } });
+        plugin.update(0);
+
+        expect(animationName).toBe("SGRYSMK1");
+        expect(effectsAdded).toBe(1);
+    });
+
     test("spawns authored spark systems independently from smoke candidates", () => {
         let effectsAdded = 0;
         const plugin = new DamageSmokePlugin(

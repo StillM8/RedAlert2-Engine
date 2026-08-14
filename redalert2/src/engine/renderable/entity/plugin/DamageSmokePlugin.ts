@@ -238,7 +238,13 @@ export class DamageSmokePlugin {
         // Keep the retail fallback for tests and older rule sets that only
         // expose the flat DamageParticleSystems ID list. A parsed system with
         // no Particle image is not silently replaced by grey smoke.
-        const imageName = authoredImage ?? (!system ? "SGRYSMK1" : undefined);
+        const hasParticleMetadata = system?.particle !== undefined ||
+            system?.holdsWhat !== undefined ||
+            system?.behavesLike !== undefined ||
+            system?.particleCap !== undefined ||
+            system?.spawnFrames !== undefined ||
+            system?.spawnRadius !== undefined;
+        const imageName = authoredImage ?? (!hasParticleMetadata ? "SGRYSMK1" : undefined);
         if (!imageName) return undefined;
         if (this.art.hasObject && !this.art.hasObject(imageName, ObjectType.Animation)) {
             return undefined;

@@ -22,6 +22,7 @@
     "debug:live-interaction-loading": "bun scripts/live-interaction-loading-flow.mjs",
     "debug:perf-smoke": "bun scripts/perf-smoke-flow.mjs",
     "debug:perftest": "bun scripts/perftest-flow.mjs",
+    "debug:simulation-perf": "bun ../scripts/simulation-perf.ts",
     "debug:game-res-init": "bun scripts/game-res-init-flow.mjs",
     "debug:refinery-free-unit": "bun scripts/refinery-free-unit-flow.mjs",
     "debug:viewport": "bun scripts/viewport-flow.mjs",

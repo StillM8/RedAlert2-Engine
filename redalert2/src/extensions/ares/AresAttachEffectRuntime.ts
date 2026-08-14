@@ -166,6 +166,42 @@ export function advanceAresAttachEffects(
     return { instances: next, expiredEffectIds };
 }
 
+/**
+ * Advance the internal mutable trait state without allocating a replacement
+ * array. The write cursor preserves authored instance order and the returned
+ * expiry list remains deterministic. This is intentionally separate from the
+ * pure helper above because callers outside the trait may rely on immutable
+ * input semantics.
+ */
+export function advanceAresAttachEffectsInPlace(
+    instances: AresAttachEffectInstance[],
+): AresAttachEffectId[] {
+    const expiredEffectIds: AresAttachEffectId[] = [];
+    let writeIndex = 0;
+
+    for (let readIndex = 0; readIndex < instances.length; readIndex++) {
+        const instance = instances[readIndex];
+        if (instance.remainingFrames === -1) {
+            instances[writeIndex++] = instance;
+            continue;
+        }
+
+        const remaining = instance.remainingFrames > 0
+            ? instance.remainingFrames - 1
+            : 0;
+        if (remaining <= 0) {
+            expiredEffectIds.push(instance.effectId);
+            continue;
+        }
+
+        instance.remainingFrames = remaining;
+        instances[writeIndex++] = instance;
+    }
+
+    instances.length = writeIndex;
+    return expiredEffectIds;
+}
+
 /** Remove only effects marked DiscardOnEntry when the target leaves the map. */
 export function discardAresAttachEffectsOnEntry(
     instances: readonly AresAttachEffectInstance[],

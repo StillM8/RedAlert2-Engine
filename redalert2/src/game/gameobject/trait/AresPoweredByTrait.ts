@@ -61,18 +61,21 @@ export class AresPoweredByTrait implements NotifyTick {
         }
     }
 
-    private getProviderObjects(gameObject: any): any[] {
+    private getProviderObjects(gameObject: any): Iterable<any> {
         const buildings = gameObject?.owner?.buildings;
-        return buildings ? [...buildings] : [];
+        return buildings ?? [];
     }
 
     private isInsideBuilding(gameObject: any): boolean {
         const buildings = gameObject?.owner?.buildings;
         if (!buildings) return false;
-        return [...buildings].some((building: any) =>
-            building?.garrisonTrait?.units?.includes(gameObject) === true ||
-            building?.tankBunkerTrait?.unit === gameObject,
-        );
+        for (const building of buildings) {
+            if (building?.garrisonTrait?.units?.includes(gameObject) === true ||
+                building?.tankBunkerTrait?.unit === gameObject) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private setOffline(gameObject: any, offline: boolean): void {

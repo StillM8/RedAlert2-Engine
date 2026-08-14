@@ -3,6 +3,7 @@ import { IniSection } from "@/data/IniSection";
 import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import {
     advanceAresAttachEffects,
+    advanceAresAttachEffectsInPlace,
     applyAresAttachEffect,
     discardAresAttachEffectsOnEntry,
     type AresAttachEffectInstance,
@@ -123,5 +124,21 @@ describe("Ares AttachEffect runtime-ready state model", () => {
             instances: [{ effectId: "finite", remainingFrames: 2, discardOnEntry: false }],
             removedEffectIds: ["infinite", "stacked"],
         });
+    });
+
+    test("compacts mutable trait state in authored order without changing pure semantics", () => {
+        const instances: AresAttachEffectInstance[] = [
+            { effectId: "first", remainingFrames: 1, discardOnEntry: false },
+            { effectId: "infinite", remainingFrames: -1, discardOnEntry: false },
+            { effectId: "last", remainingFrames: 3, discardOnEntry: true },
+        ];
+
+        const sameArray = instances;
+        expect(advanceAresAttachEffectsInPlace(instances)).toEqual(["first"]);
+        expect(instances).toBe(sameArray);
+        expect(instances).toEqual([
+            { effectId: "infinite", remainingFrames: -1, discardOnEntry: false },
+            { effectId: "last", remainingFrames: 2, discardOnEntry: true },
+        ]);
     });
 });

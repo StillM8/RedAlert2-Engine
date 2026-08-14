@@ -1,6 +1,6 @@
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import {
-    advanceAresAttachEffects,
+    advanceAresAttachEffectsInPlace,
     applyAresAttachEffect,
     discardAresAttachEffectsOnEntry,
     type AresAttachEffectApplyResult,
@@ -122,10 +122,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         return this.copyApplyResult(result);
     }
 
-    advance(): AresAttachEffectTraitAdvanceResult {
-        const result = advanceAresAttachEffects(this.instances);
-        this.instances = result.instances.map(instance => ({ ...instance }));
-        if (result.expiredEffectIds.length) this.presentationRevision++;
+    advance(options: { includeState?: boolean } = {}): AresAttachEffectTraitAdvanceResult {
+        const expiredEffectIds = advanceAresAttachEffectsInPlace(this.instances);
+        if (expiredEffectIds.length) this.presentationRevision++;
         let automaticApply: AresAttachEffectApplyResult | undefined;
 
         if (this.automaticEffect &&
@@ -145,12 +144,19 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         }
 
         automaticApply = this.processAutomaticDelay();
-        this.pruneDefinitions();
+        if (expiredEffectIds.length || automaticApply !== undefined) {
+            this.pruneDefinitions();
+        }
         return {
-            instances: this.getState(),
-            expiredEffectIds: [...result.expiredEffectIds],
+            instances: options.includeState === false ? this.instances : this.getState(),
+            expiredEffectIds: [...expiredEffectIds],
             automaticApply,
         };
+    }
+
+    /** Tick entry point used by the game loop; no external state snapshot is needed. */
+    advanceTick(): void {
+        this.advance({ includeState: false });
     }
 
     discardOnEntry(): AresAttachEffectRemovalResult {
@@ -265,7 +271,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     }
 
     [NotifyTick.onTick](): void {
-        this.advance();
+        this.advanceTick();
     }
 
     [NotifyUnspawn.onUnspawn](gameObject: { limboData?: unknown }): void {

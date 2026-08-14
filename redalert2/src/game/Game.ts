@@ -55,6 +55,13 @@ export enum GameStatus {
 }
 export class Game {
     public updatableObjects = new Set<any>();
+    /**
+     * Reused snapshot for update traversal.  Updating an object may spawn or
+     * remove other objects, so iterating the Set directly would change the
+     * established one-tick mutation semantics.  Reusing the backing array
+     * preserves the snapshot while avoiding one O(N) allocation per turn.
+     */
+    private readonly updatableObjectsSnapshot: any[] = [];
     public constructionWorkers = new Map<any, ConstructionWorker>();
     public currentTick = 0;
     public currentTime = 0;
@@ -790,10 +797,20 @@ export class Game {
                 this.lastGameEndCheck = this.currentTime;
             }
         }
-        for (const obj of [...this.updatableObjects]) {
-            if (obj.isSpawned) {
-                obj.update(this);
+        this.updatableObjectsSnapshot.length = 0;
+        for (const obj of this.updatableObjects) {
+            this.updatableObjectsSnapshot.push(obj);
+        }
+        try {
+            for (let index = 0; index < this.updatableObjectsSnapshot.length; index++) {
+                const obj = this.updatableObjectsSnapshot[index];
+                if (obj.isSpawned) {
+                    obj.update(this);
+                }
             }
+        }
+        finally {
+            this.updatableObjectsSnapshot.length = 0;
         }
         this.playerList.getCombatants().forEach((player: any) => {
             player.cheerCooldownTicks = Math.max(0, player.cheerCooldownTicks - 1);

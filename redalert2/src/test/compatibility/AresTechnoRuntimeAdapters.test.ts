@@ -80,6 +80,11 @@ WeaponUIName5=Name_CustomIFVWeapon
             matchingProviderCount: 2,
             onlineProvider: online,
         });
+        expect(resolveAresPoweredByDecision(rules, new Set([warped, online]))).toMatchObject({
+            powered: true,
+            matchingProviderCount: 2,
+            onlineProvider: online,
+        });
         expect(isAresPoweredBySatisfied(rules, [warped, online])).toBe(true);
     });
 

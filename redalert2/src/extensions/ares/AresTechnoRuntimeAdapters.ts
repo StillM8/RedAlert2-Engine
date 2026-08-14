@@ -151,20 +151,27 @@ export function isAresPoweredByProviderOnline(provider: AresPoweredByProviderLik
  */
 export function resolveAresPoweredByDecision(
     rules: AresPoweredByRules,
-    providers: readonly AresPoweredByProviderLike[] = [],
+    providers: Iterable<AresPoweredByProviderLike> = [],
 ): AresPoweredByDecision {
-    const matchingProviders = providers.filter(provider => matchesAresPoweredByProvider(rules, provider));
-    const onlineProvider = matchingProviders.find(isAresPoweredByProviderOnline);
+    let matchingProviderCount = 0;
+    let onlineProvider: AresPoweredByProviderLike | undefined;
+    for (const provider of providers) {
+        if (!matchesAresPoweredByProvider(rules, provider)) continue;
+        matchingProviderCount++;
+        if (onlineProvider === undefined && isAresPoweredByProviderOnline(provider)) {
+            onlineProvider = provider;
+        }
+    }
     return {
         powered: onlineProvider !== undefined,
-        matchingProviderCount: matchingProviders.length,
+        matchingProviderCount,
         ...(onlineProvider === undefined ? {} : { onlineProvider }),
     };
 }
 
 export function isAresPoweredBySatisfied(
     rules: AresPoweredByRules,
-    providers: readonly AresPoweredByProviderLike[] = [],
+    providers: Iterable<AresPoweredByProviderLike> = [],
 ): boolean {
     return resolveAresPoweredByDecision(rules, providers).powered;
 }
