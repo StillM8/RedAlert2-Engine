@@ -84,9 +84,14 @@ export class RadarTrait {
             game.events.dispatch(new RadarOnOffEvent(player, !shouldDisable));
         }
     }
-    [NotifyAttack.onAttack](attacker: any, target: any, game: any): void {
+    [NotifyAttack.onAttack](attacker: any, target: any, game: any, warheadRules?: any): void {
         if (!attacker.isTechno())
             return;
+        // Ares Malicious=no suppresses the harvester EVA attack warning
+        // (ore miner attacks from non-malicious warheads stay silent).
+        if (warheadRules?.malicious === false && attacker.isVehicle() && attacker.harvesterTrait) {
+            return;
+        }
         if (!attacker.isBuilding() || attacker.rules.canBeOccupied || attacker.rules.needsEngineer) {
             if (attacker.isVehicle() && attacker.harvesterTrait) {
                 this.addEventForPlayer(RadarEventType.HarvesterUnderAttack, attacker.owner, attacker.tile, game);

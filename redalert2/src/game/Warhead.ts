@@ -402,11 +402,11 @@ export class Warhead {
         }
         healthTrait.inflictDamage(damage, weaponInfo, gameWorld);
         gameWorld.traits.filter(NotifyAttack).forEach((trait: any) => {
-            trait[NotifyAttack.onAttack](target, weaponInfo?.obj, gameWorld);
+            trait[NotifyAttack.onAttack](target, weaponInfo?.obj, gameWorld, this.rules);
         });
         target.onAttack(gameWorld as any, weaponInfo);
         gameWorld.events.dispatch(new ObjectAttackedEvent(target, weaponInfo, isDirectHit));
-        if (target.isTechno() && !this.rules.temporal) {
+        if (target.isTechno() && !this.rules.temporal && !this.rules.preventScatter) {
             this.suppressOrScatterTarget(target as TechnoObject, gameWorld);
         }
         if (!healthTrait.health) {
@@ -528,8 +528,10 @@ export class Warhead {
                 continue;
             let damage = this.computeDamage(baseDamage, obj, gameWorld, isWeatherStorm);
             if (baseDamage > 0 && obj.isTechno() && sourcePlayer) {
-                const isFriendly = gameWorld.alliances.areAllied(obj.owner, sourcePlayer) || obj.owner === sourcePlayer;
+                const isOwner = obj.owner === sourcePlayer;
+                const isFriendly = gameWorld.alliances.areAllied(obj.owner, sourcePlayer) || isOwner;
                 if ((isFriendly && !this.rules.affectsAllies) ||
+                    (isOwner && !this.rules.affectsOwner) ||
                     (!isFriendly && this.rules.affectsEnemies === false)) {
                     damage = 0;
                 }
@@ -592,7 +594,11 @@ export class Warhead {
                 }
                 continue;
             }
-            if (!damage && !empApplied && !attachEffectApplied)
+            // AllowZeroDamage lets a zero-damage warhead still pass through the
+            // remaining damage/notification path (e.g. so Malicious=no or
+            // attack notifications still apply). Without it, zero-damage hits
+            // are skipped after effects have been attempted.
+            if (!damage && !empApplied && !attachEffectApplied && !this.rules.allowZeroDamage)
                 continue;
             for (const distance of damage ? objectDistances.get(obj)! : []) {
                 let finalDamage = damage;

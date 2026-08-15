@@ -9,6 +9,14 @@ export class WarheadRules {
     public aresAttachEffect?: AresAttachEffectDefinition;
     public affectsAllies!: boolean;
     public affectsEnemies!: boolean;
+    /** Ares AffectsOwner defaults to AffectsAllies; explicit true overrides. */
+    public affectsOwner!: boolean;
+    /** Ares AllowZeroDamage lets zero-damage hits reach affected objects. */
+    public allowZeroDamage!: boolean;
+    /** Ares Malicious suppresses the ore-miner EVA attack warning. */
+    public malicious!: boolean;
+    /** Ares PreventScatter stops scattering on warhead hits. */
+    public preventScatter!: boolean;
     /** Ares warhead effect gates. */
     public effectsRequireDamage!: boolean;
     public effectsRequireVerses!: boolean;
@@ -77,6 +85,10 @@ export class WarheadRules {
     private parse(): void {
         this.affectsAllies = this.rules.getBool("AffectsAllies", true);
         this.affectsEnemies = this.rules.getBool("AffectsEnemies", true);
+        this.affectsOwner = this.rules.getBool("AffectsOwner", this.affectsAllies);
+        this.allowZeroDamage = this.rules.getBool("AllowZeroDamage", false);
+        this.malicious = this.rules.getBool("Malicious", true);
+        this.preventScatter = this.rules.getBool("PreventScatter", false);
         this.effectsRequireDamage = this.rules.getBool("EffectsRequireDamage", false);
         this.effectsRequireVerses = this.rules.getBool("EffectsRequireVerses", true);
         this.airstrike = this.rules.getBool("Airstrike");
