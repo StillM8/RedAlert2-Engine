@@ -15,13 +15,12 @@ export type SidebarSpriteSurface = "shp" | "pcx";
 export function getSidebarSlotSpriteAlignment(
     surface: SidebarSpriteSurface,
 ): { x: number; y: number } {
-    // SHP sprites default to the ShpBuilder UI anchor (x=1, y=-1), which
-    // centers the sprite in its slot. PCX/canvas sprites compensate their
-    // anchor in CanvasSpriteBuilder.getSpriteGeometryOptions and use the
-    // same final geometry align, so their slot-level alignment stays x=-1
-    // (flipped horizontally) with the standard y=-1.
+    // SHP sprites use the ShpBuilder UI anchor (x=1, y=-1), which centers
+    // the sprite in its slot. Canvas/PCX sprites compensate their own anchor
+    // inside CanvasSpriteBuilder.getSpriteGeometryOptions and expect the
+    // neutral (0,0) slot-level alignment.
     return surface === "pcx"
-        ? { x: -1, y: -1 }
+        ? { x: 0, y: 0 }
         : { x: 1, y: -1 };
 }
 
