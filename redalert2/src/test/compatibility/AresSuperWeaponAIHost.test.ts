@@ -19,6 +19,7 @@ function unit(
         owner,
         type,
         name: String(rules.name ?? id),
+        isCloaked: rules.isCloaked === true,
         tile: { rx, ry },
         maxHitPoints: 100,
         purchaseValue: 100,
@@ -37,6 +38,7 @@ function host(options: {
     tileZones?: Map<string, ZoneType>;
     mapSize?: { width: number; height: number };
     activeSuperWeaponType?: number;
+    preferredCells?: Partial<Record<"offensive" | "defensive", { rx: number; ry: number }>>;
 }) {
     const ownStart = options.ownStart ?? { x: 5, y: 5 };
     const enemyStart = options.enemyStart ?? { x: 40, y: 40 };
@@ -68,6 +70,7 @@ function host(options: {
                 return true;
             })
             .map((item) => item.id),
+        getAllUnits: () => units.map((item) => item.id),
         getUnitData: (id: string) => byId.get(id),
         generateRandomInt: () => 0,
         mapApi: {
@@ -77,6 +80,8 @@ function host(options: {
             getRealMapSize: () => options.mapSize ?? { width: 64, height: 64 },
         },
         isSuperWeaponEffectActive: (type: number) => type === options.activeSuperWeaponType,
+        getAresSuperWeaponTargetingCell: (_playerName: string, kind: "offensive" | "defensive") =>
+            options.preferredCells?.[kind],
     };
     const context: any = {
         game,
@@ -99,6 +104,7 @@ describe("Ares custom superweapon AI host path", () => {
     test("EMPulse Offensive selects an enemy cluster that an eligible cannon can reach", () => {
         const cannon = unit("CANNON", "AI", ObjectType.Building, 0, 0, {
             empulseCannon: true,
+            superWeapon: "BlackoutMissileSpecial",
         });
         cannon.primaryWeapon = { minRange: 0, maxRange: 5 };
         const near = unit("near", "Enemy", ObjectType.Vehicle, 4, 0);
@@ -127,6 +133,7 @@ describe("Ares custom superweapon AI host path", () => {
     test("EMPulse.TargetSelf gets the documented no-target default and uses a cannon cell", () => {
         const cannon = unit("CANNON", "AI", ObjectType.Building, 7, 9, {
             empulseCannon: true,
+            superWeapon: "TimeFreezeSpecial",
         });
 
         const { actions } = host({
@@ -215,6 +222,107 @@ describe("Ares custom superweapon AI host path", () => {
 
         expect(actions).toHaveLength(1);
         expect(actions[0][1]).toEqual({ rx: 20, ry: 20 });
+    });
+
+    test("Ares preference uses a set offensive cell before ordinary clustering", () => {
+        const { actions } = host({
+            preferredCells: { offensive: { rx: 12, ry: 13 } },
+            superWeapon: {
+                index: 0,
+                name: "PreferredStrike",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: {
+                    extensionType: "GenericWarhead",
+                    swAITargeting: "Offensive",
+                    swAITargetingPreference: "Offensive",
+                },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 12, ry: 13 });
+    });
+
+    test("Nuke targeting ignores cloaked targets", () => {
+        const cloaked = unit("cloaked", "Enemy", ObjectType.Building, 8, 8, {
+            cost: 10000,
+            isCloaked: true,
+        });
+        const visible = unit("visible", "Enemy", ObjectType.Building, 40, 40, {
+            cost: 100,
+        });
+        const { actions } = host({
+            units: [cloaked, visible],
+            superWeapon: {
+                index: SuperWeaponType.MultiMissile,
+                name: "MultiMissile",
+                type: SuperWeaponType.MultiMissile,
+                typeId: "MultiMissile",
+                status: SuperWeaponStatus.Ready,
+                ares: { swAITargeting: "Nuke" },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 40, ry: 40 });
+    });
+
+    test("AI target selection respects an Ares provider range", () => {
+        const provider = unit("PROVIDER", "AI", ObjectType.Building, 0, 0, {
+            superWeapon: "RangeStrike",
+        });
+        const near = unit("near", "Enemy", ObjectType.Vehicle, 4, 0);
+        const far = unit("far", "Enemy", ObjectType.Vehicle, 20, 20);
+        const { actions } = host({
+            units: [provider, near, far],
+            superWeapon: {
+                index: 0,
+                name: "RangeStrike",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: {
+                    extensionType: "GenericWarhead",
+                    swAITargeting: "Offensive",
+                    swRangeMaximum: 5,
+                },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 4, ry: 0 });
+    });
+
+    test("AI target selection respects Ares designators and inhibitors", () => {
+        const provider = unit("PROVIDER", "AI", ObjectType.Building, 0, 0, {
+            superWeapon: "DesignatedStrike",
+        });
+        const designator = unit("DESIGNATOR", "AI", ObjectType.Vehicle, 0, 7, {
+            designatorRange: 3,
+        });
+        const inhibitor = unit("INHIBITOR", "Enemy", ObjectType.Building, 1, 0, {
+            inhibitorRange: 3,
+        });
+        const blocked = unit("blocked", "Enemy", ObjectType.Vehicle, 0, 0);
+        const reachable = unit("reachable", "Enemy", ObjectType.Vehicle, 0, 10);
+        const { actions } = host({
+            units: [provider, designator, inhibitor, blocked, reachable],
+            superWeapon: {
+                index: 0,
+                name: "DesignatedStrike",
+                typeId: "GenericWarhead",
+                status: SuperWeaponStatus.Ready,
+                ares: {
+                    extensionType: "GenericWarhead",
+                    swAITargeting: "Offensive",
+                    swDesignators: ["DESIGNATOR"],
+                    swInhibitors: ["INHIBITOR"],
+                },
+            },
+        });
+
+        expect(actions).toHaveLength(1);
+        expect(actions[0][1]).toEqual({ rx: 0, ry: 10 });
     });
 
     test("AIRequiresHouse selects allied technos instead of silently forcing enemies", () => {

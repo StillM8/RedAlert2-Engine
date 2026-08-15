@@ -9,6 +9,7 @@ import {
     normalizeAresSuperWeaponAIHouse,
     resolveAresSuperWeaponAITargeting,
 } from "@/extensions/ares/AresSuperWeaponAI";
+import { isAresSuperWeaponLaunchAllowed } from "@/extensions/ares/AresSuperWeaponLaunch";
 import { selectAresEmpulseLaunchSites } from "@/game/superweapon/EMPulseEffect";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { hasAresSuperWeaponProvider } from "@/extensions/ares/AresSuperWeaponProviders";
@@ -365,132 +366,152 @@ export class SuperweaponOfficer {
         }
         const requiredTarget = (unit: UnitData): boolean =>
             this.matchesAresAITarget(game, unit, profile.requiredTarget);
+        const nonCloakedRequiredTarget = (unit: UnitData): boolean =>
+            !unit.isCloaked && requiredTarget(unit);
         const extension = String(ares.extensionType ?? "").toLocaleLowerCase("en-US");
+        const launchTargetAllowed = this.createAresLaunchTargetFilter(
+            game,
+            playerData.name,
+            ares,
+            superWeaponData,
+        );
+        const clusterLaunchFilter = (cluster: Cluster): boolean =>
+            !launchTargetAllowed || launchTargetAllowed({ rx: cluster.x, ry: cluster.y });
         let target: any;
-        switch (profile.mode) {
-            case "nuke":
-            case "lightning-storm":
-            case "psychic-dominator":
-            case "offensive":
-                target = extension === "empulse"
-                    ? this.bestEnemyCluster(
+        // Map actions 135/140 establish an Ares preferred target. Preference
+        // overrides the ordinary selector whenever that cell is set; this is
+        // intentionally resolved before content clustering because the
+        // preferred cell may be empty or outside the visible-object list.
+        if (profile.preference === "offensive" || profile.preference === "defensive") {
+            target = preferredCell(profile.preference);
+        }
+        if (!target) {
+            switch (profile.mode) {
+                case "nuke":
+                case "lightning-storm":
+                case "psychic-dominator":
+                case "offensive":
+                    target = extension === "empulse"
+                        ? this.bestEnemyCluster(
+                            game,
+                            playerData.name,
+                            false,
+                            profile.mode === "offensive" ? requiredTarget : nonCloakedRequiredTarget,
+                            (cluster) => this.hasEmpulseCannonInRange(game, playerData.name, ares, cluster) &&
+                                clusterLaunchFilter(cluster),
+                            profile.requiredHouse,
+                        )
+                        : this.bestEnemyCluster(
+                            game,
+                            playerData.name,
+                            false,
+                            profile.mode === "offensive" ? requiredTarget : nonCloakedRequiredTarget,
+                            clusterLaunchFilter,
+                            profile.requiredHouse,
+                        );
+                    break;
+                case "genetic-mutator":
+                    target = this.bestEnemyCluster(
                         game,
                         playerData.name,
-                        false,
+                        true,
                         requiredTarget,
-                        (cluster) => this.hasEmpulseCannonInRange(game, playerData.name, ares, cluster),
-                        profile.requiredHouse,
-                    )
-                    : this.bestEnemyCluster(
-                        game,
-                        playerData.name,
-                        false,
-                        requiredTarget,
-                        undefined,
+                        clusterLaunchFilter,
                         profile.requiredHouse,
                     );
-                break;
-            case "genetic-mutator":
-                target = this.bestEnemyCluster(
-                    game,
-                    playerData.name,
-                    true,
-                    requiredTarget,
-                    undefined,
-                    profile.requiredHouse,
-                );
-                break;
-            case "stealth":
-                target = this.bestEnemyCluster(
-                    game,
-                    playerData.name,
-                    false,
-                    (unit) => !!unit.isCloaked && requiredTarget(unit),
-                    undefined,
-                    profile.requiredHouse,
-                );
-                break;
-            case "paradrop":
-                target = extension === "unitdelivery"
-                    ? this.findUnitDeliveryTarget(game, playerData.name, matchAwareness)
-                    : this.findArmoredPushCenter(game, missionController, 1) ??
-                      matchAwareness.getMainRallyPoint() ??
-                      this.firstEnemy(game, playerData.name)?.startLocation;
-                break;
-            case "drop-pod":
-                target = extension === "droppod"
-                    ? this.findDropPodTarget(game, playerData.name)
-                    : this.findArmoredPushCenter(game, missionController, 1) ??
-                      matchAwareness.getMainRallyPoint() ??
-                      this.firstEnemy(game, playerData.name)?.startLocation;
-                break;
-            case "force-shield":
-                // ForceShield responds to the last AIDefendAgainst launch;
-                // watchEnemyLaunches owns that response path. It must not
-                // spend a ready charge merely because the officer polled it.
-                return false;
-            case "iron-curtain":
-                // Ares waits for a team-script Iron Curtain request instead of
-                // auto-firing this mode.
-                return false;
-            case "self": {
-                const provider = game
-                    .getVisibleUnits(player.name, "self", (rules: any) =>
-                        hasAresSuperWeaponProvider(rules) &&
-                        [rules.superWeapon, rules.superWeapon2, ...(rules.superWeapons ?? [])]
-                            .filter(Boolean)
-                            .some((provider: string) => provider.toLocaleLowerCase("en-US") ===
-                                String(superWeaponData?.name ?? "").toLocaleLowerCase("en-US")))
-                    .map((id) => game.getUnitData(id))
-                    .find((unit) => !!unit);
-                target = provider?.tile;
-                break;
-            }
-            case "base":
-                target = this.bestOwnBuildingCluster(game, playerData.name);
-                break;
-            case "enemy-base":
-                target = this.firstEnemy(game, playerData.name)?.startLocation;
-                break;
-            case "no-target":
-                target = extension === "empulse" && ares.empulseTargetSelf === true
-                    ? this.findEmpulseCannonCell(game, playerData.name, ares)
-                    : playerData.startLocation;
-                break;
-            case "hunter-seeker":
-                // The handler ignores the click cell, but Ares only lets this
-                // mode fire after the house has selected a favorite enemy.
-                if (!this.firstEnemy(game, playerData.name) ||
-                    game.getVisibleUnits(playerData.name, "enemy").length === 0) {
+                    break;
+                case "stealth":
+                    target = this.bestEnemyCluster(
+                        game,
+                        playerData.name,
+                        false,
+                        (unit) => !!unit.isCloaked && requiredTarget(unit),
+                        clusterLaunchFilter,
+                        profile.requiredHouse,
+                    );
+                    break;
+                case "paradrop":
+                    target = extension === "unitdelivery"
+                        ? this.findUnitDeliveryTarget(game, playerData.name, matchAwareness)
+                        : this.findArmoredPushCenter(game, missionController, 1) ??
+                          matchAwareness.getMainRallyPoint() ??
+                          this.firstEnemy(game, playerData.name)?.startLocation;
+                    break;
+                case "drop-pod":
+                    target = extension === "droppod"
+                        ? this.findDropPodTarget(game, playerData.name)
+                        : this.findArmoredPushCenter(game, missionController, 1) ??
+                          matchAwareness.getMainRallyPoint() ??
+                          this.firstEnemy(game, playerData.name)?.startLocation;
+                    break;
+                case "force-shield":
+                    // ForceShield responds to the last AIDefendAgainst launch;
+                    // watchEnemyLaunches owns that response path. It must not
+                    // spend a ready charge merely because the officer polled it.
                     return false;
+                case "iron-curtain":
+                    // Ares waits for a team-script Iron Curtain request instead of
+                    // auto-firing this mode.
+                    return false;
+                case "self": {
+                    const provider = game
+                        .getVisibleUnits(player.name, "self", (rules: any) =>
+                            hasAresSuperWeaponProvider(rules) &&
+                            [rules.superWeapon, rules.superWeapon2, ...(rules.superWeapons ?? [])]
+                                .filter(Boolean)
+                                .some((provider: string) => provider.toLocaleLowerCase("en-US") ===
+                                    String(superWeaponData?.name ?? "").toLocaleLowerCase("en-US")))
+                        .map((id) => game.getUnitData(id))
+                        .find((unit) => !!unit);
+                    target = provider?.tile;
+                    break;
                 }
-                target = playerData.startLocation;
-                break;
-            case "attack":
-                target = matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
-                break;
-            case "low-power":
-            case "low-power-attack":
-                target = playerData.startLocation;
-                break;
-            case "lightning-random":
-                target = this.findRandomMapCell(game);
-                break;
-            case "none":
-                return false;
-            case "multi-missile":
-                target = this.bestEnemyCluster(
-                    game,
-                    playerData.name,
-                    false,
-                    requiredTarget,
-                    undefined,
-                    profile.requiredHouse,
-                    "threat",
-                );
-                break;
-            case "unknown":
-                return false;
+                case "base":
+                    target = this.bestOwnBuildingCluster(game, playerData.name);
+                    break;
+                case "enemy-base":
+                    target = this.firstEnemy(game, playerData.name)?.startLocation;
+                    break;
+                case "no-target":
+                    target = extension === "empulse" && ares.empulseTargetSelf === true
+                        ? this.findEmpulseCannonCell(game, playerData.name, ares)
+                        : playerData.startLocation;
+                    break;
+                case "hunter-seeker":
+                    // The handler ignores the click cell, but Ares only lets this
+                    // mode fire after the house has selected a favorite enemy.
+                    if (!this.firstEnemy(game, playerData.name) ||
+                        game.getVisibleUnits(playerData.name, "enemy").length === 0) {
+                        return false;
+                    }
+                    target = playerData.startLocation;
+                    break;
+                case "attack":
+                    target = matchAwareness.getMainRallyPoint() ?? playerData.startLocation;
+                    break;
+                case "low-power":
+                case "low-power-attack":
+                    target = playerData.startLocation;
+                    break;
+                case "lightning-random":
+                    target = this.findRandomMapCell(game);
+                    break;
+                case "none":
+                    return false;
+                case "multi-missile":
+                    target = this.bestEnemyCluster(
+                        game,
+                        playerData.name,
+                        false,
+                        nonCloakedRequiredTarget,
+                        clusterLaunchFilter,
+                        profile.requiredHouse,
+                        "threat",
+                    );
+                    break;
+                case "unknown":
+                    return false;
+            }
         }
 
         if (!target && profile.allowsEmptyCell) {
@@ -505,9 +526,112 @@ export class SuperweaponOfficer {
         if (!Number.isFinite(rx) || !Number.isFinite(ry)) {
             return false;
         }
+        if (launchTargetAllowed && !launchTargetAllowed({ rx, ry })) {
+            return false;
+        }
         logger(`Firing Ares superweapon ${superWeaponData?.name ?? type} at (${Math.round(rx)},${Math.round(ry)}) using ${profile.mode}`);
         player.actions.activateSuperWeapon(type, { rx: Math.round(rx), ry: Math.round(ry) });
         return true;
+    }
+
+    /**
+     * Reuse the simulation launch gate while the bot is choosing a target.
+     * The public bot API exposes immutable UnitData, so this creates a small
+     * adapter only for Ares weapons that actually author range, designator,
+     * or inhibitor restrictions. Unrestricted weapons take the undefined
+     * fast path and retain the ordinary AI cost.
+     */
+    private createAresLaunchTargetFilter(
+        game: GameApi,
+        playerName: string,
+        ares: any,
+        superWeaponData?: any,
+    ): ((target: { rx: number; ry: number }) => boolean) | undefined {
+        const restricted = [
+            ares.swRangeMinimum,
+            ares.swRangeMaximum,
+            ...(ares.swDesignators ?? []),
+            ...(ares.swInhibitors ?? []),
+        ].some((value: any) => Number.isFinite(value) ||
+            (typeof value === "string" && value.trim().length > 0)) ||
+            ares.swAnyDesignator === true ||
+            ares.swAnyInhibitor === true;
+        if (!restricted) return undefined;
+
+        const ids = typeof (game as any).getAllUnits === "function"
+            ? (game as any).getAllUnits()
+            : ["self", "allied", "enemy"].flatMap((relation) =>
+                game.getVisibleUnits(playerName, relation as any));
+        const uniqueIds = [...new Set(ids)];
+        const data = uniqueIds
+            .map((id) => game.getUnitData(id))
+            .filter((unit): unit is UnitData => !!unit);
+        const ownerRefs = new Map<string, any>();
+        const objects: any[] = [];
+        const ownerRef = (name: string): any => {
+            let owner = ownerRefs.get(name);
+            if (owner) return owner;
+            owner = {
+                name,
+                id: name,
+                getOwnedObjects: () => objects.filter((object) => object.owner === owner),
+                getOwnedObjectsByType: (type: ObjectType) => objects
+                    .filter((object) => object.owner === owner && object.type === type),
+                powerTrait: {
+                    isLowPower: () => {
+                        try {
+                            return game.getPlayerData(name).power.isLowPower;
+                        }
+                        catch {
+                            return false;
+                        }
+                    },
+                },
+            };
+            ownerRefs.set(name, owner);
+            return owner;
+        };
+        for (const unit of data) {
+            const owner = ownerRef(unit.owner);
+            const type = unit.type as any;
+            objects.push({
+                ...unit,
+                owner,
+                centerTile: unit.tile,
+                rules: { ...unit.rules, type, name: unit.rules?.name ?? unit.name },
+                healthTrait: { health: unit.hitPoints },
+                poweredTrait: type === ObjectType.Building
+                    ? { isPoweredOn: () => unit.isPoweredOn !== false }
+                    : undefined,
+                isTechno: () => true,
+                isBuilding: () => type === ObjectType.Building,
+                isInfantry: () => type === ObjectType.Infantry,
+                isVehicle: () => type === ObjectType.Vehicle,
+                isAircraft: () => type === ObjectType.Aircraft,
+                isUnit: () => type !== ObjectType.Building,
+                isSpawned: true,
+                isDestroyed: false,
+                isDisposed: false,
+                isCrashing: false,
+            });
+        }
+        const owner = ownerRef(playerName);
+        const world = {
+            alliances: {
+                areAllied: (first: any, second: any) => {
+                    if (first === second || first?.name === second?.name) return true;
+                    try {
+                        return game.areAlliedPlayers(first?.name, second?.name);
+                    }
+                    catch {
+                        return false;
+                    }
+                },
+            },
+            getWorld: () => ({ getAllObjects: () => objects }),
+        };
+        const rules = { ...ares, name: superWeaponData?.name ?? ares.name };
+        return (target) => isAresSuperWeaponLaunchAllowed(rules, owner, target, world);
     }
 
     /** Deterministic project-RNG cell selection for Ares LightningRandom. */
