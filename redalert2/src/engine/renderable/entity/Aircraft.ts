@@ -32,6 +32,9 @@ interface GameObject {
     cloakableTrait?: {
         isCloaked(): boolean;
     };
+    aresPoweredByTrait?: {
+        isOffline(): boolean;
+    };
     zone: ZoneType;
     pitch: number;
     yaw: number;
