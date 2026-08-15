@@ -53,6 +53,8 @@ export class Projectile extends GameObject {
     private tileOccupation: TileOccupation;
     private state: ProjectileState;
     private detonationTimer: number;
+    /** Game tick the projectile spawned; used for wave expansion rendering. */
+    public spawnTick?: number;
     private collisionType: CollisionType;
     private direction: number;
     private zone: ZoneType;

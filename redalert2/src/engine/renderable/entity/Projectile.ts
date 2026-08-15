@@ -45,6 +45,7 @@ export class Projectile {
     public lastDirection?: number;
     public shpRenderable?: ShpRenderable;
     public sonicWaveMesh?: THREE.Mesh | BatchedMesh;
+    private waveAgeFrames = 0;
     public lastState?: any;
     public renderableManager?: any;
     public vxlBuilder?: any;
@@ -158,6 +159,13 @@ export class Projectile {
             }
             else if (this.sonicWaveMesh) {
                 this.sonicWaveMesh.rotation.y = THREE.MathUtils.degToRad(direction + (this.waveReversed ? 180 : 0));
+                this.sonicWaveMesh.updateMatrix();
+                // Native wave lifecycle: the sonic wave expands as it
+                // travels. Scale the mesh outward over the projectile's
+                // lifetime, matching the original expanding-ring behavior.
+                this.waveAgeFrames++;
+                const expansion = 1 + Math.min(2.5, this.waveAgeFrames * 0.02);
+                this.sonicWaveMesh.scale.setScalar(expansion);
                 this.sonicWaveMesh.updateMatrix();
             }
         }
