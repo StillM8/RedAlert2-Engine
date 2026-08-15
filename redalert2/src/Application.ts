@@ -32,7 +32,7 @@ import { attachPerformanceOptions, installPerformanceDebugApi } from './performa
 import { inGameViewportActive } from './gui/inGameViewport';
 import { getGameProfile } from './engine/GameProfile';
 import { ContentRegistry } from './content/ContentRegistry';
-import { isTauriDesktopShell } from './shell/nativeShell';
+import { isNativeShell, isTauriDesktopShell } from './shell/nativeShell';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -533,6 +533,15 @@ export class Application {
         this.rootEl.dataset.compactLayout = String(viewport.height <= 640 || viewport.width <= 800);
     }
     private isNativeFullScreen(): boolean {
+        // Native shells (Android WebView and iOS WKWebView) always run in a
+        // fullscreen Activity/ViewController with system bars hidden. Comparing
+        // window.innerWidth to screen.width is fragile on Android: CSS-pixel
+        // rounding or a cutout inset can make innerWidth a few pixels smaller,
+        // which falls through to the non-fullscreen mobile path and produces
+        // letterbox bars. Treat the native shell as fullscreen unconditionally.
+        if (isNativeShell()) {
+            return true;
+        }
         const width = window.innerWidth ?? 0;
         const height = window.innerHeight ?? 0;
         return width >= screen.width && height >= screen.height;

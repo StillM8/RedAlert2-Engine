@@ -137,6 +137,10 @@ interface WarheadRules {
     infDeath: DeathType;
     affectsAllies: boolean;
     affectsEnemies?: boolean;
+    affectsOwner?: boolean;
+    allowZeroDamage?: boolean;
+    malicious?: boolean;
+    preventScatter?: boolean;
     effectsRequireDamage: boolean;
     effectsRequireVerses: boolean;
     causesDelayKill: boolean;
