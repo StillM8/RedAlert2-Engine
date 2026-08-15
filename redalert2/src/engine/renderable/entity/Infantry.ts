@@ -71,6 +71,7 @@ export class Infantry {
     private lastElevation: number;
     private lastLightTile: any;
     private lastBerserk?: boolean;
+    private lastPoweredOffline?: boolean;
     private lastOwnerColor: any;
     private lastWarpedOut: boolean;
     private lastCloaked: boolean;
@@ -110,6 +111,10 @@ export class Infantry {
         this.baseExtraLight = this.lighting
             .compute(this.objectArt.lightingType, this.gameObject.tile, this.gameObject.tileElevation)
             .addScalar(-1 + this.rules.audioVisual.extraInfantryLight);
+        if (this.gameObject.aresPoweredByTrait?.isOffline()) {
+            // Unpowered PoweredBy infantry render at half brightness.
+            this.baseExtraLight.addScalar(1).multiplyScalar(0.5).addScalar(-1);
+        }
     }
     registerPlugin(plugin: any): void {
         this.plugins.push(plugin);
@@ -201,6 +206,13 @@ export class Infantry {
         const berserk = !!this.gameObject.berserkTrait?.isActive();
         if (berserk !== this.lastBerserk) {
             this.lastBerserk = berserk;
+            this.extraLight.copy(this.baseExtraLight);
+            this.applyBerserkTint();
+        }
+        const poweredOffline = !!this.gameObject.aresPoweredByTrait?.isOffline();
+        if (poweredOffline !== this.lastPoweredOffline) {
+            this.lastPoweredOffline = poweredOffline;
+            this.updateBaseLight();
             this.extraLight.copy(this.baseExtraLight);
             this.applyBerserkTint();
         }

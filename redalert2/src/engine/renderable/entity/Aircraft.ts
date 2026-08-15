@@ -136,6 +136,7 @@ export class Aircraft {
     private lastVeteranLevel?: VeteranLevel;
     private lastInvulnerable: boolean = false;
     private lastWarpedOut: boolean = false;
+    private lastPoweredOffline: boolean = false;
     private lastCloaked: boolean = false;
     private lastZone?: ZoneType;
     private tiltObj: THREE.Object3D;
@@ -177,6 +178,10 @@ export class Aircraft {
         this.baseExtraLight = this.lighting
             .compute(this.objectArt.lightingType as any, this.gameObject.tile)
             .addScalar(this.rules.audioVisual.extraAircraftLight);
+        if (this.gameObject.aresPoweredByTrait?.isOffline()) {
+            // Unpowered PoweredBy aircraft render at half brightness.
+            this.baseExtraLight.multiplyScalar(0.5);
+        }
     }
     updateLighting(): void {
         this.plugins.forEach((plugin) => plugin.updateLighting?.());
@@ -265,6 +270,12 @@ export class Aircraft {
                 const ambientIntensity = this.lighting.getAmbientIntensity();
                 ExtraLightHelper.multiplyVxl(this.extraLight as any, this.baseExtraLight as any, ambientIntensity, highlightValue);
             }
+        }
+        const poweredOffline = !!this.gameObject.aresPoweredByTrait?.isOffline();
+        if (poweredOffline !== this.lastPoweredOffline) {
+            this.lastPoweredOffline = poweredOffline;
+            this.updateBaseLight();
+            this.extraLight.copy(this.baseExtraLight);
         }
         this.vxlBuilders.forEach((builder: any) => builder.updateHvaAnimation?.(performance.now(), this.rotorSectionNames ??= new Set((this.objectArt.rotors ?? []).map((rotor: any) => rotor.name))));
         const isWarpedOut = this.gameObject.warpedOutTrait.isActive();

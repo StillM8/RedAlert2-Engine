@@ -123,6 +123,14 @@ export class SoundHandler {
             case EventType.AresIvanBombAttach:
                 this.handleAresIvanBombAttachSound(event);
                 break;
+            case EventType.TriggerEva:
+                // Trigger/script "play speech" actions (including Ares
+                // restored triggers) reference an EVA dialog name; route it
+                // through the side-appropriate EVA voice table.
+                if (event.soundId) {
+                    this.eva.play(event.soundId);
+                }
+                break;
             case EventType.InflictDamage:
                 this.handleDamageSound(event);
                 break;

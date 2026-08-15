@@ -235,6 +235,22 @@ export class Engine {
     static getActiveMod(): string | undefined {
         return this.activeMod;
     }
+    /**
+     * Deterministic identity of the effective simulation content.
+     *
+     * Combines the effective-INI content hash (rules/art/ai + includes +
+     * theater + mp-modes overrides + engine version), the active profile, the
+     * selected mod name, and the extension runtime so that:
+     *
+     * - two peers with identical effective content agree;
+     * - two peers with different content (different MO installs, patched
+     *   files, different mods, or different base profiles) never match;
+     * - replays reject loading under mismatched content.
+     */
+    static getContentIdentity(): string {
+        const modHash = this.getModHash().toString(16);
+        return composeContentIdentity(modHash, this.activeProfile.id, this.activeMod, this.activeProfile.extensionRuntime);
+    }
     static setActiveMod(modName: string | undefined): void {
         this.activeMod = modName;
     }
@@ -823,4 +839,22 @@ export class Engine {
         this.themes.clearAll();
         this.taunts.clearAll();
     }
+}
+
+/**
+ * Compose the deterministic content identity string used to gate
+ * multiplayer matches, replays, and background-resume checkpoints.
+ *
+ * Exported separately from Engine so the format can be verified without
+ * constructing the browser-coupled engine state.
+ */
+export function composeContentIdentity(
+    modHash: string,
+    profileId: string,
+    activeMod: string | undefined,
+    extensionRuntime: string | undefined,
+): string {
+    const modName = activeMod ? `mod:${activeMod}` : "mod:none";
+    const runtime = extensionRuntime ?? "none";
+    return `${modHash}.${profileId}.${modName}.${runtime}`;
 }

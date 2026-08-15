@@ -368,5 +368,14 @@
     "ts:mapunsupportedterrain": "所选地图使用了不受支持的地形（%s）。",
     "GUI:OKAY": "确定",
     "GUI:LoadingFileExplorer": "正在加载文件浏览器...",
-    "GUI:AlmostReady": "几乎准备就绪..."
+    "GUI:AlmostReady": "几乎准备就绪...",
+    "gui:modscantitle": "Ares 兼容性扫描",
+    "gui:modscancomplete": "支持",
+    "gui:modscanpartial": "部分",
+    "gui:modscanunsupported": "不支持",
+    "gui:modscanunregistered": "未注册",
+    "gui:modscanunknownkeys": "未知扩展键",
+    "gui:modscansources": "INI 源文件",
+    "gui:modscannolooseinis": "未找到松散 INI 文件。此模组可能将规则放在 MIX 存档中；启动时的运行时扫描为准。",
+    "gui:modscanmixnote": "（MIX 内嵌 INI 不在此处扫描；启动时的运行时扫描为准。）"
 }

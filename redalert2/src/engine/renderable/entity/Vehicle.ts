@@ -97,6 +97,9 @@ interface GameObjectInterface {
     robotControlTrait?: {
         isOffline(): boolean;
     };
+    aresPoweredByTrait?: {
+        isOffline(): boolean;
+    };
     berserkTrait?: {
         isActive(): boolean;
     };
@@ -274,9 +277,10 @@ export class Vehicle {
             (this.baseVxlExtraLight = this.lighting
                 .compute(this.objectArt.lightingType, this.gameObject.tile, this.gameObject.tileElevation)
                 .addScalar(this.rules.audioVisual.extraUnitLight));
-        if (this.gameObject.robotControlTrait?.isOffline()) {
-            // Shut-down robot tanks render at half brightness. SHP extra light
-            // is a delta around 0; VXL extra light is the cell multiplier.
+        if (this.gameObject.robotControlTrait?.isOffline() || this.gameObject.aresPoweredByTrait?.isOffline()) {
+            // Shut-down robot tanks and unpowered PoweredBy units render at
+            // half brightness. SHP extra light is a delta around 0; VXL extra
+            // light is the cell multiplier.
             this.baseShpExtraLight.addScalar(1).multiplyScalar(0.5).addScalar(-1);
             this.baseVxlExtraLight.multiplyScalar(0.5);
         }
@@ -365,7 +369,7 @@ export class Vehicle {
         this.lastInvulnerable = s;
         var bk = !!this.gameObject.berserkTrait?.isActive(), bkChanged = bk !== this.lastBerserk;
         this.lastBerserk = bk;
-        var ro = !!this.gameObject.robotControlTrait?.isOffline(), roChanged = ro !== this.lastRobotOffline;
+        var ro = !!this.gameObject.robotControlTrait?.isOffline() || !!this.gameObject.aresPoweredByTrait?.isOffline(), roChanged = ro !== this.lastRobotOffline;
         (this.lastRobotOffline = ro), roChanged && this.updateBaseLight();
         var n = this.highlightAnimRunner.shouldUpdate();
         s && a && this.invulnAnimRunner.animate(),

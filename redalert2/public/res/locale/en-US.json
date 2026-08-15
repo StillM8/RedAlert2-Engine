@@ -372,7 +372,16 @@
  "GUI:AlmostReady": "Almost ready...",
  "gui:aieasy": "AI - Easy",
  "gui:aieasy:tooltip": "Relaxed AI. Slow to react, small attack waves, long grace period before its first attack.",
- "gui:aibrutal": "AI - Brutal",
- "gui:aibrutal:tooltip": "Aggressive AI. Fast reactions, large armies, relentless attacks from the start.",
- "gui:aidummy:tooltip": "Deploys its base and then does nothing. For practicing build orders."
+  "gui:aibrutal": "AI - Brutal",
+  "gui:aibrutal:tooltip": "Aggressive AI. Fast reactions, large armies, relentless attacks from the start.",
+  "gui:aidummy:tooltip": "Deploys its base and then does nothing. For practicing build orders.",
+  "gui:modscantitle": "Ares Compatibility Scan",
+  "gui:modscancomplete": "Supported",
+  "gui:modscanpartial": "Partial",
+  "gui:modscanunsupported": "Unsupported",
+  "gui:modscanunregistered": "Unregistered",
+  "gui:modscanunknownkeys": "Unknown extension keys",
+  "gui:modscansources": "INI sources",
+  "gui:modscannolooseinis": "No loose INI files found. This mod may keep its rules in MIX archives; the runtime scan at launch is authoritative.",
+  "gui:modscanmixnote": "(MIX-embedded INIs are not scanned here; the runtime scan at launch is authoritative.)"
 }

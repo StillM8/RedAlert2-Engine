@@ -8,6 +8,7 @@ import {
 } from "@/extensions/ares/AresFirestorm";
 import { Warhead } from "@/game/Warhead";
 import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
+import { AresFirestormWallStateChangeEvent } from "@/game/event/AresFirestormWallStateChangeEvent";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 
 /**
@@ -18,6 +19,9 @@ import { ZoneType } from "@/game/gameobject/unit/ZoneType";
  * keep the presentation-facing connection mask up to date.
  */
 export class AresFirestormWallTrait implements NotifySpawn, NotifyUnspawn, NotifyTick {
+    private active = false;
+    private flickerCooldownTicks = 0;
+
     [NotifySpawn.onSpawn](building: any, game: any): void {
         this.updateConnections(building, game.map);
     }
@@ -31,8 +35,37 @@ export class AresFirestormWallTrait implements NotifySpawn, NotifyUnspawn, Notif
     }
 
     [NotifyTick.onTick](building: any, game: any): void {
-        if (!isAresActiveFirestormWall(building)) return;
+        const active = isAresActiveFirestormWall(building);
+        if (active !== this.active) {
+            this.active = active;
+            game.events.dispatch(new AresFirestormWallStateChangeEvent(building, active));
+        }
+        if (!active) return;
         this.immolateVictims(building, game);
+        this.maybePlayWallFlicker(building, game);
+    }
+
+    /**
+     * Ares documents FirestormActiveAnim/FirestormIdleAnim as randomly-played
+     * animations on wall sections.  Keep the random decision in the simulation
+     * so it uses the deterministic game RNG, and dispatch a transient
+     * TriggerAnimEvent that the existing render-side FX handler consumes.
+     */
+    private maybePlayWallFlicker(building: any, game: any): void {
+        if (this.flickerCooldownTicks > 0) {
+            this.flickerCooldownTicks--;
+            return;
+        }
+        const audioVisual = game.rules?.audioVisual;
+        const animName = this.active
+            ? audioVisual?.firestormActiveAnim
+            : audioVisual?.firestormIdleAnim;
+        if (!animName) return;
+        const chance = 0.04;
+        if (game.generateRandom?.() < chance) {
+            game.events.dispatch(new TriggerAnimEvent(animName, building.tile));
+            this.flickerCooldownTicks = 15;
+        }
     }
 
     private updateConnections(building: any, map: any): void {

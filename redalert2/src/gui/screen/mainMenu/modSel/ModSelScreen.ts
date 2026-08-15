@@ -34,6 +34,7 @@ interface ModManager {
     loadMod(modId?: string): void;
     loadContent(contentId?: string): void;
     getModDir(): any;
+    scanModCompatibility(modId: string): Promise<any>;
 }
 interface RootController {
     goToScreen(screenType: any): void;
@@ -74,6 +75,7 @@ export class ModSelScreen extends MainMenuScreen {
     private availableMods: Mod[] = [];
     private activeMod?: Mod;
     private selectedMod?: Mod;
+    private compatibilityScan?: any;
     private contentRegistry: ContentRegistry;
     private form?: any;
     constructor(rootController: RootController, strings: any, jsxRenderer: any, errorHandler: ErrorHandler, messageBoxApi: MessageBoxApi, modManager: ModManager, activeModId: string, modSdkUrl: string | undefined, modResourceLoader: ModResourceLoader, fsAccessLib: FsAccessLib, sentry: Sentry) {
@@ -95,12 +97,30 @@ export class ModSelScreen extends MainMenuScreen {
         this.handleSelectMod = async (mod: Mod, doubleClick: boolean) => {
             const isNewSelection = this.selectedMod?.id !== mod.id;
             this.selectedMod = mod;
+            this.compatibilityScan = undefined;
             if (isNewSelection) {
                 this.updateSidebarButtons();
             }
             this.form?.applyOptions((options: any) => {
                 options.selectedMod = mod;
+                options.compatibilityScan = undefined;
             });
+            if (mod.status === ModStatus.Installed) {
+                // Best-effort advisory scan of the installed mod's loose INIs.
+                // Failures are non-fatal: the scan is a diagnostic, not a gate.
+                this.modManager.scanModCompatibility(mod.id)
+                    .then((scan: any) => {
+                        if (this.selectedMod?.id === mod.id) {
+                            this.compatibilityScan = scan;
+                            this.form?.applyOptions((options: any) => {
+                                options.compatibilityScan = scan;
+                            });
+                        }
+                    })
+                    .catch((error: any) => {
+                        console.warn(`[ModSel] Compatibility scan failed for "${mod.id}"`, error);
+                    });
+            }
             if (doubleClick &&
                 mod !== this.activeMod &&
                 mod.status === ModStatus.Installed &&
@@ -203,6 +223,7 @@ export class ModSelScreen extends MainMenuScreen {
                 mods: undefined,
                 activeMod: undefined,
                 selectedMod: undefined,
+                compatibilityScan: undefined,
                 onSelectMod: this.handleSelectMod,
             },
         }))[0]);

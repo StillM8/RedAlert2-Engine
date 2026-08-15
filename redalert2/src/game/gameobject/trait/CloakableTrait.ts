@@ -73,7 +73,8 @@ export class CloakableTrait {
             !(target.isVehicle() &&
                 target.submergibleTrait &&
                 !target.submergibleTrait.isSubmerged()) &&
-            !target.temporalTrait.getTarget()) {
+            !target.temporalTrait.getTarget() &&
+            !(target.operatorTrait?.isOffline?.() === true)) {
             this.isActive = true;
             context.events.dispatch(new ObjectCloakChangeEvent(this.gameObject));
         }

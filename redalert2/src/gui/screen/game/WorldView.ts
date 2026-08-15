@@ -18,6 +18,7 @@ import { SuperWeaponFxHandler } from '@/engine/renderable/fx/handler/SuperWeapon
 import { CrateFxHandler } from '@/engine/renderable/fx/handler/CrateFxHandler';
 import { BeaconFxHandler } from '@/engine/renderable/fx/handler/BeaconFxHandler';
 import { AresBountyFxHandler } from '@/engine/renderable/fx/handler/AresBountyFxHandler';
+import { FirestormWallFxHandler } from '@/engine/renderable/fx/handler/FirestormWallFxHandler';
 import { VxlBuilderFactory } from '@/engine/renderable/builder/VxlBuilderFactory';
 export class WorldView {
     private disposables = new CompositeDisposable();
@@ -194,6 +195,9 @@ export class WorldView {
         const bountyFxHandler = new AresBountyFxHandler(this.game, renderableManager as any, worldScene.camera);
         bountyFxHandler.init();
         this.disposables.add(bountyFxHandler);
+        const firestormWallFxHandler = new FirestormWallFxHandler(this.game, renderableManager as any);
+        firestormWallFxHandler.init();
+        this.disposables.add(firestormWallFxHandler);
         const handleLightingChange = (lightingData: any) => {
             worldScene.applyLighting(lighting);
             renderableManager.updateLighting();

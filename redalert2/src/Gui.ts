@@ -426,7 +426,7 @@ export class Gui {
         gameMenuSubScreens.set((await import('./gui/screen/game/gameMenu/ScreenType.js')).ScreenType.OptionsKeyboard, new (await import('./gui/screen/options/KeyboardScreen.js')).KeyboardScreen(this.strings, this.jsxRenderer!, this.keyBinds!));
         const sharedVxlGeometryPool = new VxlGeometryPool(new VxlGeometryCache(null, Engine.getActiveMod?.() ?? null), this.generalOptions!.graphics.models.value);
         const buildingImageDataCache = new Map();
-        const engineModHash = Engine.getActiveMod?.() ?? '';
+        const engineModHash = Engine.getContentIdentity();
         const gameScreen = new GameScreen(undefined, undefined, undefined, undefined, undefined, this.appVersion, engineModHash, errorHandler, gameMenuSubScreens, loadingScreenApiFactory, undefined, undefined, this.config, this.strings, this.renderer, this.uiScene, this.runtimeVars || {}, this.messageBoxApi, this.toastApi, this.uiAnimationLoop, this.viewport, this.jsxRenderer, this.pointer, this.sound, this.music, this.mixer, this.keyBinds, this.generalOptions, this.localPrefs, undefined, undefined, replayManager, this.fullScreen, mapFileLoader, undefined, Engine.getMapList?.(), new GameLoader(this.appVersion, undefined, gameResLoader, gameResLoader, rules, gameModes, this.sound, (console as any), undefined, speedCheat, this.gameResConfig!, sharedVxlGeometryPool, buildingImageDataCache, (this as any).runtimeVars?.debugBotIndex, this.config.devMode ?? false), sharedVxlGeometryPool, buildingImageDataCache, mutedPlayers, tauntsEnabled, speedCheat, undefined, clientApi.battleControl);
         (gameScreen as any).setController?.(this.rootController);
         this.rootController.addScreen(ScreenType.Game, gameScreen as any);
@@ -465,7 +465,7 @@ export class Gui {
             return undefined;
         }
         const currentModId = Engine.getActiveMod() ?? null;
-        const currentModHash = Engine.getActiveMod() ?? '';
+        const currentModHash = Engine.getContentIdentity();
         if (typeof marker.replayId !== 'string' ||
             marker.engineVersion !== this.appVersion ||
             marker.modHash !== currentModHash ||

@@ -4,6 +4,7 @@ import { Mod } from "@/gui/screen/mainMenu/modSel/Mod";
 import { ModMeta } from "@/gui/screen/mainMenu/modSel/ModMeta";
 import { INSTALLED_CONTENT_METADATA_FILE, type InstalledContentMetadata } from "@/content/ContentIdentity";
 import { persistContentSelection, parseContentSelectionId } from "@/content/ContentRegistry";
+import { scanMentalOmegaIniSources, type AresFeatureUsage } from "@/extensions/ares/AresCompatibilityScanner";
 interface Directory {
     getEntries(): AsyncIterable<string>;
     containsEntry(name: string): Promise<boolean>;
@@ -20,6 +21,20 @@ interface AppResourceLoader {
 }
 interface Location {
     href: string;
+}
+
+/** Best-effort Ares capability scan of a locally installed mod. */
+export interface ModCompatibilityScan {
+    /** INI sources that were actually read (loose files in the mod dir). */
+    sources: string[];
+    /** INI names that were not found as loose files (may be MIX-embedded). */
+    missingSources: string[];
+    /** Feature usage ordered by occurrence count. */
+    featureUsage: AresFeatureUsage[];
+    /** Count of distinct Ares keys with no registered feature. */
+    unknownExtensionKeys: number;
+    /** Total distinct Ares extension keys found. */
+    uniqueExtensionKeys: number;
 }
 export class ModManager {
     public static readonly remoteListFileName = "mods.ini";
@@ -154,6 +169,68 @@ export class ModManager {
             await this.modDir!.deleteDirectory(modId, true);
         }
     }
+
+    /**
+     * Scan the loose INI files of an installed mod for Ares feature usage.
+     *
+     * Only loose files are inspected; INIs embedded in MIX archives cannot be
+     * read here because the mod directory is not mounted as a game VFS. The
+     * returned report marks those names as missing sources so the UI can
+     * state that the scan is advisory for MIX-based mods.
+     */
+    async scanModCompatibility(modId: string): Promise<ModCompatibilityScan> {
+        let modDirectory: Directory | undefined;
+        try {
+            modDirectory = await this.modDir?.getDirectory(modId, false);
+        }
+        catch (error) {
+            console.warn(`[ModManager] Mod directory "${modId}" not available for scan`, error);
+            modDirectory = undefined;
+        }
+        if (!modDirectory) {
+            return {
+                sources: [],
+                missingSources: [],
+                featureUsage: [],
+                unknownExtensionKeys: 0,
+                uniqueExtensionKeys: 0,
+            };
+        }
+        const candidateNames = [
+            "rules.ini", "rulesmd.ini", "rulesmo.ini",
+            "art.ini", "artmd.ini", "artmo.ini",
+            "ai.ini", "aimd.ini", "aimo.ini",
+            "ui.ini", "uimd.ini", "uimo.ini",
+        ];
+        const sources: { name: string; contents: string }[] = [];
+        const missingSources: string[] = [];
+        for (const name of candidateNames) {
+            try {
+                if (await modDirectory.containsEntry(name)) {
+                    const file = await modDirectory.getRawFile(name);
+                    sources.push({ name, contents: await file.text() });
+                }
+                else {
+                    missingSources.push(name);
+                }
+            }
+            catch (error) {
+                console.warn(`[ModManager] Couldn't read "${name}" in mod "${modId}"`, error);
+                missingSources.push(name);
+            }
+        }
+        const report = scanMentalOmegaIniSources(sources);
+        return {
+            sources: report.references
+                .map((reference) => reference.source)
+                .filter((value, index, all) => all.indexOf(value) === index),
+            missingSources,
+            featureUsage: report.featureUsage,
+            unknownExtensionKeys: report.uniqueUnclassifiedKeys,
+            uniqueExtensionKeys: report.uniqueAresKeys + report.uniqueMoContentKeys,
+        };
+    }
+
     loadMod(modId?: string): void {
         this.loadContent(modId ? `mod:${modId}` : undefined);
     }
