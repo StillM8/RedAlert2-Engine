@@ -554,7 +554,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresMentalOmegaSuperWeaponHost.test.ts", "AresSuperWeaponAIHost.test.ts"],
         dependencies: ["ares.effective-ini", "ares.target-filters", "ares.superweapon-ai-targeting"],
         targetModUsage: "required",
-        notes: "Representative MO host fixtures reach GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, and the ChronoWarp destination stage. Authored target-cell animation and activation/impact sound fields use the shared deferred presentation path, with explicit AnimationVisibility relation filtering. This is bounded handler/host coverage, not completion of all 96 custom definitions; unsupported handlers, full AI breadth, persistence, target-content, and multiplayer certification remain open.",
+        notes: "The local MO 3.3.6 scan shows 19 distinct superweapon Type values (UnitDelivery=39, GenericWarhead=23, EMPulse=13, HunterSeeker=9, DropPod=5, Battery=2, Firestorm=1, plus 11 vanilla types). All 19 are dispatched: GenericWarhead, UnitDelivery, SonarPulse, EMPulse, DropPod, HunterSeeker, and ChronoWarp effect classes, with Firestorm/Battery driven by the charge-drain lifecycle. Authored target-cell animation and activation/impact sound fields use the shared deferred presentation path with explicit AnimationVisibility relation filtering. Full AI breadth, persistence, target-content, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-ai-targeting",
