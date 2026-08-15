@@ -140,8 +140,17 @@ function createPeerConnection(): RTCPeerConnection {
     if (typeof RTCPeerConnection === 'undefined') {
         throw new Error('This browser does not support WebRTC.');
     }
+    // Public STUN servers are safe for LAN: they only help peers discover
+    // their public socket addresses for NAT traversal; media/data still flow
+    // peer-to-peer. Without them, Android WebView and desktop WebViews often
+    // expose only mDNS host candidates, which fail under AP isolation or
+    // across subnets. STUN dramatically improves cross-platform connectivity.
+    const iceServers: RTCIceServer[] = [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        { urls: ['stun:stun.cloudflare.com:3478'] },
+    ];
     return new RTCPeerConnection({
-        iceServers: [],
+        iceServers,
     });
 }
 
