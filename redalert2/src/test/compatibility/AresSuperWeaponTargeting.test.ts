@@ -7,6 +7,7 @@ import {
     isAresSuperWeaponManualActivationAllowed,
     isAresSuperWeaponRequiredTargetAllowed,
 } from "@/extensions/ares/AresSuperWeaponFilters";
+import { isAresSuperWeaponLaunchAllowed } from "@/extensions/ares/AresSuperWeaponLaunch";
 import { ActivateSuperWeaponAction } from "@/game/action/ActivateSuperWeaponAction";
 import { ShroudType } from "@/game/map/MapShroud";
 
@@ -35,6 +36,122 @@ function gameFor(zone: ZoneType, objects: any[] = []): any {
 }
 
 describe("Ares superweapon target requirements", () => {
+    function launchObject(
+        id: string,
+        type: ObjectType,
+        owner: any,
+        tile: any,
+        rules: Record<string, any> = {},
+    ): any {
+        return {
+            id,
+            owner,
+            tile,
+            centerTile: tile,
+            rules: { type, name: id, sight: 6, ...rules },
+            isTechno: () => true,
+            isBuilding: () => type === ObjectType.Building,
+            isInfantry: () => type === ObjectType.Infantry,
+            isVehicle: () => type === ObjectType.Vehicle,
+            isAircraft: () => type === ObjectType.Aircraft,
+            isUnit: () => type !== ObjectType.Building,
+            poweredTrait: type === ObjectType.Building ? { isPoweredOn: () => true } : undefined,
+        };
+    }
+
+    test("enforces launch-site minimum and maximum range for a provider building", () => {
+        const owner = { id: "owner" };
+        const provider = launchObject("Provider", ObjectType.Building, owner, { rx: 10, ry: 10, z: 0 }, {
+            superWeapon: "RangeSW",
+        });
+        owner.getOwnedObjects = () => [provider];
+        const game: any = { alliances: { areAllied: () => false }, getWorld: () => ({ getAllObjects: () => [provider] }) };
+        const rules = { name: "RangeSW", swRangeMinimum: 2, swRangeMaximum: 5 };
+
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 12, ry: 10, z: 0 }, game)).toBe(true);
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 11, ry: 10, z: 0 }, game)).toBe(false);
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 16, ry: 10, z: 0 }, game)).toBe(false);
+    });
+
+    test("applies the launch gate before the action consumes a charge", () => {
+        const owner = { id: "owner" };
+        const provider = launchObject("Provider", ObjectType.Building, owner, { rx: 0, ry: 0, z: 0 }, {
+            superWeapon: "ActionRangeSW",
+        });
+        owner.getOwnedObjects = () => [provider];
+        let activations = 0;
+        const rules = {
+            name: "ActionRangeSW",
+            type: undefined,
+            ares: { swRangeMaximum: 1 },
+        };
+        const game: any = {
+            map: {
+                tiles: { getByMapCoords: (x: number, y: number) => ({ rx: x, ry: y, z: 0 }) },
+                getTileZone: () => ZoneType.Ground,
+                getGroundObjectsOnTile: () => [],
+            },
+            getWorld: () => ({ getAllObjects: () => [provider] }),
+            rules: { getSuperWeaponByIndex: () => rules },
+            traits: { get: () => ({ activateSuperWeapon: () => activations++ }) },
+            alliances: { areAllied: () => false },
+        };
+        const action = new ActivateSuperWeaponAction(game);
+        (action as any).player = owner;
+        (action as any).superWeaponType = 0;
+        (action as any).tile = { x: 2, y: 0 };
+
+        action.process();
+        expect(activations).toBe(0);
+
+        (action as any).tile = { x: 1, y: 0 };
+        action.process();
+        expect(activations).toBe(1);
+    });
+
+    test("requires a named or any designator within its own range", () => {
+        const owner = { id: "owner" };
+        const provider = launchObject("Provider", ObjectType.Building, owner, { rx: 0, ry: 0, z: 0 }, {
+            superWeapon: "DesignatedSW",
+        });
+        const designator = launchObject("Designator", ObjectType.Vehicle, owner, { rx: 0, ry: 2, z: 0 }, {
+            designatorRange: 3,
+        });
+        owner.getOwnedObjects = () => [provider, designator];
+        const game: any = { alliances: { areAllied: () => false }, getWorld: () => ({ getAllObjects: () => [provider, designator] }) };
+        const rules = { name: "DesignatedSW", swDesignators: ["Designator"], swRangeMaximum: 20 };
+
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 0, ry: 5, z: 0 }, game)).toBe(true);
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 0, ry: 6, z: 0 }, game)).toBe(false);
+        expect(isAresSuperWeaponLaunchAllowed({ ...rules, swAnyDesignator: true, swDesignators: undefined }, owner, { rx: 0, ry: 5, z: 0 }, game)).toBe(true);
+    });
+
+    test("blocks a target area covered by an operational enemy inhibitor", () => {
+        const owner = { id: "owner" };
+        const enemy = { id: "enemy" };
+        const nearProvider = launchObject("NearProvider", ObjectType.Building, owner, { rx: 0, ry: 0, z: 0 }, {
+            superWeapon: "InhibitedSW",
+        });
+        const farProvider = launchObject("FarProvider", ObjectType.Building, owner, { rx: 10, ry: 0, z: 0 }, {
+            superWeapon: "InhibitedSW",
+        });
+        const inhibitor = launchObject("Inhibitor", ObjectType.Building, enemy, { rx: 1, ry: 0, z: 0 }, {
+            inhibitorRange: 3,
+        });
+        owner.getOwnedObjects = () => [nearProvider, farProvider];
+        const game: any = {
+            alliances: { areAllied: () => false },
+            getWorld: () => ({ getAllObjects: () => [nearProvider, farProvider, inhibitor] }),
+        };
+        const rules = { name: "InhibitedSW", swInhibitors: ["Inhibitor"], swRangeMaximum: 3 };
+
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 0, ry: 0, z: 0 }, game)).toBe(false);
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 10, ry: 0, z: 0 }, game)).toBe(true);
+
+        inhibitor.poweredTrait.isPoweredOn = () => false;
+        expect(isAresSuperWeaponLaunchAllowed(rules, owner, { rx: 0, ry: 0, z: 0 }, game)).toBe(true);
+    });
+
     test("applies AutoFire/ManualFire only to human click actions", () => {
         const human = { id: "human", isAi: false };
         const ai = { id: "ai", isAi: true };

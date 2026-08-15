@@ -372,7 +372,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresSuperWeaponAITargeting.test.ts", "AresSuperWeaponAIHost.test.ts"],
-        notes: "Documented modes, SW.AutoFire routing, inactive LightningStorm/Dominator constraints, AI-required house and land/water/content masks, ThreatPosed MultiMissile scoring, true no-target/LightningRandom behavior, HunterSeeker favorite-enemy gating, EMPulse cannon reachability/TargetSelf, UnitDelivery landing-area selection, and DropPod outer-sector selection are consumed by the built-in AI host. Iron Curtain waits for team-script activation and ForceShield only responds through the defense path; offensive/defensive preferred-cell state, specialized designator/inhibitor/range selectors, manual UseAITargeting flow, presentation, persistence, and multiplayer certification remain open.",
+        notes: "Documented modes, SW.AutoFire routing, inactive LightningStorm/Dominator constraints, AI-required house and land/water/content masks, ThreatPosed MultiMissile scoring, true no-target/LightningRandom behavior, HunterSeeker favorite-enemy gating, EMPulse cannon reachability/TargetSelf, UnitDelivery landing-area selection, and DropPod outer-sector selection are consumed by the built-in AI host. Iron Curtain waits for team-script activation and ForceShield only responds through the defense path; offensive/defensive preferred-cell state, AI-side designator/inhibitor/range target selection, manual UseAITargeting flow, presentation, persistence, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-money",
@@ -385,12 +385,12 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
     },
     {
         id: "ares.superweapon-range",
-        description: "Ares SW.Range circle, rectangle, and full-map area selection",
+        description: "Ares superweapon area selection and launch-site range/designator/inhibitor gates",
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresSuperWeaponRange.test.ts"],
-        notes: "A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range is consumed by Psychic Dominator, Genetic Mutator, Force Shield, Psychic Reveal, ChronoSphere, and Lightning Storm; complete all-type coverage remains open.",
+        tests: ["AresSuperWeaponRange.test.ts", "AresSuperWeaponTargeting.test.ts"],
+        notes: "A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range is consumed by Psychic Dominator, Genetic Mutator, Force Shield, Psychic Reveal, ChronoSphere, and Lightning Storm. The common activation path now enforces SW.RangeMinimum/Maximum against operational providers, SW.Designators/SW.AnyDesignator against owned TechnoTypes, and SW.Inhibitors/SW.AnyInhibitor against enemy target areas; effect-specific range coverage, AI presentation, persistence, and multiplayer certification remain open.",
     },
     {
         id: "ares.superweapon-unit-delivery",

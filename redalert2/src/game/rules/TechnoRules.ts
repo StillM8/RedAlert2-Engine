@@ -357,6 +357,10 @@ export class TechnoRules extends ObjectRules {
     declare size: number;
     declare sizeLimit: number;
     declare sight: number;
+    /** Ares SW.Designators range; defaults to Sight. */
+    declare designatorRange: number;
+    /** Ares SW.Inhibitors range; defaults to Sight. */
+    declare inhibitorRange: number;
     declare spySat: boolean;
     declare gapGenerator: boolean;
     declare gapRadiusInCells: number;
@@ -824,6 +828,8 @@ export class TechnoRules extends ObjectRules {
         this.size = this.ini.getNumber("Size", 1);
         this.sizeLimit = this.ini.getNumber("SizeLimit");
         this.sight = Math.min(TechnoRules.MAX_SIGHT, this.needsEngineer ? 6 : this.ini.getNumber("Sight", 1));
+        this.designatorRange = Math.min(TechnoRules.MAX_SIGHT, Math.max(0, this.ini.getNumber("DesignatorRange", this.sight)));
+        this.inhibitorRange = Math.min(TechnoRules.MAX_SIGHT, Math.max(0, this.ini.getNumber("InhibitorRange", this.sight)));
         this.spySat = this.ini.getBool("SpySat");
         this.gapGenerator = this.ini.getBool("GapGenerator");
         this.gapRadiusInCells = this.ini.getNumber("GapRadiusInCells");

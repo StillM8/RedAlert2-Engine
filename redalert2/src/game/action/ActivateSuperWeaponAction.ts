@@ -9,6 +9,7 @@ import {
     isAresSuperWeaponFireIntoShroudAllowed,
     isAresSuperWeaponManualActivationAllowed,
 } from '@/extensions/ares/AresSuperWeaponFilters';
+import { isAresSuperWeaponLaunchAllowed } from '@/extensions/ares/AresSuperWeaponLaunch';
 export class ActivateSuperWeaponAction extends Action {
     private game: Game;
     private superWeaponType: number;
@@ -86,6 +87,15 @@ export class ActivateSuperWeaponAction extends Action {
         }
         if (rules.type === SuperWeaponType.ChronoSphere && !tile2) {
             console.warn(`ChronoSphere activation without a valid destination tile; ignored`);
+            return;
+        }
+        if (rules.ares && !isAresSuperWeaponLaunchAllowed(
+            { name: rules.name, ...rules.ares },
+            this.player,
+            tile,
+            this.game as any,
+        )) {
+            console.warn(`Superweapon ${rules.name} is outside its Ares launch range, lacks a designator, or is inhibited; ignored`);
             return;
         }
         if (rules.ares && !isAresSuperWeaponActivationAllowed(

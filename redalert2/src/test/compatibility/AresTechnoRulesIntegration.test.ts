@@ -45,4 +45,18 @@ describe("Ares TechnoRules integration", () => {
         expect(defaultRules.subjectToTrenches).toBe(true);
         expect(explicitRules.subjectToTrenches).toBe(false);
     });
+
+    test("defaults Ares designator and inhibitor ranges to Sight", () => {
+        const section = new IniSection("RangeBuilding");
+        section.set("Sight", "5");
+        const defaultRules = techno(section);
+        expect(defaultRules.designatorRange).toBe(5);
+        expect(defaultRules.inhibitorRange).toBe(5);
+
+        section.set("DesignatorRange", "9");
+        section.set("InhibitorRange", "2");
+        const explicitRules = techno(section);
+        expect(explicitRules.designatorRange).toBe(9);
+        expect(explicitRules.inhibitorRange).toBe(2);
+    });
 });

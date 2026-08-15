@@ -154,6 +154,14 @@ export interface AresSuperWeaponDefinition {
     swRangeMinimum?: number;
     swRangeMaximum?: number;
     swRange?: number[];
+    /** TechnoTypes that can designate the selected target for this SW. */
+    swDesignators?: string[];
+    /** Allow any owned TechnoType to designate the selected target. */
+    swAnyDesignator?: boolean;
+    /** Enemy TechnoTypes that can inhibit target areas for this SW. */
+    swInhibitors?: string[];
+    /** Allow any enemy TechnoType to inhibit a launch site. */
+    swAnyInhibitor?: boolean;
     swMaxCount?: number;
     swDeferment?: number;
     swActivationSound?: string;
@@ -315,6 +323,10 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swRangeMinimum: getNumber(section, "SW.RangeMinimum"),
         swRangeMaximum: getNumber(section, "SW.RangeMaximum"),
         swRange: getNumberArray(section, "SW.Range"),
+        swDesignators: getArray(section, "SW.Designators"),
+        swAnyDesignator: getBool(section, "SW.AnyDesignator"),
+        swInhibitors: getArray(section, "SW.Inhibitors"),
+        swAnyInhibitor: getBool(section, "SW.AnyInhibitor"),
         swMaxCount: getNumber(section, "SW.MaxCount"),
         swDeferment: getNumber(section, "SW.Deferment"),
         swActivationSound: getString(section, "SW.ActivationSound"),

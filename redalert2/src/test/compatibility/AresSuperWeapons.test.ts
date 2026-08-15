@@ -75,6 +75,10 @@ DropPod.Maximum=4
 Type=EMPulse
 SW.RangeMinimum=3
 SW.RangeMaximum=20
+SW.Designators=DESIGNATOR
+SW.AnyDesignator=no
+SW.Inhibitors=INHIBITOR
+SW.AnyInhibitor=no
 SW.MaxCount=-1
 EMPulse.Cannons=EMPCannon
 EMPulse.TargetSelf=yes
@@ -93,6 +97,10 @@ EMPulse.PulseDelay=32
         expect(pods?.dropPodMinimum).toBe(2);
         expect(pods?.dropPodMaximum).toBe(4);
         expect(pulse?.swMaxCount).toBe(-1);
+        expect(pulse?.swDesignators).toEqual(["DESIGNATOR"]);
+        expect(pulse?.swAnyDesignator).toBe(false);
+        expect(pulse?.swInhibitors).toEqual(["INHIBITOR"]);
+        expect(pulse?.swAnyInhibitor).toBe(false);
         expect(pulse?.empulseCannons).toEqual(["EMPCannon"]);
         expect(pulse?.empulseTargetSelf).toBe(true);
         expect(pulse?.empulsePulseBall).toBe("none");
