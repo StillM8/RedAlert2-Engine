@@ -13,6 +13,7 @@ import { GuardAreaOrder } from "./GuardAreaOrder";
 import { ScatterOrder } from "./ScatterOrder";
 import { EnterTransportOrder } from "./EnterTransportOrder";
 import { CaptureOrder } from "./CaptureOrder";
+import { DetonateBombOrder } from "./DetonateBombOrder";
 export class OrderFactory {
     private game: any;
     private map: any;
@@ -60,6 +61,8 @@ export class OrderFactory {
                 return new ScatterOrder(this.game);
             case OrderType.EnterTransport:
                 return new EnterTransportOrder(this.game);
+            case OrderType.DetonateBomb:
+                return new DetonateBombOrder();
             default:
                 throw new Error(`Unhandled order type ${OrderType[orderType]}`);
         }

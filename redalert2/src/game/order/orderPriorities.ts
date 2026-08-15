@@ -7,6 +7,7 @@ export const orderPriorities = [
     OrderType.Repair,
     OrderType.EnterTransport,
     OrderType.PlaceBomb,
+    OrderType.DetonateBomb,
     OrderType.Deploy,
     OrderType.Gather,
 ];

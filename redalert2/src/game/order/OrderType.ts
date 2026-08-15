@@ -17,5 +17,6 @@ export enum OrderType {
     Repair = 15,
     Scatter = 16,
     EnterTransport = 17,
-    PlaceBomb = 18
+    PlaceBomb = 18,
+    DetonateBomb = 19
 }
