@@ -111,7 +111,7 @@ export class LanSetupScreen extends MainMenuScreen {
             this.meshSession.updateSelfName(savedLanPlayerName);
         }
         this.pregameController = this.createPregameController();
-        this.roomSession = new LanRoomSession(this.meshSession, this.gameModes, this.mapFileLoader, this.mapDir, this.mapList);
+        this.roomSession = new LanRoomSession(this.meshSession, this.gameModes, this.mapFileLoader, Engine.getContentIdentity(), this.mapDir, this.mapList);
     }
 
     async onEnter(): Promise<void> {
@@ -163,6 +163,15 @@ export class LanSetupScreen extends MainMenuScreen {
     };
 
     private handleLaunch = (descriptor: any) => {
+        // Reject stale or mismatched launch descriptors before creating the
+        // lockstep session (the room session validates this on receipt too).
+        if (descriptor?.contentIdentity && descriptor.contentIdentity !== Engine.getContentIdentity()) {
+            console.error('[LanSetup] Ignoring LAN launch with mismatched content identity', {
+                local: Engine.getContentIdentity(),
+                remote: descriptor.contentIdentity,
+            });
+            return;
+        }
         this.activeMatchSession?.dispose();
         this.activeMatchSession = new LanMatchSession(this.meshSession, descriptor);
         this.recordRecentPlay(descriptor);

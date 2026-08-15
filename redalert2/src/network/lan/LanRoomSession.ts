@@ -53,6 +53,8 @@ export interface LanRoomState {
     slotsInfo: SlotInfo[];
     readyStateByPeerId: Record<string, boolean>;
     mapTransferStateByPeerId: Record<string, LanMapTransferPeerState>;
+    /** Effective simulation content identity; peers with mismatches reject. */
+    contentIdentity: string;
 }
 
 export interface LanLaunchDescriptor {
@@ -66,6 +68,7 @@ export interface LanLaunchDescriptor {
     gameOpts: GameOpts;
     humanAssignments: LanHumanAssignment[];
     mapTransferStateByPeerId: Record<string, LanMapTransferPeerState>;
+    contentIdentity: string;
     returnRoute: {
         screenType: number;
         params?: any;
@@ -233,6 +236,7 @@ function cloneRoomState(state: LanRoomState): LanRoomState {
         slotsInfo: cloneSlotsInfo(state.slotsInfo),
         readyStateByPeerId: { ...state.readyStateByPeerId },
         mapTransferStateByPeerId: cloneMapTransferState(state.mapTransferStateByPeerId),
+        contentIdentity: state.contentIdentity,
     };
 }
 
@@ -298,6 +302,7 @@ export class LanRoomSession {
         private readonly meshSession: LanMeshSession,
         private readonly gameModes: GameModes,
         private readonly mapFileLoader: MapFileLoader,
+        private readonly contentIdentity: string,
         private readonly mapDir?: MapDirectory,
         private readonly mapList?: MapList
     ) {
@@ -342,6 +347,7 @@ export class LanRoomSession {
                     ? createTransferState('complete', snapshot.gameOpts.mapSizeBytes, snapshot.gameOpts.mapSizeBytes)
                     : createTransferState('complete', snapshot.gameOpts.mapSizeBytes, snapshot.gameOpts.mapSizeBytes),
             },
+            contentIdentity: this.contentIdentity,
         };
         this.currentCustomMapFile = snapshot.gameOpts.mapOfficial || !snapshot.currentMapFile
             ? undefined
@@ -434,6 +440,7 @@ export class LanRoomSession {
             gameOpts: cloneGameOpts(this.roomState.gameOpts),
             humanAssignments: this.roomState.humanAssignments.map((assignment) => ({ ...assignment })),
             mapTransferStateByPeerId: cloneMapTransferState(this.roomState.mapTransferStateByPeerId),
+            contentIdentity: this.contentIdentity,
             returnRoute,
         };
         this.launchDescriptor = descriptor;
@@ -515,6 +522,12 @@ export class LanRoomSession {
 
     private handleStateSync(from: LanPeerIdentity, message: Extract<LanRoomMessage, { type: 'state-sync' }>): void {
         if (this.isHost() && from.id !== this.roomState?.hostPeerId) {
+            return;
+        }
+        // Reject a room whose effective simulation content differs.  Peers
+        // with different mods/INIs must never start a lockstep match.
+        if (message.state.contentIdentity !== this.contentIdentity) {
+            this.log('error', `Content identity mismatch with host: local=${this.contentIdentity}, remote=${message.state.contentIdentity}`);
             return;
         }
         const selfPeerId = this.meshSession.getSelf().id;
@@ -644,6 +657,11 @@ export class LanRoomSession {
     }
 
     private handleStartGame(_from: LanPeerIdentity, message: Extract<LanRoomMessage, { type: 'start-game' }>): void {
+        // Never launch a lockstep match with mismatched simulation content.
+        if (message.descriptor.contentIdentity !== this.contentIdentity) {
+            this.log('error', `Rejecting LAN launch with mismatched content identity: local=${this.contentIdentity}, remote=${message.descriptor.contentIdentity}`);
+            return;
+        }
         const descriptor = {
             ...message.descriptor,
             localPeerId: this.meshSession.getSelf().id,

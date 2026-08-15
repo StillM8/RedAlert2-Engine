@@ -148,6 +148,17 @@ export class GameScreen extends RootScreen {
         let gameOpts: any;
         const lanLaunch = params.lanLaunch;
         this.lanMatchSession = params.lanMatchSession;
+        // Reject LAN launches whose effective simulation content differs.
+        if (lanLaunch?.contentIdentity && lanLaunch.contentIdentity !== Engine.getContentIdentity()) {
+            console.error('[GameScreen] Rejecting LAN launch with mismatched content identity', {
+                local: Engine.getContentIdentity(),
+                remote: lanLaunch.contentIdentity,
+            });
+            this.messageBoxApi?.show?.(this.strings.get('GUI:ReplayModMismatch'), undefined, () => {
+                this.controller?.goToScreen(ScreenType.MainMenuRoot, {});
+            });
+            return;
+        }
         const gameId = lanLaunch?.gameId ?? params.gameId;
         const timestamp = lanLaunch?.timestamp ?? params.timestamp;
         this.returnTo = params.returnTo ?? lanLaunch?.returnRoute;
