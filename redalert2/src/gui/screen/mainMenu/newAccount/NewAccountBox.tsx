@@ -28,7 +28,13 @@ export const NewAccountBox = forwardRef<NewAccountBoxRef, NewAccountBoxProps>(({
     const passwordRef = useRef<HTMLInputElement>(null);
     const confirmPasswordRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
-        setTimeout(() => usernameRef.current?.focus(), 50);
+        const frameId = requestAnimationFrame(() => {
+            const input = usernameRef.current;
+            if (input && document.activeElement !== input) {
+                input.focus();
+            }
+        });
+        return () => cancelAnimationFrame(frameId);
     }, []);
     const handleSubmit = () => {
         if (!usernameRef.current || !passwordRef.current || !confirmPasswordRef.current)

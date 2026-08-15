@@ -14,10 +14,14 @@ export const KeepReplayBox: React.FC<KeepReplayBoxProps> = ({ defaultName, strin
     const inputRef = useRef<HTMLInputElement>(null);
     const [hidden, setHidden] = useState(false);
     useEffect(() => {
-        setTimeout(() => {
-            inputRef.current?.focus();
-            inputRef.current?.setSelectionRange(0, inputRef.current.value.length);
-        }, 50);
+        const frameId = requestAnimationFrame(() => {
+            const input = inputRef.current;
+            if (input && document.activeElement !== input) {
+                input.focus();
+                input.setSelectionRange(0, input.value.length);
+            }
+        });
+        return () => cancelAnimationFrame(frameId);
     }, []);
     const handleSubmit = (e?: React.FormEvent) => {
         if (e) {

@@ -12,9 +12,14 @@ export const PasswordBox: React.FC<PasswordBoxProps> = ({ strings, viewport, onS
     const inputRef = useRef<HTMLInputElement>(null);
     const [hidden, setHidden] = useState(false);
     useEffect(() => {
-        setTimeout(() => {
-            inputRef.current?.focus();
-        }, 50);
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            const input = inputRef.current;
+            if (input && document.activeElement !== input) {
+                input.focus();
+            }
+        });
+        return () => cancelAnimationFrame(frameId);
     }, []);
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();

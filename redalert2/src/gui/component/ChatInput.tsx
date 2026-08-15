@@ -94,7 +94,16 @@ export const ChatInput = forwardRef<{
         T(e);
     }
     useEffect(() => {
-        p.current?.focus();
+        // Avoid immediate focus on Android WebView: focusing before the DOM
+        // has settled can race with the soft keyboard and cause a
+        // blur/focus loop.
+        const frameId = requestAnimationFrame(() => {
+            const input = p.current;
+            if (input && document.activeElement !== input) {
+                input.focus();
+            }
+        });
+        return () => cancelAnimationFrame(frameId);
     }, []);
     useEffect(() => {
         if (!A(y)) {

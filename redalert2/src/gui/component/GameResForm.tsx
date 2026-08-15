@@ -21,7 +21,13 @@ export const GameResForm: React.FC<GameResFormProps> = ({ closable, strings, def
         }
     }, [dragTarget]);
     useEffect(() => {
-        urlInputRef.current?.focus();
+        const frameId = requestAnimationFrame(() => {
+            const input = urlInputRef.current;
+            if (input && document.activeElement !== input) {
+                input.focus();
+            }
+        });
+        return () => cancelAnimationFrame(frameId);
     }, []);
     useEffect(() => {
         const preventDefault = (event: Event) => event.preventDefault();

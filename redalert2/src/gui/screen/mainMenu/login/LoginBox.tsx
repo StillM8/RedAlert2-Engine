@@ -23,7 +23,13 @@ export const LoginBox = forwardRef<LoginBoxRef, LoginBoxProps>(({ regions, selec
     const passwordRef = useRef<HTMLInputElement>(null);
     const [breakingNews, setBreakingNews] = useState<string>();
     useEffect(() => {
-        setTimeout(() => usernameRef.current?.focus(), 50);
+        const frameId = requestAnimationFrame(() => {
+            const input = usernameRef.current;
+            if (input && document.activeElement !== input) {
+                input.focus();
+            }
+        });
+        return () => cancelAnimationFrame(frameId);
     }, []);
     useEffect(() => {
         if (breakingNewsUrl) {
