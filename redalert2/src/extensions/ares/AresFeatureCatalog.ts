@@ -638,7 +638,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresPcxCameos.test.ts", "AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during GameLoader VFS discovery, and legacy fallback precedence. The validated manifest reaches the HUD, which decodes direct PCX surfaces and selects them per sidebar item with a legacy SHP fallback; save/mod-hash coverage and multiplayer certification remain open.",
+        notes: "CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during GameLoader VFS discovery, and legacy fallback precedence. The validated manifest reaches the HUD, which decodes direct PCX surfaces and selects them per sidebar item with a legacy SHP fallback. PCX cameos are presentation-only and intentionally excluded from the simulation content hash (which covers effective INIs). Multiplayer certification remains open.",
     },
     {
         id: "ares.damage-particle-systems",
@@ -659,7 +659,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresParticleSystems.test.ts", "AresDamageParticles.test.ts", "AresDamageParticlesTechnoIntegration.test.ts", "AresDamageParticlesRenderIntegration.test.ts", "AresCompatibilityScanner.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images now render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Authored spark systems now repeat through the shared movement-particle effect with authored colors, velocity, spawn radius, and cap, including the Cyborg default. Full non-smoke particle BehavesLike parity, save/load, and multiplayer certification remain open.",
+        notes: "ParticleSystem and Particle definitions are parsed into a shared case-insensitive registry; DamageSparks and explicit Smoke/Spark lists retain Ares precedence and BehavesLike filtering. Authored smoke images render through the parsed ParticleSystem -> Particle -> Image chain for every techno type, with the retail yellow threshold and a bounded particle cap. Authored spark systems repeat through the shared movement-particle effect with authored colors, velocity, spawn radius, and cap, including the Cyborg default. Non-Smoke/Spark BehavesLike is a documented Ares 0.7 limitation (the docs say only Smoke and Spark are fully supported). Save/load and multiplayer certification remain open.",
     },
     {
         id: "ares.weapon-visuals",
