@@ -4,5 +4,6 @@ export enum OrderFeedbackType {
     Attack = 2,
     Enter = 3,
     Capture = 4,
-    SpecialAttack = 5
+    SpecialAttack = 5,
+    Repair = 6
 }

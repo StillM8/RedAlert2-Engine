@@ -474,6 +474,13 @@ export class SoundHandler {
                 case OrderFeedbackType.SpecialAttack:
                     sound = unit.rules.voiceSpecialAttack || unit.rules.voiceAttack;
                     break;
+                case OrderFeedbackType.Repair:
+                    // Ares VoiceIFVRepair takes precedence over VoiceAttack
+                    // when an IFV is ordered to repair something; otherwise
+                    // fall back to VoiceAttack as documented.
+                    sound = unit.rules.ares?.ifv?.voiceIfvRepair ??
+                        unit.rules.voiceAttack;
+                    break;
             }
             if (sound) {
                 this.sound.play(sound, ChannelType.Effect);

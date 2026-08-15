@@ -8,7 +8,7 @@ export class RepairOrder extends Order {
     private game: any;
     public targetOptional: boolean = false;
     public terminal: boolean = true;
-    public feedbackType: OrderFeedbackType = OrderFeedbackType.Capture;
+    public feedbackType: OrderFeedbackType = OrderFeedbackType.Repair;
     constructor(game: any) {
         super(OrderType.Repair);
         this.game = game;

@@ -975,10 +975,10 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         multiplayerStatus: "partial",
         deterministic: true,
         verificationStatus: "synthetic",
-        tests: ["AresTechnoExtensions.test.ts", "AresIfvRuntimeIntegration.test.ts"],
+        tests: ["AresTechnoExtensions.test.ts", "AresIfvRuntimeIntegration.test.ts", "AresVoiceIfvRepair.test.ts"],
         dependencies: ["ares.effective-ini"],
         targetModUsage: "required",
-        notes: "IFVMode, 1-based WeaponTurretIndex*, WeaponUIName*, and VoiceIFVRepair are normalized generically; passenger changes re-evaluate the selected weapon, turret, and tooltip through the shared GunnerTrait path. Repair-voice consumption, full passenger weapon/turret parity, save/load, and multiplayer synchronization remain open.",
+        notes: "IFVMode, 1-based WeaponTurretIndex*, WeaponUIName*, and VoiceIFVRepair are normalized generically; passenger changes re-evaluate the selected weapon, turret, and tooltip through the shared GunnerTrait path. VoiceIFVRepair is now consumed by the repair-order feedback path (falls back to VoiceAttack when absent). Full passenger weapon/turret parity, save/load, and multiplayer synchronization remain open.",
     },
 ];
 
