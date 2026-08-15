@@ -227,7 +227,7 @@ export class Engine {
         return appVersion.split(".").slice(0, 2).join(".");
     }
     static getModHash(): number {
-        if (!this.modHash) {
+        if (this.modHash === undefined) {
             throw new Error("Rules must be loaded first");
         }
         return this.modHash;
