@@ -852,7 +852,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresKillingDrivers.test.ts"],
         dependencies: ["ares.effective-ini", "ares.operator"],
         targetModUsage: "required",
-        notes: "KillDriver and ProtectedDriver use a normalized driver state with deterministic owner resolution, passenger/operator handling, and driverless movement/weapon suppression. CanDrive is parsed and exposed for the VehicleThief/reclaim path. Building hijacks, audio, and trigger/event parity remain open.",
+        notes: "KillDriver and ProtectedDriver use a normalized driver state with deterministic owner resolution, passenger/operator handling, and driverless movement/weapon suppression. All documented fields are covered: KillDriver.Owner/KillBelowPercent/Chance/RemoveVeterancy, ProtectedDriver.MinHealth, CanDrive, CanBeDriven, and Country.CanBeDriven. Audio/trigger event parity and target-content verification remain open.",
     },
     {
         id: "ares.vehicle-thief",
@@ -873,7 +873,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresVehicleThief.test.ts", "MindControlVehicleThiefLifecycle.test.ts"],
         dependencies: ["ares.effective-ini", "ares.killing-drivers", "ares.operator"],
         targetModUsage: "required",
-        notes: "VehicleThief and CanDrive share a data-defined hijack action path with enemy hijack, neutral driverless reclaim, operator passengers, absorbed-hijacker recovery, and target/task integration. Building hijacks, sounds, and trigger/event parity remain open.",
+        notes: "VehicleThief and CanDrive share a data-defined hijack action path with enemy hijack, neutral driverless reclaim, operator passengers, absorbed-hijacker recovery, and target/task integration. All documented fields are covered: VehicleThief.Allowed, EnterSound/LeaveSound, BreakMindControl, OneTime, KillPilots, mind-control link transfer, and grinder reimbursement. Trigger/event parity and full target-content verification remain open.",
     },
     {
         id: "ares.operator",
