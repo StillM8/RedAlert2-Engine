@@ -768,7 +768,7 @@ export const ARES_IMPLEMENTATION_CAPABILITIES: readonly AresCapability[] = [
         tests: ["AresAttachEffect.test.ts", "AresAttachEffectCombat.test.ts", "AresAttachEffectRuntime.test.ts", "AresAttachEffectTraitBridge.test.ts", "AresAttachEffectPresentation.test.ts", "WarheadAttachEffectIntegration.test.ts"],
         dependencies: ["ares.effective-ini", "ares.warhead-effects"],
         targetModUsage: "required",
-        notes: "TechnoType/Warhead AttachEffect fields are normalized; ObjectFactory registration and a generic per-tick trait cover spawn timing, renewal, protection retry, effect instances, and reapplication/stacking decisions with deterministic cleanup. Full combat-condition parity, AI, persistence, and network certification remain open.",
+        notes: "TechnoType/Warhead AttachEffect fields are normalized; ObjectFactory registration and a generic per-tick trait cover spawn timing, renewal, protection retry, effect instances, and reapplication/stacking decisions with deterministic cleanup. All documented fields are consumed: Duration, Animation, TemporalHidesAnim, Speed/Armor/Firepower/ROF multipliers, Cloakable, ForceDecloak, DiscardOnEntry, PenetratesIronCurtain, Delay/InitialDelay, Cumulative, AnimResetOnReapply. AI, persistence, and network certification remain open.",
     },
     {
         id: "ares.urban-combat",
