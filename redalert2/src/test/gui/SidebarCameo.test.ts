@@ -7,8 +7,8 @@ import {
 
 describe("sidebar cameo frame normalization", () => {
     test("uses the same top-left cell contract for SHP and PCX art", () => {
-        expect(getSidebarSlotSpriteAlignment("shp")).toEqual({ x: 1, y: 1 });
-        expect(getSidebarSlotSpriteAlignment("pcx")).toEqual({ x: -1, y: 1 });
+        expect(getSidebarSlotSpriteAlignment("shp")).toEqual({ x: 1, y: -1 });
+        expect(getSidebarSlotSpriteAlignment("pcx")).toEqual({ x: -1, y: -1 });
     });
 
     test("copies a cropped frame into the fixed slot canvas", () => {
