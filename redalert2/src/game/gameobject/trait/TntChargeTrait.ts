@@ -33,6 +33,14 @@ export class TntChargeTrait implements NotifyDestroy, NotifySell, NotifyTick {
     }
     setCharge(ticks: number, currentTick: number, attackerInfo: any, bombRules?: AresIvanBombChargeRules): boolean {
         if (!this.hasCharge()) {
+            // Negative delay means a death bomb: never auto-detonate, but
+            // remain active for death/sell/manual-detonation handling.
+            if (ticks < 0) {
+                this.timer.setActiveFor(Number.MAX_SAFE_INTEGER, currentTick);
+                this.attackerInfo = attackerInfo;
+                this.bombRules = bombRules;
+                return true;
+            }
             this.timer.setActiveFor(Math.max(0, Math.trunc(ticks)), currentTick);
             this.attackerInfo = attackerInfo;
             this.bombRules = bombRules;

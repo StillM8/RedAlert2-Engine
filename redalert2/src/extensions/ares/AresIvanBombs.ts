@@ -100,12 +100,16 @@ export function resolveAresIvanBombRules(
     combatDamage: CombatDamageFallbacks,
     alliedTarget: boolean,
 ): AresIvanBombChargeRules {
+    const deathBomb = alliedTarget ? rules.deathBombOnAllies : rules.deathBomb;
     return {
-        deathBomb: alliedTarget ? rules.deathBombOnAllies : rules.deathBomb,
+        deathBomb,
         destroysBridges: rules.destroysBridges,
         detachable: rules.detachable,
         damage: rules.damage ?? combatDamage.ivanDamage ?? 0,
-        delay: Math.max(0, rules.delay ?? combatDamage.ivanTimedDelay ?? 0),
+        // Death bombs never auto-detonate; a negative delay disables the
+        // automatic timer so the charge stays active until the victim dies
+        // or the owner manually detonates it.
+        delay: deathBomb ? -1 : Math.max(0, rules.delay ?? combatDamage.ivanTimedDelay ?? 0),
         tickingSound: rules.tickingSound,
         attachSound: rules.attachSound,
         warhead: rules.warhead || combatDamage.ivanWarhead || "",
