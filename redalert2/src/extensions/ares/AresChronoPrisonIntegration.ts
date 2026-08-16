@@ -127,7 +127,13 @@ export function applyAresChronoPrison(
     world.events.dispatch(new EnterTransportEvent(attacker));
     world.events.dispatch(new EnterObjectEvent(attacker, target));
     if (chronoWeapon.animation && sourceTile) {
-        world.events.dispatch(new TriggerAnimEvent(chronoWeapon.animation, sourceTile));
+        world.events.dispatch(new TriggerAnimEvent(
+            chronoWeapon.animation,
+            sourceTile,
+            undefined,
+            attacker.owner,
+            attacker,
+        ));
     }
     return decision;
 }

@@ -890,7 +890,13 @@ export class Projectile extends GameObject {
             }
             // Normal detonation is skipped, so play the gas anim manually
             if (warhead.rules.animList.length) {
-                game.events.dispatch(new TriggerAnimEvent(warhead.rules.animList[0], detonationTile));
+                game.events.dispatch(new TriggerAnimEvent(
+                    warhead.rules.animList[0],
+                    detonationTile,
+                    undefined,
+                    this.fromPlayer,
+                    this.fromObject,
+                ));
             }
         }
         if (warhead.rules.temporal) {

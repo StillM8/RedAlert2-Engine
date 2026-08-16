@@ -252,6 +252,8 @@ export class DropPodEffect extends SuperWeaponEffect {
         game.events?.dispatch?.(new TriggerAnimEvent(
             presentation.trailerAnimation,
             landingTile,
+            undefined,
+            this.owner,
         ));
 
         const weaponName = presentation.weaponName;

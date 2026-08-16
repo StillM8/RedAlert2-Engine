@@ -63,7 +63,13 @@ export class AresFirestormWallTrait implements NotifySpawn, NotifyUnspawn, Notif
         if (!animName) return;
         const chance = 0.04;
         if (game.generateRandom?.() < chance) {
-            game.events.dispatch(new TriggerAnimEvent(animName, building.tile));
+            game.events.dispatch(new TriggerAnimEvent(
+                animName,
+                building.tile,
+                undefined,
+                building.owner,
+                building,
+            ));
             this.flickerCooldownTicks = 15;
         }
     }
@@ -160,7 +166,13 @@ export class AresFirestormWallTrait implements NotifySpawn, NotifyUnspawn, Notif
             ? game.rules.audioVisual.firestormAirAnim
             : game.rules.audioVisual.firestormGroundAnim;
         if (animation) {
-            game.events.dispatch(new TriggerAnimEvent(animation, tile));
+            game.events.dispatch(new TriggerAnimEvent(
+                animation,
+                tile,
+                undefined,
+                wall.owner,
+                wall,
+            ));
         }
     }
 }

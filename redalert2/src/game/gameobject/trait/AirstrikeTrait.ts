@@ -68,7 +68,13 @@ export class AirstrikeTrait implements NotifyTick {
             spawnDelayTicks: STRIKE_DELAY_TICKS,
             planes: [],
         };
-        game.events.dispatch(new TriggerAnimEvent(FLARE_ANIM, targetTile));
+        game.events.dispatch(new TriggerAnimEvent(
+            FLARE_ANIM,
+            targetTile,
+            undefined,
+            designator.owner,
+            designator,
+        ));
     }
     [NotifyTick.onTick](gameObject: any, game: any): void {
         const strike = this.strike;

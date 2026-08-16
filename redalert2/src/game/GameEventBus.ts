@@ -1,7 +1,7 @@
 import { EventDispatcher } from '@/util/event';
 export class GameEventBus {
     private dispatcher: EventDispatcher;
-    private dispatchersByType: Map<string, EventDispatcher>;
+    private dispatchersByType: Map<string | number, EventDispatcher>;
     constructor() {
         this.dispatcher = new EventDispatcher();
         this.dispatchersByType = new Map();
@@ -10,8 +10,8 @@ export class GameEventBus {
         this.dispatcher.dispatch(undefined, event);
         this.dispatchersByType.get(event.type)?.dispatch(undefined, event);
     }
-    subscribe(typeOrHandler: string | ((event: any) => void), handler?: (event: any) => void): () => void {
-        let type: string | undefined;
+    subscribe(typeOrHandler: string | number | ((event: any) => void), handler?: (event: any) => void): () => void {
+        let type: string | number | undefined;
         let callback: (event: any) => void;
         if (typeof typeOrHandler === 'function') {
             callback = typeOrHandler;
@@ -28,8 +28,8 @@ export class GameEventBus {
             return this.subscribeType(type, callback);
         }
     }
-    unsubscribe(typeOrHandler: string | ((event: any) => void), handler?: (event: any) => void): void {
-        let type: string | undefined;
+    unsubscribe(typeOrHandler: string | number | ((event: any) => void), handler?: (event: any) => void): void {
+        let type: string | number | undefined;
         let callback: (event: any) => void;
         if (typeof typeOrHandler === 'function') {
             callback = typeOrHandler;
@@ -45,7 +45,7 @@ export class GameEventBus {
             this.unsubscribeType(type, callback);
         }
     }
-    private subscribeType(type: string, handler: (event: any) => void): () => void {
+    private subscribeType(type: string | number, handler: (event: any) => void): () => void {
         let dispatcher = this.dispatchersByType.get(type);
         if (!dispatcher) {
             dispatcher = new EventDispatcher();
@@ -54,7 +54,7 @@ export class GameEventBus {
         dispatcher.subscribe(handler);
         return () => this.unsubscribeType(type, handler);
     }
-    private unsubscribeType(type: string, handler: (event: any) => void): void {
+    private unsubscribeType(type: string | number, handler: (event: any) => void): void {
         this.dispatchersByType.get(type)?.unsubscribe(handler);
     }
 }

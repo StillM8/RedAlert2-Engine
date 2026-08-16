@@ -4,6 +4,7 @@ import {
     advanceAresAnimationDamage,
     parseAresAnimationDamage,
 } from "@/extensions/ares/AresAnimationDamage";
+import { AresAnimationDamageRuntime } from "@/extensions/ares/AresAnimationDamageRuntime";
 import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import { Game } from "@/game/Game";
@@ -38,6 +39,13 @@ describe("Ares animation damage", () => {
             damageDelay: 3,
             warhead: "ElectricTank",
             weapon: "PerunBoltWeapon",
+            rate: 15,
+            start: 0,
+            end: 0,
+            loopStart: 0,
+            loopEnd: 0,
+            loopCount: 1,
+            reverse: false,
         });
     });
 
@@ -63,6 +71,54 @@ describe("Ares animation damage", () => {
             state: { accumulator: 0 },
             damage: 1,
         });
+    });
+
+    test("runs standalone animation damage for each animation frame and expires at End", () => {
+        const definition = parseAresAnimationDamage("Standalone", animation({
+            Damage: "10",
+            End: "1",
+            Rate: "900",
+            Warhead: "Fire2",
+        }))!;
+        const runtime = new AresAnimationDamageRuntime();
+        const deliveries: any[] = [];
+        runtime.spawn({
+            definition,
+            tile: { rx: 1, ry: 1, z: 0 },
+            position: { x: 384, y: 0, z: 384 },
+            elevation: 0,
+            zone: ZoneType.Ground,
+        });
+
+        runtime.update({ applyAresAnimationDamageArea: (request) => deliveries.push(request) });
+        expect(deliveries.map((request) => request.damage)).toEqual([10]);
+        expect(runtime.getActiveCount()).toBe(1);
+
+        runtime.update({ applyAresAnimationDamageArea: (request) => deliveries.push(request) });
+        expect(deliveries.map((request) => request.damage)).toEqual([10, 10]);
+        expect(runtime.getActiveCount()).toBe(0);
+    });
+
+    test("measures standalone Damage.Delay in animation frames", () => {
+        const definition = parseAresAnimationDamage("DelayedStandalone", animation({
+            Damage: "3",
+            "Damage.Delay": "2",
+            End: "2",
+        }))!;
+        const runtime = new AresAnimationDamageRuntime();
+        const damages: number[] = [];
+        runtime.spawn({
+            definition,
+            tile: { rx: 1, ry: 1, z: 0 },
+            position: { x: 384, y: 0, z: 384 },
+            elevation: 0,
+            zone: ZoneType.Ground,
+        });
+
+        runtime.update({ applyAresAnimationDamageArea: (request) => damages.push(request.damage) });
+        expect(damages).toEqual([]);
+        runtime.update({ applyAresAnimationDamageArea: (request) => damages.push(request.damage) });
+        expect(damages).toEqual([3]);
     });
 
     test("runs residual damage through an attached effect until its last frame", () => {
@@ -185,11 +241,27 @@ describe("Ares animation damage", () => {
             createTarget: () => ({ obj: target, getBridge: () => undefined }),
         };
 
+        game.resolveAresAnimationDamageDelivery = (Game.prototype as any).resolveAresAnimationDamageDelivery;
         Game.prototype.applyAresAnimationDamage.call(game, {
             target,
             animation: { name: "Residual", warhead: "Fire2" },
             damage: 25,
             sourcePlayer: owner,
+        });
+
+        expect(target.healthTrait.health).toBe(75);
+
+        target.healthTrait.health = 100;
+        Game.prototype.applyAresAnimationDamageArea.call(game, {
+            definition: parseAresAnimationDamage("Standalone", animation({
+                Damage: "25",
+                Warhead: "Fire2",
+            }))!,
+            tile,
+            position: target.position.worldPosition,
+            elevation: 0,
+            zone: ZoneType.Ground,
+            damage: 25,
         });
 
         expect(target.healthTrait.health).toBe(75);

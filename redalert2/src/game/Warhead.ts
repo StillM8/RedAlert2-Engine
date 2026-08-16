@@ -470,7 +470,7 @@ export class Warhead {
     detonate(gameWorld: GameWorld, baseDamage: number, centerTile: Position, elevation: number, centerCoords: Vector3, zone: ZoneType, collisionType: CollisionType | undefined, target: {
         obj?: GameObject;
         getBridge?(): GameObject;
-    }, weaponInfo: WeaponInfo | undefined, friendly: boolean, areaEffectSmudge: string | undefined, customSpread?: number, isWeatherStorm = false, targetFilter?: (object: GameObject, tile: Position) => boolean): void {
+    }, weaponInfo: WeaponInfo | undefined, friendly: boolean, areaEffectSmudge: string | undefined, customSpread?: number, isWeatherStorm = false, targetFilter?: (object: GameObject, tile: Position) => boolean, areaDetonation = false): void {
         const weapon = weaponInfo?.weapon ?? this.createDummyWeaponInfo() as any;
         const sourceObj = weaponInfo?.obj;
         const sourcePlayer = weaponInfo?.player;
@@ -521,7 +521,7 @@ export class Warhead {
                         if (currentTile !== centerTile || !this.rules.wall)
                             continue;
                     }
-                    else if (!friendly && (currentTile !== centerTile || (!obj.isBuilding() && obj !== (target.obj || target.getBridge?.())))) {
+                    else if (!friendly && (currentTile !== centerTile || (!areaDetonation && !obj.isBuilding() && obj !== (target.obj || target.getBridge?.())))) {
                         continue;
                     }
                 }
@@ -682,7 +682,17 @@ export class Warhead {
             if (animation)
                 terrainEffect.spawnSmudges(animation, centerTile, gameWorld);
         }
-        gameWorld.events.dispatch(new WarheadDetonateEvent(this, centerCoords, animation, isWeatherStorm));
+        gameWorld.events.dispatch(new WarheadDetonateEvent(
+            this,
+            centerCoords,
+            animation,
+            isWeatherStorm,
+            centerTile,
+            elevation,
+            zone,
+            sourcePlayer,
+            sourceObj,
+        ));
     }
 
     /** Apply a Warhead-owned AttachEffect through the target's live trait. */

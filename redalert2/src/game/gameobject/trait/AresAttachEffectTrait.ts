@@ -22,6 +22,7 @@ import {
     advanceAresAnimationDamage,
     parseAresAnimationDamage,
 } from "@/extensions/ares/AresAnimationDamage";
+import { GameSpeed } from "@/game/GameSpeed";
 
 export interface AresAttachEffectMultipliers {
     speed: number;
@@ -41,6 +42,7 @@ export interface AresAttachEffectTraitOptions {
 
 interface AresAnimationDamageRuntimeState {
     accumulator: number;
+    frameAccumulator: number;
     sourcePlayer?: any;
 }
 
@@ -420,7 +422,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             if (!definition?.animation) continue;
 
             const states = this.animationDamageState.get(instance.effectId) ?? [];
-            const state = states[occurrence] ?? { accumulator: 0 };
+            const state = states[occurrence] ?? { accumulator: 0, frameAccumulator: 0 };
             states[occurrence] = state;
             this.animationDamageState.set(instance.effectId, states);
             const animation = (() => {
@@ -443,18 +445,24 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 // Cloaking/temporal removal recreates the attached animation,
                 // so its animation accumulator starts from zero on re-entry.
                 state.accumulator = 0;
+                state.frameAccumulator = 0;
                 continue;
             }
 
-            const step = advanceAresAnimationDamage(animationDamage, state);
-            state.accumulator = step.state.accumulator;
-            if (step.damage > 0) {
-                applyDamage.call(context, {
-                    target: this.gameObject,
-                    animation: animationDamage,
-                    damage: step.damage,
-                    sourcePlayer: state.sourcePlayer,
-                });
+            state.frameAccumulator += animationDamage.rate / GameSpeed.BASE_TICKS_PER_SECOND;
+            const framesToAdvance = Math.floor(state.frameAccumulator);
+            state.frameAccumulator -= framesToAdvance;
+            for (let frame = 0; frame < framesToAdvance; frame++) {
+                const step = advanceAresAnimationDamage(animationDamage, state);
+                state.accumulator = step.state.accumulator;
+                if (step.damage > 0) {
+                    applyDamage.call(context, {
+                        target: this.gameObject,
+                        animation: animationDamage,
+                        damage: step.damage,
+                        sourcePlayer: state.sourcePlayer,
+                    });
+                }
             }
         }
     }
@@ -473,7 +481,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             previousOccurrences.set(instance.effectId, occurrence + 1);
             const state = this.animationDamageState.get(instance.effectId)?.[occurrence];
             const queue = queues.get(instance.effectId) ?? [];
-            queue.push(state ?? { accumulator: 0 });
+            queue.push(state ?? { accumulator: 0, frameAccumulator: 0 });
             queues.set(instance.effectId, queue);
         }
 
@@ -485,6 +493,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             const queue = queues.get(instance.effectId) ?? [];
             const state = queue.shift() ?? {
                 accumulator: 0,
+                frameAccumulator: 0,
                 sourcePlayer: instance.effectId === newEffectId &&
                     (decision === "applied" || decision === "stacked")
                     ? newSourcePlayer

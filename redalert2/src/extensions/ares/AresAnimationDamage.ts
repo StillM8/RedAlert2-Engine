@@ -7,6 +7,7 @@
 export interface AresAnimationDamageSection {
     getNumber(key: string, defaultValue?: number): number;
     getString(key: string, defaultValue?: string): string;
+    getBool(key: string, defaultValue?: boolean): boolean;
 }
 
 export interface AresAnimationDamageDefinition {
@@ -16,6 +17,14 @@ export interface AresAnimationDamageDefinition {
     damageDelay: number;
     warhead?: string;
     weapon?: string;
+    /** Animation playback values used by standalone animation instances. */
+    rate: number;
+    start: number;
+    end: number;
+    loopStart: number;
+    loopEnd: number;
+    loopCount: number;
+    reverse: boolean;
 }
 
 export interface AresAnimationDamageState {
@@ -45,12 +54,28 @@ export function parseAresAnimationDamage(
 
     const damage = safeNumber(section.getNumber("Damage", 0), 0);
     const authoredDelay = safeNumber(section.getNumber("Damage.Delay", 0), 0);
+    const start = Math.trunc(safeNumber(section.getNumber("Start", 0), 0));
+    const end = Math.max(start, Math.trunc(safeNumber(section.getNumber("End", start), start)));
+    const loopStart = Math.max(start, Math.trunc(safeNumber(section.getNumber("LoopStart", start), start)));
+    const loopEnd = Math.max(
+        loopStart,
+        Math.trunc(safeNumber(section.getNumber("LoopEnd", end + 1), end + 1)) - 1,
+    );
+    const loopCount = Math.trunc(safeNumber(section.getNumber("LoopCount", 1), 1));
+    const rate = Math.max(0, safeNumber(section.getNumber("Rate", 60 * 15), 60 * 15) / 60);
     return {
         name,
         damage,
         damageDelay: Math.max(0, Math.trunc(authoredDelay)),
         warhead: nonBlank(section.getString("Warhead", "")),
         weapon: nonBlank(section.getString("Weapon", "")),
+        rate,
+        start,
+        end,
+        loopStart,
+        loopEnd,
+        loopCount,
+        reverse: section.getBool("Reverse", false),
     };
 }
 

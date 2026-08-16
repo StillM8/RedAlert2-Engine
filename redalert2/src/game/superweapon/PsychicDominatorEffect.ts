@@ -44,7 +44,7 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
 
     onStart(game: Game): void {
         if (this.initialDeferment <= 0) {
-            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile));
+            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile, undefined, this.owner));
         }
     }
 
@@ -57,12 +57,12 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
             // The Ares deferment is before the first Dominator animation; the
             // existing 45-tick counter remains the retail animation/build-up
             // timing after that animation has been created.
-            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile));
+            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile, undefined, this.owner));
         }
         if (this.ticksLeft-- > 0) {
             return false;
         }
-        game.events.dispatch(new TriggerAnimEvent("PDFXLOC", this.tile));
+        game.events.dispatch(new TriggerAnimEvent("PDFXLOC", this.tile, undefined, this.owner));
         // Retail dominates first: the newly captured units visibly survive
         // the blast that levels everything else around them.
         const captured = this.captureUnits(game);

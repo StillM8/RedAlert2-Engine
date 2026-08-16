@@ -50,6 +50,13 @@ import { NotifyObjectTraitAdd } from "./trait/interface/NotifyObjectTraitAdd";
 import { RadarOnOffEvent } from "./event/RadarOnOffEvent";
 import { AresBountyAwardEvent } from "./event/AresBountyAwardEvent";
 import { applyAresBountyAward, resolveAresBountyAward } from "@/extensions/ares/AresBounty";
+import { EventType } from "./event/EventType";
+import { Coords } from "./Coords";
+import { parseAresAnimationDamage } from "@/extensions/ares/AresAnimationDamage";
+import {
+    AresAnimationDamageRuntime,
+    type AresAnimationDamageDelivery,
+} from "@/extensions/ares/AresAnimationDamageRuntime";
 export enum GameStatus {
     NotStarted = 0,
     Started = 1,
@@ -71,6 +78,7 @@ export class Game {
     public _onEnd = new EventDispatcher<Game, void>();
     public afterTickCallbacks: Array<() => void> = [];
     public events = new GameEventBus();
+    private readonly aresAnimationDamageRuntime = new AresAnimationDamageRuntime();
     public traits = new Traits();
     public debugText = new BoxedVar("");
     public world: any;
@@ -121,6 +129,20 @@ export class Game {
         this.nextObjectId = nextObjectId;
         this.objectFactory = objectFactory;
         this.botManager = botManager;
+        this.events.subscribe(EventType.TriggerAnim, (event: any) => {
+            this.registerAresAnimationDamage(event);
+        });
+        this.events.subscribe(EventType.WarheadDetonate, (event: any) => {
+            this.registerAresAnimationDamage({
+                name: event.explodeAnim,
+                tile: event.centerTile,
+                position: event.position,
+                elevation: event.elevation,
+                zone: event.zone,
+                sourcePlayer: event.sourcePlayer,
+                sourceObject: event.sourceObject,
+            });
+        });
     }
     addPlayer(player: any) {
         this.playerList.addPlayer(player);
@@ -576,10 +598,91 @@ export class Game {
         projectile.target = target;
         return projectile;
     }
+    /** Register a renderer-facing animation event with the deterministic runtime. */
+    private registerAresAnimationDamage(event: any): void {
+        const name = event?.name;
+        const tile = event?.tile ?? event?.centerTile;
+        if (!name || !tile) return;
+
+        let animationArt: any;
+        try {
+            animationArt = this.art?.getAnimation?.(name);
+        }
+        catch {
+            return;
+        }
+        const definition = parseAresAnimationDamage(name, animationArt?.art);
+        if (!definition || definition.damage <= 0) return;
+
+        const elevation = Number.isFinite(event.elevation)
+            ? event.elevation
+            : tile.z ?? 0;
+        const position = event.position ?? Coords.tile3dToWorld(
+            tile.rx + 0.5,
+            tile.ry + 0.5,
+            tile.z + elevation,
+        );
+        const zone = event.zone ?? this.map?.getTileZone?.(tile) ?? ZoneType.Ground;
+        this.aresAnimationDamageRuntime.spawn({
+            definition,
+            tile,
+            position,
+            elevation,
+            zone,
+            sourcePlayer: event.sourcePlayer,
+            sourceObject: event.sourceObject,
+        });
+    }
+
+    private updateAresAnimationDamage(): void {
+        this.aresAnimationDamageRuntime.update({
+            applyAresAnimationDamageArea: (request) => this.applyAresAnimationDamageArea(request),
+        });
+    }
+
     /**
-     * Deliver one Ares [Animation] damage step through the normal Warhead
-     * detonation path. AttachEffect owns the tick accumulator; this method
-     * owns the shared target filtering, armor, effects, and kill attribution.
+     * Deliver one standalone Ares [Animation] damage step through the normal
+     * Warhead detonation path. The runtime owns animation lifetime and frame
+     * timing; this method owns the shared area filtering and combat effects.
+     */
+    applyAresAnimationDamageArea(request: AresAnimationDamageDelivery): void {
+        if (!request.tile || !request.damage) return;
+
+        const delivery = this.resolveAresAnimationDamageDelivery(
+            request.definition,
+            undefined,
+            request.sourcePlayer,
+        );
+        if (!delivery) return;
+
+        delivery.warhead.detonate(
+            this as any,
+            request.damage,
+            request.tile,
+            request.elevation ?? 0,
+            request.position ?? Coords.tile3dToWorld(
+                request.tile.rx + 0.5,
+                request.tile.ry + 0.5,
+                request.tile.z + (request.elevation ?? 0),
+            ),
+            request.zone ?? ZoneType.Ground,
+            CollisionType.None,
+            this.createTarget(undefined, request.tile),
+            delivery.weaponInfo,
+            false,
+            undefined,
+            undefined,
+            false,
+            undefined,
+            true,
+        );
+    }
+
+    /**
+     * Deliver one attached Ares [Animation] damage step. AttachEffect keeps
+     * the target-specific lifetime and accumulator, while the actual hit is
+     * still resolved by the same Warhead/Weapon implementation as standalone
+     * animation damage.
      */
     applyAresAnimationDamage(request: {
         target: any;
@@ -599,43 +702,14 @@ export class Game {
 
         const centerTile = target.isBuilding?.() ? target.centerTile : target.tile;
         if (!centerTile) return;
+        const delivery = this.resolveAresAnimationDamageDelivery(
+            request.animation,
+            target,
+            request.sourcePlayer ?? target.owner,
+        );
+        if (!delivery) return;
 
-        let warheadName = request.animation.warhead;
-        let weaponInfo: any = {
-            player: request.sourcePlayer ?? target.owner,
-            obj: undefined,
-            weapon: undefined,
-        };
-
-        if (request.animation.weapon) {
-            const weaponRules = this.rules.getWeapon(request.animation.weapon);
-            warheadName = weaponRules.warhead;
-            if (warheadName === Warhead.SPECIAL_WARHEAD_NAME) {
-                warheadName = Weapon.findSpecialWarheadName(weaponRules, target, this.rules);
-            }
-            const projectileRules = this.rules.getProjectile(weaponRules.projectile);
-            // Ares creates and immediately detonates a projectile here.  The
-            // shared Warhead path only needs the weapon's rules and projectile
-            // metadata; no transient projectile is inserted into the world.
-            const animationWeapon = {
-                gameObject: undefined,
-                projectileRules,
-                rules: weaponRules,
-                type: WeaponType.Primary,
-            };
-            // Ares 2.0 documents that Weapon= animation damage has no player
-            // owner. Keep that distinction from the direct Warhead path.
-            weaponInfo = { player: undefined, obj: undefined, weapon: animationWeapon };
-        }
-        else if (!warheadName) {
-            warheadName = request.animation.name.toLocaleLowerCase("en-US") === "inviso"
-                ? this.rules.combatDamage.c4Warhead
-                : this.rules.combatDamage.flameDamage2 ?? this.rules.combatDamage.c4Warhead;
-        }
-
-        if (!warheadName) return;
-        const warhead = new Warhead(this.rules.getWarhead(warheadName));
-        warhead.detonate(
+        delivery.warhead.detonate(
             this as any,
             request.damage,
             centerTile,
@@ -644,10 +718,63 @@ export class Game {
             target.zone ?? ZoneType.Ground,
             CollisionType.None,
             this.createTarget(target, centerTile),
-            weaponInfo,
+            delivery.weaponInfo,
             false,
             undefined,
         );
+    }
+
+    private resolveAresAnimationDamageDelivery(
+        animation: {
+            name: string;
+            warhead?: string;
+            weapon?: string;
+        },
+        target?: any,
+        sourcePlayer?: any,
+    ): { warhead: Warhead; weaponInfo: any } | undefined {
+        try {
+            let warheadName = animation.warhead;
+            let weaponInfo: any = {
+                player: sourcePlayer,
+                obj: undefined,
+                weapon: undefined,
+            };
+
+            if (animation.weapon) {
+                const weaponRules = this.rules.getWeapon(animation.weapon);
+                warheadName = weaponRules.warhead;
+                if (warheadName === Warhead.SPECIAL_WARHEAD_NAME) {
+                    if (!target) return undefined;
+                    warheadName = Weapon.findSpecialWarheadName(weaponRules, target, this.rules);
+                }
+                const projectileRules = this.rules.getProjectile(weaponRules.projectile);
+                const animationWeapon = {
+                    gameObject: undefined,
+                    projectileRules,
+                    rules: weaponRules,
+                    type: WeaponType.Primary,
+                };
+                // Ares 2.0 documents that Weapon= animation damage has no
+                // player owner. Keep that distinction from direct Warhead=.
+                weaponInfo = { player: undefined, obj: undefined, weapon: animationWeapon };
+            }
+            else if (!warheadName) {
+                warheadName = animation.name.toLocaleLowerCase("en-US") === "inviso"
+                    ? this.rules.combatDamage.c4Warhead
+                    : this.rules.combatDamage.flameDamage2 ?? this.rules.combatDamage.c4Warhead;
+            }
+
+            if (!warheadName) return undefined;
+            return {
+                warhead: new Warhead(this.rules.getWarhead(warheadName)),
+                weaponInfo,
+            };
+        }
+        catch (error) {
+            console.warn(`Ares animation damage for "${animation.name}" was skipped:`, error);
+            return undefined;
+        }
     }
     createSuperWeapon(name: string, owner: any, isReady: boolean = false) {
         const rules = this.rules.getSuperWeapon(name);
@@ -887,6 +1014,7 @@ export class Game {
         finally {
             this.updatableObjectsSnapshot.length = 0;
         }
+        this.updateAresAnimationDamage();
         this.playerList.getCombatants().forEach((player: any) => {
             player.cheerCooldownTicks = Math.max(0, player.cheerCooldownTicks - 1);
         });

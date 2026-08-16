@@ -82,6 +82,18 @@ const animationDamage = [...new Set(attachedAnimations)].map((name) => {
         weapon: definition?.weapon,
     };
 });
+const standaloneAnimationDamage = (effectiveArt?.getOrderedSections() ?? [])
+    .map((section) => parseAresAnimationDamage(section.name, section))
+    .filter((definition): definition is NonNullable<typeof definition> => !!definition && definition.damage > 0)
+    .map((definition) => ({
+        animation: definition.name,
+        damage: definition.damage,
+        damageDelay: definition.damageDelay,
+        warhead: definition.warhead,
+        weapon: definition.weapon,
+        end: definition.end,
+        loopCount: definition.loopCount,
+    }));
 
 const result = {
     status: failures.length === 0 && attachedProjectiles.length > 0 ? "PASS" : "FAIL",
@@ -89,8 +101,9 @@ const result = {
     projectilesWithAttachedSystem: attachedProjectiles.length,
     verified,
     attachedAnimationsWithDamage: animationDamage.filter((entry) => entry.damage > 0),
+    standaloneAnimationsWithDamage: standaloneAnimationDamage,
     failures,
-    scope: "rules/art parser plus shared AttachedSystem and attached Animation damage resolution; not a rendered match or multiplayer certification",
+    scope: "rules/art parser plus shared AttachedSystem and standalone/attached Animation damage resolution; not a rendered match or multiplayer certification",
 };
 console.log(JSON.stringify(result, null, 2));
 process.exitCode = result.status === "PASS" ? 0 : 1;

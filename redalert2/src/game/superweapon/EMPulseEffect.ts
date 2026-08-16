@@ -349,6 +349,8 @@ export class EMPulseEffect extends SuperWeaponEffect {
                 pulseBall,
                 tile,
                 resolveAresEmpulsePulseBallPosition(building, weapon),
+                building.owner,
+                building,
             ));
         }
     }
