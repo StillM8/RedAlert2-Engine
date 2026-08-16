@@ -39,6 +39,9 @@ export class AudioVisualRules {
     private moveFlash: string = '';
     private warpOut: string = '';
     private warpAway: string = '';
+    /** Retail/Ares default Tunnel locomotor dig animation and sound. */
+    public dig: string = '';
+    public digSound: string = '';
     private weaponNullifyAnim: string = '';
     private weatherConClouds: string[] = [];
     private weatherConBoltExplosion: string = '';
@@ -100,6 +103,8 @@ export class AudioVisualRules {
         this.moveFlash = str("MoveFlash", "RING");
         this.warpOut = str("WarpOut", "WARPOUT");
         this.warpAway = str("WarpAway", "WARPAWAY");
+        this.dig = str("Dig", "DIG");
+        this.digSound = str("DigSound");
         this.weaponNullifyAnim = str("WeaponNullifyAnim", "IRONFX");
         this.weatherConClouds = arr("WeatherConClouds", ["WCCLOUD1", "WCCLOUD2", "WCCLOUD3"]);
         this.weatherConBoltExplosion = str("WeatherConBoltExplosion", "EXPLOLB");

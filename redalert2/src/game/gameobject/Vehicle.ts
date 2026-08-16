@@ -128,7 +128,7 @@ export class Vehicle extends Techno {
         if (rules.locomotor === LocomotorType.Hover) {
             vehicle.traits.add(new HoverBobTrait());
         }
-        if ([LocomotorType.Vehicle, LocomotorType.Chrono].includes(rules.locomotor) &&
+        if ([LocomotorType.Vehicle, LocomotorType.Chrono, LocomotorType.Tunnel].includes(rules.locomotor) &&
             terrain.isVoxel) {
             vehicle.tilterTrait = new TilterTrait();
             vehicle.traits.add(vehicle.tilterTrait);

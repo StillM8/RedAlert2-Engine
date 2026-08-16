@@ -110,6 +110,8 @@ export class GeneralRules {
     public dropPodMaximum!: number;
     /** Ares DropPod trailer animation; presentation support is separate. */
     public dropPodTrailer!: string;
+    /** Retail/Ares Tunnel locomotor speed multiplier while underground. */
+    public tunnelSpeed!: number;
     /** Ares Hunter Seeker global launch/flight fallbacks. */
     public hunterSeekerDetonateProximity!: number;
     public hunterSeekerDescendProximity!: number;
@@ -167,6 +169,7 @@ export class GeneralRules {
         this.dropPodMinimum = Math.max(0, Math.floor(ini.getNumber('DropPodMinimum')));
         this.dropPodMaximum = Math.max(0, Math.floor(ini.getNumber('DropPodMaximum')));
         this.dropPodTrailer = ini.getString('DropPodTrailer');
+        this.tunnelSpeed = ini.getNumber('TunnelSpeed', 1);
         this.hunterSeekerDetonateProximity = ini.getNumber('HunterSeekerDetonateProximity');
         this.hunterSeekerDescendProximity = ini.getNumber('HunterSeekerDescendProximity');
         this.hunterSeekerAscentSpeed = ini.getNumber('HunterSeekerAscentSpeed');

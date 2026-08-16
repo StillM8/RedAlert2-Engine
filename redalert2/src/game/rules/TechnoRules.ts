@@ -2,7 +2,7 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import { SideType } from "@/game/SideType";
 import { SpeedType } from "@/game/type/SpeedType";
 import { PipColor } from "@/game/type/PipColor";
-import { LocomotorType } from "@/game/type/LocomotorType";
+import { LocomotorType, resolveLocomotorType } from "@/game/type/LocomotorType";
 import { MovementZone, movementZoneAliases } from "@/game/type/MovementZone";
 import { ArmorType } from "@/game/type/ArmorType";
 import { LandTargeting } from "@/game/type/LandTargeting";
@@ -281,6 +281,14 @@ export class TechnoRules extends ObjectRules {
     declare locomotor: LocomotorType;
     /** Authored CLSID, retained when the generic runtime does not support it. */
     declare locomotorClsId?: string;
+    /** Ares Tunnel locomotor dig-in presentation override. */
+    declare digIn?: string;
+    /** Ares Tunnel locomotor dig-out presentation override. */
+    declare digOut?: string;
+    /** Ares Tunnel locomotor dig-in sound override. */
+    declare digInSound?: string;
+    /** Ares Tunnel locomotor dig-out sound override. */
+    declare digOutSound?: string;
     declare speedType?: SpeedType;
     declare speed: number;
     declare movementZone: MovementZone;
@@ -720,7 +728,7 @@ export class TechnoRules extends ObjectRules {
         let defaultLocomotor = this.type === ObjectType.Building ? LocomotorType.Statue : LocomotorType.Chrono;
         if (locomotorString) {
             this.locomotorClsId = locomotorString;
-            const locomotorType = (LocomotorType as any).locomotorTypesByClsId?.get(locomotorString);
+            const locomotorType = resolveLocomotorType(locomotorString);
             if (locomotorType) {
                 this.locomotor = locomotorType;
             }
@@ -750,10 +758,16 @@ export class TechnoRules extends ObjectRules {
         const speedMultiplier = [
             LocomotorType.Ship,
             LocomotorType.Vehicle,
-            LocomotorType.Chrono
+            LocomotorType.Chrono,
+            LocomotorType.Tunnel,
+            LocomotorType.Mech,
         ].includes(this.locomotor) ? 65 : 100;
         this.speed = ObjectRules.iniSpeedToLeptonsPerTick(this.ini.getNumber("Speed"), speedMultiplier);
         this.movementZone = this.ini.getEnum("MovementZone", MovementZone, MovementZone.Normal, false, movementZoneAliases);
+        this.digIn = this.ini.getString("DigIn") || undefined;
+        this.digOut = this.ini.getString("DigOut") || undefined;
+        this.digInSound = this.ini.getString("DigInSound") || undefined;
+        this.digOutSound = this.ini.getString("DigOutSound") || undefined;
         this.fearless = this.ini.getBool("Fearless");
         // YR introduced IsSimpleDeployer (Siege Chopper) alongside RA2's
         // Deployer key; both mark a unit that toggles deployed state.

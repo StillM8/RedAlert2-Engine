@@ -15,8 +15,14 @@ enum WaypointType {
     End = 3,
     Single = 4
 }
+export interface DriveLocomotorOptions {
+    /** Multiplier applied to the unit's native movement speed. */
+    speedMultiplier?: number;
+    /** Mech locomotion ignores the normal acceleration curve. */
+    ignoreAcceleration?: boolean;
+}
 export class DriveLocomotor {
-    private game: any;
+    protected readonly game: any;
     private hasMomentum: boolean = false;
     private moveOnCurve: boolean = false;
     private currentSpeed: number = 0;
@@ -27,8 +33,12 @@ export class DriveLocomotor {
     private steerCurve: CurvePath;
     private lastPosition: Vector2;
     private totalDistanceToTravel: number;
-    constructor(game: any) {
+    private readonly speedMultiplier: number;
+    private readonly ignoreAcceleration: boolean;
+    constructor(game: any, options: DriveLocomotorOptions = {}) {
         this.game = game;
+        this.speedMultiplier = options.speedMultiplier ?? 1;
+        this.ignoreAcceleration = options.ignoreAcceleration ?? false;
     }
     selectNextWaypoint(unit: any, waypoints: any[]): any {
         this.currentWaypointType = this.currentWaypointType && this.currentWaypointType !== WaypointType.End
@@ -98,13 +108,14 @@ export class DriveLocomotor {
     } {
         this.pointTurretToTarget(unit, target);
         let speed = this.currentSpeed;
-        if (unit.rules.accelerates) {
+        const baseSpeed = this.getMovementSpeed(unit);
+        if (unit.rules.accelerates && !this.ignoreAcceleration) {
             const progress = this.distanceTravelled / this.totalDistanceToTravel;
-            this.currentSpeed = this.applyAcceleration(unit, speed, unit.moveTrait.baseSpeed, progress);
+            this.currentSpeed = this.applyAcceleration(unit, speed, baseSpeed, progress);
             speed = this.currentSpeed;
         }
         else {
-            this.currentSpeed = unit.moveTrait.baseSpeed;
+            this.currentSpeed = baseSpeed;
             speed = this.currentSpeed;
         }
         if (speed > 1) {
@@ -173,6 +184,12 @@ export class DriveLocomotor {
                 unit.turretTrait.desiredFacing = facing;
             }
         }
+    }
+    protected getSpeedMultiplier(_unit: any): number {
+        return this.speedMultiplier;
+    }
+    protected getMovementSpeed(unit: any): number {
+        return unit.moveTrait.baseSpeed * this.getSpeedMultiplier(unit);
     }
     private applyAcceleration(unit: any, currentSpeed: number, baseSpeed: number, progress: number): number {
         if (this.currentWaypointType === WaypointType.Single) {

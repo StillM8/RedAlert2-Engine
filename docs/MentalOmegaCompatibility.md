@@ -22,6 +22,13 @@ extension runtime identifier; vanilla `ra2` and `yr` profiles remain separate.
 - Generic Ares prerequisites support custom groups, alternate TechnoTypes,
   alternative lists, negative prerequisites, stolen-tech gates, and theater
   gates when map theater context is available.
+- The standard Ares/retail locomotor CLSIDs now resolve case-insensitively,
+  including Tunnel, Mech, DropPod, and Levitate, without coercing unknown
+  locomotors into Chrono.
+- Tunnel locomotion now has a shared long-route underground path, the retail
+  subterranean elevation and horizontal speed, Mech's no-acceleration and
+  reduced-speed behavior, and generic Ares Dig/DigIn/DigOut presentation
+  fields. Full locomotor edge parity and content certification remain open.
 
 ## Local Mental Omega 3.3.6 scan checkpoint
 
@@ -104,6 +111,11 @@ could affect both vanilla and Ares matches:
 - stale temporal attacker links are released instead of throwing during erase;
 - Ares AttachEffect presentation work is cached at factory creation and stays
   idle until a target actually receives an effect.
+- Standard Ares locomotor resolution no longer fails at unit creation for
+  Tunnel/Mech/DropPod/Levitate CLSIDs. Tunnel movement emits authored dig
+  effects, transitions through the configured subterranean elevation, and
+  bypasses surface blockers only for long underground orders; short orders
+  retain ordinary ground pathing.
 
 The remaining `Not implemented`/unsupported guards were audited separately.
 Object and renderable factories reject object kinds that are art-only, bridge
@@ -111,10 +123,10 @@ ID calculators reject invalid `NotBridge` inputs, CrashableTrait rejects
 locomotors without a defined crash trajectory, and MiniLZO compression is
 unused by the runtime (only decompression is required). These are explicit
 fail-closed boundaries, not silently claimed Ares support. The next real Ares
-runtime gaps remain animation damage from direct renderer-only transient
-animation callsites,
-custom superweapon handler breadth and state persistence, and the transport,
-AI, save/load, and multiplayer portions called out in the tables above.
+runtime gaps remain unsupported custom superweapon handler breadth and state
+persistence, full locomotor transition/targeting edge parity, and the
+transport, AI, save/load, and multiplayer portions called out in the tables
+above.
 
 ## Compatibility status
 

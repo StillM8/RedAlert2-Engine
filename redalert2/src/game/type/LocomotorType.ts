@@ -9,6 +9,10 @@ export enum LocomotorType {
     Missile = 6,
     Ship = 7,
     Vehicle = 8,
+    Tunnel = 9,
+    DropPod = 10,
+    Mech = 11,
+    Levitate = 12,
     /** Parsed explicitly, but intentionally has no runtime movement implementation. */
     Unsupported = -1
 }
@@ -20,8 +24,22 @@ export const locomotorTypesByClsId = new Map<string, LocomotorType>([
     ['{92612C46-F71F-11d1-AC9F-006008055BB5}', LocomotorType.Jumpjet],
     ['{B7B49766-E576-11d3-9BD9-00104B972FE8}', LocomotorType.Missile],
     ['{2BEA74E1-7CCA-11d3-BE14-00104B62A16C}', LocomotorType.Ship],
-    ['{4A582741-9839-11d1-B709-00A024DDAFD1}', LocomotorType.Vehicle]
+    ['{4A582741-9839-11d1-B709-00A024DDAFD1}', LocomotorType.Vehicle],
+    ['{4A582743-9839-11d1-B709-00A024DDAFD1}', LocomotorType.Tunnel],
+    ['{4A582745-9839-11d1-B709-00A024DDAFD1}', LocomotorType.DropPod],
+    ['{55D141B8-DB94-11d1-AC98-006008055BB5}', LocomotorType.Mech],
+    ['{3DC0B295-6546-11D3-80B0-00902792494C}', LocomotorType.Levitate],
 ]);
+
+/** Resolve authored CLSIDs without changing their spelling in diagnostics. */
+export function resolveLocomotorType(value: string | undefined): LocomotorType | undefined {
+    if (!value) return undefined;
+    const normalized = value.trim().toLocaleUpperCase('en-US');
+    for (const [clsid, type] of locomotorTypesByClsId) {
+        if (clsid.toLocaleUpperCase('en-US') === normalized) return type;
+    }
+    return undefined;
+}
 export const defaultSpeedsByLocomotor = new Map<LocomotorType, SpeedType>([
     [LocomotorType.Infantry, SpeedType.Foot],
     [LocomotorType.Ship, SpeedType.Float],

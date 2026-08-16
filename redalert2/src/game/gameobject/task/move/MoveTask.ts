@@ -170,6 +170,9 @@ export class MoveTask extends Task {
         else if ((locomotor as any).ignoresTerrain) {
             path = this.computeDirectJumpPath(unit);
         }
+        else if ((locomotor as any).usesDirectPath?.(unit, this.targetTile)) {
+            path = this.computeDirectJumpPath(unit, true);
+        }
         else {
             const plan = this.computeGroundPath(unit);
             path = this.applyGroundPathPlan(plan);
@@ -196,7 +199,7 @@ export class MoveTask extends Task {
             { tile: unit.tile, onBridge: undefined }
         ];
     }
-    private computeDirectJumpPath(unit: Unit): PathNode[] {
+    private computeDirectJumpPath(unit: Unit, ignoreObstacles = false): PathNode[] {
         const map = this.game.map;
         const canUseBridgeLayer = !Target.usesGroundLayerUnderBridge(unit);
         const unitBridge = canUseBridgeLayer && unit.onBridge
@@ -211,8 +214,8 @@ export class MoveTask extends Task {
             const bridge = canUseBridgeLayer
                 ? map.tileOccupation.getBridgeOnTile(tile)
                 : undefined;
-            return (map.terrain.getPassableSpeed(tile, unit.rules.speedType, unit.isInfantry(), !!bridge, ignoredBlockers) > 0 &&
-                !map.terrain
+            return map.terrain.getPassableSpeed(tile, unit.rules.speedType, unit.isInfantry(), !!bridge, ignoredBlockers) > 0 &&
+                (ignoreObstacles || !map.terrain
                     .findObstacles({ tile, onBridge: bridge }, unit)
                     .find((obstacle) => !ignoredBlockers?.includes(obstacle.obj)));
         });
@@ -554,7 +557,7 @@ export class MoveTask extends Task {
                 return false;
             }
             if (unit.rules.movementZone !== MovementZone.Fly &&
-                !unit.moveTrait.locomotor.ignoresTerrain) {
+                !this.locomotorUsesDirectPath(unit, unit.moveTrait.locomotor)) {
                 const pathToCheck = this.path!
                     .slice(this.path!.indexOf(unit.moveTrait.currentWaypoint!))
                     .reverse();
@@ -1015,7 +1018,7 @@ export class MoveTask extends Task {
             if ((this.options?.allowOutOfBoundsTarget ||
                 this.game.map.mapBounds.isWithinBounds(this.targetTile)) &&
                 unit.rules.movementZone !== MovementZone.Fly &&
-                !(locomotor as any).ignoresTerrain &&
+                !this.locomotorUsesDirectPath(unit, locomotor) &&
                 unit.unitOrderTrait.getCurrentTask()?.isCancelling()) {
                 if (!this.groundPathPlan) {
                     const plan = this.computeGroundPath(unit);
@@ -1035,5 +1038,9 @@ export class MoveTask extends Task {
     }
     private log(unit: Unit, message: string): void {
         this.logger.debug(`<${unit.id}>: ${message}`);
+    }
+
+    private locomotorUsesDirectPath(unit: Unit, locomotor: any): boolean {
+        return !!locomotor?.ignoresTerrain || !!locomotor?.usesDirectPath?.(unit, this.targetTile);
     }
 }
