@@ -33,6 +33,8 @@ import { OreOverlayTypes } from "./map/OreOverlayTypes";
 import { Weapon } from "./Weapon";
 import { GameSpeed } from "./GameSpeed";
 import { DeathType } from "./gameobject/common/DeathType";
+import { CollisionType } from "./gameobject/unit/CollisionType";
+import { ZoneType } from "./gameobject/unit/ZoneType";
 import { BridgeHeadType } from "./map/Bridges";
 import { SuperWeapon } from "./SuperWeapon";
 import { AllianceChangeEvent, AllianceEventType } from "./event/AllianceChangeEvent";
@@ -573,6 +575,79 @@ export class Game {
         projectile.fromPlayer = fromPlayer;
         projectile.target = target;
         return projectile;
+    }
+    /**
+     * Deliver one Ares [Animation] damage step through the normal Warhead
+     * detonation path. AttachEffect owns the tick accumulator; this method
+     * owns the shared target filtering, armor, effects, and kill attribution.
+     */
+    applyAresAnimationDamage(request: {
+        target: any;
+        animation: {
+            name: string;
+            warhead?: string;
+            weapon?: string;
+        };
+        damage: number;
+        sourcePlayer?: any;
+    }): void {
+        const target = request.target;
+        if (!target || target.isDestroyed || target.isDisposed || target.isCrashing ||
+            !target.isSpawned || !target.position?.worldPosition) {
+            return;
+        }
+
+        const centerTile = target.isBuilding?.() ? target.centerTile : target.tile;
+        if (!centerTile) return;
+
+        let warheadName = request.animation.warhead;
+        let weaponInfo: any = {
+            player: request.sourcePlayer ?? target.owner,
+            obj: undefined,
+            weapon: undefined,
+        };
+
+        if (request.animation.weapon) {
+            const weaponRules = this.rules.getWeapon(request.animation.weapon);
+            warheadName = weaponRules.warhead;
+            if (warheadName === Warhead.SPECIAL_WARHEAD_NAME) {
+                warheadName = Weapon.findSpecialWarheadName(weaponRules, target, this.rules);
+            }
+            const projectileRules = this.rules.getProjectile(weaponRules.projectile);
+            // Ares creates and immediately detonates a projectile here.  The
+            // shared Warhead path only needs the weapon's rules and projectile
+            // metadata; no transient projectile is inserted into the world.
+            const animationWeapon = {
+                gameObject: undefined,
+                projectileRules,
+                rules: weaponRules,
+                type: WeaponType.Primary,
+            };
+            // Ares 2.0 documents that Weapon= animation damage has no player
+            // owner. Keep that distinction from the direct Warhead path.
+            weaponInfo = { player: undefined, obj: undefined, weapon: animationWeapon };
+        }
+        else if (!warheadName) {
+            warheadName = request.animation.name.toLocaleLowerCase("en-US") === "inviso"
+                ? this.rules.combatDamage.c4Warhead
+                : this.rules.combatDamage.flameDamage2 ?? this.rules.combatDamage.c4Warhead;
+        }
+
+        if (!warheadName) return;
+        const warhead = new Warhead(this.rules.getWarhead(warheadName));
+        warhead.detonate(
+            this as any,
+            request.damage,
+            centerTile,
+            target.tileElevation ?? 0,
+            target.position.worldPosition,
+            target.zone ?? ZoneType.Ground,
+            CollisionType.None,
+            this.createTarget(target, centerTile),
+            weaponInfo,
+            false,
+            undefined,
+        );
     }
     createSuperWeapon(name: string, owner: any, isReady: boolean = false) {
         const rules = this.rules.getSuperWeapon(name);

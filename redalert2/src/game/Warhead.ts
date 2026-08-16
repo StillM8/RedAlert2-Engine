@@ -72,6 +72,7 @@ interface TechnoObject extends GameObject {
             options?: {
                 protectedByIronCurtainOrForceShield?: boolean;
                 context?: GameWorld;
+                sourcePlayer?: Player;
             },
         ): AresAttachEffectApplyResult;
     };
@@ -586,7 +587,7 @@ export class Warhead {
                 gameWorld.destroyObject(obj, weaponInfo);
                 continue;
             }
-            const attachEffectApplied = this.applyAresAttachEffect(obj, gameWorld);
+            const attachEffectApplied = this.applyAresAttachEffect(obj, gameWorld, sourcePlayer);
             const killDriverApplied = aresEffectsAllowed && this.rules.killDriver && obj.isTechno() &&
                 sourceObj &&
                 applyAresKillDriver(obj as any, sourceObj, gameWorld as any, {
@@ -685,7 +686,11 @@ export class Warhead {
     }
 
     /** Apply a Warhead-owned AttachEffect through the target's live trait. */
-    private applyAresAttachEffect(target: GameObject, gameWorld: GameWorld): AresAttachEffectApplyResult | undefined {
+    private applyAresAttachEffect(
+        target: GameObject,
+        gameWorld: GameWorld,
+        sourcePlayer?: Player,
+    ): AresAttachEffectApplyResult | undefined {
         const definition = this.rules.aresAttachEffect;
         if (!definition || !target.isTechno() || target.isDestroyed || target.isCrashing) {
             return undefined;
@@ -736,14 +741,12 @@ export class Warhead {
             {
                 protectedByIronCurtainOrForceShield: techno.invulnerableTrait.isActive(),
                 context: gameWorld,
+                sourcePlayer,
             },
         );
         if (result.forceDecloak) {
             (techno as any).cloakableTrait?.uncloak?.(gameWorld);
         }
-        // The current renderer has no AttachEffect animation owner yet. Keep
-        // the reset signal on the real trait result for the presentation hook
-        // to consume without changing vanilla objects.
         return result;
     }
     /**

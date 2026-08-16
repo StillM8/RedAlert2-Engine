@@ -18,6 +18,10 @@ import {
     type AresAttachEffectExtensionState,
     type AresAttachEffectStateTarget,
 } from "@/extensions/ares/AresAttachEffectState";
+import {
+    advanceAresAnimationDamage,
+    parseAresAnimationDamage,
+} from "@/extensions/ares/AresAnimationDamage";
 
 export interface AresAttachEffectMultipliers {
     speed: number;
@@ -33,6 +37,11 @@ export interface AresAttachEffectTraitOptions {
     instances?: readonly AresAttachEffectInstance[];
     /** Optional TechnoType-owned effect that is scheduled from spawn onward. */
     automaticEffect?: AresAttachEffectBinding;
+}
+
+interface AresAnimationDamageRuntimeState {
+    accumulator: number;
+    sourcePlayer?: any;
 }
 
 export interface AresAttachEffectBinding {
@@ -79,6 +88,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     private automaticRemainingDelay = 0;
     private presentationRevision = 0;
     private animationRevision = 0;
+    private animationDamageState = new Map<AresAttachEffectId, AresAnimationDamageRuntimeState[]>();
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
         this.gameObject = options.gameObject;
@@ -89,6 +99,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             this.definitions.set(this.automaticEffect.effectId, this.automaticEffect.definition);
             this.automaticPhase = this.hasAutomaticInstance() ? "active" : "inactive";
         }
+        this.reconcileAnimationDamageState([], this.instances);
         this.syncDynamicCloak();
     }
 
@@ -116,6 +127,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         this.instances = restored.instances.map(instance => ({ ...instance }));
         this.automaticPhase = restored.automaticPhase;
         this.automaticRemainingDelay = restored.automaticRemainingDelay;
+        this.animationDamageState.clear();
+        this.reconcileAnimationDamageState([], this.instances);
         this.presentationRevision++;
         this.animationRevision++;
         this.pruneDefinitions();
@@ -128,11 +141,20 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         options: {
             protectedByIronCurtainOrForceShield?: boolean;
             context?: any;
+            sourcePlayer?: any;
         } = {},
     ): AresAttachEffectApplyResult {
+        const previousInstances = this.instances;
         const previousDefinition = this.definitions.get(effectId);
         const result = applyAresAttachEffect(definition, effectId, this.instances, options);
         this.instances = result.instances.map(instance => ({ ...instance }));
+        this.reconcileAnimationDamageState(
+            previousInstances,
+            this.instances,
+            effectId,
+            result.decision,
+            options.sourcePlayer,
+        );
 
         if (["applied", "reapplied", "stacked"].includes(result.decision)) {
             this.definitions.set(effectId, definition);
@@ -163,8 +185,14 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         return this.copyApplyResult(result);
     }
 
-    advance(options: { includeState?: boolean; context?: any } = {}): AresAttachEffectTraitAdvanceResult {
+    advance(options: {
+        includeState?: boolean;
+        context?: any;
+    } = {}): AresAttachEffectTraitAdvanceResult {
+        const previousInstances = this.instances.map(instance => ({ ...instance }));
+        this.applyAnimationDamage(options.context);
         const expiredEffectIds = advanceAresAttachEffectsInPlace(this.instances);
+        this.reconcileAnimationDamageState(previousInstances, this.instances);
         if (expiredEffectIds.length) this.presentationRevision++;
         let automaticApply: AresAttachEffectApplyResult | undefined;
 
@@ -184,7 +212,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             }
         }
 
-        automaticApply = this.processAutomaticDelay();
+        automaticApply = this.processAutomaticDelay(options);
         if (expiredEffectIds.length || automaticApply !== undefined) {
             this.pruneDefinitions();
         }
@@ -202,8 +230,10 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     }
 
     discardOnEntry(context?: any): AresAttachEffectRemovalResult {
+        const previousInstances = this.instances;
         const result = discardAresAttachEffectsOnEntry(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
+        this.reconcileAnimationDamageState(previousInstances, this.instances);
         if (result.removedEffectIds.length) this.presentationRevision++;
         if (this.automaticEffect &&
             result.removedEffectIds.includes(this.automaticEffect.effectId)) {
@@ -258,6 +288,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         options: {
             protectedByIronCurtainOrForceShield?: boolean;
             context?: any;
+            sourcePlayer?: any;
         } = {},
     ): AresAttachEffectApplyResult | undefined {
         if (!this.automaticEffect || this.hasAutomaticInstance()) {
@@ -366,6 +397,104 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         for (const effectId of this.definitions.keys()) {
             if (!activeIds.has(effectId)) this.definitions.delete(effectId);
         }
+        for (const effectId of this.animationDamageState.keys()) {
+            if (!activeIds.has(effectId)) this.animationDamageState.delete(effectId);
+        }
+    }
+
+    private applyAnimationDamage(context?: any): void {
+        const applyDamage = context?.applyAresAnimationDamage;
+        const getAnimation = context?.art?.getAnimation;
+        if (!this.gameObject || typeof applyDamage !== "function" || typeof getAnimation !== "function") {
+            return;
+        }
+        if (this.gameObject.isDestroyed || this.gameObject.isCrashing) return;
+
+        const hiddenByCloak = this.gameObject.cloakableTrait?.isCloaked?.() === true;
+        const occurrenceById = new Map<AresAttachEffectId, number>();
+        for (const instance of this.instances) {
+            const occurrence = occurrenceById.get(instance.effectId) ?? 0;
+            occurrenceById.set(instance.effectId, occurrence + 1);
+
+            const definition = this.definitions.get(instance.effectId);
+            if (!definition?.animation) continue;
+
+            const states = this.animationDamageState.get(instance.effectId) ?? [];
+            const state = states[occurrence] ?? { accumulator: 0 };
+            states[occurrence] = state;
+            this.animationDamageState.set(instance.effectId, states);
+            const animation = (() => {
+                try {
+                    return getAnimation.call(context.art, definition.animation);
+                }
+                catch {
+                    return undefined;
+                }
+            })();
+            const animationDamage = parseAresAnimationDamage(
+                definition.animation,
+                animation?.art,
+            );
+            if (!animationDamage || animationDamage.damage <= 0) continue;
+
+            const hiddenByTemporal = definition.temporalHidesAnim &&
+                this.gameObject.warpedOutTrait?.isActive?.() === true;
+            if (hiddenByCloak || hiddenByTemporal) {
+                // Cloaking/temporal removal recreates the attached animation,
+                // so its animation accumulator starts from zero on re-entry.
+                state.accumulator = 0;
+                continue;
+            }
+
+            const step = advanceAresAnimationDamage(animationDamage, state);
+            state.accumulator = step.state.accumulator;
+            if (step.damage > 0) {
+                applyDamage.call(context, {
+                    target: this.gameObject,
+                    animation: animationDamage,
+                    damage: step.damage,
+                    sourcePlayer: state.sourcePlayer,
+                });
+            }
+        }
+    }
+
+    private reconcileAnimationDamageState(
+        previousInstances: readonly AresAttachEffectInstance[],
+        nextInstances: readonly AresAttachEffectInstance[],
+        newEffectId?: AresAttachEffectId,
+        decision?: AresAttachEffectApplyResult["decision"],
+        newSourcePlayer?: any,
+    ): void {
+        const queues = new Map<AresAttachEffectId, AresAnimationDamageRuntimeState[]>();
+        const previousOccurrences = new Map<AresAttachEffectId, number>();
+        for (const instance of previousInstances) {
+            const occurrence = previousOccurrences.get(instance.effectId) ?? 0;
+            previousOccurrences.set(instance.effectId, occurrence + 1);
+            const state = this.animationDamageState.get(instance.effectId)?.[occurrence];
+            const queue = queues.get(instance.effectId) ?? [];
+            queue.push(state ?? { accumulator: 0 });
+            queues.set(instance.effectId, queue);
+        }
+
+        const nextState = new Map<AresAttachEffectId, AresAnimationDamageRuntimeState[]>();
+        const nextOccurrences = new Map<AresAttachEffectId, number>();
+        for (const instance of nextInstances) {
+            const occurrence = nextOccurrences.get(instance.effectId) ?? 0;
+            nextOccurrences.set(instance.effectId, occurrence + 1);
+            const queue = queues.get(instance.effectId) ?? [];
+            const state = queue.shift() ?? {
+                accumulator: 0,
+                sourcePlayer: instance.effectId === newEffectId &&
+                    (decision === "applied" || decision === "stacked")
+                    ? newSourcePlayer
+                    : undefined,
+            };
+            const states = nextState.get(instance.effectId) ?? [];
+            states.push(state);
+            nextState.set(instance.effectId, states);
+        }
+        this.animationDamageState = nextState;
     }
 
     private syncDynamicCloak(context?: any): void {

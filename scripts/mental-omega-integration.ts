@@ -10,6 +10,8 @@ import { resolve } from "node:path";
 import { IniFile } from "../redalert2/src/data/IniFile";
 import { IniSourceLoader } from "../redalert2/src/engine/IniSourceLoader";
 import { Rules } from "../redalert2/src/game/rules/Rules";
+import { parseAresAnimationDamage } from "../redalert2/src/extensions/ares/AresAnimationDamage";
+import { parseAresAttachEffectDefinition } from "../redalert2/src/extensions/ares/AresAttachEffect";
 import { createMentalOmegaVfs } from "./mental-omega-content";
 
 const installRoot = resolve(process.argv[2] ?? process.env.MO_INSTALL_DIR ?? "");
@@ -34,6 +36,7 @@ if (!effectiveRules) {
 }
 
 const rules = new Rules(effectiveRules, { debug: () => undefined });
+const effectiveArt = loader.loadEffectiveIni("artmo.ini")?.ini;
 const attachedProjectiles = effectiveRules.getOrderedSections()
     .filter((section) => section.has("AttachedSystem"))
     .map((section) => ({
@@ -63,13 +66,31 @@ const verified = attachedProjectiles.map(({ name, attachedSystem }) => {
     };
 });
 
+const attachedAnimations = [...effectiveRules.getOrderedSections()]
+    .map((section) => parseAresAttachEffectDefinition(section).animation)
+    .filter((name): name is string => !!name);
+const animationDamage = [...new Set(attachedAnimations)].map((name) => {
+    const definition = parseAresAnimationDamage(name, effectiveArt?.getSection(name));
+    if (!definition) {
+        failures.push(`${name}: AttachEffect animation art section was not resolved`);
+    }
+    return {
+        animation: name,
+        damage: definition?.damage ?? 0,
+        damageDelay: definition?.damageDelay ?? 0,
+        warhead: definition?.warhead,
+        weapon: definition?.weapon,
+    };
+});
+
 const result = {
     status: failures.length === 0 && attachedProjectiles.length > 0 ? "PASS" : "FAIL",
     archives: archives.length,
     projectilesWithAttachedSystem: attachedProjectiles.length,
     verified,
+    attachedAnimationsWithDamage: animationDamage.filter((entry) => entry.damage > 0),
     failures,
-    scope: "rules parser/model plus shared smoke-only AttachedSystem resolution; not a rendered match or multiplayer certification",
+    scope: "rules/art parser plus shared AttachedSystem and attached Animation damage resolution; not a rendered match or multiplayer certification",
 };
 console.log(JSON.stringify(result, null, 2));
 process.exitCode = result.status === "PASS" ? 0 : 1;

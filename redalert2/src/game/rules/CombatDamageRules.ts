@@ -9,6 +9,8 @@ export class CombatDamageRules {
     private dMislEliteWarhead: string = '';
     private dMislWarhead: string = '';
     private flameDamage: string = '';
+    /** Ares fallback warhead for [Animation] damage. */
+    public flameDamage2: string = '';
     private ironCurtainDuration: number = 0;
     public ivanDamage: number = 0;
     public ivanIconFlickerRate: number = 0;
@@ -31,6 +33,7 @@ export class CombatDamageRules {
         this.dMislEliteWarhead = ini.getString("DMislEliteWarhead");
         this.dMislWarhead = ini.getString("DMislWarhead");
         this.flameDamage = ini.getString("FlameDamage");
+        this.flameDamage2 = ini.getString("FlameDamage2");
         this.ironCurtainDuration = ini.getNumber("IronCurtainDuration");
         this.ivanDamage = ini.getNumber("IvanDamage");
         this.ivanIconFlickerRate = ini.getNumber("IvanIconFlickerRate");
