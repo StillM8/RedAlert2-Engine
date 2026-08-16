@@ -476,7 +476,8 @@ describe("Mental Omega Ares superweapon host certification", () => {
         expect(host.spawned).toHaveLength(1);
         expect(host.spawned[0].name).toBe("MODropInfantry");
         expect(host.spawned[0].dropPodState).toEqual({ phase: "landed", target: { rx: 5, ry: 5 } });
-        expect(host.events).toHaveLength(1);
+        expect(host.events).toHaveLength(2);
+        expect(host.events.some((event: any) => event.name === "SMOKEY")).toBe(true);
     });
 
     test("reaches HunterSeeker and launches from the configured MO building through the host", () => {

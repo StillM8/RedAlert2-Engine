@@ -174,6 +174,71 @@ SW.MaxCount=-1
         expect(seeker.isDestroyed).toBe(true);
     });
 
+    test("interprets detonation and descent proximity in leptons rather than map cells", () => {
+        const owner = { id: "owner" };
+        const enemy = {
+            id: 2,
+            owner: { id: "enemy" },
+            tile: makeTile(1, 0),
+            isTechno: () => true,
+            isSpawned: true,
+            isDestroyed: false,
+            isCrashing: false,
+            rules: { legalTarget: true },
+        };
+        let detonated = false;
+        const seeker: any = {
+            id: 1,
+            owner,
+            tile: makeTile(0, 0),
+            isSpawned: true,
+            isDestroyed: false,
+            isCrashing: false,
+            position: { worldPosition: { y: 0 } },
+            rules: {
+                hunterSeekerIgnore: false,
+                flightLevel: 100,
+                hunterSeekerDetonateProximity: 150,
+                hunterSeekerDescendProximity: 700,
+            },
+            primaryWeapon: {
+                rules: { damage: 1 },
+                warhead: { detonate: () => { detonated = true; } },
+            },
+            unitOrderTrait: {
+                getCurrentTask: () => undefined,
+                cancelAllTasks: () => undefined,
+                addTask: () => undefined,
+            },
+        };
+        const game: any = {
+            alliances: { areAllied: () => false },
+            isValidTarget: () => true,
+            generateRandomInt: () => 0,
+            getWorld: () => ({ getAllObjects: () => [seeker, enemy] }),
+            rules: { general: { flightLevel: 100 } },
+            map: { getTileZone: () => 0 },
+        };
+        const trait = new AresHunterSeekerTrait({
+            randomOnly: false,
+            affectsHouse: "Enemies",
+            detonateProximity: 0,
+            descendProximity: 0,
+            ascentSpeed: 40,
+            descentSpeed: 50,
+            emergeSpeed: 6,
+        });
+
+        trait[NotifyTick.onTick](seeker, game);
+
+        expect(detonated).toBe(false);
+        expect(seeker.aresHunterSeekerFlight).toMatchObject({
+            phase: "descend",
+            descendProximity: 700,
+            descentSpeed: 50,
+        });
+    });
+
     test("scanner reports Hunter Seeker fields separately", () => {
         const report = scanMentalOmegaIniSources([{
             name: "rulesmo.ini",

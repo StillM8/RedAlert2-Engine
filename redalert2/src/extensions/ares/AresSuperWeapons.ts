@@ -106,7 +106,11 @@ const EXTENSION_PREFIXES = [
     "sidebarpcx",
     "sonarpulse.",
     "eva.",
+    "message.",
     "text.",
+    "light.",
+    "droppodweapon",
+    "droppodtrailer",
     "money.",
     "usechargedrain",
 ] as const;
@@ -220,7 +224,26 @@ export interface AresSuperWeaponDefinition {
     evaDetected?: string;
     evaReady?: string;
     evaActivated?: string;
+    /** Ares message labels, displayed at the corresponding lifecycle stage. */
+    messageDetected?: string;
+    messageReady?: string;
+    messageLaunch?: string;
+    messageActivate?: string;
+    messageAbort?: string;
+    messageInsufficientFunds?: string;
+    messageCannotFire?: string;
+    messageFirerColor?: boolean;
+    messageColor?: string;
     textReady?: string;
+    textCharging?: string;
+    textActive?: string;
+
+    /** Temporary primary-superweapon lighting override. */
+    lightEnabled?: boolean;
+    lightAmbient?: number;
+    lightRed?: number;
+    lightGreen?: number;
+    lightBlue?: number;
 
     deliverTypes?: string[];
     deliverOwner?: string;
@@ -232,6 +255,8 @@ export interface AresSuperWeaponDefinition {
     dropPodVeterancy?: number;
     dropPodMinimum?: number;
     dropPodMaximum?: number;
+    dropPodWeapon?: string;
+    dropPodTrailer?: string;
 
     hunterSeekerBuildings?: string[];
     hunterSeekerType?: string;
@@ -368,7 +393,23 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         evaDetected: getString(section, "EVA.Detected"),
         evaReady: getString(section, "EVA.Ready"),
         evaActivated: getString(section, "EVA.Activated"),
+        messageDetected: getString(section, "Message.Detected"),
+        messageReady: getString(section, "Message.Ready"),
+        messageLaunch: getString(section, "Message.Launch"),
+        messageActivate: getString(section, "Message.Activate"),
+        messageAbort: getString(section, "Message.Abort"),
+        messageInsufficientFunds: getString(section, "Message.InsufficientFunds"),
+        messageCannotFire: getString(section, "Message.CannotFire"),
+        messageFirerColor: getBool(section, "Message.FirerColor"),
+        messageColor: getString(section, "Message.Color"),
         textReady: getString(section, "Text.Ready"),
+        textCharging: getString(section, "Text.Charging"),
+        textActive: getString(section, "Text.Active"),
+        lightEnabled: getBool(section, "Light.Enabled"),
+        lightAmbient: getNumber(section, "Light.Ambient"),
+        lightRed: getNumber(section, "Light.Red"),
+        lightGreen: getNumber(section, "Light.Green"),
+        lightBlue: getNumber(section, "Light.Blue"),
         deliverTypes: getArray(section, "Deliver.Types"),
         deliverOwner: getString(section, "Deliver.Owner"),
         deliverBaseNormal: getBool(section, "Deliver.BaseNormal"),
@@ -377,6 +418,8 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         dropPodVeterancy: getNumber(section, "DropPod.Veterancy"),
         dropPodMinimum: getNumber(section, "DropPod.Minimum"),
         dropPodMaximum: getNumber(section, "DropPod.Maximum"),
+        dropPodWeapon: getString(section, "DropPodWeapon"),
+        dropPodTrailer: getString(section, "DropPodTrailer"),
         hunterSeekerBuildings: getArray(section, "HunterSeeker.Buildings"),
         hunterSeekerType: getString(section, "HunterSeeker.Type"),
         hunterSeekerRandomOnly: getBool(section, "HunterSeeker.RandomOnly"),

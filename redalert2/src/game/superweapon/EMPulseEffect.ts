@@ -1,9 +1,13 @@
 import { Coords } from "@/game/Coords";
+import { Vector2 } from "@/game/math/Vector2";
+import { Vector3 } from "@/game/math/Vector3";
+import * as geometry from "@/game/math/geometry";
 import { CollisionType } from "@/game/gameobject/unit/CollisionType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
 import { getAvailableBuildingSuperWeapon } from "@/game/gameobject/trait/SuperWeaponTrait";
 import type { AresSuperWeaponDefinition } from "@/extensions/ares/AresSuperWeapons";
 import { SuperWeaponEffect, type TileCoord } from "@/game/superweapon/SuperWeaponEffect";
+import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
 
 type TileLike = { rx: number; ry: number; z?: number };
 
@@ -29,6 +33,10 @@ interface EmpulseBuilding {
     poweredTrait?: { isPoweredOn?: () => boolean };
     superWeaponTrait?: { getSuperWeapon?: (building: any) => any };
     superWeaponTraits?: Array<{ getSuperWeapon?: (building: any) => any }>;
+    position?: { getMapPosition?: () => any };
+    direction?: number;
+    art?: { turretOffset?: number };
+    turretTrait?: { facing?: number };
     primaryWeapon?: EmpulseWeapon;
     armedTrait?: { getWeapons?: () => EmpulseWeapon[] };
 }
@@ -39,11 +47,50 @@ interface EmpulseWeapon {
         minimumRange?: number;
         range?: number;
     };
+    flh?: { forward?: number; lateral?: number; vertical?: number };
+    getMuzzleFacing?: () => number;
     warhead?: {
         detonate?: (...args: any[]) => void;
     };
     expireCooldown?: () => void;
     fire?: (target: any, game: any) => void;
+}
+
+/**
+ * Resolve the EMPulse pulse-ball origin using the same FLH and turret offsets
+ * as the normal weapon muzzle path.  The event remains render-only; the
+ * simulation never stores a renderer object or animation instance.
+ */
+export function resolveAresEmpulsePulseBallPosition(
+    building: EmpulseBuilding,
+    weapon: EmpulseWeapon,
+): any | undefined {
+    const tile = buildingTile(building);
+    if (!tile) return undefined;
+
+    const basePosition = building.position?.getMapPosition?.()?.clone?.() ??
+        Coords.tile3dToWorld(
+            tile.rx + 0.5,
+            tile.ry + 0.5,
+            (tile.z ?? 0) + (building.tileElevation ?? 0),
+        );
+    const flh = weapon.flh;
+    if (!flh) return basePosition;
+
+    const facing = weapon.getMuzzleFacing?.() ?? building.turretTrait?.facing ?? building.direction ?? 0;
+    const muzzleOffset = geometry.rotateVec2(
+        new Vector2(flh.lateral ?? 0, flh.forward ?? 0),
+        facing,
+    );
+    const turretOffset = geometry.rotateVec2(
+        new Vector2(0, building.art?.turretOffset ?? 0),
+        building.direction ?? 0,
+    );
+    return basePosition.clone().add(new Vector3(
+        muzzleOffset.x + turretOffset.x,
+        flh.vertical ?? 0,
+        -(muzzleOffset.y + turretOffset.y),
+    ));
 }
 
 export interface AresEmpulseLaunchSiteOptions {
@@ -257,6 +304,7 @@ export class EMPulseEffect extends SuperWeaponEffect {
             return;
         }
 
+        this.dispatchPulseBall(game);
         this.pendingFrames = Math.max(0, Math.floor(this.rules.empulsePulseDelay ?? 32));
         if (this.pendingFrames === 0) {
             this.launch(false, game);
@@ -286,6 +334,22 @@ export class EMPulseEffect extends SuperWeaponEffect {
                 weapon.expireCooldown?.();
                 weapon.fire?.(game.createTarget(undefined, this.tile), game);
             }
+        }
+    }
+
+    private dispatchPulseBall(game: any): void {
+        const pulseBall = this.rules.empulsePulseBall?.trim() || "PULSBALL";
+        if (normalize(pulseBall) === "none" || !game.events?.dispatch) return;
+
+        for (const building of this.launchSites) {
+            const weapon = getLaunchWeapon(building);
+            const tile = buildingTile(building);
+            if (!weapon || !tile) continue;
+            game.events.dispatch(new TriggerAnimEvent(
+                pulseBall,
+                tile,
+                resolveAresEmpulsePulseBallPosition(building, weapon),
+            ));
         }
     }
 }

@@ -21,11 +21,11 @@ function targetTile(target: any): any | undefined {
     return target?.isBuilding?.() ? target.centerTile : target?.tile;
 }
 
-function tileDistance(first: any, second: any): number {
+function tileDistanceInLeptons(first: any, second: any): number {
     if (!first || !second) return Number.POSITIVE_INFINITY;
     const dx = (first.rx ?? 0) - (second.rx ?? 0);
     const dy = (first.ry ?? 0) - (second.ry ?? 0);
-    return Math.sqrt(dx * dx + dy * dy);
+    return Math.sqrt(dx * dx + dy * dy) * Coords.LEPTONS_PER_TILE;
 }
 
 /**
@@ -66,7 +66,8 @@ export class AresHunterSeekerTrait implements NotifyTick {
 
         const targetCell = targetTile(target);
         const proximity = this.resolveDetonateProximity(aircraft);
-        if (targetCell && tileDistance(aircraft.tile, targetCell) <= proximity) {
+        if (targetCell) this.updateFlightProfile(aircraft, targetCell, game);
+        if (targetCell && tileDistanceInLeptons(aircraft.tile, targetCell) <= proximity) {
             this.detonate(aircraft, target, game);
             return;
         }
@@ -103,10 +104,48 @@ export class AresHunterSeekerTrait implements NotifyTick {
         const configured = Number.isFinite(unitValue) && unitValue > 0
             ? unitValue
             : this.context.detonateProximity;
-        // A zero Ares default means no explicit range was supplied.  Keeping
-        // a one-cell safety floor prevents a seeker with incomplete content
-        // from orbiting a target forever while preserving authored values.
+        // Ares stores these values in leptons, not map cells. A zero default
+        // means no explicit range was supplied; a one-lepton floor still lets
+        // a seeker finish on the exact target cell with incomplete content.
         return Math.max(1, Number.isFinite(configured) ? configured : 1);
+    }
+
+    private resolvePositiveSetting(aircraft: any, key: string, fallback: number): number {
+        const value = aircraft.rules?.[key];
+        if (Number.isFinite(value) && value > 0) return value;
+        return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+    }
+
+    private updateFlightProfile(aircraft: any, targetCell: any, game: any): void {
+        const distance = tileDistanceInLeptons(aircraft.tile, targetCell);
+        const descendProximity = this.resolvePositiveSetting(
+            aircraft,
+            "hunterSeekerDescendProximity",
+            this.context.descendProximity,
+        );
+        const currentY = aircraft.position?.worldPosition?.y;
+        const launchBridge = game.map?.tileOccupation?.getBridgeOnTile?.(aircraft.tile);
+        const launchGroundY = Coords.tileHeightToWorld(
+            (aircraft.tile?.z ?? 0) + (launchBridge?.tileElevation ?? 0),
+        );
+        const flightLevel = aircraft.rules?.flightLevel ?? game.rules?.general?.flightLevel ?? 0;
+        const cruiseY = launchGroundY + flightLevel;
+        const phase = descendProximity > 0 && distance <= descendProximity
+            ? "descend"
+            : Number.isFinite(currentY) && currentY <= launchGroundY + 1
+                ? "emerge"
+                : Number.isFinite(currentY) && currentY < cruiseY
+                    ? "ascent"
+                    : "cruise";
+
+        aircraft.aresHunterSeekerFlight = {
+            phase,
+            targetTile: { rx: targetCell.rx, ry: targetCell.ry, z: targetCell.z ?? 0 },
+            descendProximity,
+            emergeSpeed: this.resolvePositiveSetting(aircraft, "hunterSeekerEmergeSpeed", this.context.emergeSpeed),
+            ascentSpeed: this.resolvePositiveSetting(aircraft, "hunterSeekerAscentSpeed", this.context.ascentSpeed),
+            descentSpeed: this.resolvePositiveSetting(aircraft, "hunterSeekerDescentSpeed", this.context.descentSpeed),
+        };
     }
 
     private cancelPursuit(aircraft: any): void {

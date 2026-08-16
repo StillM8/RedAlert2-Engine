@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
     EMPulseEffect,
     isAresEmpulseLaunchSiteInRange,
+    resolveAresEmpulsePulseBallPosition,
     selectAresEmpulseLaunchSites,
 } from "@/game/superweapon/EMPulseEffect";
+import { Vector3 } from "@/game/math/Vector3";
 
 function makeBuilding(overrides: any = {}): any {
     const name = overrides.name ?? "EMPCannon";
@@ -124,6 +126,42 @@ describe("Ares EMPulse", () => {
         expect(effect.onTick(game)).toBe(true);
         expect(fired).toHaveLength(1);
         expect(fired[0][0].tile).toEqual({ rx: 3, ry: 3, z: 0 });
+    });
+
+    test("dispatches the authored pulse-ball animation at the weapon FLH", () => {
+        const events: any[] = [];
+        const cannon = makeBuilding({
+            name: "PulseCannon",
+            position: { getMapPosition: () => new Vector3(100, 20, 200) },
+            direction: 180,
+            art: { turretOffset: 4 },
+            weapon: {
+                flh: { forward: 10, lateral: 3, vertical: 7 },
+                getMuzzleFacing: () => 90,
+            },
+        });
+        const game: any = {
+            events: { dispatch: (event: any) => events.push(event) },
+            createTarget: () => undefined,
+        };
+        const rules: any = {
+            extensionType: "EMPulse",
+            empulseCannons: ["PulseCannon"],
+            empulseTargetSelf: false,
+            empulseLinked: false,
+            empulsePulseBall: "CUSTOM_PULSE",
+            empulsePulseDelay: 2,
+            swMaxCount: 1,
+            swRangeMinimum: 0,
+            swRangeMaximum: 20,
+        };
+        const effect = new EMPulseEffect("EMPulse", { buildings: [cannon] } as any, { rx: 3, ry: 3, z: 0 }, rules);
+
+        effect.onStart(game);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].name).toBe("CUSTOM_PULSE");
+        expect(events[0].position).toEqual(resolveAresEmpulsePulseBallPosition(cannon, cannon.primaryWeapon));
     });
 
     test("TargetSelf detonates each cannon weapon immediately at its own center", () => {

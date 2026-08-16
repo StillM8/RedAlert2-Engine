@@ -246,7 +246,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresSuperWeapons.test.ts", "AresCompatibilityScanner.test.ts", "GenericWarheadEffect.test.ts", "AresBattery.test.ts", "AresChronoWarp.test.ts", "AresMentalOmegaSuperWeaponHost.test.ts", "AresSuperWeaponAIHost.test.ts", "AresSuperWeaponPresentationRuntime.test.ts"],
-        notes: "Generic host paths cover GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, and the ChronoWarp destination stage with representative Mental Omega fixtures. Authored SW.Animation, SW.AnimationVisibility, SW.Sound, and SW.ActivationSound now flow through shared deferred render/audio events. The aggregate 96-definition custom-type surface remains partial; unsupported handlers, full AI breadth, persistence, target-content, and multiplayer certification remain open.",
+        notes: "Generic host paths cover GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, and the ChronoWarp destination stage with representative Mental Omega fixtures. Authored SW.Animation, SW.AnimationVisibility, SW.Sound, SW.ActivationSound, EVA.*, Message.*, Text.*, and Light.* now flow through shared deferred render/audio/UI events. EMPulse PulseBall placement, DropPod infantry/trailer/impact presentation, native-lepton Hunter Seeker proximity, and shared Hunter Seeker flight profiles are wired; versioned per-instance and AttachEffect state codecs are available. The aggregate 96-definition custom-type surface remains partial; unsupported handlers, full AI breadth, complete in-flight/save restoration, target-content, and multiplayer certification remain open.",
     },
     {
         id: "ares.target-filters",
@@ -336,7 +336,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresHunterSeeker.test.ts"],
-        notes: "Per-superweapon/side/global launch configuration, deterministic eligible-building selection, data-defined aircraft launch, enemy target acquisition, pursuit, and weapon/warhead detonation are wired. Antares ascent/descent speed choreography, specialized target preference edge cases, AI auto-fire, presentation, and in-flight persistence remain open.",
+        notes: "Per-superweapon/side/global launch configuration, deterministic eligible-building selection, data-defined aircraft launch, enemy target acquisition, pursuit, and weapon/warhead detonation are wired. Native-lepton proximity thresholds and shared emerge/ascent/descent speeds are consumed by the common aircraft locomotor. Specialized target preference edge cases, AI auto-fire, full presentation parity, and in-flight persistence remain open.",
     },
     {
         id: "ares.superweapon-deferment",
@@ -417,7 +417,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresEMPulse.test.ts", "AresSuperWeapons.test.ts"],
-        notes: "Antares launch-site defaults, EMPulse.Cannons override, linked range behavior, SW.MaxCount, TargetSelf immediate detonation, and PulseDelay-backed normal firing are wired; pulse-ball animation and AI targeting remain separate.",
+        notes: "Antares launch-site defaults, EMPulse.Cannons override, linked range behavior, SW.MaxCount, TargetSelf immediate detonation, PulseDelay-backed normal firing, and PulseBall default/none/custom animation at the authored weapon FLH are wired; complete AI selector parity and multiplayer/save certification remain separate.",
     },
     {
         id: "ares.superweapon-drop-pod",
@@ -426,7 +426,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresDropPod.test.ts", "AresSuperWeapons.test.ts"],
-        notes: "Antares 3.0p1 global/per-superweapon types, inclusive count range, deterministic type selection, building abort, valid landing placement, ownership, fractional veterancy, and cleanup are wired; DropPod locomotion/trailer presentation, AI targeting, and persistent in-flight state remain open.",
+        notes: "Antares 3.0p1 global/per-superweapon infantry type lists, inclusive count range, deterministic type selection, valid landing placement, ownership, fractional veterancy, cleanup, default/custom trailer animation, and optional landing impact weapon are wired. Full in-flight DropPod locomotion, AI targeting, and persistent in-flight state remain open.",
     },
     {
         id: "ares.staged-weapons",

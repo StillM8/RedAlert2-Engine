@@ -11,6 +11,11 @@ import { RadarEventType } from '@/game/rules/general/RadarRules';
 import { OrderFeedbackType } from '@/game/order/OrderFeedbackType';
 import { QueueType, QueueStatus } from '@/game/player/production/ProductionQueue';
 import { getAvailableBuildingSuperWeapon } from '@/game/gameobject/trait/SuperWeaponTrait';
+import {
+    resolveAresSuperWeaponMessageColor,
+    resolveAresSuperWeaponEva,
+    resolveAresSuperWeaponMessage,
+} from '@/extensions/ares/AresSuperWeaponPresentation';
 
 const detectedSuperWeaponEvaByType = new Map([
     [SuperWeaponType.MultiMissile, 'EVA_NuclearSiloDetected'],
@@ -145,6 +150,9 @@ export class SoundHandler {
                 break;
             case EventType.AresSuperWeaponEffect:
                 this.handleAresSuperWeaponEffectSound(event);
+                break;
+            case EventType.AresSuperWeaponMessage:
+                this.handleAresSuperWeaponMessageEvent(event);
                 break;
             case EventType.LightningStormManifest:
                 this.handleLightningStormManifestSound(event);
@@ -324,26 +332,51 @@ export class SoundHandler {
         }
         else if ((event.radarEventType === RadarEventType.EnemyObjectSensed || event.radarEventType === 'EnemyObjectSensed') && event.target === this.player) {
             const building = this.game.map.getGroundObjectsOnTile(event.tile).find((object: any) => object.isBuilding() && object.superWeaponTrait);
-            const superWeaponType = getAvailableBuildingSuperWeapon(building)?.superWeapon?.rules.type;
-            const eva = detectedSuperWeaponEvaByType.get(superWeaponType);
+            const superWeapon = getAvailableBuildingSuperWeapon(building)?.superWeapon;
+            const ares = event.metadata?.superWeaponRules?.ares ?? superWeapon?.rules?.ares;
+            const customEva = ares
+                ? resolveAresSuperWeaponEva(ares, "detected")
+                : undefined;
+            const eva = customEva !== undefined
+                ? customEva ?? undefined
+                : detectedSuperWeaponEvaByType.get(superWeapon?.rules?.type);
             if (eva) {
                 this.eva.play(eva);
+            }
+            if (ares) {
+                this.showAresSuperWeaponMessage(ares, "detected", event.metadata?.superWeaponOwner ?? superWeapon?.owner);
             }
         }
     }
     private handleSuperWeaponReadySound(event: any): void {
-        if (event.target.owner === this.player) {
-            const eva = event.target.rules?.type !== undefined
-                ? superWeaponReadyEvaByType.get(event.target.rules.type)
+        const owner = event.target?.owner;
+        if (owner === this.player) {
+            const ares = event.target.rules?.ares;
+            const customEva = ares
+                ? resolveAresSuperWeaponEva(ares, "ready")
                 : undefined;
+            const eva = customEva !== undefined
+                ? customEva ?? undefined
+                : event.target.rules?.type !== undefined
+                    ? superWeaponReadyEvaByType.get(event.target.rules.type)
+                    : undefined;
             if (eva) {
                 this.eva.play(eva);
+            }
+            if (ares) {
+                this.showAresSuperWeaponMessage(ares, "ready", owner, true);
             }
         }
     }
     private handleSuperWeaponActivateSound(event: any): void {
+        const ares = event.rules?.ares;
         if (!event.noSfxWarning) {
-            const eva = superWeaponActivateEvaByType.get(event.target);
+            const customEva = ares
+                ? resolveAresSuperWeaponEva(ares, "activated")
+                : undefined;
+            const eva = customEva !== undefined
+                ? customEva ?? undefined
+                : superWeaponActivateEvaByType.get(event.target);
             if (eva) {
                 this.eva.play(eva, true);
             }
@@ -351,7 +384,7 @@ export class SoundHandler {
             if (sound) {
                 this.worldSound.playEffect(sound, Coords.tile3dToWorld(event.atTile.rx, event.atTile.ry, event.atTile.z), event.owner);
             }
-            const activationSound = event.rules?.ares?.swActivationSound;
+            const activationSound = ares?.swActivationSound;
             if (activationSound && event.atTile) {
                 this.worldSound.playEffect(
                     activationSound,
@@ -360,20 +393,50 @@ export class SoundHandler {
                 );
             }
         }
+        if (ares) {
+            this.showAresSuperWeaponMessage(ares, "launch", event.owner);
+        }
         const message = superWeaponActivateMessageByType.get(event.target);
         if (message) {
             this.messageList.addSystemMessage(this.strings.get(message), this.player ?? 'grey');
         }
     }
     private handleAresSuperWeaponEffectSound(event: any): void {
+        const ares = event.rules?.ares;
+        if (ares) {
+            this.showAresSuperWeaponMessage(ares, "activate", event.owner);
+        }
         if (event.noSfxWarning || !event.atTile) return;
-        const sound = event.rules?.ares?.swSound;
+        const sound = ares?.swSound;
         if (!sound) return;
         this.worldSound.playEffect(
             sound,
             Coords.tile3dToWorld(event.atTile.rx, event.atTile.ry, event.atTile.z ?? 0),
             event.owner,
         );
+    }
+    private showAresSuperWeaponMessage(
+        rules: any,
+        stage: "detected" | "ready" | "launch" | "activate" | "abort" | "insufficientFunds" | "cannotFire",
+        owner: any,
+        ownerOnly = false,
+    ): void {
+        if (ownerOnly && owner !== this.player) return;
+        const label = resolveAresSuperWeaponMessage(rules, stage);
+        if (!label) return;
+        const colorOrPlayer = resolveAresSuperWeaponMessageColor(
+            rules,
+            owner,
+            this.player ?? "grey",
+        );
+        this.messageList.addSystemMessage(this.strings.get(label), colorOrPlayer);
+    }
+    private handleAresSuperWeaponMessageEvent(event: any): void {
+        // Ares failure messages are addressed to the firing house only.  The
+        // simulation event is still shared so non-audio hosts can consume the
+        // same authored message without duplicating launch validation.
+        if (event.owner !== this.player) return;
+        this.showAresSuperWeaponMessage(event.rules?.ares ?? event.rules, event.stage, event.owner, true);
     }
     private handleLightningStormManifestSound(event: any): void {
         this.messageList.addSystemMessage(this.strings.get('TXT_LIGHTNING_STORM'), this.player ?? 'grey');

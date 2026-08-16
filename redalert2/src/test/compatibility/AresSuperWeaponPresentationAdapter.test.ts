@@ -3,8 +3,13 @@ import {
     getAresSuperWeaponPresentationGroup,
     isAresSuperWeaponAnimationVisible,
     isAresSuperWeaponCameoVisible,
+    isAresSuperWeaponMessageFirerColored,
     isAresSuperWeaponTimerVisible,
     normalizeAresSuperWeaponPresentation,
+    resolveAresSuperWeaponOverlayText,
+    resolveAresSuperWeaponEva,
+    resolveAresSuperWeaponMessage,
+    resolveAresSuperWeaponMessageColor,
     resolveAresSuperWeaponViewerRelation,
 } from "@/extensions/ares/AresSuperWeaponPresentation";
 
@@ -116,5 +121,44 @@ describe("Ares superweapon presentation adapter", () => {
                 ["SW.TimerVisibility", "owner"],
             ]),
         }, "owner")).toBe(true);
+    });
+
+    test("resolves lifecycle EVA and messages while preserving explicit none", () => {
+        const rules = {
+            evaReady: "EVA_CustomReady",
+            messageReady: "TXT_CustomReady",
+            extensionEntries: new Map([
+                ["EVA.Detected", "EVA_CustomDetected"],
+                ["EVA.Activated", "none"],
+                ["Message.Launch", "TXT_CustomLaunch"],
+                ["Message.Abort", "TXT_CustomAbort"],
+                ["Message.FirerColor", "yes"],
+            ]),
+        };
+
+        expect(resolveAresSuperWeaponEva(rules, "detected")).toBe("EVA_CustomDetected");
+        expect(resolveAresSuperWeaponEva(rules, "ready")).toBe("EVA_CustomReady");
+        expect(resolveAresSuperWeaponEva(rules, "activated")).toBeNull();
+        expect(resolveAresSuperWeaponMessage(rules, "ready")).toBe("TXT_CustomReady");
+        expect(resolveAresSuperWeaponMessage(rules, "launch")).toBe("TXT_CustomLaunch");
+        expect(resolveAresSuperWeaponMessage(rules, "abort")).toBe("TXT_CustomAbort");
+        expect(isAresSuperWeaponMessageFirerColored(rules)).toBe(true);
+        expect(resolveAresSuperWeaponMessage(rules, "cannotFire")).toBe("MSG:CannotFire");
+        expect(resolveAresSuperWeaponMessageColor({ messageColor: "Blue" }, undefined, "grey")).toBe("Blue");
+        expect(resolveAresSuperWeaponMessageColor({ messageColor: "Blue", messageFirerColor: true }, "owner", "grey"))
+            .toBe("owner");
+    });
+
+    test("resolves state-specific cameo overlay text and explicit suppression", () => {
+        const rules = {
+            textReady: "TXT_CUSTOM_READY",
+            extensionEntries: new Map([
+                ["Text.Charging", "TXT_CUSTOM_CHARGING"],
+                ["Text.Active", "none"],
+            ]),
+        };
+        expect(resolveAresSuperWeaponOverlayText(rules, "ready")).toBe("TXT_CUSTOM_READY");
+        expect(resolveAresSuperWeaponOverlayText(rules, "charging")).toBe("TXT_CUSTOM_CHARGING");
+        expect(resolveAresSuperWeaponOverlayText(rules, "active")).toBeNull();
     });
 });

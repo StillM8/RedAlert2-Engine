@@ -24,6 +24,7 @@ import { DropPodEffect } from "@/game/superweapon/DropPodEffect";
 import { HunterSeekerEffect } from "@/game/superweapon/HunterSeekerEffect";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
 import { AresSuperWeaponEffectEvent } from "@/game/event/AresSuperWeaponEffectEvent";
+import { AresSuperWeaponMessageEvent } from "@/game/event/AresSuperWeaponMessageEvent";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
 import { createAresSuperWeaponRadarEvent } from "@/extensions/ares/AresSuperWeaponRadar";
@@ -95,7 +96,12 @@ export class SuperWeaponsTrait {
         for (const r of this.effects) {
             if (r.status === EffectStatus.NotStarted) {
                 const presentation = this.effectPresentationRules.get(r);
-                if (presentation && (presentation.rules?.ares?.swAnimation || presentation.rules?.ares?.swSound)) {
+                if (presentation && (
+                    presentation.rules?.ares?.swAnimation ||
+                    presentation.rules?.ares?.swSound ||
+                    presentation.rules?.ares?.messageActivate ||
+                    presentation.rules?.ares?.lightEnabled === true
+                )) {
                     t.events.dispatch(new AresSuperWeaponEffectEvent(
                         presentation.rules,
                         r.owner,
@@ -289,12 +295,28 @@ export class SuperWeaponsTrait {
                 // Antares aborts before consuming the charge or dispatching
                 // the effect when a negative Money.Amount cannot be paid.
                 console.warn(`Superweapon "${a.name}" cannot launch: insufficient credits for Money.Amount=${moneyAmount}`);
+                if (a.rules.ares) {
+                    i.events?.dispatch(new AresSuperWeaponMessageEvent(
+                        "insufficientFunds",
+                        e,
+                        a.rules,
+                        r,
+                    ));
+                }
                 return false;
             }
             if (!applyAresSuperWeaponMoney(e, moneyAmount)) {
                 // Keep the charge and one-shot removal untouched if a host
                 // owner changes its balance between validation and mutation.
                 console.warn(`Superweapon "${a.name}" launch transaction failed; effect skipped.`);
+                if (a.rules.ares) {
+                    i.events?.dispatch(new AresSuperWeaponMessageEvent(
+                        "insufficientFunds",
+                        e,
+                        a.rules,
+                        r,
+                    ));
+                }
                 return false;
             }
             if (a.oneTimeOnly) {
@@ -310,6 +332,14 @@ export class SuperWeaponsTrait {
                     i.rules.general?.chargeToDrainRatio ??
                     1;
                 if (!a.startChargeDrain(ratio, i)) {
+                    if (a.rules.ares) {
+                        i.events?.dispatch(new AresSuperWeaponMessageEvent(
+                            "abort",
+                            e,
+                            a.rules,
+                            r,
+                        ));
+                    }
                     return false;
                 }
             }
@@ -352,6 +382,14 @@ export class SuperWeaponsTrait {
             this.activateEffect(a.rules, e, i, r, s, false, isChronoWarp ? s ?? r : undefined);
             return true;
         }
+        if (a?.rules?.ares) {
+            i.events?.dispatch(new AresSuperWeaponMessageEvent(
+                "abort",
+                e,
+                a.rules,
+                r,
+            ));
+        }
         return false;
     }
 
@@ -378,7 +416,7 @@ export class SuperWeaponsTrait {
         const eventType = o ?? e.typeId;
         if (o !== undefined || extensionType !== undefined) {
             if (e.ares?.swCreateRadarEvent === true) {
-                createAresSuperWeaponRadarEvent(s, r);
+                createAresSuperWeaponRadarEvent(s, r, e, i);
             }
             const t: SuperWeaponEffect[] = [];
             if (extensionType === "GenericWarhead") {

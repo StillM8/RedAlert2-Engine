@@ -106,6 +106,64 @@ EMPulse.PulseDelay=32
         expect(pulse?.empulsePulseBall).toBe("none");
     });
 
+    test("parses Ares lifecycle messages, lighting, and drop-pod overrides", () => {
+        const ini = new IniFile(`
+[Lifecycle]
+Type=EMPulse
+EVA.Detected=EVA_CustomDetected
+EVA.Ready=EVA_CustomReady
+EVA.Activated=EVA_CustomActivated
+Message.Detected=TXT_CUSTOM_DETECTED
+Message.Ready=TXT_CUSTOM_READY
+Message.Launch=TXT_CUSTOM_LAUNCH
+Message.Activate=TXT_CUSTOM_ACTIVATE
+Message.Abort=TXT_CUSTOM_ABORT
+Message.InsufficientFunds=TXT_CUSTOM_FUNDS
+Message.CannotFire=TXT_CUSTOM_CANNOT_FIRE
+Message.FirerColor=yes
+Message.Color=Blue
+Text.Ready=TXT_CUSTOM_READY_TEXT
+Text.Charging=TXT_CUSTOM_CHARGING_TEXT
+Text.Active=TXT_CUSTOM_ACTIVE_TEXT
+Light.Enabled=yes
+Light.Ambient=100
+Light.Red=25
+Light.Green=50
+Light.Blue=75
+DropPodWeapon=NotAWeapon
+DropPodTrailer=SMOKEY
+`);
+
+        const definition = parseAresSuperWeaponDefinition(ini.getSection("Lifecycle")!);
+
+        expect(definition).toMatchObject({
+            evaDetected: "EVA_CustomDetected",
+            evaReady: "EVA_CustomReady",
+            evaActivated: "EVA_CustomActivated",
+            messageDetected: "TXT_CUSTOM_DETECTED",
+            messageReady: "TXT_CUSTOM_READY",
+            messageLaunch: "TXT_CUSTOM_LAUNCH",
+            messageActivate: "TXT_CUSTOM_ACTIVATE",
+            messageAbort: "TXT_CUSTOM_ABORT",
+            messageInsufficientFunds: "TXT_CUSTOM_FUNDS",
+            messageCannotFire: "TXT_CUSTOM_CANNOT_FIRE",
+            messageFirerColor: true,
+            messageColor: "Blue",
+            textReady: "TXT_CUSTOM_READY_TEXT",
+            textCharging: "TXT_CUSTOM_CHARGING_TEXT",
+            textActive: "TXT_CUSTOM_ACTIVE_TEXT",
+            lightEnabled: true,
+            lightAmbient: 100,
+            lightRed: 25,
+            lightGreen: 50,
+            lightBlue: 75,
+            dropPodWeapon: "NotAWeapon",
+            dropPodTrailer: "SMOKEY",
+        });
+        expect(definition?.extensionEntries.get("Message.Launch")).toBe("TXT_CUSTOM_LAUNCH");
+        expect(definition?.extensionEntries.get("Light.Blue")).toBe("75");
+    });
+
     test("retains the shared Ares availability fields", () => {
         const ini = new IniFile(`
 [Availability]

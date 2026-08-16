@@ -101,7 +101,16 @@ export class RadarTrait {
             this.addEventForPlayer(RadarEventType.BaseUnderAttack, attacker.owner, attacker.tile, game);
         }
     }
-    public addEventForPlayer(eventType: RadarEventType, player: any, tile: any, game: any): void {
+    public addEventForPlayer(
+        eventType: RadarEventType,
+        player: any,
+        tile: any,
+        game: any,
+        metadata?: {
+            superWeaponRules?: any;
+            superWeaponOwner?: any;
+        },
+    ): void {
         const radarTrait = player.radarTrait;
         if (!radarTrait)
             return;
@@ -114,9 +123,10 @@ export class RadarTrait {
             radarTrait.activeEvents.push({
                 startTick: game.currentTick,
                 tile: tile,
-                type: eventType
+                type: eventType,
+                ...metadata,
             });
-            game.events.dispatch(new RadarEvent(player, eventType, tile));
+            game.events.dispatch(new RadarEvent(player, eventType, tile, metadata));
         }
     }
 }

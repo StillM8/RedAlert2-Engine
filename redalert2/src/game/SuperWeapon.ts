@@ -12,6 +12,12 @@ import {
 } from '@/extensions/ares/AresSuperWeaponMoney';
 import { setAresFirestormActive } from '@/extensions/ares/AresFirestorm';
 import { setAresBatteryActiveForWeapon } from '@/extensions/ares/AresBattery';
+import {
+    restoreAresSuperWeaponExtensionState,
+    serializeAresSuperWeaponExtensionState,
+    type AresSuperWeaponStateTarget,
+    type AresSuperWeaponExtensionState,
+} from '@/extensions/ares/AresSuperWeaponState';
 export enum SuperWeaponStatus {
     Charging = 0,
     Paused = 1,
@@ -104,6 +110,58 @@ export class SuperWeapon {
             return Math.max(0, Math.min(1, 1 - this.chargeTicks / duration));
         }
         return (this.rechargeTicks - this.chargeTicks) / this.rechargeTicks;
+    }
+
+    /** Returns the Ares-owned state required by a save, replay, or snapshot host. */
+    serializeAresState(): AresSuperWeaponExtensionState {
+        return serializeAresSuperWeaponExtensionState({
+            status: this.status,
+            chargeTicks: this.chargeTicks,
+            shotsFired: this.shotsFired,
+            chargeDrainRatio: this.chargeDrainRatio,
+            virtualChargeSinceTick: this.virtualChargeSinceTick,
+            aresBatteryActive: this.aresBatteryActive,
+        });
+    }
+
+    /**
+     * Restores only extension-owned state.  Battery/Firestorm house hooks are
+     * reconciled after validation so a rejected payload cannot half-apply a
+     * power or wall-state transition.
+     */
+    restoreAresState(state: unknown, world?: any): void {
+        const restored: AresSuperWeaponStateTarget = {
+            status: this.status,
+            chargeTicks: this.chargeTicks,
+            shotsFired: this.shotsFired,
+            chargeDrainRatio: this.chargeDrainRatio,
+            virtualChargeSinceTick: this.virtualChargeSinceTick,
+            aresBatteryActive: this.aresBatteryActive,
+        };
+        restoreAresSuperWeaponExtensionState(restored, state);
+
+        const previousBatteryActive = this.aresBatteryActive;
+        this.status = restored.status as SuperWeaponStatus;
+        this.chargeTicks = restored.chargeTicks;
+        this.shotsFired = restored.shotsFired;
+        this.chargeDrainRatio = restored.chargeDrainRatio;
+        this.virtualChargeSinceTick = restored.virtualChargeSinceTick;
+        this.aresBatteryActive = restored.aresBatteryActive;
+
+        if (this.rules.ares?.extensionType === "Battery") {
+            const desiredBatteryActive = restored.aresBatteryActive &&
+                restored.status === SuperWeaponStatus.Draining;
+            if (previousBatteryActive !== desiredBatteryActive) {
+                this.aresBatteryActive = previousBatteryActive;
+                setAresBatteryActiveForWeapon(this, desiredBatteryActive, world);
+            }
+            else {
+                this.aresBatteryActive = desiredBatteryActive;
+            }
+        }
+        else if (this.rules.ares?.extensionType === "Firestorm") {
+            setAresFirestormActive(this.owner, restored.status === SuperWeaponStatus.Draining);
+        }
     }
 
     isChargeDrainActive(): boolean {

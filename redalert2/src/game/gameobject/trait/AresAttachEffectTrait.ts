@@ -12,6 +12,12 @@ import {
 import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { NotifyUnspawn } from "@/game/gameobject/trait/interface/NotifyUnspawn";
+import {
+    restoreAresAttachEffectExtensionState,
+    serializeAresAttachEffectExtensionState,
+    type AresAttachEffectExtensionState,
+    type AresAttachEffectStateTarget,
+} from "@/extensions/ares/AresAttachEffectState";
 
 export interface AresAttachEffectMultipliers {
     speed: number;
@@ -83,6 +89,31 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
 
     getState(): readonly AresAttachEffectInstance[] {
         return this.instances.map(instance => ({ ...instance }));
+    }
+
+    /** Returns the AttachEffect state needed by a deterministic snapshot host. */
+    serializeState(): AresAttachEffectExtensionState {
+        return serializeAresAttachEffectExtensionState({
+            instances: this.instances,
+            automaticPhase: this.automaticPhase,
+            automaticRemainingDelay: this.automaticRemainingDelay,
+        });
+    }
+
+    /** Restore active effects and the automatic scheduler as one state unit. */
+    restoreState(state: unknown): void {
+        const restored: AresAttachEffectStateTarget = {
+            instances: this.instances,
+            automaticPhase: this.automaticPhase,
+            automaticRemainingDelay: this.automaticRemainingDelay,
+        };
+        restoreAresAttachEffectExtensionState(restored, state);
+        this.instances = restored.instances.map(instance => ({ ...instance }));
+        this.automaticPhase = restored.automaticPhase;
+        this.automaticRemainingDelay = restored.automaticRemainingDelay;
+        this.presentationRevision++;
+        this.animationRevision++;
+        this.pruneDefinitions();
     }
 
     apply(

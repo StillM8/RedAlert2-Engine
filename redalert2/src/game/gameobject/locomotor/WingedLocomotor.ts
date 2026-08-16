@@ -34,6 +34,12 @@ interface Unit {
     pitch: number;
     tileElevation: number;
     isUnit(): boolean;
+    aresHunterSeekerFlight?: {
+        phase?: "emerge" | "ascent" | "descend" | "cruise";
+        emergeSpeed?: number;
+        ascentSpeed?: number;
+        descentSpeed?: number;
+    };
 }
 interface Game {
     map: any;
@@ -207,7 +213,10 @@ export class WingedLocomotor {
             ? this.game.map.tileOccupation.getBridgeOnTile(t.tile)
             : undefined;
         const l = t.tile.z + (o?.tileElevation ?? 0);
-        const flightLevel = t.rules.flightLevel ?? this.game.rules.general.flightLevel;
+        const hunterSeekerFlight = t.aresHunterSeekerFlight;
+        const flightLevel = hunterSeekerFlight?.phase === "descend"
+            ? 0
+            : t.rules.flightLevel ?? this.game.rules.general.flightLevel;
         const h = Coords.tileHeightToWorld(l) + flightLevel;
         const currentY = t.position.worldPosition.y;
         const u = FacingUtil.fromMapCoords(a);
@@ -272,8 +281,18 @@ export class WingedLocomotor {
         let v = true;
         if (h !== currentY) {
             const heightDiff = Math.abs(h - currentY);
-            y = Math.sign(h - currentY) * Math.min(30, heightDiff);
-            v = heightDiff <= 30;
+            const configuredVerticalSpeed = hunterSeekerFlight?.phase === "emerge"
+                ? hunterSeekerFlight.emergeSpeed
+                : hunterSeekerFlight?.phase === "descend"
+                    ? hunterSeekerFlight.descentSpeed
+                    : hunterSeekerFlight?.phase === "ascent"
+                        ? hunterSeekerFlight.ascentSpeed
+                        : undefined;
+            const verticalSpeed = Number.isFinite(configuredVerticalSpeed) && configuredVerticalSpeed! > 0
+                ? configuredVerticalSpeed!
+                : 30;
+            y = Math.sign(h - currentY) * Math.min(verticalSpeed, heightDiff);
+            v = heightDiff <= verticalSpeed;
         }
         let b = t.rules.speed;
         if (n <= Coords.LEPTONS_PER_TILE &&

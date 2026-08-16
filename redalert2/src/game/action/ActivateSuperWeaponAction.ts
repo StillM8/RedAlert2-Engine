@@ -10,6 +10,7 @@ import {
     isAresSuperWeaponManualActivationAllowed,
 } from '@/extensions/ares/AresSuperWeaponFilters';
 import { isAresSuperWeaponLaunchAllowed } from '@/extensions/ares/AresSuperWeaponLaunch';
+import { AresSuperWeaponMessageEvent } from '@/game/event/AresSuperWeaponMessageEvent';
 export class ActivateSuperWeaponAction extends Action {
     private game: Game;
     private superWeaponType: number;
@@ -87,6 +88,7 @@ export class ActivateSuperWeaponAction extends Action {
         }
         if (rules.type === SuperWeaponType.ChronoSphere && !tile2) {
             console.warn(`ChronoSphere activation without a valid destination tile; ignored`);
+            this.notifyAresCannotFire(rules, tile);
             return;
         }
         if (rules.ares && !isAresSuperWeaponLaunchAllowed(
@@ -96,6 +98,7 @@ export class ActivateSuperWeaponAction extends Action {
             this.game as any,
         )) {
             console.warn(`Superweapon ${rules.name} is outside its Ares launch range, lacks a designator, or is inhibited; ignored`);
+            this.notifyAresCannotFire(rules, tile);
             return;
         }
         if (rules.ares && !isAresSuperWeaponActivationAllowed(
@@ -106,6 +109,7 @@ export class ActivateSuperWeaponAction extends Action {
             this.game as any,
         )) {
             console.warn(`Superweapon ${rules.name} target does not satisfy Ares SW.RequiresTarget/SW.RequiresHouse; ignored`);
+            this.notifyAresCannotFire(rules, tile);
             return;
         }
         if (rules.ares && !isAresSuperWeaponFireIntoShroudAllowed(
@@ -115,10 +119,20 @@ export class ActivateSuperWeaponAction extends Action {
             this.game as any,
         )) {
             console.warn(`Superweapon ${rules.name} cannot fire into unexplored shroud; ignored`);
+            this.notifyAresCannotFire(rules, tile);
             return;
         }
         this.game.traits
             .get(SuperWeaponsTrait)
             .activateSuperWeapon(this.superWeaponType, player, this.game, tile, tile2);
+    }
+    private notifyAresCannotFire(rules: any, tile: any): void {
+        if (!rules?.ares || !this.game.events?.dispatch) return;
+        this.game.events.dispatch(new AresSuperWeaponMessageEvent(
+            "cannotFire",
+            this.player,
+            rules,
+            tile,
+        ));
     }
 }

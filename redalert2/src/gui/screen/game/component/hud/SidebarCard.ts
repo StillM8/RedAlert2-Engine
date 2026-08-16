@@ -70,6 +70,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
     private declare quantityImages: any[];
     private declare tagImages: any[];
     private declare tagFrameByText: Map<string, number>;
+    private labelFrameByText = new Map<string, number>();
     private lastActiveTab?: any;
     private hoverSlotIndex?: number;
     constructor(props: SidebarCardProps) {
@@ -321,7 +322,14 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
         progressOverlay.get3DObject().visible = frame > 0;
     }
     updateStatusText(item: any, labelObject: any): void {
-        const isVisible = [SidebarItemStatus.Ready, SidebarItemStatus.OnHold].includes(item.status);
+        const hasCustomText = item.statusText !== undefined;
+        const customText = hasCustomText && typeof item.statusText === "string"
+            ? this.props.strings.get(item.statusText)
+            : undefined;
+        const isCustomVisible = hasCustomText && customText !== undefined &&
+            [SidebarItemStatus.Started, SidebarItemStatus.Ready, SidebarItemStatus.OnHold].includes(item.status);
+        const isVisible = isCustomVisible ||
+            (!hasCustomText && [SidebarItemStatus.Ready, SidebarItemStatus.OnHold].includes(item.status));
         if (!labelObject || !labelObject.get3DObject)
             return;
         labelObject.get3DObject().visible = isVisible;
@@ -329,6 +337,12 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             return;
         const labelAlign = (labelObject as any).builder?.setAlign ? (labelObject as any).builder.setAlign.bind((labelObject as any).builder) : undefined;
         const slotSize = this.getSlotSize();
+        if (isCustomVisible) {
+            labelObject.setFrame(this.ensureLabelFrame(customText!));
+            labelObject.setPosition(slotSize.width / 2, labelObject.getPosition().y);
+            labelAlign?.(0, -1);
+            return;
+        }
         if (item.status === SidebarItemStatus.Ready) {
             labelObject.setFrame(LabelType.Ready);
             labelObject.setPosition(slotSize.width / 2, labelObject.getPosition().y);
@@ -342,6 +356,35 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             if (labelAlign)
                 labelAlign(item.quantity > 1 ? -1 : 0, -1);
         }
+    }
+    private ensureLabelFrame(text: string): number {
+        const existingFrame = this.labelFrameByText.get(text);
+        if (existingFrame !== undefined) return existingFrame;
+        const frame = this.labelImages.length;
+        this.labelImages = [
+            ...this.labelImages,
+            this.createTextBox(text, this.props.textColor),
+        ];
+        this.labelFrameByText.set(text, frame);
+        this.labelObjects.forEach((labelObject) => {
+            const builder = labelObject?.builder as any;
+            if (!builder) return;
+            const currentFrame = builder.getFrame?.() ?? 0;
+            builder.images = this.labelImages;
+            builder.atlas = undefined;
+            builder.initTexture?.();
+            builder.frameGeometries?.forEach((geometry: any) => geometry.dispose());
+            builder.frameGeometries?.clear?.();
+            if (builder.mesh) {
+                if (builder.mesh.material) {
+                    builder.mesh.material.map = builder.atlas?.getTexture?.();
+                    builder.mesh.material.needsUpdate = true;
+                }
+                builder.frameNo = -1;
+                builder.setFrame(Math.min(currentFrame, builder.frameCount - 1));
+            }
+        });
+        return frame;
     }
     updateQuantities(item: any, quantityObject: any): void {
         const threshold = item.status === SidebarItemStatus.InQueue ? 0 : 1;

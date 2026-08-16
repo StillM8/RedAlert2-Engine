@@ -19,6 +19,7 @@ interface TriggerAnimEvent {
         ry: number;
         z: number;
     };
+    position?: any;
 }
 export class TriggerActionFxHandler {
     private game: Game;
@@ -33,7 +34,8 @@ export class TriggerActionFxHandler {
                 case EventType.TriggerAnim: {
                     const animName = event.name;
                     this.renderableManager.createTransientAnim(animName, (anim) => {
-                        const position = Coords.tile3dToWorld(event.tile.rx + 0.5, event.tile.ry + 0.5, event.tile.z);
+                        const position = event.position ??
+                            Coords.tile3dToWorld(event.tile.rx + 0.5, event.tile.ry + 0.5, event.tile.z);
                         anim.setPosition(position);
                     });
                     break;

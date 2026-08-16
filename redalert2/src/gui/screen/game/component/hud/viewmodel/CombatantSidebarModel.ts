@@ -5,7 +5,10 @@ import { DockTrait } from "@/game/gameobject/trait/DockTrait";
 import { SidebarModel, SidebarItemTargetType, SidebarItemStatus, SidebarCategory } from "./SidebarModel";
 import { SuperWeapon, SuperWeaponStatus } from "@/game/SuperWeapon";
 import { normalizeAresPcxCameos, resolveAresSidebarCameo, resolveAresTechnoCameo } from "@/extensions/ares/AresPcxCameos";
-import { isAresSuperWeaponCameoVisible } from "@/extensions/ares/AresSuperWeaponPresentation";
+import {
+    isAresSuperWeaponCameoVisible,
+    resolveAresSuperWeaponOverlayText,
+} from "@/extensions/ares/AresSuperWeaponPresentation";
 type SidebarTechnoItem = {
     target: {
         type: SidebarItemTargetType.Techno;
@@ -29,6 +32,7 @@ type SidebarSpecialItem = {
     progress: number;
     quantity: number;
     status: SidebarItemStatus;
+    statusText?: string | null;
 };
 const superWeaponStatusToSidebarStatus = new Map<SuperWeaponStatus, SidebarItemStatus>()
     .set(SuperWeaponStatus.Charging, SidebarItemStatus.Started)
@@ -161,6 +165,16 @@ export class CombatantSidebarModel extends SidebarModel {
                     progress: sw.getChargeProgress(),
                     quantity: 1,
                     status,
+                    statusText: sw.rules.ares
+                        ? resolveAresSuperWeaponOverlayText(
+                            sw.rules.ares,
+                            sw.status === SuperWeaponStatus.Ready
+                                ? "ready"
+                                : sw.status === SuperWeaponStatus.Draining
+                                    ? "active"
+                                    : "charging",
+                        )
+                        : undefined,
                 };
                 return item;
             }) ?? [];

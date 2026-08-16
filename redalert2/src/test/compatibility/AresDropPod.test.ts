@@ -5,6 +5,7 @@ import { scanMentalOmegaIniSources } from "@/extensions/ares/AresCompatibilitySc
 import {
     applyAresDropPodVeterancy,
     DropPodEffect,
+    resolveAresDropPodPresentation,
     resolveAresDropPodConfiguration,
 } from "@/game/superweapon/DropPodEffect";
 import { GeneralRules } from "@/game/rules/GeneralRules";
@@ -128,6 +129,27 @@ function makeGame(
 }
 
 describe("Ares DropPod", () => {
+    test("resolves the per-superweapon impact weapon and global trailer fallback", () => {
+        expect(resolveAresDropPodPresentation({
+            dropPodWeapon: "NotAWeapon",
+            dropPodTrailer: undefined,
+        }, {
+            dropPodWeapon: "DropPodImpact",
+            dropPodTrailer: "CUSTOM_SMOKE",
+        })).toEqual({
+            weaponName: "DropPodImpact",
+            trailerAnimation: "CUSTOM_SMOKE",
+        });
+
+        expect(resolveAresDropPodPresentation({
+            dropPodWeapon: undefined,
+            dropPodTrailer: "none",
+        }, {})).toEqual({
+            weaponName: undefined,
+            trailerAnimation: "SMOKEY",
+        });
+    });
+
     test("resolves local overrides, global fallbacks, inclusive bounds, and Antares default veterancy", () => {
         expect(resolveAresDropPodConfiguration({
             dropPodTypes: [],
@@ -189,7 +211,7 @@ PrerequisiteProc=PROC
     });
 
     test("selects a deterministic inclusive count/type and preserves fractional veterancy", () => {
-        const game = makeGame({ E1: { type: ObjectType.Infantry, infantry: true }, E2: { type: ObjectType.Vehicle } }, [2, 1, 1]);
+        const game = makeGame({ E1: { type: ObjectType.Infantry, infantry: true }, E2: { type: ObjectType.Infantry, infantry: true } }, [2, 1, 1]);
         const effect = new DropPodEffect("DropPod", game.owner, makeTile(5, 5), {
             typeId: "DropPod",
             extensionType: "DropPod",
@@ -208,15 +230,14 @@ PrerequisiteProc=PROC
         expect(game.calls).toEqual([[2, 2], [0, 1], [0, 1]]);
     });
 
-    test("aborts the activation when a randomly selected type is a building", () => {
+    test("skips a randomly selected non-infantry type", () => {
         const game = makeGame({
-            E1: { type: ObjectType.Infantry, infantry: true },
             BASE: { type: ObjectType.Building },
-        }, [1, 1]);
+        }, [0]);
         const effect = new DropPodEffect("DropPod", game.owner, makeTile(3, 3), {
             typeId: "DropPod",
             extensionType: "DropPod",
-            dropPodTypes: ["E1", "BASE"],
+            dropPodTypes: ["BASE"],
             dropPodMinimum: 1,
             dropPodMaximum: 1,
             dropPodVeterancy: 2,

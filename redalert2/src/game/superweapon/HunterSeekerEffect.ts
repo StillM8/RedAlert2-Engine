@@ -81,7 +81,10 @@ export class HunterSeekerEffect extends SuperWeaponEffect {
                 aircraft.hunterSeekerLaunchBuilding = building.name;
                 game.spawnObject(aircraft, launchTile);
                 aircraft.onBridge = false;
-                aircraft.position.tileElevation = aircraft.rules.flightLevel ?? general.flightLevel ?? 0;
+                // Start at the launch cell's ground elevation. The shared
+                // WingedLocomotor applies the Ares emerge/ascent speeds and
+                // climbs to FlightLevel instead of teleporting vertically.
+                aircraft.position.tileElevation = 0;
                 aircraft.zone = ZoneType.Air;
             }
             catch (error) {

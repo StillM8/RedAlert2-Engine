@@ -8,6 +8,16 @@
 
 export type AresSuperWeaponTimerVisibility = "none" | "owner" | "allies" | "team" | "enemies" | "all";
 export type AresSuperWeaponViewerRelation = "owner" | "ally" | "enemy" | "observer";
+export type AresSuperWeaponMessageStage =
+    | "detected"
+    | "ready"
+    | "launch"
+    | "activate"
+    | "abort"
+    | "insufficientFunds"
+    | "cannotFire";
+export type AresSuperWeaponEvaStage = "detected" | "ready" | "activated";
+export type AresSuperWeaponOverlayStage = "ready" | "charging" | "active";
 
 /** Resolve the relation used by the documented timer-visibility rules. */
 export function resolveAresSuperWeaponViewerRelation(
@@ -33,6 +43,18 @@ export interface AresSuperWeaponPresentationRules {
     swAnimationVisibility?: string;
     group?: number | string;
     swGroup?: number | string;
+    evaDetected?: string;
+    evaReady?: string;
+    evaActivated?: string;
+    messageDetected?: string;
+    messageReady?: string;
+    messageLaunch?: string;
+    messageActivate?: string;
+    messageAbort?: string;
+    messageInsufficientFunds?: string;
+    messageCannotFire?: string;
+    messageFirerColor?: boolean | string;
+    messageColor?: string;
     extensionEntries?: ReadonlyMap<string, string | string[]>;
 }
 
@@ -95,6 +117,85 @@ function visibility(value: string | undefined): AresSuperWeaponTimerVisibility {
     return TIMER_VISIBILITIES.has(normalized as AresSuperWeaponTimerVisibility)
         ? normalized as AresSuperWeaponTimerVisibility
         : "all";
+}
+
+function optionalLabel(value: string | undefined): string | null | undefined {
+    if (value === undefined) return undefined;
+    const normalized = normalize(value);
+    return normalized === "" || normalized === "none" ? null : value.trim();
+}
+
+/** Resolve a documented Ares EVA label without making custom SW types numeric. */
+export function resolveAresSuperWeaponEva(
+    rules: AresSuperWeaponPresentationRules,
+    stage: AresSuperWeaponEvaStage,
+): string | null | undefined {
+    const typed = stage === "detected"
+        ? rules.evaDetected
+        : stage === "ready" ? rules.evaReady : rules.evaActivated;
+    return optionalLabel(typed ?? rawEntry(rules, `EVA.${stage === "activated" ? "Activated" : stage[0].toUpperCase() + stage.slice(1)}`));
+}
+
+/** Resolve a documented Ares CSF message label for one lifecycle stage. */
+export function resolveAresSuperWeaponMessage(
+    rules: AresSuperWeaponPresentationRules,
+    stage: AresSuperWeaponMessageStage,
+): string | null | undefined {
+    const typed = stage === "detected"
+        ? rules.messageDetected
+        : stage === "ready"
+            ? rules.messageReady
+            : stage === "launch"
+                ? rules.messageLaunch
+                : stage === "activate"
+                    ? rules.messageActivate
+                    : stage === "abort"
+                        ? rules.messageAbort
+                        : stage === "insufficientFunds"
+                            ? rules.messageInsufficientFunds
+                            : rules.messageCannotFire;
+    const key = stage === "insufficientFunds"
+        ? "Message.InsufficientFunds"
+        : stage === "cannotFire"
+            ? "Message.CannotFire"
+            : `Message.${stage[0].toUpperCase()}${stage.slice(1)}`;
+    const resolved = optionalLabel(typed ?? rawEntry(rules, key));
+    return resolved === undefined && stage === "cannotFire" ? "MSG:CannotFire" : resolved;
+}
+
+/** Whether Ares asks the UI to use the firing house's color for a message. */
+export function isAresSuperWeaponMessageFirerColored(
+    rules: AresSuperWeaponPresentationRules,
+): boolean {
+    return booleanValue(
+        rules.messageFirerColor ?? rawEntry(rules, "Message.FirerColor"),
+        false,
+    );
+}
+
+/** Resolve the final message color, honoring FirerColor over Message.Color. */
+export function resolveAresSuperWeaponMessageColor(
+    rules: AresSuperWeaponPresentationRules,
+    owner: any,
+    fallback: any,
+): any {
+    if (isAresSuperWeaponMessageFirerColored(rules)) return owner ?? fallback;
+    const color = optionalLabel(rules.messageColor ?? rawEntry(rules, "Message.Color"));
+    return color ?? fallback;
+}
+
+/** Resolve a documented cameo overlay label for a live superweapon state. */
+export function resolveAresSuperWeaponOverlayText(
+    rules: AresSuperWeaponPresentationRules,
+    stage: AresSuperWeaponOverlayStage,
+): string | null | undefined {
+    const typed = stage === "ready"
+        ? (rules as any).textReady
+        : stage === "charging"
+            ? (rules as any).textCharging
+            : (rules as any).textActive;
+    const key = stage[0].toUpperCase() + stage.slice(1);
+    return optionalLabel(typed ?? rawEntry(rules, `Text.${key}`));
 }
 
 /** Normalize common Ares presentation fields using documented defaults. */

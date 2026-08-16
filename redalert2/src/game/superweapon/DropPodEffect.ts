@@ -3,6 +3,7 @@ import type { AresSuperWeaponDefinition } from "@/extensions/ares/AresSuperWeapo
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
 import { SpeedType } from "@/game/type/SpeedType";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
 import {
     discardUnspawnedObject,
     findDeliveryTile,
@@ -20,6 +21,11 @@ export interface AresDropPodConfiguration {
     veterancy: number;
 }
 
+export interface AresDropPodPresentation {
+    weaponName?: string;
+    trailerAnimation: string;
+}
+
 type DropPodDefinition = Pick<
     AresSuperWeaponDefinition,
     "dropPodTypes" | "dropPodMinimum" | "dropPodMaximum" | "dropPodVeterancy"
@@ -29,9 +35,14 @@ interface DropPodGame extends UnitDeliveryGame {
     rules: UnitDeliveryGame["rules"] & {
         general?: UnitDeliveryGame["rules"]["general"] & {
             veteran?: { veteranCap?: number };
+            dropPodWeapon?: string;
+            dropPodTrailer?: string;
         };
     };
     generateRandomInt(min: number, max: number): number;
+    events?: { dispatch?: (event: any) => void };
+    createTarget?: (object: any, tile: any) => any;
+    createLooseProjectile?: (weaponName: string, owner: any, target: any) => any;
 }
 
 function finiteInteger(value: number | undefined, fallback: number): number {
@@ -44,6 +55,26 @@ function finiteNonNegativeInteger(value: number | undefined, fallback: number): 
 
 function normalizedTypes(values: readonly string[] | undefined): string[] {
     return (values ?? []).map((value) => value.trim()).filter(Boolean);
+}
+
+function normalizedOptionalName(value: string | undefined): string | undefined {
+    const normalized = value?.trim();
+    if (!normalized) return undefined;
+    const compact = normalized.toLocaleLowerCase("en-US").replace(/[^a-z0-9]/g, "");
+    return compact === "none" || compact === "notaweapon" ? undefined : normalized;
+}
+
+/** Resolve the data-defined drop-pod impact weapon and smoke trailer. */
+export function resolveAresDropPodPresentation(
+    definition: Pick<AresSuperWeaponDefinition, "dropPodWeapon" | "dropPodTrailer">,
+    general: DropPodGame["rules"]["general"] = {},
+): AresDropPodPresentation {
+    return {
+        weaponName: normalizedOptionalName(definition.dropPodWeapon) ?? normalizedOptionalName(general?.dropPodWeapon),
+        trailerAnimation: normalizedOptionalName(definition.dropPodTrailer) ??
+            normalizedOptionalName(general?.dropPodTrailer) ??
+            "SMOKEY",
+    };
 }
 
 /**
@@ -111,10 +142,9 @@ export function applyAresDropPodVeterancy(object: any, veterancy: number, vetera
 }
 
 /**
- * Native TypeScript equivalent of Antares' SW_DropPod::Activate.  The host
- * currently materializes the unit at the first valid landing cell; the
- * DropPod locomotor/trailer presentation is intentionally represented as a
- * separate compatibility gap rather than silently claiming it is complete.
+ * Native TypeScript equivalent of Antares' SW_DropPod::Activate. Ares accepts
+ * InfantryTypes here; rejecting other TechnoTypes keeps invalid content from
+ * being silently converted into a different delivery behavior.
  */
 export class DropPodEffect extends SuperWeaponEffect {
     private completed = false;
@@ -140,6 +170,7 @@ export class DropPodEffect extends SuperWeaponEffect {
     private placeUnits(game: DropPodGame): void {
         const general = game.rules.general ?? {};
         const configuration = resolveAresDropPodConfiguration(this.rules, general);
+        const presentation = resolveAresDropPodPresentation(this.rules, general);
         if (!configuration.types.length) {
             console.error(`DropPod superweapon could not launch: no DropPod.Types or General.DropPodTypes are configured.`);
             return;
@@ -162,11 +193,12 @@ export class DropPodEffect extends SuperWeaponEffect {
                 console.warn(`DropPod superweapon references unknown TechnoType "${name}"; skipped.`);
                 continue;
             }
-            if (type === ObjectType.Building) {
-                // Antares aborts the whole activation as soon as a configured
-                // random selection resolves to a BuildingType.
-                console.error(`DropPod superweapon contains building type "${name}"; aborting activation.`);
-                break;
+            if (type !== ObjectType.Infantry) {
+                // Ares' DropPod.Types is an InfantryType list. Invalid entries
+                // consume this retry just like an invalid random selection;
+                // the remaining pods may still be delivered.
+                console.warn(`DropPod superweapon contains non-infantry type "${name}"; skipped.`);
+                continue;
             }
 
             let object: any;
@@ -185,14 +217,15 @@ export class DropPodEffect extends SuperWeaponEffect {
                     continue;
                 }
 
-                // This metadata is deliberately small and serializable.  It
-                // gives later DropPod locomotor/presentation work a stable
-                // landing origin without changing simulation identity today.
+                // This metadata is deliberately small and serializable. It
+                // gives the drop-pod presentation and save-state layers a
+                // stable landing origin without changing simulation identity.
                 object.dropPodState = {
                     phase: "landed",
                     target: { rx: this.tile.rx, ry: this.tile.ry },
                 };
                 game.spawnObject(object, landingTile);
+                this.presentDropPodLanding(game, landingTile, presentation);
 
                 if (object.isAircraft?.()) {
                     object.onBridge = false;
@@ -205,6 +238,45 @@ export class DropPodEffect extends SuperWeaponEffect {
                 console.warn(`DropPod failed to place "${name}"; skipped.`, error);
                 if (object && !object.isSpawned) discardUnspawnedObject(object);
             }
+        }
+    }
+
+    private presentDropPodLanding(
+        game: DropPodGame,
+        landingTile: any,
+        presentation: AresDropPodPresentation,
+    ): void {
+        // Ares creates the configured smoke trailer even when no impact
+        // weapon exists. The shared animation event keeps this presentation
+        // local to the renderer and deterministic in the simulation.
+        game.events?.dispatch?.(new TriggerAnimEvent(
+            presentation.trailerAnimation,
+            landingTile,
+        ));
+
+        const weaponName = presentation.weaponName;
+        if (!weaponName || !game.createLooseProjectile || !game.createTarget) return;
+        try {
+            const projectile = game.createLooseProjectile(
+                weaponName,
+                this.owner,
+                game.createTarget(undefined, landingTile),
+            );
+            if (!projectile) return;
+            if (projectile.position?.moveToTileCoords) {
+                projectile.position.moveToTileCoords(landingTile.rx + 0.5, landingTile.ry + 0.5);
+            }
+            else if (projectile.position) {
+                projectile.position.tile = landingTile;
+            }
+            if (projectile.position) {
+                projectile.position.tileElevation = projectile.rules?.detonationAltitude ?? 0;
+            }
+            game.spawnObject(projectile, projectile.position?.tile ?? landingTile);
+        }
+        catch (error) {
+            // Optional content must not make a valid DropPod activation fail.
+            console.warn(`DropPod impact weapon "${weaponName}" could not be spawned.`, error);
         }
     }
 }

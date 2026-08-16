@@ -67,5 +67,6 @@ export enum EventType {
     AresBountyAward = 65,
     AresSuperWeaponEffect = 66,
     AresIvanBombAttach = 67,
-    AresFirestormWallStateChange = 68
+    AresFirestormWallStateChange = 68,
+    AresSuperWeaponMessage = 69
 }

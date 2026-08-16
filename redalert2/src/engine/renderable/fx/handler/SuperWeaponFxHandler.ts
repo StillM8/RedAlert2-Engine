@@ -2,6 +2,7 @@ import { EventType } from '@/game/event/EventType';
 import { CompositeDisposable } from '@/util/disposable/CompositeDisposable';
 import { getRandomInt } from '@/util/math';
 import { LightningStormFx } from '@/engine/gfx/lighting/LightningStormFx';
+import { AresSuperWeaponLightingFx } from '@/engine/gfx/lighting/AresSuperWeaponLightingFx';
 import { GameSpeed } from '@/game/GameSpeed';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { Coords } from '@/game/Coords';
@@ -125,6 +126,12 @@ export class SuperWeaponFxHandler {
         atTile?: Tile;
     }): void {
         const ares = event.rules?.ares;
+        if (ares?.lightEnabled === true) {
+            this.lightingDirector.addEffect(new AresSuperWeaponLightingFx(
+                ares,
+                this.resolveAresLightingDuration(event),
+            ));
+        }
         const animation = ares?.swAnimation;
         const tile = event.atTile;
         if (!animation || !tile) return;
@@ -149,6 +156,23 @@ export class SuperWeaponFxHandler {
         this.renderableManager.createTransientAnim(animation, (anim) => {
             anim.setPosition(position);
         });
+    }
+    private resolveAresLightingDuration(event: { rules?: any }): number {
+        const type = event.rules?.type;
+        if (type === SuperWeaponType.LightningStorm) {
+            const ticks = this.game.rules.general.lightningStorm.duration;
+            return Number.isFinite(ticks) ? Math.max(0, ticks / GameSpeed.BASE_TICKS_PER_SECOND) : 0;
+        }
+        if (type === SuperWeaponType.PsychicDominator) {
+            const deferment = Number.isFinite(event.rules?.ares?.swDeferment)
+                ? Math.max(0, event.rules.ares.swDeferment)
+                : 0;
+            return (45 + deferment) / GameSpeed.BASE_TICKS_PER_SECOND;
+        }
+        // Retail nuclear lighting uses a short flash envelope. Custom Ares
+        // primary handlers use the same conservative envelope unless their
+        // effect supplies a more specific lifetime above.
+        return 3.8;
     }
     createChronoSphereAnim(tile: Tile): void {
         this.chronoSphereAnim = this.renderableManager.createAnim(this.game.rules.audioVisual.chronoPlacement, (anim) => {

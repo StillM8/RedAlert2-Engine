@@ -6,6 +6,7 @@ import { isNotNullOrUndefined } from "@/util/typeGuard";
 import { NotifySpawn } from "@/game/trait/interface/NotifySpawn";
 import { NotifyUnspawn } from "@/game/trait/interface/NotifyUnspawn";
 import { RadarTrait } from "@/game/trait/RadarTrait";
+import { getAvailableBuildingSuperWeapon } from "@/game/gameobject/trait/SuperWeaponTrait";
 import { RadarEventType } from "@/game/rules/general/RadarRules";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { NotifyPower } from "@/game/trait/interface/NotifyPower";
@@ -111,7 +112,16 @@ export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAlli
                     this.shroudByPlayer.get(combatant)?.revealObject(object);
                     gameState.traits
                         .get(RadarTrait)
-                        .addEventForPlayer(RadarEventType.EnemyObjectSensed, combatant, object.centerTile, gameState);
+                        .addEventForPlayer(
+                            RadarEventType.EnemyObjectSensed,
+                            combatant,
+                            object.centerTile,
+                            gameState,
+                            {
+                                superWeaponRules: getAvailableBuildingSuperWeapon(object)?.superWeapon?.rules,
+                                superWeaponOwner: object.owner,
+                            },
+                        );
                 }
             }
             if (object.gapGeneratorTrait) {
