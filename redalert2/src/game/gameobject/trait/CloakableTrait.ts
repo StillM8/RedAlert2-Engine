@@ -6,6 +6,8 @@ import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 export class CloakableTrait {
     private gameObject: any;
     private cloakDelayMinutes: number;
+    private readonly initiallyCloakable: boolean;
+    private aresAttachEffectSource = false;
     private isActive: boolean;
     private cooldownTicks: number;
     /**
@@ -14,9 +16,10 @@ export class CloakableTrait {
      * detection effects cannot accidentally shorten an existing suppression.
      */
     private cloakSkipTicks: number;
-    constructor(gameObject: any, cloakDelayMinutes: number) {
+    constructor(gameObject: any, cloakDelayMinutes: number, initiallyCloakable = true) {
         this.gameObject = gameObject;
         this.cloakDelayMinutes = cloakDelayMinutes;
+        this.initiallyCloakable = initiallyCloakable;
         this.isActive = false;
         this.cloakSkipTicks = 0;
         this.resetCloakCooldown();
@@ -24,12 +27,33 @@ export class CloakableTrait {
     isCloaked(): boolean {
         return this.isActive;
     }
+    /** Whether the object currently has any source that grants cloaking. */
+    isCloakable(): boolean {
+        return this.initiallyCloakable || this.aresAttachEffectSource;
+    }
+    /**
+     * Ares AttachEffect.Cloakable is a temporary capability, not a second
+     * permanent Cloakable=yes flag.  Keep it as an independent source so an
+     * effect can expire without removing a unit's original or veteran cloak.
+     */
+    setAresAttachEffectSource(enabled: boolean, context?: any): void {
+        const next = enabled === true;
+        if (next === this.aresAttachEffectSource) return;
+        const wasCloaked = this.isActive;
+        this.aresAttachEffectSource = next;
+        if (next) {
+            this.resetCloakCooldown();
+        }
+        else if (wasCloaked && !this.isCloakable()) {
+            this.uncloak(context);
+        }
+    }
     uncloak(context: any): void {
         const wasActive = this.isActive;
         this.resetCloakCooldown();
         if (wasActive) {
             this.isActive = false;
-            context.events.dispatch(new ObjectCloakChangeEvent(this.gameObject));
+            context?.events?.dispatch?.(new ObjectCloakChangeEvent(this.gameObject));
         }
     }
     /**
@@ -69,6 +93,7 @@ export class CloakableTrait {
         }
         if (this.cooldownTicks <= 0 &&
             this.cloakSkipTicks <= 0 &&
+            this.isCloakable() &&
             !this.isActive &&
             !(target.isVehicle() &&
                 target.submergibleTrait &&

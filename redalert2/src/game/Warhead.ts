@@ -29,6 +29,7 @@ import {
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import type { AresAttachEffectApplyResult } from "@/extensions/ares/AresAttachEffectRuntime";
 import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
+import { CloakableTrait } from "@/game/gameobject/trait/CloakableTrait";
 import { applyAresChronoPrison } from "@/extensions/ares/AresChronoPrisonIntegration";
 interface GameObject {
     isSpawned: boolean;
@@ -61,13 +62,17 @@ interface GameObject {
 interface TechnoObject extends GameObject {
     warpedOutTrait: WarpedOutTrait;
     invulnerableTrait: InvulnerableTrait;
+    cloakableTrait?: CloakableTrait;
     veteranTrait?: VeteranTrait;
     aresAttachEffectTrait?: {
         getAggregateMultipliers(): AresAttachEffectAggregateInput;
         apply(
             effectId: string,
             definition: AresAttachEffectDefinition,
-            options?: { protectedByIronCurtainOrForceShield?: boolean },
+            options?: {
+                protectedByIronCurtainOrForceShield?: boolean;
+                context?: GameWorld;
+            },
         ): AresAttachEffectApplyResult;
     };
     traits?: { add(trait: unknown): void };
@@ -260,6 +265,7 @@ interface EventDispatcher {
     dispatch(event: any): void;
 }
 interface GameRules {
+    general: { cloakDelay: number };
     audioVisual: AudioVisualRules;
     combatDamage: CombatDamageRules;
 }
@@ -694,8 +700,24 @@ export class Warhead {
         // Warhead-owned AttachEffects are valid on every TechnoType.  The
         // trait is created lazily so ordinary retail units do not pay an
         // idle per-tick cost when the loaded rules contain no AttachEffect.
+        if (definition.cloakable && !techno.cloakableTrait) {
+            techno.cloakableTrait = new CloakableTrait(
+                techno,
+                gameWorld.rules.general.cloakDelay,
+                false,
+            );
+            if (gameWorld.addObjectTrait) {
+                gameWorld.addObjectTrait(techno, techno.cloakableTrait);
+            }
+            else if (techno.addTrait) {
+                techno.addTrait(techno.cloakableTrait);
+            }
+            else {
+                techno.traits?.add(techno.cloakableTrait);
+            }
+        }
         if (!techno.aresAttachEffectTrait) {
-            const trait = new AresAttachEffectTrait();
+            const trait = new AresAttachEffectTrait({ gameObject: techno });
             techno.aresAttachEffectTrait = trait;
             if (gameWorld.addObjectTrait) {
                 gameWorld.addObjectTrait(techno, trait);
@@ -711,7 +733,10 @@ export class Warhead {
         const result = techno.aresAttachEffectTrait.apply(
             this.rules.name,
             definition,
-            { protectedByIronCurtainOrForceShield: techno.invulnerableTrait.isActive() },
+            {
+                protectedByIronCurtainOrForceShield: techno.invulnerableTrait.isActive(),
+                context: gameWorld,
+            },
         );
         if (result.forceDecloak) {
             (techno as any).cloakableTrait?.uncloak?.(gameWorld);

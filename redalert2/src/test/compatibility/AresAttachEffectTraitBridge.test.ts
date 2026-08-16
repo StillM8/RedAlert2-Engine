@@ -7,6 +7,7 @@ import {
     type AresAttachEffectBinding,
 } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
+import { CloakableTrait } from "@/game/gameobject/trait/CloakableTrait";
 
 function definition(values: Record<string, string> = {}) {
     const section = new IniSection("GenericEffect");
@@ -200,5 +201,56 @@ describe("AresAttachEffectTrait gameplay bridge", () => {
             expiredEffectIds: ["one-shot-effect"],
         });
         expect(nonRenewing.getAutomaticSchedule()).toEqual({ phase: "disabled", remainingDelay: 0 });
+    });
+
+    test("grants temporary cloaking and removes it when the effect expires", () => {
+        const events: any[] = [];
+        const target: any = {
+            isVehicle: () => false,
+            submergibleTrait: undefined,
+            temporalTrait: { getTarget: () => undefined },
+            operatorTrait: { isOffline: () => false },
+        };
+        const context = { events: { dispatch: (event: any) => events.push(event) } };
+        target.cloakableTrait = new CloakableTrait(target, 0, false);
+        const trait = new AresAttachEffectTrait({ gameObject: target });
+        const cloak = definition({
+            "AttachEffect.Duration": "1",
+            "AttachEffect.Cloakable": "yes",
+        });
+
+        trait.apply("temporary-cloak", cloak, { context });
+        expect(target.cloakableTrait.isCloakable()).toBe(true);
+        (target.cloakableTrait as any).cooldownTicks = 0;
+        target.cloakableTrait[NotifyTick.onTick](target, context);
+        expect(target.cloakableTrait.isCloaked()).toBe(true);
+
+        trait.advance({ context });
+        expect(target.cloakableTrait.isCloakable()).toBe(false);
+        expect(target.cloakableTrait.isCloaked()).toBe(false);
+        expect(events).toHaveLength(2);
+    });
+
+    test("does not remove a permanent cloak source when a temporary source expires", () => {
+        const target: any = {
+            isVehicle: () => false,
+            submergibleTrait: undefined,
+            temporalTrait: { getTarget: () => undefined },
+            operatorTrait: { isOffline: () => false },
+        };
+        const context = { events: { dispatch: () => undefined } };
+        target.cloakableTrait = new CloakableTrait(target, 0, true);
+        const trait = new AresAttachEffectTrait({ gameObject: target });
+        trait.apply("temporary-cloak", definition({
+            "AttachEffect.Duration": "1",
+            "AttachEffect.Cloakable": "yes",
+        }), { context });
+        (target.cloakableTrait as any).cooldownTicks = 0;
+        target.cloakableTrait[NotifyTick.onTick](target, context);
+        expect(target.cloakableTrait.isCloaked()).toBe(true);
+
+        trait.advance({ context });
+        expect(target.cloakableTrait.isCloakable()).toBe(true);
+        expect(target.cloakableTrait.isCloaked()).toBe(true);
     });
 });

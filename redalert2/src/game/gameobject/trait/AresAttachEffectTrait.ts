@@ -27,6 +27,8 @@ export interface AresAttachEffectMultipliers {
 }
 
 export interface AresAttachEffectTraitOptions {
+    /** Owning techno used for temporary Cloakable and residual-effect seams. */
+    gameObject?: any;
     definitions?: ReadonlyMap<AresAttachEffectId, AresAttachEffectDefinition>;
     instances?: readonly AresAttachEffectInstance[];
     /** Optional TechnoType-owned effect that is scheduled from spawn onward. */
@@ -69,6 +71,7 @@ export interface AresAttachEffectPresentation {
  * does not mutate movement, armor, weapon, cloak, save, or network services.
  */
 export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUnspawn {
+    private readonly gameObject?: any;
     private instances: AresAttachEffectInstance[];
     private definitions: Map<AresAttachEffectId, AresAttachEffectDefinition>;
     private automaticEffect?: AresAttachEffectBinding;
@@ -78,6 +81,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     private animationRevision = 0;
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
+        this.gameObject = options.gameObject;
         this.instances = (options.instances ?? []).map(instance => ({ ...instance }));
         this.definitions = new Map(options.definitions ?? []);
         this.automaticEffect = options.automaticEffect;
@@ -85,6 +89,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             this.definitions.set(this.automaticEffect.effectId, this.automaticEffect.definition);
             this.automaticPhase = this.hasAutomaticInstance() ? "active" : "inactive";
         }
+        this.syncDynamicCloak();
     }
 
     getState(): readonly AresAttachEffectInstance[] {
@@ -114,12 +119,16 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         this.presentationRevision++;
         this.animationRevision++;
         this.pruneDefinitions();
+        this.syncDynamicCloak();
     }
 
     apply(
         effectId: AresAttachEffectId,
         definition: AresAttachEffectDefinition,
-        options: { protectedByIronCurtainOrForceShield?: boolean } = {},
+        options: {
+            protectedByIronCurtainOrForceShield?: boolean;
+            context?: any;
+        } = {},
     ): AresAttachEffectApplyResult {
         const previousDefinition = this.definitions.get(effectId);
         const result = applyAresAttachEffect(definition, effectId, this.instances, options);
@@ -150,10 +159,11 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             this.automaticRemainingDelay = 0;
         }
         this.pruneDefinitions();
+        this.syncDynamicCloak(options.context);
         return this.copyApplyResult(result);
     }
 
-    advance(options: { includeState?: boolean } = {}): AresAttachEffectTraitAdvanceResult {
+    advance(options: { includeState?: boolean; context?: any } = {}): AresAttachEffectTraitAdvanceResult {
         const expiredEffectIds = advanceAresAttachEffectsInPlace(this.instances);
         if (expiredEffectIds.length) this.presentationRevision++;
         let automaticApply: AresAttachEffectApplyResult | undefined;
@@ -178,6 +188,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         if (expiredEffectIds.length || automaticApply !== undefined) {
             this.pruneDefinitions();
         }
+        this.syncDynamicCloak(options.context);
         return {
             instances: options.includeState === false ? this.instances : this.getState(),
             expiredEffectIds: [...expiredEffectIds],
@@ -186,11 +197,11 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     }
 
     /** Tick entry point used by the game loop; no external state snapshot is needed. */
-    advanceTick(): void {
-        this.advance({ includeState: false });
+    advanceTick(context?: any): void {
+        this.advance({ includeState: false, context });
     }
 
-    discardOnEntry(): AresAttachEffectRemovalResult {
+    discardOnEntry(context?: any): AresAttachEffectRemovalResult {
         const result = discardAresAttachEffectsOnEntry(this.instances);
         this.instances = result.instances.map(instance => ({ ...instance }));
         if (result.removedEffectIds.length) this.presentationRevision++;
@@ -200,6 +211,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             this.automaticRemainingDelay = 0;
         }
         this.pruneDefinitions();
+        this.syncDynamicCloak(context);
         return {
             instances: this.getState(),
             removedEffectIds: [...result.removedEffectIds],
@@ -243,7 +255,10 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
      * positive values count down, and zero applies immediately.
      */
     spawn(
-        options: { protectedByIronCurtainOrForceShield?: boolean } = {},
+        options: {
+            protectedByIronCurtainOrForceShield?: boolean;
+            context?: any;
+        } = {},
     ): AresAttachEffectApplyResult | undefined {
         if (!this.automaticEffect || this.hasAutomaticInstance()) {
             if (this.automaticEffect && this.hasAutomaticInstance()) this.automaticPhase = "active";
@@ -297,25 +312,28 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         });
     }
 
-    [NotifySpawn.onSpawn](): AresAttachEffectApplyResult | undefined {
-        return this.spawn();
+    [NotifySpawn.onSpawn](_gameObject?: any, context?: any): AresAttachEffectApplyResult | undefined {
+        return this.spawn({ context });
     }
 
-    [NotifyTick.onTick](): void {
-        this.advanceTick();
+    [NotifyTick.onTick](_gameObject?: any, context?: any): void {
+        this.advanceTick(context);
     }
 
-    [NotifyUnspawn.onUnspawn](gameObject: { limboData?: unknown }): void {
+    [NotifyUnspawn.onUnspawn](gameObject: { limboData?: unknown }, context?: any): void {
         // Game.limboObject sets limboData before dispatching onUnspawn. A
         // regular removal has no limboData and must not trigger
         // DiscardOnEntry.
         if (gameObject?.limboData !== undefined) {
-            this.discardOnEntry();
+            this.discardOnEntry(context);
         }
     }
 
     private processAutomaticDelay(
-        options: { protectedByIronCurtainOrForceShield?: boolean } = {},
+        options: {
+            protectedByIronCurtainOrForceShield?: boolean;
+            context?: any;
+        } = {},
     ): AresAttachEffectApplyResult | undefined {
         if (!this.automaticEffect ||
             !["waiting-initial", "waiting-renewal"].includes(this.automaticPhase)) {
@@ -348,6 +366,12 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         for (const effectId of this.definitions.keys()) {
             if (!activeIds.has(effectId)) this.definitions.delete(effectId);
         }
+    }
+
+    private syncDynamicCloak(context?: any): void {
+        const hasCloakSource = this.instances.some((instance) =>
+            this.definitions.get(instance.effectId)?.cloakable === true);
+        this.gameObject?.cloakableTrait?.setAresAttachEffectSource?.(hasCloakSource, context);
     }
 
     private copyApplyResult(result: AresAttachEffectApplyResult): AresAttachEffectApplyResult {

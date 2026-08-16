@@ -159,8 +159,12 @@ export class ObjectFactory {
                 gameObject.disguiseTrait = new DisguiseTrait();
                 gameObject.traits.add(gameObject.disguiseTrait);
             }
-            if (gameObject.rules.cloakable) {
-                gameObject.cloakableTrait = new CloakableTrait(gameObject, rulesIni.general.cloakDelay);
+            if (gameObject.rules.cloakable || gameObject.rules.aresAttachEffect?.cloakable) {
+                gameObject.cloakableTrait = new CloakableTrait(
+                    gameObject,
+                    rulesIni.general.cloakDelay,
+                    gameObject.rules.cloakable === true,
+                );
                 gameObject.traits.add(gameObject.cloakableTrait);
             }
             if (gameObject.rules.sensors) {
@@ -210,6 +214,7 @@ export class ObjectFactory {
             }
             if (gameObject.rules.aresAttachEffect) {
                 gameObject.aresAttachEffectTrait = new AresAttachEffectTrait({
+                    gameObject,
                     automaticEffect: {
                         effectId: gameObject.name,
                         definition: gameObject.rules.aresAttachEffect,
