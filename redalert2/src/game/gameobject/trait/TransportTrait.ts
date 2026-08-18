@@ -3,7 +3,6 @@ import { NotifyDestroy } from './interface/NotifyDestroy';
 import { ScatterTask } from '../task/ScatterTask';
 import { LeaveTransportEvent } from '@/game/event/LeaveTransportEvent';
 import { NotifyTick } from './interface/NotifyTick';
-import { ZoneType } from '../unit/ZoneType';
 import { GameObject } from '../GameObject';
 import { World } from '@/game/World';
 import {
@@ -11,6 +10,7 @@ import {
     getAresPassengerRules,
     isAresPassengerTypeAllowed,
 } from '@/extensions/ares/AresPassengers';
+import { shouldAresPassengerSurvive } from '@/extensions/ares/AresSurvivors';
 export class TransportTrait {
     private obj: GameObject;
     public units: GameObject[] = [];
@@ -73,7 +73,11 @@ export class TransportTrait {
     [NotifyDestroy.onDestroy](gameObject: GameObject, world: World, context?: any, forceDestroy?: boolean): void {
         const hasDeathWeapon = !!gameObject.armedTrait?.deathWeapon;
         const isParasite = context?.weapon?.warhead.rules.parasite;
-        if (forceDestroy || hasDeathWeapon || gameObject.zone === ZoneType.Air || isParasite) {
+        // Forced/special destruction keeps the engine's hard-kill semantics.
+        // Ordinary destruction, including airborne transports, goes through
+        // Ares Survivor.*PassengerChance so explicit chances can permit
+        // parachuting/survival while the default -1 preserves YR behavior.
+        if (forceDestroy || hasDeathWeapon || isParasite) {
             for (const unit of this.units) {
                 if (hasDeathWeapon && unit.armedTrait) {
                     unit.armedTrait.deathWeapon = undefined;
@@ -86,20 +90,28 @@ export class TransportTrait {
             }
         }
         else {
-            this.spawnSurvivors(world);
+            this.spawnSurvivors(world, context);
         }
         this.units = [];
     }
-    private spawnSurvivors(world: World): void {
+    private spawnSurvivors(world: World, killerContext?: any): void {
         const transport = this.obj;
         if (this.units.length) {
             for (const unit of this.units) {
-                if (world.map.terrain.getPassableSpeed(transport.tile, unit.rules.speedType, unit.isInfantry(), transport.onBridge) > 0) {
+                const survivedRoll = shouldAresPassengerSurvive(transport, world);
+                const hasGround = survivedRoll &&
+                    world.map.terrain.getPassableSpeed(
+                        transport.tile,
+                        unit.rules.speedType,
+                        unit.isInfantry(),
+                        !!transport.onBridge,
+                    ) > 0;
+                if (hasGround) {
                     unit.owner.addOwnedObject(unit);
                     unit.position.tileElevation = transport.onBridge
-                        ? world.map.tileOccupation.getBridgeOnTile(transport.tile).tileElevation
+                        ? world.map.tileOccupation.getBridgeOnTile(transport.tile)?.tileElevation ?? 0
                         : 0;
-                    unit.onBridge = transport.onBridge;
+                    unit.onBridge = !!transport.onBridge;
                     unit.zone = world.map.getTileZone(transport.tile, !transport.onBridge);
                     world.unlimboObject(unit, transport.tile);
                     unit.unitOrderTrait.addTask(new ScatterTask(world));
@@ -109,7 +121,9 @@ export class TransportTrait {
                     unit.zone = transport.zone;
                     unit.onBridge = transport.onBridge;
                     unit.position.tile = transport.tile;
-                    world.destroyObject(unit, { player: unit.owner });
+                    // Ares counts failed passenger escapes as kills by the
+                    // transport's killer, even when chance is explicitly 0.
+                    world.destroyObject(unit, killerContext, true);
                 }
             }
             world.events.dispatch(new LeaveTransportEvent(transport));
