@@ -8,24 +8,92 @@ import { ArmedTrait } from '@/game/gameobject/trait/ArmedTrait';
 import { AttackTrait } from '@/game/gameobject/trait/AttackTrait';
 import { Weapon } from '@/game/Weapon';
 import { WeaponType } from '@/game/WeaponType';
+import { canAresUrbanCombatInfantryOccupy } from '@/extensions/ares/AresUrbanCombatRuntime';
 export class GarrisonTrait {
     private building: Building;
     private evacThreshold: number;
     private maxOccupants: number;
     private units: Unit[] = [];
+    /** Owner that must receive a neutral/raidable bunker again once the
+     * temporary occupants leave. This is explicit state instead of the old
+     * TechLevel=-1 heuristic so player-owned Bunker.Raidable buildings work. */
+    private trueOwner: any;
+    private temporaryOccupation: boolean = false;
     constructor(building: Building, evacThreshold: number, maxOccupants: number) {
         this.building = building;
         this.evacThreshold = evacThreshold;
         this.maxOccupants = maxOccupants;
+        this.trueOwner = (building as any).owner;
     }
     isOccupied(): boolean {
         return this.units.length > 0;
     }
     canBeOccupied(): boolean {
-        return this.building.healthTrait.health > 100 * this.evacThreshold;
+        return (this.building as any).healthTrait.health > 100 * this.evacThreshold;
     }
     getOccupantCount(): number {
         return this.units.length;
+    }
+    isTemporarilyOccupied(): boolean {
+        return this.temporaryOccupation;
+    }
+    /** Conventional capture changes the building's true owner. Temporary
+     * Bunker.Raidable ownership does not. */
+    setTrueOwner(owner: any): void {
+        if (!this.temporaryOccupation) {
+            this.trueOwner = owner;
+        }
+    }
+    /**
+     * Single authoritative occupancy gate for both cursor/order validation and
+     * the final enter task. This consumes Ares CanBeOccupiedBy and
+     * Bunker.Raidable without changing non-Ares garrison behavior.
+     */
+    canAcceptOccupant(unit: any, context: any): boolean {
+        const building: any = this.building;
+        const urban = building.rules.aresUrbanCombat ?? {
+            bunkerRaidable: false,
+            canBeOccupiedBy: [],
+        };
+        const battery = building.rules.occupantsPowerBonus > 0 && !unit.rules.slaved;
+        return canAresUrbanCombatInfantryOccupy(
+            urban,
+            String(unit.rules?.name ?? unit.name ?? ''),
+            {
+                buildingCanBeOccupied: this.canBeOccupied(),
+                infantryIsOccupier: !!unit.rules.occupier || battery,
+                buildingIsFull: this.units.length >= this.maxOccupants,
+                buildingIsEmpty: this.units.length === 0,
+                sameOwner: context.areFriendly(unit, building),
+                buildingIsNeutral: !!building.owner?.isNeutral,
+                infantryIsHostile: !building.owner?.isNeutral && !context.areFriendly(unit, building),
+                infantryIsMindControlled: !!unit.mindControllableTrait?.isActive?.() ||
+                    !!unit.mindControllerTrait?.isActive?.(),
+            },
+        );
+    }
+    /**
+     * Claim an empty neutral or Bunker.Raidable building for the entering
+     * infantry while retaining the prior owner for Ares' automatic reversion.
+     */
+    beginTemporaryOccupation(newOwner: any, context: any): boolean {
+        const building: any = this.building;
+        if (this.units.length || building.owner === newOwner) return false;
+        if (!this.temporaryOccupation) {
+            this.trueOwner = building.owner;
+            this.temporaryOccupation = true;
+        }
+        context.changeObjectOwner(building, newOwner);
+        return true;
+    }
+    private restoreTrueOwner(context: any): void {
+        const building: any = this.building;
+        if (!this.temporaryOccupation || !this.trueOwner || building.owner === this.trueOwner) {
+            this.temporaryOccupation = false;
+            return;
+        }
+        context.changeObjectOwner(building, this.trueOwner);
+        this.temporaryOccupation = false;
     }
     /**
      * InitialPayload creates the infantry directly in limbo rather than
@@ -35,8 +103,8 @@ export class GarrisonTrait {
     addInitialOccupant(unit: Unit, context: GameContext): boolean {
         if (this.units.length >= this.maxOccupants) return false;
         this.units.push(unit);
-        if (this.building.rules.occupantsPowerBonus && this.building.rules.power > 0) {
-            this.building.owner.powerTrait?.updateFrom(this.building, "update", context);
+        if ((this.building as any).rules.occupantsPowerBonus && (this.building as any).rules.power > 0) {
+            (this.building as any).owner.powerTrait?.updateFrom(this.building, "update", context);
         }
         this.updateOccupantWeapons(context);
         return true;
@@ -74,7 +142,7 @@ export class GarrisonTrait {
         }
     }
     [NotifyDamage.onDamage](building: Building, context: GameContext): void {
-        if (building.healthTrait.health <= 100 * this.evacThreshold) {
+        if ((building as any).healthTrait.health <= 100 * this.evacThreshold) {
             this.evacuate(context);
         }
     }
@@ -90,53 +158,64 @@ export class GarrisonTrait {
         }
     }
     getHash(): number {
-        return fnv32a(this.units.map(unit => unit.getHash()));
+        // Temporary ownership is already present in the building's owner hash;
+        // include the retained true owner identity so two peers cannot silently
+        // disagree about who receives an emptied raidable bunker.
+        const ownerIdentity = String(this.trueOwner?.id ?? this.trueOwner?.name ?? this.trueOwner?.country?.id ?? '');
+        return fnv32a([
+            this.temporaryOccupation ? 1 : 0,
+            ownerIdentity,
+            ...this.units.map(unit => unit.getHash()),
+        ] as any);
     }
     debugGetState(): {
         units: any[];
+        temporaryOccupation: boolean;
+        trueOwner?: string;
     } {
-        return { units: this.units.map(unit => unit.debugGetState()) };
+        return {
+            units: this.units.map(unit => unit.debugGetState()),
+            temporaryOccupation: this.temporaryOccupation,
+            trueOwner: String(this.trueOwner?.id ?? this.trueOwner?.name ?? this.trueOwner?.country?.id ?? '') || undefined,
+        };
     }
     dispose(): void {
-        this.building = undefined;
+        this.building = undefined as any;
+        this.trueOwner = undefined;
     }
     evacuate(context: GameContext, forceDestroy: boolean = false): void {
-        const building = this.building;
+        const building: any = this.building;
         const units = this.units;
         if (units.length) {
             const speedTypeMap = new Map<string, Unit[]>();
             for (const unit of units) {
-                speedTypeMap.set(unit.rules.speedType, (speedTypeMap.get(unit.rules.speedType) || []).concat(unit));
+                speedTypeMap.set((unit as any).rules.speedType, (speedTypeMap.get((unit as any).rules.speedType) || []).concat(unit));
             }
             for (const [speedType, typeUnits] of speedTypeMap) {
-                const finder = new RadialTileFinder(context.map.tiles, context.map.mapBounds, building.tile, building.art.foundation, 1, 1, (tile) => {
-                    return context.map.terrain.getPassableSpeed(tile, speedType, true, false) > 0 &&
+                const finder = new RadialTileFinder((context as any).map.tiles, (context as any).map.mapBounds, building.tile, building.art.foundation, 1, 1, (tile) => {
+                    return (context as any).map.terrain.getPassableSpeed(tile, speedType, true, false) > 0 &&
                         Math.abs(tile.z - building.tile.z) < 2 &&
-                        !context.map.terrain.findObstacles({ tile, onBridge: undefined }, typeUnits[0]).length;
+                        !(context as any).map.terrain.findObstacles({ tile, onBridge: undefined }, typeUnits[0]).length;
                 });
                 const exitTile = finder.getNextTile();
                 for (const unit of typeUnits) {
                     const unitIndex = units.indexOf(unit);
                     if (exitTile) {
                         units.splice(unitIndex, 1);
-                        context.unlimboObject(unit, exitTile);
-                        unit.unitOrderTrait.addTask(new ScatterTask(context));
+                        (context as any).unlimboObject(unit, exitTile);
+                        (unit as any).unitOrderTrait.addTask(new ScatterTask(context as any));
                     }
                     else if (!forceDestroy) {
-                        context.destroyObject(unit, { player: unit.owner });
+                        (context as any).destroyObject(unit, { player: (unit as any).owner });
                         units.splice(unitIndex, 1);
                     }
                 }
             }
             const oldOwner = building.owner;
-            // Only captured civilian structures revert to neutral when
-            // emptied; player-built garrisonables (Bio Reactor, bunkers)
-            // stay owned.
-            if (!units.length && !building.isDestroyed && building.rules.techLevel === -1) {
-                const civilian = context.getCivilianPlayer();
-                if (civilian) {
-                    context.changeObjectOwner(building, civilian);
-                }
+            if (!units.length && !building.isDestroyed) {
+                // Ares Bunker.Raidable and retail neutral urban buildings both
+                // revert to the owner captured at temporary-entry time.
+                this.restoreTrueOwner(context);
             }
             if (!building.isDestroyed &&
                 building.rules.occupantsPowerBonus &&
@@ -146,7 +225,7 @@ export class GarrisonTrait {
             if (!building.isDestroyed) {
                 this.updateOccupantWeapons(context);
             }
-            context.events.dispatch(new BuildingEvacuateEvent(building, oldOwner));
+            (context as any).events.dispatch(new BuildingEvacuateEvent(building, oldOwner));
         }
     }
 }
