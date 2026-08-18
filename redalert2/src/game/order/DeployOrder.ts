@@ -34,7 +34,7 @@ export class DeployOrder extends Order {
             ![StanceType.Cheer].includes(sourceObject.stance)) ||
             (sourceObject.isVehicle() && sourceObject.deployerTrait) ||
             (sourceObject.isVehicle() && sourceObject.rules.deploysInto) ||
-            (sourceObject.isVehicle() && sourceObject.transportTrait) ||
+            (sourceObject.isVehicle() && sourceObject.transportTrait && sourceObject.transportTrait.allowsManualUnload?.() !== false) ||
             (sourceObject.isBuilding() &&
                 sourceObject.rules.factory &&
                 !sourceObject.owner.production?.isPrimaryFactory(sourceObject)) ||
@@ -44,7 +44,8 @@ export class DeployOrder extends Order {
     isAllowed(): boolean {
         const sourceObject = this.sourceObject;
         if (sourceObject.isVehicle() && sourceObject.transportTrait) {
-            return !!(sourceObject.transportTrait.units.length &&
+            return !!(sourceObject.transportTrait.allowsManualUnload?.() !== false &&
+                sourceObject.transportTrait.units.length &&
                 0 <
                     this.game.map.terrain.getPassableSpeed(sourceObject.tile, SpeedType.Foot, false, sourceObject.onBridge));
         }
@@ -80,7 +81,9 @@ export class DeployOrder extends Order {
     process(): Task[] | undefined {
         const sourceObject = this.sourceObject;
         if (sourceObject.isVehicle() && sourceObject.transportTrait) {
-            return [new EvacuateTransportTask(this.game, true)];
+            return sourceObject.transportTrait.allowsManualUnload?.() === false
+                ? undefined
+                : [new EvacuateTransportTask(this.game, true)];
         }
         if (sourceObject.isBuilding() && sourceObject.rules.factory) {
             return undefined;
@@ -121,6 +124,7 @@ export class DeployOrder extends Order {
         }
         if (sourceObject.isVehicle() &&
             sourceObject.transportTrait &&
+            sourceObject.transportTrait.allowsManualUnload?.() !== false &&
             !isQueued &&
             this.isValid() &&
             this.isAllowed()) {
