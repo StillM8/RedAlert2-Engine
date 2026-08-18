@@ -5,11 +5,16 @@ import { DockableTrait } from '@/game/gameobject/trait/DockableTrait';
 import { Techno } from '@/game/gameobject/Techno';
 import { ParasiteableTrait } from '@/game/gameobject/trait/ParasiteableTrait';
 import { CrashableTrait } from '@/game/gameobject/trait/CrashableTrait';
+import { CrewedTrait } from '@/game/gameobject/trait/CrewedTrait';
 import { AirportBoundTrait } from '@/game/gameobject/trait/AirportBoundTrait';
 import { SpawnLinkTrait } from '@/game/gameobject/trait/SpawnLinkTrait';
 import { MissileSpawnTrait } from '@/game/gameobject/trait/MissileSpawnTrait';
 import { CrateBonuses } from '@/game/gameobject/unit/CrateBonuses';
 import { UnlandableTrait } from '@/game/gameobject/trait/UnlandableTrait';
+import {
+    getAresSurvivorPilotCount,
+    isAresSurvivorRuntimeEnabled,
+} from '@/extensions/ares/AresSurvivors';
 export class Aircraft extends Techno {
     pitch: number;
     yaw: number;
@@ -20,6 +25,7 @@ export class Aircraft extends Techno {
     moveTrait: MoveTrait;
     airportBoundTrait?: AirportBoundTrait;
     crashableTrait?: CrashableTrait;
+    crewedTrait?: CrewedTrait;
     missileSpawnTrait?: MissileSpawnTrait;
     spawnLinkTrait?: SpawnLinkTrait;
     parasiteableTrait?: ParasiteableTrait;
@@ -41,6 +47,15 @@ export class Aircraft extends Techno {
         if (!aircraft.rules.missileSpawn) {
             aircraft.crashableTrait = new CrashableTrait(aircraft);
             aircraft.traits.add(aircraft.crashableTrait);
+        }
+        const aresSurvivorsEnabled = isAresSurvivorRuntimeEnabled(rules);
+        // Ares restores aircraft pilots and allows PilotCount to opt an
+        // AircraftType in even when Crewed=no. Missile spawns are projectiles
+        // represented as AircraftTypes and must never manufacture pilots.
+        if (!aircraft.rules.missileSpawn &&
+            (rules.crewed || (aresSurvivorsEnabled && getAresSurvivorPilotCount({ rules }) > 0))) {
+            aircraft.crewedTrait = new CrewedTrait(aresSurvivorsEnabled);
+            aircraft.traits.add(aircraft.crewedTrait);
         }
         if (aircraft.rules.spawned) {
             if (aircraft.rules.missileSpawn) {
