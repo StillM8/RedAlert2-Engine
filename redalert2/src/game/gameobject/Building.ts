@@ -1,5 +1,6 @@
 import { ObjectType } from "@/engine/type/ObjectType";
 import { GarrisonTrait } from "@/game/gameobject/trait/GarrisonTrait";
+import { TransportTrait } from "@/game/gameobject/trait/TransportTrait";
 import { TurretTrait } from "@/game/gameobject/trait/TurretTrait";
 import { TechnoRules, FactoryType } from "@/game/rules/TechnoRules";
 import { PoweredTrait } from "@/game/gameobject/trait/PoweredTrait";
@@ -46,6 +47,8 @@ export class Building extends Techno {
     private _buildStatus: BuildStatus;
     public lastBuildStatus: BuildStatus;
     public garrisonTrait?: GarrisonTrait;
+    /** Shared passenger state for InfantryAbsorb/UnitAbsorb building hosts. */
+    public transportTrait?: TransportTrait;
     public c4ChargeTrait?: C4ChargeTrait;
     public delayedKillTrait?: DelayedKillTrait;
     public cabHutTrait?: CabHutTrait;
@@ -75,7 +78,17 @@ export class Building extends Techno {
             building.traits.add(building.garrisonTrait);
         }
         const passengerRules = getAresPassengerRules(rules);
-        if (passengerRules?.initialPayloadTypes.length && building.garrisonTrait) {
+        // Ares Operator and InitialPayload use the ordinary YR absorb flags as
+        // the passenger host for buildings which are not urban garrisons.
+        if (!building.garrisonTrait &&
+            passengerRules &&
+            (passengerRules.infantryAbsorb || passengerRules.unitAbsorb) &&
+            Number((rules as any).passengers ?? 0) > 0) {
+            building.transportTrait = new TransportTrait(building as any);
+            building.traits.add(building.transportTrait);
+        }
+        if (passengerRules?.initialPayloadTypes.length &&
+            (building.garrisonTrait || building.transportTrait)) {
             building.traits.add(new AresInitialPayloadTrait());
         }
         if (rules.canC4 && !rules.wall) {
