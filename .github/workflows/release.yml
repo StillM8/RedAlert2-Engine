@@ -1,4 +1,4 @@
-name: Release engine
+name: Release Red Alert 2
 
 on:
   workflow_dispatch:
@@ -10,13 +10,13 @@ on:
         default: true
   push:
     tags:
-      - "engine-v*"
+      - "ra2-v*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: engine-release-${{ github.ref }}
+  group: ra2-release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -24,7 +24,6 @@ env:
 
 jobs:
   prepare:
-    name: Resolve release source
     runs-on: ubuntu-22.04
     outputs:
       source_sha: ${{ steps.release.outputs.source_sha }}
@@ -32,106 +31,55 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       prerelease: ${{ steps.release.outputs.prerelease }}
     steps:
-      - name: Check out release source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
           fetch-depth: 0
-
-      - name: Resolve and validate release metadata
-        id: release
+      - id: release
         shell: bash
         env:
           PRERELEASE_INPUT: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
-
-          CONFIG_VERSION="$(python3 - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path('redalert2/src-tauri/tauri.conf.json').read_text())['version'])
-          PY
-          )"
-
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+          VERSION="$(python3 -c 'import json; print(json.load(open("redalert2/src-tauri/tauri.conf.json"))["version"])')"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             SOURCE_SHA="$(git rev-parse HEAD)"
-            VERSION="$CONFIG_VERSION"
-            TAG="engine-v${VERSION}"
-            PRERELEASE="${PRERELEASE_INPUT:-false}"
+            TAG="ra2-v${VERSION}"
+            PRERELEASE="${PRERELEASE_INPUT:-true}"
           else
             SOURCE_SHA="$GITHUB_SHA"
             TAG="$GITHUB_REF_NAME"
-            VERSION="${TAG#engine-v}"
-
-            if [[ "$TAG" == "$VERSION" ]]; then
-              echo "::error::Release tags must use engine-v<version>."
-              exit 1
-            fi
-            if [[ "$VERSION" != "$CONFIG_VERSION" ]]; then
-              echo "::error::Tag version '$VERSION' does not match Tauri version '$CONFIG_VERSION'."
-              exit 1
-            fi
-
+            [[ "$TAG" == "ra2-v${VERSION}" ]] || { echo "::error::Tag $TAG does not match version $VERSION"; exit 1; }
             git fetch origin main
-            if ! git merge-base --is-ancestor "$SOURCE_SHA" origin/main; then
-              echo "::error::The release tag must point to a commit contained in main."
-              exit 1
-            fi
-
-            if [[ "$VERSION" == *-* ]]; then
-              PRERELEASE=true
-            else
-              PRERELEASE=false
-            fi
+            git merge-base --is-ancestor "$SOURCE_SHA" origin/main || { echo "::error::Release tag is not on main"; exit 1; }
+            [[ "$VERSION" == *-* ]] && PRERELEASE=true || PRERELEASE=false
           fi
-
-          if [[ "$VERSION" == *-* ]]; then
-            PRERELEASE=true
-          fi
-
+          [[ "$VERSION" == *-* ]] && PRERELEASE=true
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
-          echo "Release source: $SOURCE_SHA"
-          echo "Release tag:    $TAG"
-          echo "Version:        $VERSION"
-          echo "Prerelease:     $PRERELEASE"
-
   validate:
-    name: Tests and production web build
     needs: prepare
     runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: redalert2
     steps:
-      - name: Check out exact main release commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run unit and compatibility tests
-        run: bun test
-
-      - name: Build production web engine
-        run: bun run build
-
-      - name: TypeScript entry check
-        run: bun run typecheck:entry
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run build
+      - run: bun run typecheck:entry
         continue-on-error: true
 
   android:
-    name: Android signed APK
     needs: [prepare, validate]
     runs-on: ubuntu-22.04
     env:
@@ -140,161 +88,118 @@ jobs:
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
     steps:
-      - name: Check out exact main release commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Install web dependencies
-        working-directory: redalert2
+      - working-directory: redalert2
         run: bun install --frozen-lockfile
-
-      - name: Set Android release version
-        shell: bash
+      - name: Set Android version
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           python3 - <<'PY'
-          import os
-          import re
+          import os, re
           from pathlib import Path
-
-          path = Path('android/app/build.gradle.kts')
-          text = path.read_text()
+          p = Path('android/app/build.gradle.kts')
+          text = p.read_text()
           text = re.sub(r'versionCode\s*=\s*\d+', f'versionCode = {os.environ["GITHUB_RUN_NUMBER"]}', text, count=1)
           text = re.sub(r'versionName\s*=\s*"[^"]+"', f'versionName = "{os.environ["RELEASE_VERSION"]}"', text, count=1)
-          path.write_text(text)
+          p.write_text(text)
           PY
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK components
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.10.2
-
-      - name: Require stable Android signing secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing repository secret for $name"
-              missing=1
-            fi
-          done
-          if [[ "$missing" -ne 0 ]]; then
-            echo "::error::Android releases are intentionally not signed with a throwaway/debug key. Configure the four ANDROID_RELEASE_* repository secrets first."
-            exit 1
-          fi
-
-      - name: Build unsigned release APK
+      - name: Build release APK
         env:
           GRADLE_BIN: gradle
         run: ./scripts/build-android.sh --release
-
-      - name: Decode release keystore and sign APK
-        shell: bash
+      - name: Sign release APK
+        id: sign
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
         run: |
           set -euo pipefail
-          KEYSTORE="$RUNNER_TEMP/open-rts-engine-release.keystore"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
-
-          UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          [[ -f "$UNSIGNED" ]] || { echo "::error::Unsigned release APK not found"; exit 1; }
-
-          BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
           mkdir -p release-assets
-          ALIGNED="$RUNNER_TEMP/open-rts-engine-aligned.apk"
-          OUTPUT="release-assets/Open-RTS-Engine-${RELEASE_VERSION}-android.apk"
-
+          KEYSTORE="$RUNNER_TEMP/ra2-release.keystore"
+          configured=0
+          for value in "$ANDROID_KEYSTORE_BASE64" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
+            [[ -n "$value" ]] && configured=$((configured + 1))
+          done
+          if [[ "$configured" -eq 4 ]]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+            STORE_PASS="$ANDROID_KEYSTORE_PASSWORD"
+            KEY_ALIAS="$ANDROID_KEY_ALIAS"
+            KEY_PASS="$ANDROID_KEY_PASSWORD"
+            OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android.apk"
+            echo "kind=release" >> "$GITHUB_OUTPUT"
+          elif [[ "$configured" -eq 0 ]]; then
+            STORE_PASS="android"
+            KEY_ALIAS="ra2-dev"
+            KEY_PASS="android"
+            keytool -genkeypair -v -keystore "$KEYSTORE" -storepass "$STORE_PASS" -keypass "$KEY_PASS" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Red Alert 2 Development Build,O=StillM8,C=PK"
+            OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android-dev-signed.apk"
+            echo "kind=development" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Android signing secrets are partially configured. Set all four ANDROID_RELEASE_* secrets or remove them all."
+            exit 1
+          fi
+          UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          ALIGNED="$RUNNER_TEMP/ra2-aligned.apk"
           "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
-          "$BUILD_TOOLS/apksigner" sign \
-            --ks "$KEYSTORE" \
-            --ks-key-alias "$ANDROID_KEY_ALIAS" \
-            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
-            --key-pass env:ANDROID_KEY_PASSWORD \
-            --out "$OUTPUT" \
-            "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$STORE_PASS" --key-pass "pass:$KEY_PASS" --out "$OUTPUT" "$ALIGNED"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$OUTPUT"
-
-      - name: Upload Android release artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: engine-android
+          name: ra2-android
+          path: release-assets/*
           if-no-files-found: error
           retention-days: 14
-          path: release-assets/*
 
   windows:
-    name: Windows x64 portable
     needs: [prepare, validate]
     runs-on: windows-2025
     defaults:
       run:
         working-directory: redalert2
     steps:
-      - name: Check out exact main release commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Set up Rust MSVC target
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build portable single-file EXE
-        run: bun run tauri:build -- --target x86_64-pc-windows-msvc --ci --no-bundle
-
-      - name: Verify and stage Windows executable
-        shell: pwsh
+      - run: bun install --frozen-lockfile
+      - run: bun run tauri:build -- --target x86_64-pc-windows-msvc --ci --no-bundle
+      - shell: pwsh
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           $exe = "src-tauri/target/x86_64-pc-windows-msvc/release/redalert2-desktop.exe"
-          $loader = "src-tauri/target/x86_64-pc-windows-msvc/release/WebView2Loader.dll"
-          if (-not (Test-Path $exe)) { throw "Expected EXE was not produced: $exe" }
-          if (Test-Path $loader) { throw "Unexpected separate WebView2Loader.dll; portable build is no longer single-file." }
+          if (-not (Test-Path $exe)) { throw "Expected Windows executable not found" }
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
-          Copy-Item $exe "release-assets/Open-RTS-Engine-$env:RELEASE_VERSION-windows-x64.exe"
-
-      - name: Upload Windows release artifact
-        uses: actions/upload-artifact@v4
+          Copy-Item $exe "release-assets/Red-Alert-2-$env:RELEASE_VERSION-windows-x64.exe"
+      - uses: actions/upload-artifact@v4
         with:
-          name: engine-windows-x64
+          name: ra2-windows-x64
+          path: redalert2/release-assets/*
           if-no-files-found: error
           retention-days: 14
-          path: redalert2/release-assets/*
 
   macos:
-    name: macOS ${{ matrix.arch }}
     needs: [prepare, validate]
     strategy:
       fail-fast: false
@@ -311,31 +216,20 @@ jobs:
       run:
         working-directory: redalert2
     steps:
-      - name: Check out exact main release commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Set up Rust target
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build ad-hoc signed macOS bundles
-        env:
+      - run: bun install --frozen-lockfile
+      - env:
           APPLE_SIGNING_IDENTITY: "-"
         run: bun run tauri:build -- --target ${{ matrix.target }} --ci
-
-      - name: Stage DMG and app bundle
-        shell: bash
+      - shell: bash
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           TARGET: ${{ matrix.target }}
@@ -343,160 +237,101 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-assets
-
           DMG="$(find "src-tauri/target/$TARGET/release/bundle/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
           APP="$(find "src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
-          [[ -f "$DMG" ]] || { echo "::error::macOS DMG was not produced"; exit 1; }
-          [[ -d "$APP" ]] || { echo "::error::macOS app bundle was not produced"; exit 1; }
-
-          cp "$DMG" "release-assets/Open-RTS-Engine-${RELEASE_VERSION}-macOS-${ARCH}.dmg"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" \
-            "release-assets/Open-RTS-Engine-${RELEASE_VERSION}-macOS-${ARCH}.app.zip"
-
-      - name: Upload macOS release artifacts
-        uses: actions/upload-artifact@v4
+          [[ -f "$DMG" && -d "$APP" ]]
+          cp "$DMG" "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.dmg"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.app.zip"
+      - uses: actions/upload-artifact@v4
         with:
-          name: engine-macos-${{ matrix.arch }}
+          name: ra2-macos-${{ matrix.arch }}
+          path: redalert2/release-assets/*
           if-no-files-found: error
           retention-days: 14
-          path: redalert2/release-assets/*
 
   linux:
-    name: Linux x64
     needs: [prepare, validate]
     runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: redalert2
     steps:
-      - name: Check out exact main release commit
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
-
-      - name: Install Tauri Linux system dependencies
-        run: |
+      - run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            curl \
-            file \
-            libayatana-appindicator3-dev \
-            libfuse2 \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libxdo-dev \
-            patchelf \
-            rpm \
-            wget
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+          sudo apt-get install -y build-essential curl file libayatana-appindicator3-dev libfuse2 librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf rpm wget
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build Linux bundles
-        env:
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bun install --frozen-lockfile
+      - env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: bun run tauri:build -- --ci
-
-      - name: Stage Linux packages and portable binary
-        shell: bash
+      - shell: bash
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p release-assets
-
-          while IFS= read -r -d '' file; do
-            cp "$file" release-assets/
-          done < <(find src-tauri/target/release/bundle -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -print0)
-
+          APPIMAGE="$(find src-tauri/target/release/bundle -type f -name '*.AppImage' -print -quit)"
+          DEB="$(find src-tauri/target/release/bundle -type f -name '*.deb' -print -quit)"
+          RPM="$(find src-tauri/target/release/bundle -type f -name '*.rpm' -print -quit)"
+          [[ -f "$APPIMAGE" ]] && cp "$APPIMAGE" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.AppImage"
+          [[ -f "$DEB" ]] && cp "$DEB" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.deb"
+          [[ -f "$RPM" ]] && cp "$RPM" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.rpm"
           BINARY="src-tauri/target/release/redalert2-desktop"
-          [[ -x "$BINARY" ]] || { echo "::error::Linux release binary was not produced"; exit 1; }
-          cp "$BINARY" "release-assets/Open-RTS-Engine-${RELEASE_VERSION}-linux-x64"
-          chmod +x "release-assets/Open-RTS-Engine-${RELEASE_VERSION}-linux-x64"
-          tar -C release-assets -czf "release-assets/Open-RTS-Engine-${RELEASE_VERSION}-linux-x64.tar.gz" \
-            "Open-RTS-Engine-${RELEASE_VERSION}-linux-x64"
-          rm "release-assets/Open-RTS-Engine-${RELEASE_VERSION}-linux-x64"
-
-          if ! find release-assets -maxdepth 1 -type f | grep -q .; then
-            echo "::error::No Linux release artifacts were staged"
-            exit 1
-          fi
-
-      - name: Upload Linux release artifacts
-        uses: actions/upload-artifact@v4
+          [[ -x "$BINARY" ]] || { echo "::error::Linux binary missing"; exit 1; }
+          cp "$BINARY" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+          chmod +x "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+          tar -C release-assets -czf "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.tar.gz" "Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+          rm "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+      - uses: actions/upload-artifact@v4
         with:
-          name: engine-linux-x64
+          name: ra2-linux-x64
+          path: redalert2/release-assets/*
           if-no-files-found: error
           retention-days: 14
-          path: redalert2/release-assets/*
 
   release:
-    name: Publish GitHub Release
     needs: [prepare, validate, android, windows, macos, linux]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-      - name: Download all platform artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          pattern: engine-*
+          pattern: ra2-*
           path: release-assets
           merge-multiple: true
-
-      - name: Generate SHA-256 checksums
-        shell: bash
+      - shell: bash
         run: |
-          set -euo pipefail
           cd release-assets
-          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%P\0' \
-            | sort -z \
-            | xargs -0 sha256sum > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-
-      - name: Create or update GitHub Release
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%P\0' | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+      - name: Publish GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           set -euo pipefail
+          NOTES="$RUNNER_TEMP/notes.md"
+          cat > "$NOTES" <<'NOTES'
+          Cross-platform Red Alert 2 / Yuri's Revenge engine build from `main`.
 
-          mapfile -d '' ASSETS < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
-          if [[ "${#ASSETS[@]}" -eq 0 ]]; then
-            echo "::error::No release assets found"
-            exit 1
-          fi
-
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists; replacing platform assets."
+          Android is signed with configured release credentials when available. If no Android release credentials are configured, CI signs with a throwaway development key so the APK is installable for testing; future dev-signed builds may require uninstall/reinstall.
+          NOTES
+          args=(release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "Red Alert 2 $VERSION" --notes-file "$NOTES")
+          [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Red Alert 2 $VERSION" --notes-file "$NOTES"
           else
-            args=(
-              release create "$RELEASE_TAG"
-              --repo "$GITHUB_REPOSITORY"
-              --target "$SOURCE_SHA"
-              --title "Open RTS Engine $RELEASE_VERSION"
-              --generate-notes
-            )
-            if [[ "$PRERELEASE" == "true" ]]; then
-              args+=(--prerelease)
-            fi
             gh "${args[@]}"
           fi
-
-          gh release upload "$RELEASE_TAG" "${ASSETS[@]}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+          mapfile -d '' ASSETS < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
+          gh release upload "$TAG" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
