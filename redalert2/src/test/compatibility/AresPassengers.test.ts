@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { IniSection } from "@/data/IniFile";
 import {
     getAresPassengerRules,
+    isAresInitialPayloadBuildingHost,
     parseAresPassengerRules,
     registerAresPassengerRules,
 } from "@/extensions/ares/AresPassengers";
@@ -36,11 +37,13 @@ function transport(entries: Record<string, string>, passengers = 3, sizeLimit = 
 }
 
 describe("Ares passenger extensions", () => {
-    test("normalizes Specific Passengers and one-seat capacity semantics", () => {
+    test("normalizes Specific Passengers, building absorption and one-seat capacity semantics", () => {
         const rules = parseAresPassengerRules(section({
             "Passengers.Allowed": "E1, E2",
             "Passengers.Disallowed": "E2, SPY",
             "Passengers.BySize": "no",
+            "InfantryAbsorb": "yes",
+            "UnitAbsorb": "yes",
             "NoManualUnload": "yes",
             "NoManualEnter": "yes",
             "InitialPayload.Types": "E1, E2, E3",
@@ -51,6 +54,8 @@ describe("Ares passenger extensions", () => {
         expect(rules.allowedTypes).toEqual(["E1", "E2"]);
         expect(rules.disallowedTypes).toEqual(["E2", "SPY"]);
         expect(rules.bySize).toBe(false);
+        expect(rules.infantryAbsorb).toBe(true);
+        expect(rules.unitAbsorb).toBe(true);
         expect(rules.noManualUnload).toBe(true);
         expect(rules.noManualEnter).toBe(true);
         expect(rules.initialPayloadTypes).toEqual(["E1", "E2", "E3"]);
@@ -65,11 +70,22 @@ describe("Ares passenger extensions", () => {
         const rules = getAresPassengerRules(hostRules)!;
 
         expect(rules.bySize).toBe(true);
+        expect(rules.infantryAbsorb).toBe(false);
+        expect(rules.unitAbsorb).toBe(false);
         expect(rules.noManualUnload).toBe(false);
         expect(rules.noManualEnter).toBe(false);
         expect(rules.initialPayloadTypes).toEqual([]);
         expect(rules.initialPayloadCounts).toEqual([]);
         expect(rules.promoteIncludePassengers).toBe(false);
+    });
+
+    test("InitialPayload building host accepts garrisons or InfantryAbsorb but not UnitAbsorb alone", () => {
+        const infantryAbsorb = parseAresPassengerRules(section({ "InfantryAbsorb": "yes" }));
+        const unitAbsorb = parseAresPassengerRules(section({ "UnitAbsorb": "yes" }));
+
+        expect(isAresInitialPayloadBuildingHost(undefined, true)).toBe(true);
+        expect(isAresInitialPayloadBuildingHost(infantryAbsorb, false)).toBe(true);
+        expect(isAresInitialPayloadBuildingHost(unitAbsorb, false)).toBe(false);
     });
 
     test("enforces Allowed and Disallowed case-insensitively with Disallowed winning", () => {
