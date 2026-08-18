@@ -19,7 +19,7 @@ export class GarrisonBuildingTask extends EnterBuildingTask {
         // Retail neutral structures and Ares Bunker.Raidable both use
         // temporary ownership: the entering infantry's owner controls the
         // building until the final occupant leaves, then it reverts.
-        const claimTemporary = !garrison.units.length &&
+        const claimTemporary = garrison.getOccupantCount() === 0 &&
             (this.target.owner.isNeutral ||
                 (this.target.rules.aresUrbanCombat?.bunkerRaidable === true &&
                     !this.game.areFriendly(e, this.target)));
