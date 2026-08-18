@@ -1,6 +1,7 @@
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { LocomotorType } from "@/game/type/LocomotorType";
+import { Engine } from "@/engine/Engine";
 
 function iniOf(rules: any): any {
     return rules?.ini;
@@ -16,6 +17,28 @@ function rankPrefix(level: VeteranLevel | number | undefined): "Rookie" | "Veter
     if ((level ?? VeteranLevel.None) >= VeteranLevel.Elite) return "Elite";
     if ((level ?? VeteranLevel.None) >= VeteranLevel.Veteran) return "Veteran";
     return "Rookie";
+}
+
+/** Explicit Survivor.* keys opt a rules object into the feature even in
+ * standalone tests/tools that do not initialize an Ares profile. */
+export function hasAresSurvivorRules(rules: any): boolean {
+    if (!rules) return false;
+    if (Number.isFinite(rules.survivorPilotCount) || rules.survivorBySide) return true;
+    const entries = iniOf(rules)?.entries;
+    if (!entries?.keys) return false;
+    for (const key of entries.keys()) {
+        if (/^survivor\./i.test(String(key).trim())) return true;
+    }
+    return false;
+}
+
+/**
+ * Ares defaults (for example PilotCount defaulting to one for Crewed=yes)
+ * apply only when the selected content activates the Ares runtime. Explicit
+ * Survivor.* keys are also honored in isolated tests/tools.
+ */
+export function isAresSurvivorRuntimeEnabled(rules?: any): boolean {
+    return Engine.getActiveProfile().extensionRuntime === "ares" || hasAresSurvivorRules(rules);
 }
 
 export function getAresSurvivorPilotCount(object: any): number {
@@ -112,4 +135,26 @@ export function shouldAresPassengerSurvive(transport: any, context: any): boolea
         return !usesOriginalAirbornePassengerDeath(transport);
     }
     return rollAresSurvivorPercent(context, chance);
+}
+
+/**
+ * Ares pilots inherit the destroyed unit's exact veterancy/experience rather
+ * than merely its rank. VeteranTrait intentionally has no serialization API
+ * yet, so keep the one compatibility access here instead of scattering casts
+ * across gameplay code. setRankFromTransport applies all rank side-effects;
+ * the source XP remainder is restored afterwards.
+ */
+export function copyAresSurvivorExperience(source: any, survivor: any, world: any): void {
+    const sourceTrait: any = source?.veteranTrait;
+    const survivorTrait: any = survivor?.veteranTrait;
+    if (!sourceTrait || !survivorTrait) return;
+    if (typeof survivorTrait.setRankFromTransport === "function") {
+        survivorTrait.setRankFromTransport(source.veteranLevel ?? VeteranLevel.None, world);
+    }
+    else if (typeof survivorTrait.setVeteranLevel === "function") {
+        survivorTrait.setVeteranLevel(source.veteranLevel ?? VeteranLevel.None);
+    }
+    if (Number.isFinite(sourceTrait.xp)) {
+        survivorTrait.xp = sourceTrait.xp;
+    }
 }
