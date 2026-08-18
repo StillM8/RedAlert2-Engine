@@ -8,6 +8,12 @@ export class SellTrait {
         this.generalRules = generalRules;
     }
     sell(target: any): void {
+        // Ares Bunker.Raidable buildings are only temporarily controlled by
+        // their squatters and explicitly cannot be sold until they revert to
+        // the true owner.
+        if (target.isBuilding?.() && target.garrisonTrait?.isTemporarilyOccupied?.()) {
+            return;
+        }
         if (!target.isBuilding() || !target.rules.unsellable) {
             let refundValue = this.computeRefundValue(target);
             if (refundValue) {
@@ -36,7 +42,7 @@ export class SellTrait {
         this.game.events.dispatch(new ObjectSellEvent(target));
         target.dispose();
     }
-    private computeRefundValue(target: any): number {
+    computeRefundValue(target: any): number {
         let refundValue = 0;
         if (target.rules.soylent > 0) {
             refundValue = target.rules.soylent;
