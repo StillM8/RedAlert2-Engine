@@ -9,6 +9,7 @@ import { AttackTrait } from '@/game/gameobject/trait/AttackTrait';
 import { Weapon } from '@/game/Weapon';
 import { WeaponType } from '@/game/WeaponType';
 import { canAresUrbanCombatInfantryOccupy } from '@/extensions/ares/AresUrbanCombatRuntime';
+import { AresGarrisonOccupantTrait } from './AresGarrisonOccupantTrait';
 export class GarrisonTrait {
     private building: Building;
     private evacThreshold: number;
@@ -113,19 +114,39 @@ export class GarrisonTrait {
         }
         return previousOwner !== building.owner;
     }
+    /** Add one already-limbo infantry to this garrison and install the shared
+     * death-lifecycle bridge used by UC.PassThrough and normal destruction. */
+    addOccupant(unit: Unit, context: GameContext): boolean {
+        if (this.units.length >= this.maxOccupants) return false;
+        this.units.push(unit);
+        const occupant: any = unit;
+        if (!occupant.aresGarrisonOccupantTrait) {
+            occupant.aresGarrisonOccupantTrait = new AresGarrisonOccupantTrait(this.building as any);
+            occupant.addTrait?.(occupant.aresGarrisonOccupantTrait);
+        }
+        if ((this.building as any).rules.occupantsPowerBonus && (this.building as any).rules.power > 0) {
+            (this.building as any).owner.powerTrait?.updateFrom(this.building, "update", context);
+        }
+        this.updateOccupantWeapons(context);
+        return true;
+    }
+    /** Called from an occupant's own destruction lifecycle. */
+    handleOccupantDestroyed(unit: Unit, context: GameContext): void {
+        const index = this.units.indexOf(unit);
+        if (index < 0) return;
+        this.units.splice(index, 1);
+        if (!(this.building as any).isDestroyed) {
+            this.restoreTemporaryOwnerIfEmpty(context);
+            this.updateOccupantWeapons(context);
+        }
+    }
     /**
      * InitialPayload creates the infantry directly in limbo rather than
      * walking it through GarrisonBuildingTask.  This keeps normal manual
      * entry semantics untouched while still enforcing MaxNumberOccupants.
      */
     addInitialOccupant(unit: Unit, context: GameContext): boolean {
-        if (this.units.length >= this.maxOccupants) return false;
-        this.units.push(unit);
-        if ((this.building as any).rules.occupantsPowerBonus && (this.building as any).rules.power > 0) {
-            (this.building as any).owner.powerTrait?.updateFrom(this.building, "update", context);
-        }
-        this.updateOccupantWeapons(context);
-        return true;
+        return this.addOccupant(unit, context);
     }
     /**
      * Urban combat: an occupied building fires the occupants' OccupyWeapon
@@ -166,7 +187,9 @@ export class GarrisonTrait {
     }
     [NotifyDestroy.onDestroy](building: Building, context: GameContext, reason: any, isImmediate: boolean): void {
         if (isImmediate) {
-            for (const unit of this.units) {
+            // Copy because each passenger's death trait may remove itself from
+            // this.units while the host is being torn down.
+            for (const unit of [...this.units]) {
                 context.destroyObject(unit, reason, true);
             }
             this.units = [];
@@ -220,12 +243,16 @@ export class GarrisonTrait {
                     const unitIndex = units.indexOf(unit);
                     if (exitTile) {
                         units.splice(unitIndex, 1);
+                        (unit as any).aresGarrisonOccupantTrait?.release?.();
                         (context as any).unlimboObject(unit, exitTile);
                         (unit as any).unitOrderTrait.addTask(new ScatterTask(context as any));
                     }
                     else if (!forceDestroy) {
                         (context as any).destroyObject(unit, { player: (unit as any).owner });
-                        units.splice(unitIndex, 1);
+                        // The occupant trait removes itself from units during
+                        // destroyObject; only splice if it did not.
+                        const remainingIndex = units.indexOf(unit);
+                        if (remainingIndex >= 0) units.splice(remainingIndex, 1);
                     }
                 }
             }
