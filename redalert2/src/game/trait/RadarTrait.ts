@@ -1,6 +1,7 @@
 import { NotifySpawn } from "@/game/trait/interface/NotifySpawn";
 import { NotifyUnspawn } from "@/game/trait/interface/NotifyUnspawn";
 import { NotifyPower } from "@/game/trait/interface/NotifyPower";
+import { NotifyTick } from "@/game/trait/interface/NotifyTick";
 import { PowerTrait, PowerLevel } from "@/game/player/trait/PowerTrait";
 import { RadarOnOffEvent } from "@/game/event/RadarOnOffEvent";
 import { NotifyOwnerChange } from "@/game/trait/interface/NotifyOwnerChange";
@@ -12,8 +13,14 @@ import { NotifyWarpChange } from "@/game/trait/interface/NotifyWarpChange";
 import { NotifySuperWeaponActivate } from "@/game/trait/interface/NotifySuperWeaponActivate";
 import { SuperWeaponType } from "@/game/type/SuperWeaponType";
 import { NotifySuperWeaponDeactivate } from "@/game/trait/interface/NotifySuperWeaponDeactivate";
+import {
+    getAresRadarJamRadius,
+    hasOperationalAresRadarProvider,
+} from "@/extensions/ares/AresRadarJammer";
 export class RadarTrait {
     private activeLightningStrikes: Map<any, number>;
+    /** Moving RadarJamRadius technos require range re-evaluation. */
+    private nextJammerRefreshTick = 0;
     constructor() {
         this.activeLightningStrikes = new Map();
     }
@@ -21,10 +28,16 @@ export class RadarTrait {
         if (entity.isBuilding() && entity.rules.radar) {
             this.updateRadarForPlayer(entity.owner, game);
         }
+        if (getAresRadarJamRadius(entity) > 0) {
+            this.updateHostileRadars(entity.owner, game);
+        }
     }
     [NotifyUnspawn.onUnspawn](entity: any, game: any): void {
         if (entity.isBuilding() && entity.rules.radar) {
             this.updateRadarForPlayer(entity.owner, game);
+        }
+        if (getAresRadarJamRadius(entity) > 0) {
+            this.updateHostileRadars(entity.owner, game);
         }
     }
     [NotifyPower.onPowerLow](player: any, game: any): void {
@@ -39,10 +52,28 @@ export class RadarTrait {
             this.updateRadarForPlayer(oldOwner, game);
             this.updateRadarForPlayer(entity.owner, game);
         }
+        if (getAresRadarJamRadius(entity) > 0) {
+            this.updateHostileRadars(oldOwner, game);
+            this.updateHostileRadars(entity.owner, game);
+        }
     }
     [NotifyWarpChange.onChange](entity: any, game: any): void {
         if (entity.rules.radar) {
             this.updateRadarForPlayer(entity.owner, game);
+        }
+        if (getAresRadarJamRadius(entity) > 0) {
+            this.updateHostileRadars(entity.owner, game);
+        }
+    }
+    [NotifyTick.onTick](game: any): void {
+        // Radar jammers can move. Recompute at a bounded deterministic cadence
+        // instead of doing an O(radars * technos) scan from every movement
+        // sub-step. Five simulation ticks is short enough that the UI change is
+        // effectively immediate while remaining cheap in large battles.
+        if (game.currentTick < this.nextJammerRefreshTick) return;
+        this.nextJammerRefreshTick = game.currentTick + 5;
+        for (const player of game.getCombatants()) {
+            this.updateRadarForPlayer(player, game);
         }
     }
     [NotifySuperWeaponActivate.onActivate](type: SuperWeaponType, player: any, game: any): void {
@@ -71,12 +102,24 @@ export class RadarTrait {
             }
         }
     }
+    private updateHostileRadars(owner: any, game: any): void {
+        for (const combatant of game.getCombatants()) {
+            if (combatant !== owner && !game.alliances.areAllied(combatant, owner)) {
+                this.updateRadarForPlayer(combatant, game);
+            }
+        }
+    }
     private updateRadarForPlayer(player: any, game: any): void {
         if (!player.radarTrait)
             return;
         const wasDisabled = player.radarTrait.isDisabled();
         const batteryKeepsRadarOnline = player.powerTrait?.isAresBatteryActive?.() === true;
-        const shouldDisable = ![...player.buildings].find((building: any) => building.rules.radar && !building.warpedOutTrait.isActive()) ||
+        const hasUnjammedRadar = hasOperationalAresRadarProvider(
+            player,
+            game,
+            (building: any) => building.rules.radar,
+        );
+        const shouldDisable = !hasUnjammedRadar ||
             (player.powerTrait.level === PowerLevel.Low && !batteryKeepsRadarOnline) ||
             [...this.activeLightningStrikes.entries()].some(([strikePlayer, count]) => count && strikePlayer !== player && !game.alliances.areAllied(strikePlayer, player));
         player.radarTrait.setDisabled(shouldDisable);
