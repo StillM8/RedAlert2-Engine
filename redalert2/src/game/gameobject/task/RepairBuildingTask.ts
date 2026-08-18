@@ -3,6 +3,9 @@ import { BridgeRepairEvent } from "@/game/event/BridgeRepairEvent";
 import { EnterBuildingTask } from "@/game/gameobject/task/EnterBuildingTask";
 export class RepairBuildingTask extends EnterBuildingTask {
     isAllowed(e: any): boolean {
+        if (this.target.aresAdvancedRubbleTrait?.canRepairWithEngineer?.(this.target)) {
+            return !!e.rules.engineer && !this.target.isDestroyed;
+        }
         return this.target.cabHutTrait
             ? this.target.cabHutTrait.canRepairBridge()
             : e.rules.engineer &&
@@ -14,6 +17,19 @@ export class RepairBuildingTask extends EnterBuildingTask {
                     this.game.areFriendly(e, this.target));
     }
     onEnter(e: any): void {
+        if (this.target.aresAdvancedRubbleTrait?.canRepairWithEngineer?.(this.target)) {
+            // Ares explicitly preserves the engineer after restoring advanced
+            // rubble; do not unspawn/consume it like ordinary engineer repair.
+            const restored = this.target.aresAdvancedRubbleTrait.repairWithEngineer(
+                this.target,
+                e,
+                this.game,
+            );
+            if (restored) {
+                this.game.events.dispatch(new BuildingRepairFullEvent(restored, e.owner));
+            }
+            return;
+        }
         this.game.unspawnObject(e);
         if (this.target.cabHutTrait) {
             this.target.cabHutTrait.repairBridge(this.game, e.owner);
