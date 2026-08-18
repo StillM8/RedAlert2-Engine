@@ -17,16 +17,28 @@ import {
     getAresSurvivorPassengerChance,
     shouldAresPassengerSurvive,
 } from '@/extensions/ares/AresSurvivors';
+
+export interface TransportTraitOptions {
+    /** Whether ordinary player-issued boarding may target this hold. */
+    manualEntry?: boolean;
+    /** Whether ordinary player-issued evacuation/deploy may empty this hold. */
+    manualUnload?: boolean;
+}
+
 export class TransportTrait implements NotifyDestroy, NotifyCrash {
     private obj: GameObject;
     public units: GameObject[] = [];
     private loadQueue: GameObject[] = [];
+    private readonly manualEntryEnabled: boolean;
+    private readonly manualUnloadEnabled: boolean;
     /** Explicit Ares airborne survivor handling runs at crash start so surviving
      * passengers can actually paradrop. Final destruction must not process the
      * same cargo a second time. */
     private crashPassengersResolved: boolean = false;
-    constructor(obj: GameObject) {
+    constructor(obj: GameObject, options: TransportTraitOptions = {}) {
         this.obj = obj;
+        this.manualEntryEnabled = options.manualEntry ?? true;
+        this.manualUnloadEnabled = options.manualUnload ?? true;
     }
     unitFitsInside(unit: GameObject): boolean {
         const rules = getAresPassengerRules(this.obj.rules);
@@ -39,15 +51,16 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
         }
         return this.getPassengerCapacityCost(unit) <= this.getAvailableCapacity();
     }
-    /** NoManualEnter only suppresses player-issued entry. Script/AI code can
-     * still use EnterTransportTask directly, matching Ares' documented split. */
+    /** NoManualEnter only suppresses player-issued entry. Script/AI/Abductor
+     * code may still manipulate the hold directly. Hidden Ares passenger holds
+     * on non-transport Technos also opt out here. */
     allowsManualEntry(): boolean {
-        return getAresPassengerRules(this.obj.rules)?.noManualEnter !== true;
+        return this.manualEntryEnabled && getAresPassengerRules(this.obj.rules)?.noManualEnter !== true;
     }
     /** NoManualUnload suppresses the player's deploy/evacuate order. Forced
      * evacuation on destruction and script-owned lifecycle paths remain valid. */
     allowsManualUnload(): boolean {
-        return getAresPassengerRules(this.obj.rules)?.noManualUnload !== true;
+        return this.manualUnloadEnabled && getAresPassengerRules(this.obj.rules)?.noManualUnload !== true;
     }
     private getPassengerCapacityCost(unit: GameObject): number {
         return getAresPassengerCapacityCost(
@@ -99,7 +112,7 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
             return;
         }
         const hasDeathWeapon = !!gameObject.armedTrait?.deathWeapon;
-        const isParasite = context?.weapon?.warhead.rules.parasite;
+        const isParasite = context?.weapon?.warhead?.rules?.parasite;
         const explicitAresChance = getAresSurvivorPassengerChance(gameObject) >= 0;
         // Silent/forced destruction remains a hard cleanup path. Without an
         // authored Ares chance, retain the legacy death-weapon/air/parasite
