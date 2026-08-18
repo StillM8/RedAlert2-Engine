@@ -24,17 +24,27 @@ export class RepairOrder extends Order {
             : PointerType.NoRepair;
     }
     isValid(): boolean {
-        return (!!this.target.obj?.isBuilding() &&
-            !this.target.obj.isDestroyed &&
+        const target = this.target.obj;
+        if (!(target?.isBuilding() &&
+            !target.isDestroyed &&
             this.sourceObject.isInfantry() &&
-            this.sourceObject.rules.engineer &&
-            ((!this.target.obj.owner.isCombatant() &&
-                (!!this.target.obj.garrisonTrait ||
-                    !!this.target.obj.cabHutTrait)) ||
-                this.game.areFriendly(this.target.obj, this.sourceObject)));
+            this.sourceObject.rules.engineer)) {
+            return false;
+        }
+        // Ares Advanced Rubble is repaired by an engineer entering it and is
+        // intentionally independent from normal Repairable/ownership rules.
+        if (target.aresAdvancedRubbleTrait?.canRepairWithEngineer?.(target)) {
+            return true;
+        }
+        return ((!target.owner.isCombatant() &&
+            (!!target.garrisonTrait || !!target.cabHutTrait)) ||
+            this.game.areFriendly(target, this.sourceObject));
     }
     isAllowed(): boolean {
         const target = this.target.obj;
+        if (target.aresAdvancedRubbleTrait?.canRepairWithEngineer?.(target)) {
+            return true;
+        }
         if (target.cabHutTrait) {
             return target.cabHutTrait.canRepairBridge();
         }
