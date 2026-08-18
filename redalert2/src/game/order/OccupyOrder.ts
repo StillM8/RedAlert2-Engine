@@ -11,6 +11,7 @@ import { EnterRecyclerTask } from "@/game/gameobject/task/EnterRecyclerTask";
 import { EnterBunkerTask } from "@/game/gameobject/task/EnterBunkerTask";
 import { InfiltrateBuildingTask } from "@/game/gameobject/task/InfiltrateBuildingTask";
 import { EnterHospitalTask } from "@/game/gameobject/task/EnterHospitalTask";
+import { CallbackTask } from "@/game/gameobject/task/system/CallbackTask";
 import {
     getAresPassengerRules,
     isAresBuildingPassengerClassAllowed,
@@ -33,37 +34,50 @@ export class OccupyOrder extends Order {
                 ? PointerType.Occupy
                 : PointerType.NoOccupy;
     }
+    private isTrenchTraversal(source: any, target: any): boolean {
+        return source?.isBuilding?.() === true &&
+            target?.isBuilding?.() === true &&
+            source.garrisonTrait?.canTraverseTo?.(target) === true;
+    }
     isValid(): boolean {
-        if (!(this.target.obj?.isSpawned &&
-            this.target.obj?.isBuilding() &&
-            this.sourceObject.isUnit())) {
+        const target = this.target.obj;
+        if (!target?.isSpawned || !target.isBuilding?.()) {
             return false;
         }
-        if (this.isUnitRecycle(this.sourceObject, this.target.obj)) {
+        // Ares #666 redirects the ordinary building Enter/Occupy action when
+        // an occupied selected trench building clicks an adjacent same-ID
+        // trench. This must be checked before the legacy Unit-only gate.
+        if (this.isTrenchTraversal(this.sourceObject, target)) {
             return true;
         }
-        if (this.isBunkerEntry(this.sourceObject, this.target.obj)) {
+        if (!this.sourceObject.isUnit()) {
+            return false;
+        }
+        if (this.isUnitRecycle(this.sourceObject, target)) {
             return true;
         }
-        if (this.isBuildingPassengerEntry(this.sourceObject, this.target.obj)) {
+        if (this.isBunkerEntry(this.sourceObject, target)) {
+            return true;
+        }
+        if (this.isBuildingPassengerEntry(this.sourceObject, target)) {
             return true;
         }
         if (!this.sourceObject.isInfantry()) {
             return false;
         }
-        if (this.target.obj.isBuilding() && this.target.obj.hospitalTrait) {
-            return this.game.areFriendly(this.sourceObject, this.target.obj) &&
+        if (target.hospitalTrait) {
+            return this.game.areFriendly(this.sourceObject, target) &&
                 this.sourceObject.isInfantry();
         }
-        if (this.target.obj.garrisonTrait) {
+        if (target.garrisonTrait) {
             // Centralized in GarrisonTrait so cursor validation and the final
             // enter task use identical Ares CanBeOccupiedBy/Bunker.Raidable
             // semantics instead of diverging ownership checks.
-            return this.target.obj.garrisonTrait.canAcceptOccupant(this.sourceObject, this.game);
+            return target.garrisonTrait.canAcceptOccupant(this.sourceObject, this.game);
         }
-        return !!(this.target.obj.rules.spyable &&
+        return !!(target.rules.spyable &&
             this.sourceObject.rules.infiltrate &&
-            !this.game.areFriendly(this.sourceObject, this.target.obj));
+            !this.game.areFriendly(this.sourceObject, target));
     }
     private isUnitRecycle(unit: any, building: any): boolean {
         return unit.owner === building.owner &&
@@ -93,6 +107,9 @@ export class OccupyOrder extends Order {
     isAllowed(): boolean {
         const building = this.target.obj;
         const unit = this.sourceObject;
+        if (this.isTrenchTraversal(unit, building)) {
+            return true;
+        }
         if (this.isUnitRecycle(unit, building)) {
             return unit.rules.movementZone !== MovementZone.Fly &&
                 unit.rules.locomotor !== LocomotorType.Chrono &&
@@ -116,6 +133,11 @@ export class OccupyOrder extends Order {
     process(): any[] {
         const building = this.target.obj;
         const unit = this.sourceObject;
+        if (this.isTrenchTraversal(unit, building)) {
+            return [new CallbackTask(() => {
+                unit.garrisonTrait.traverseTo(building, this.game);
+            })];
+        }
         if (this.isUnitRecycle(unit, building)) {
             return [new EnterRecyclerTask(this.game, building)];
         }
