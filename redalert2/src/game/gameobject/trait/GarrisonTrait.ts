@@ -51,6 +51,12 @@ export class GarrisonTrait {
      */
     canAcceptOccupant(unit: any, context: any): boolean {
         const building: any = this.building;
+        // Preserve retail YR: allied players may enter an empty allied urban
+        // building, but one garrison may not mix infantry belonging to two
+        // different owners.
+        if (this.units.length && (this.units[0] as any).owner !== unit.owner) {
+            return false;
+        }
         const urban = building.rules.aresUrbanCombat ?? {
             bunkerRaidable: false,
             canBeOccupiedBy: [],
@@ -86,14 +92,26 @@ export class GarrisonTrait {
         context.changeObjectOwner(building, newOwner);
         return true;
     }
-    private restoreTrueOwner(context: any): void {
+    /**
+     * Revert an empty temporarily claimed building. Exposed so occupant-death
+     * paths (for example UC.PassThrough) can complete the same lifecycle even
+     * though no explicit evacuation task ran.
+     */
+    restoreTemporaryOwnerIfEmpty(context: any): boolean {
         const building: any = this.building;
-        if (!this.temporaryOccupation || !this.trueOwner || building.owner === this.trueOwner) {
-            this.temporaryOccupation = false;
-            return;
+        if (this.units.length || !this.temporaryOccupation) return false;
+        const previousOwner = building.owner;
+        if (this.trueOwner && building.owner !== this.trueOwner) {
+            context.changeObjectOwner(building, this.trueOwner);
         }
-        context.changeObjectOwner(building, this.trueOwner);
         this.temporaryOccupation = false;
+        if (!building.isDestroyed) {
+            if (building.rules.occupantsPowerBonus && building.rules.power > 0) {
+                building.owner.powerTrait?.updateFrom(building, "update", context);
+            }
+            this.updateOccupantWeapons(context);
+        }
+        return previousOwner !== building.owner;
     }
     /**
      * InitialPayload creates the infantry directly in limbo rather than
@@ -215,7 +233,7 @@ export class GarrisonTrait {
             if (!units.length && !building.isDestroyed) {
                 // Ares Bunker.Raidable and retail neutral urban buildings both
                 // revert to the owner captured at temporary-entry time.
-                this.restoreTrueOwner(context);
+                this.restoreTemporaryOwnerIfEmpty(context);
             }
             if (!building.isDestroyed &&
                 building.rules.occupantsPowerBonus &&
