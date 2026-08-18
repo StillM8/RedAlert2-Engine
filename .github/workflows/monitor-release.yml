@@ -22,30 +22,62 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Find and watch latest release run
+      - name: Find latest release run
+        id: locate
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          sleep 10
+          sleep 5
           RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
           if [[ -z "$RUN_ID" ]]; then
             printf '{"status":"no-run-found"}\n' > .github/release-run-status.json
-          else
-            gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --interval 10 --exit-status || true
-            gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json databaseId,status,conclusion,url,headSha,event,createdAt,updatedAt > .github/release-run-status.json
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json databaseId,status,conclusion,url,headSha,event,createdAt,updatedAt > .github/release-run-status.json
 
-      - name: Commit release run status
+      - name: Commit discovered run status
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/release-run-status.json
-          if git diff --cached --quiet; then
-            exit 0
+          if ! git diff --cached --quiet; then
+            git commit -m "Record active engine release run"
+            git push origin HEAD:main
           fi
-          git commit -m "Record engine release run status"
-          git push origin HEAD:main
+
+      - name: Watch release run
+        if: steps.locate.outputs.run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.locate.outputs.run_id }}
+        run: gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --interval 10 --exit-status || true
+
+      - name: Refresh final release status
+        if: steps.locate.outputs.run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.locate.outputs.run_id }}
+        run: gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json databaseId,status,conclusion,url,headSha,event,createdAt,updatedAt > .github/release-run-status.json
+
+      - name: Commit final release run status
+        if: steps.locate.outputs.run_id != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git rebase origin/main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/release-run-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record completed engine release run"
+            git push origin HEAD:main
+          fi
