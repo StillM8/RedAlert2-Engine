@@ -24,6 +24,23 @@ export class GarrisonTrait {
     canBeOccupied(): boolean {
         return this.building.healthTrait.health > 100 * this.evacThreshold;
     }
+    getOccupantCount(): number {
+        return this.units.length;
+    }
+    /**
+     * InitialPayload creates the infantry directly in limbo rather than
+     * walking it through GarrisonBuildingTask.  This keeps normal manual
+     * entry semantics untouched while still enforcing MaxNumberOccupants.
+     */
+    addInitialOccupant(unit: Unit, context: GameContext): boolean {
+        if (this.units.length >= this.maxOccupants) return false;
+        this.units.push(unit);
+        if (this.building.rules.occupantsPowerBonus && this.building.rules.power > 0) {
+            this.building.owner.powerTrait?.updateFrom(this.building, "update", context);
+        }
+        this.updateOccupantWeapons(context);
+        return true;
+    }
     /**
      * Urban combat: an occupied building fires the occupants' OccupyWeapon
      * (retail behavior — garrisonable civilian structures carry no weapons of
