@@ -19,7 +19,7 @@ function rankPrefix(level: VeteranLevel | number | undefined): "Rookie" | "Veter
 
 export function getAresSurvivorPilotCount(object: any): number {
     const fallback = object?.rules?.crewed ? 1 : 0;
-    return Math.max(0, Math.floor(numberValue(object?.rules, "survivorPilots", "Survivor.Pilots", fallback)));
+    return Math.max(0, Math.floor(numberValue(object?.rules, "survivorPilotCount", "Survivor.PilotCount", fallback)));
 }
 
 export function getAresSurvivorPilotChance(object: any, crewEscapePercent: number): number {
