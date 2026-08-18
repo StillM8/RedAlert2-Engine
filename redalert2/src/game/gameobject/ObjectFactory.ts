@@ -48,6 +48,7 @@ import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { SensorsTrait } from "@/game/gameobject/trait/SensorsTrait";
 import { EmpTrait } from "@/game/gameobject/trait/EmpTrait";
 import { AresOperatorTrait } from "@/game/gameobject/trait/AresOperatorTrait";
+import { TransportTrait } from "@/game/gameobject/trait/TransportTrait";
 import { AresDriverTrait } from "@/extensions/ares/AresKillingDrivers";
 import { AresVehicleHijackerTrait } from "@/extensions/ares/AresVehicleThief";
 export class ObjectFactory {
@@ -130,6 +131,19 @@ export class ObjectFactory {
             gameObject.position.setCenterOffset(gameObject.getFoundationCenterOffset());
         }
         if (gameObject.isTechno()) {
+            // Ares Abductor checks generic TechnoClass passenger capacity, not
+            // only the vehicle transport subclasses exposed by retail UI. Give
+            // any Techno with Passengers>0 a shared hold when its native
+            // factory did not already create one. The hold is intentionally
+            // non-interactive: it exists for Abductor/script state only and
+            // cannot be targeted by ordinary board/unload player actions.
+            if (Number(gameObject.rules.passengers ?? 0) > 0 && !gameObject.transportTrait) {
+                gameObject.transportTrait = new TransportTrait(gameObject, {
+                    manualEntry: false,
+                    manualUnload: false,
+                });
+                gameObject.traits.add(gameObject.transportTrait);
+            }
             if (gameObject.rules.primary ||
                 gameObject.rules.secondary ||
                 gameObject.rules.weaponCount ||
