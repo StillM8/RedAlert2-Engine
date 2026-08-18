@@ -1,0 +1,36 @@
+name: Trigger beta.2 release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/trigger-beta2-release.txt
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f prerelease=true
+          sleep 8
+          RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --event workflow_dispatch --branch main --limit 10 --json databaseId,headSha,createdAt --jq 'map(select(.headSha == "'"$SOURCE_SHA"'")) | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
+          [[ -n "$RUN_ID" ]] || { echo "::error::Could not find beta.2 release run"; exit 1; }
+          printf '%s\n' "$RUN_ID" > .github/latest-release-run-id.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/latest-release-run-id.txt
+          git commit -m "Record corrected beta.2 release run"
+          git push origin HEAD:main
