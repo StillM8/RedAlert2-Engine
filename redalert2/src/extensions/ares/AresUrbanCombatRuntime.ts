@@ -127,3 +127,52 @@ export function canAresUrbanCombatInfantryOccupy(
 
     return context.sameOwner || context.buildingIsNeutral || canAresBunkerBeRaided(building, context);
 }
+
+function trenchId(building: any): string | undefined {
+    const value = String(building?.rules?.aresUrbanCombat?.isTrench ?? "").trim();
+    return value ? value.toLocaleLowerCase("en-US") : undefined;
+}
+
+/** Exact Ares sameTrench semantic: both must declare the same non-empty ID. */
+export function areAresBuildingsSameTrench(source: any, target: any): boolean {
+    const sourceId = trenchId(source);
+    return !!sourceId && sourceId === trenchId(target);
+}
+
+/**
+ * Ares #666 intentionally compares only each building's top/origin cell and
+ * accepts a straight neighbouring cell (<= one cell / 256 leptons). Diagonal
+ * cells are farther than one cell and do not qualify. This intentionally does
+ * not generalize to arbitrary foundation-edge adjacency.
+ */
+export function areAresTrenchOriginsAdjacent(source: any, target: any): boolean {
+    const a = source?.tile;
+    const b = target?.tile;
+    if (!a || !b) return false;
+    const dx = Number(a.rx) - Number(b.rx);
+    const dy = Number(a.ry) - Number(b.ry);
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return false;
+    return Math.sqrt(dx * dx + dy * dy) <= 1;
+}
+
+/**
+ * Mirrors BuildingExt::canTraverseTo: source occupied, target garrisonable and
+ * not full, same trench kind, different buildings, and origin cells adjacent.
+ * Ares does not run CanBeOccupiedBy/owner gates for this redirect path.
+ */
+export function canAresTrenchTraverse(source: any, target: any): boolean {
+    if (!source || !target || source === target ||
+        !source.isBuilding?.() || !target.isBuilding?.()) {
+        return false;
+    }
+    const sourceGarrison = source.garrisonTrait;
+    const targetGarrison = target.garrisonTrait;
+    if (!sourceGarrison || !targetGarrison ||
+        sourceGarrison.getOccupantCount?.() <= 0 ||
+        targetGarrison.getOccupantCount?.() >= Number(target.rules?.maxNumberOccupants ?? 0) ||
+        target.rules?.canBeOccupied !== true) {
+        return false;
+    }
+    return areAresBuildingsSameTrench(source, target) &&
+        areAresTrenchOriginsAdjacent(source, target);
+}
