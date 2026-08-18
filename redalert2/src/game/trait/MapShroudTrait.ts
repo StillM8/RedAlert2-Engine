@@ -11,12 +11,15 @@ import { RadarEventType } from "@/game/rules/general/RadarRules";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { NotifyPower } from "@/game/trait/interface/NotifyPower";
 import { NotifyElevationChange } from "@/game/trait/interface/NotifyElevationChange";
+import { hasOperationalAresRadarProvider } from "@/extensions/ares/AresRadarJammer";
 export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAllianceChange, NotifySpawn, NotifyUnspawn, NotifyPower, NotifyElevationChange {
     private map: any;
     private alliances: any;
     private shroudByPlayer: Map<any, any>;
     private revealedToAll: Set<any>;
     private gapGenerators: Set<any>;
+    /** Last effective SpySat state, including Ares RadarJamRadius. */
+    private spySatOnline: Map<any, boolean>;
     private handleTileOccupationUpdate: (params: {
         object: any;
         type: string;
@@ -27,6 +30,7 @@ export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAlli
         this.shroudByPlayer = new Map();
         this.revealedToAll = new Set();
         this.gapGenerators = new Set();
+        this.spySatOnline = new Map();
         this.handleTileOccupationUpdate = ({ object: e, type: t }) => {
             if ("removed" !== t && e.isTechno()) {
                 const r = e.owner;
@@ -61,19 +65,18 @@ export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAlli
         for (const [player, shroud] of this.shroudByPlayer) {
             if (player.defeated && !player.isObserver) {
                 this.shroudByPlayer.delete(player);
+                this.spySatOnline.delete(player);
             }
             else {
+                this.updateSpySatState(player, gameState);
                 shroud.update();
             }
         }
     }
     [NotifyOwnerChange.onChange](object: any, previousOwner: any, gameState: any) {
-        if (object.isBuilding() &&
-            object.rules.spySat &&
-            (this.revealMap(object.owner, gameState),
-                previousOwner
-                    .getOwnedObjectsByType(ObjectType.Building)
-                    .find((e: any) => e.rules.spySat) || this.resetShroud(previousOwner, gameState))) {
+        if (object.isBuilding() && object.rules.spySat) {
+            this.updateSpySatState(previousOwner, gameState, true);
+            this.updateSpySatState(object.owner, gameState, true);
         }
         if (object.isSpawned) {
             for (const ally of [object.owner, ...gameState.alliances.getAllies(object.owner)]) {
@@ -101,7 +104,7 @@ export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAlli
     [NotifySpawn.onSpawn](object: any, gameState: any) {
         if (object.isBuilding()) {
             if (object.rules.spySat) {
-                this.revealMap(object.owner, gameState);
+                this.updateSpySatState(object.owner, gameState, true);
             }
             if (object.rules.revealToAll) {
                 this.revealedToAll.add(object);
@@ -131,11 +134,8 @@ export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAlli
     }
     [NotifyUnspawn.onUnspawn](object: any, gameState: any) {
         if (object.isBuilding()) {
-            if (object.rules.spySat &&
-                !object.owner
-                    .getOwnedObjectsByType(ObjectType.Building)
-                    .find((e: any) => e.rules.spySat)) {
-                this.resetShroud(object.owner, gameState);
+            if (object.rules.spySat) {
+                this.updateSpySatState(object.owner, gameState, true);
             }
             if (object.rules.revealToAll) {
                 this.revealedToAll.delete(object);
@@ -152,6 +152,35 @@ export class MapShroudTrait implements NotifyTick, NotifyOwnerChange, NotifyAlli
         this.updateGaps(gameState, player);
     }
     [NotifyPower.onPowerChange](player: any, gameState: any) { }
+    private updateSpySatState(player: any, gameState: any, force: boolean = false): void {
+        if (!player || !this.shroudByPlayer.has(player)) return;
+        const ownsSpySat = [...(player.buildings ?? [])].some((building: any) =>
+            building?.isSpawned && !building.isDestroyed && building.rules.spySat);
+        if (!ownsSpySat) {
+            if (this.spySatOnline.get(player)) {
+                this.spySatOnline.delete(player);
+                this.resetShroud(player, gameState);
+            }
+            else {
+                this.spySatOnline.delete(player);
+            }
+            return;
+        }
+        const online = hasOperationalAresRadarProvider(
+            player,
+            gameState,
+            (building: any) => building.rules.spySat,
+        );
+        const previous = this.spySatOnline.get(player);
+        if (!force && previous === online) return;
+        this.spySatOnline.set(player, online);
+        if (online) {
+            this.revealMap(player, gameState);
+        }
+        else if (previous !== false || force) {
+            this.resetShroud(player, gameState);
+        }
+    }
     revealMap(player: any, gameState: any) {
         this.shroudByPlayer.get(player)?.revealAll();
         this.markOwnGapTiles(gameState, player);
