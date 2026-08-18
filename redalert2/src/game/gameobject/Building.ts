@@ -32,7 +32,10 @@ import { DelayedKillTrait } from "@/game/gameobject/trait/DelayedKillTrait";
 import { BuildStatusChangeEvent } from "@/game/event/BuildStatusChangeEvent";
 import { NotifyBuildStatus } from "@/game/gameobject/trait/interface/NotifyBuildStatus";
 import { AresFirestormWallTrait } from "@/game/gameobject/trait/AresFirestormWallTrait";
-import { getAresPassengerRules } from "@/extensions/ares/AresPassengers";
+import {
+    getAresPassengerRules,
+    isAresInitialPayloadBuildingHost,
+} from "@/extensions/ares/AresPassengers";
 import { AresInitialPayloadTrait } from "@/game/gameobject/trait/AresInitialPayloadTrait";
 export enum BuildStatus {
     BuildUp = 0,
@@ -78,8 +81,8 @@ export class Building extends Techno {
             building.traits.add(building.garrisonTrait);
         }
         const passengerRules = getAresPassengerRules(rules);
-        // Ares Operator and InitialPayload use the ordinary YR absorb flags as
-        // the passenger host for buildings which are not urban garrisons.
+        // Ares Operator can use ordinary YR absorb flags as a building passenger
+        // host even when the building is not an urban garrison.
         if (!building.garrisonTrait &&
             passengerRules &&
             (passengerRules.infantryAbsorb || passengerRules.unitAbsorb) &&
@@ -87,7 +90,10 @@ export class Building extends Techno {
             building.transportTrait = new TransportTrait(building as any);
             building.traits.add(building.transportTrait);
         }
+        // InitialPayload is intentionally narrower than generic absorption:
+        // BuildingTypes require CanBeOccupied=yes or InfantryAbsorb=yes.
         if (passengerRules?.initialPayloadTypes.length &&
+            isAresInitialPayloadBuildingHost(passengerRules, !!building.garrisonTrait) &&
             (building.garrisonTrait || building.transportTrait)) {
             building.traits.add(new AresInitialPayloadTrait());
         }
