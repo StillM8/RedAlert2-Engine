@@ -5,11 +5,11 @@ export interface AresPassengerSectionLike {
 }
 
 /**
- * Normalized Ares passenger/transport extensions.
+ * Normalized passenger/transport data needed by Ares features.
  *
- * Keep this definition data separate from TransportTrait state.  The same
- * rules object can therefore be used by simulation, UI/order validation and
- * future save/network certification without re-reading INI values at runtime.
+ * InfantryAbsorb/UnitAbsorb are YR host capabilities, but Ares Operator and
+ * InitialPayload explicitly depend on them for BuildingTypes, so they live in
+ * this normalized compatibility boundary with the Ares passenger extensions.
  */
 export interface AresPassengerRules {
     /** If non-empty, only these TechnoTypes may enter. */
@@ -18,6 +18,10 @@ export interface AresPassengerRules {
     disallowedTypes: readonly string[];
     /** Ares default: passenger Size consumes capacity. false means one seat each. */
     bySize: boolean;
+    /** Building host accepts InfantryTypes as passengers. */
+    infantryAbsorb: boolean;
+    /** Building host accepts VehicleTypes as passengers. */
+    unitAbsorb: boolean;
     /** Player-facing manual unload suppression; scripted/forced unload is separate. */
     noManualUnload: boolean;
     /** Cursor/manual-entry suppression only; scripts and AI may still enter. */
@@ -86,6 +90,8 @@ export function parseAresPassengerRules(section: AresPassengerSectionLike): Ares
         allowedTypes: valuesOf(findEntry(section, "Passengers.Allowed")),
         disallowedTypes: valuesOf(findEntry(section, "Passengers.Disallowed")),
         bySize: parseBool(findEntry(section, "Passengers.BySize"), true),
+        infantryAbsorb: parseBool(findEntry(section, "InfantryAbsorb"), false),
+        unitAbsorb: parseBool(findEntry(section, "UnitAbsorb"), false),
         noManualUnload: parseBool(findEntry(section, "NoManualUnload"), false),
         noManualEnter: parseBool(findEntry(section, "NoManualEnter"), false),
         initialPayloadTypes,
@@ -100,6 +106,8 @@ export function hasAuthoredAresPassengerRules(section: AresPassengerSectionLike)
         "passengers.allowed",
         "passengers.disallowed",
         "passengers.bysize",
+        "infantryabsorb",
+        "unitabsorb",
         "nomanualunload",
         "nomanualenter",
         "initialpayload.types",
@@ -143,6 +151,16 @@ export function isAresPassengerTypeAllowed(
     if (disallowed) return false;
     if (!rules.allowedTypes.length) return true;
     return rules.allowedTypes.some((type) => normalizeTypeId(type) === passenger);
+}
+
+export function isAresBuildingPassengerClassAllowed(
+    rules: AresPassengerRules | undefined,
+    passenger: { isInfantry?(): boolean; isVehicle?(): boolean },
+): boolean {
+    if (!rules) return false;
+    if (passenger.isInfantry?.()) return rules.infantryAbsorb;
+    if (passenger.isVehicle?.()) return rules.unitAbsorb;
+    return false;
 }
 
 export function getAresPassengerCapacityCost(
