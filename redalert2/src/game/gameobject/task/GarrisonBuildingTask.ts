@@ -2,14 +2,10 @@ import { BuildingGarrisonEvent } from "@/game/event/BuildingGarrisonEvent";
 import { EnterBuildingTask } from "@/game/gameobject/task/EnterBuildingTask";
 export class GarrisonBuildingTask extends EnterBuildingTask {
     isAllowed(e: any): boolean {
+        const garrison = this.target.garrisonTrait;
         return (!this.target.isDestroyed &&
-            !!this.target.garrisonTrait?.canBeOccupied() &&
-            this.target.garrisonTrait.units.length <
-                this.target.garrisonTrait.maxOccupants &&
-            !(this.target.garrisonTrait.units.length &&
-                this.target.garrisonTrait.units[0].owner !== e.owner) &&
-            (this.target.owner.isNeutral || this.game.areFriendly(e, this.target)) &&
-            !e.mindControllableTrait?.isActive());
+            !!garrison &&
+            garrison.canAcceptOccupant(e, this.game));
     }
     onEnter(e: any): void {
         this.game.limboObject(e, {
@@ -19,18 +15,23 @@ export class GarrisonBuildingTask extends EnterBuildingTask {
                 .getOrCreateSelectionModel(e)
                 .getControlGroupNumber(),
         });
-        let t = this.target.garrisonTrait;
-        // Occupying a neutral (civilian) building claims it; entering an
-        // own/allied garrisonable like the Bio Reactor must not.
-        if (!t.units.length && this.target.owner.isNeutral) {
+        const garrison = this.target.garrisonTrait;
+        // Retail neutral structures and Ares Bunker.Raidable both use
+        // temporary ownership: the entering infantry's owner controls the
+        // building until the final occupant leaves, then it reverts.
+        const claimTemporary = !garrison.units.length &&
+            (this.target.owner.isNeutral ||
+                (this.target.rules.aresUrbanCombat?.bunkerRaidable === true &&
+                    !this.game.areFriendly(e, this.target)));
+        if (claimTemporary) {
             e.owner.buildingsCaptured++;
-            this.game.changeObjectOwner(this.target, e.owner);
+            garrison.beginTemporaryOccupation(e.owner, this.game);
             this.game.events.dispatch(new BuildingGarrisonEvent(this.target));
         }
-        t.units.push(e);
+        garrison.units.push(e);
         if (this.target.rules.occupantsPowerBonus && this.target.rules.power > 0) {
             this.target.owner.powerTrait?.updateFrom(this.target, "update", this.game);
         }
-        t.updateOccupantWeapons(this.game);
+        garrison.updateOccupantWeapons(this.game);
     }
 }
