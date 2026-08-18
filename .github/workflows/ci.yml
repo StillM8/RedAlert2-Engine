@@ -42,7 +42,7 @@ jobs:
         continue-on-error: true
 
   android:
-    name: Android RA2/YR/MO debug builds
+    name: Android unified debug build
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -66,7 +66,7 @@ jobs:
         run: |
           rm -rf android/app/src/main/assets/WebDist
           cp -R redalert2/dist android/app/src/main/assets/WebDist
-          mkdir -p android/app/src/main/assets/GameRes
+          rm -rf android/app/src/main/assets/GameRes
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -78,14 +78,13 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK components
-        run: sdkmanager "platforms;android-36" "platform-tools"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.10.2
 
-      - name: Compile all game profiles
+      - name: Compile unified Android debug APK
         working-directory: android
-        run: gradle --no-daemon :app:assembleRa2Debug :app:assembleYrDebug :app:assembleMoDebug
-
+        run: gradle --no-daemon :app:assembleDebug
