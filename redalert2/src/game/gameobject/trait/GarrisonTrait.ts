@@ -1,7 +1,7 @@
 import { NotifyDestroy } from './interface/NotifyDestroy';
 import { RadialTileFinder } from '@/game/map/tileFinder/RadialTileFinder';
 import { NotifyDamage } from './interface/NotifyDamage';
-import { fnv32a } from '@/util/math';
+import { fnv32aStrings } from '@/util/math';
 import { BuildingEvacuateEvent } from '@/game/event/BuildingEvacuateEvent';
 import { ScatterTask } from '@/game/gameobject/task/ScatterTask';
 import { ArmedTrait } from '@/game/gameobject/trait/ArmedTrait';
@@ -162,11 +162,11 @@ export class GarrisonTrait {
         // include the retained true owner identity so two peers cannot silently
         // disagree about who receives an emptied raidable bunker.
         const ownerIdentity = String(this.trueOwner?.id ?? this.trueOwner?.name ?? this.trueOwner?.country?.id ?? '');
-        return fnv32a([
+        return fnv32aStrings([
             this.temporaryOccupation ? 1 : 0,
             ownerIdentity,
             ...this.units.map(unit => unit.getHash()),
-        ] as any);
+        ]);
     }
     debugGetState(): {
         units: any[];
