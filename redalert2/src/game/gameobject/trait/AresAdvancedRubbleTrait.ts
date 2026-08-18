@@ -1,5 +1,6 @@
 import { ObjectType } from '@/engine/type/ObjectType';
 import { TriggerAnimEvent } from '@/game/event/TriggerAnimEvent';
+import { areAresFoundationsEquivalent } from '@/game/art/Foundation';
 import { NotifyDestroy } from './interface/NotifyDestroy';
 import type { AresRubbleOwner, AresRubbleTransition } from '@/extensions/ares/AresUrbanCombat';
 
@@ -19,15 +20,22 @@ export class AresAdvancedRubbleTrait implements NotifyDestroy {
         const tile = building.tile;
         const owner = building.owner;
         world.afterTick(() => {
+            const replacement = AresAdvancedRubbleTrait.prepareReplacement(
+                building,
+                transition,
+                world,
+                true,
+            );
             if (building.isSpawned) {
                 // LeaveRubble=yes keeps the disposed source occupying the map;
                 // Advanced Rubble replaces it with another BuildingType, so
                 // remove that vanilla shell before promoting the target type.
                 world.unspawnObject(building);
             }
-            AresAdvancedRubbleTrait.applyTransition(
+            AresAdvancedRubbleTrait.finishTransition(
                 building,
                 transition,
+                replacement,
                 world,
                 tile,
                 owner,
@@ -41,31 +49,79 @@ export class AresAdvancedRubbleTrait implements NotifyDestroy {
     }
 
     /**
-     * Restore a rubble type without consuming the engineer. Returns the new
-     * building (if any) so callers can publish the normal repair event against
-     * the restored object.
+     * Restore a rubble type without consuming the engineer. Replacement
+     * creation and foundation validation happen before the source is removed,
+     * making a bad mod definition fail atomically instead of deleting rubble.
      */
-    repairWithEngineer(building: any, engineer: any, world: any): any | undefined {
+    repairWithEngineer(building: any, _engineer: any, world: any): any | undefined {
         const transition: AresRubbleTransition | undefined = building.rules?.aresUrbanCombat?.rubbleIntact;
         if (!transition || building.isDestroyed) return undefined;
         const tile = building.tile;
         const owner = building.owner;
-        if (building.isSpawned) world.unspawnObject(building);
-        const replacement = AresAdvancedRubbleTrait.applyTransition(
+        const replacement = AresAdvancedRubbleTrait.prepareReplacement(
             building,
             transition,
+            world,
+            false,
+        );
+        if (building.isSpawned) world.unspawnObject(building);
+        const restored = AresAdvancedRubbleTrait.finishTransition(
+            building,
+            transition,
+            replacement,
             world,
             tile,
             owner,
             false,
         );
         building.dispose?.();
+        return restored;
+    }
+
+    /** Create and validate a target without mutating the active world. */
+    private static prepareReplacement(
+        source: any,
+        transition: AresRubbleTransition,
+        world: any,
+        destroyedStage: boolean,
+    ): any | undefined {
+        if (transition.remove || !transition.target) return undefined;
+        if (!world.rules?.hasObject?.(transition.target, ObjectType.Building)) return undefined;
+
+        let replacement: any;
+        try {
+            replacement = world.createObject(ObjectType.Building, transition.target);
+        }
+        catch {
+            return undefined;
+        }
+
+        const sourceFoundation = source.art?.foundation;
+        const targetFoundation = replacement.art?.foundation;
+        if (!sourceFoundation || !targetFoundation ||
+            !areAresFoundationsEquivalent(sourceFoundation, targetFoundation)) {
+            replacement.dispose?.();
+            throw new Error(
+                `Ares Advanced Rubble foundation mismatch: ${source.name ?? '<unknown>'} -> ${transition.target}`,
+            );
+        }
+
+        if (destroyedStage) {
+            AresAdvancedRubbleTrait.forceRubbleRuntimeRules(replacement);
+        }
+        // A transformed structure already exists in the battlefield. Do not
+        // run the ordinary construction buildup task on the promoted object.
+        // Building.BuildStatus.Ready is numerically 1; avoid a runtime import
+        // cycle because Building itself owns this trait.
+        replacement._buildStatus = 1;
+        replacement.lastBuildStatus = 1;
         return replacement;
     }
 
-    private static applyTransition(
+    private static finishTransition(
         source: any,
         transition: AresRubbleTransition,
+        replacement: any | undefined,
         world: any,
         tile: any,
         sourceOwner: any,
@@ -80,16 +136,7 @@ export class AresAdvancedRubbleTrait implements NotifyDestroy {
                 source,
             ));
         }
-        if (transition.remove || !transition.target) return undefined;
-        if (!world.rules?.hasObject?.(transition.target, ObjectType.Building)) return undefined;
-
-        let replacement: any;
-        try {
-            replacement = world.createObject(ObjectType.Building, transition.target);
-        }
-        catch {
-            return undefined;
-        }
+        if (!replacement) return undefined;
 
         const nextOwner = AresAdvancedRubbleTrait.resolveOwner(
             transition.owner,
@@ -97,10 +144,6 @@ export class AresAdvancedRubbleTrait implements NotifyDestroy {
             world,
         );
         if (nextOwner) world.changeObjectOwner(replacement, nextOwner);
-
-        if (destroyedStage) {
-            AresAdvancedRubbleTrait.forceRubbleRuntimeRules(replacement);
-        }
         world.spawnObject(replacement, tile);
         AresAdvancedRubbleTrait.applyStrength(replacement, transition.strength, destroyedStage);
         return replacement;
