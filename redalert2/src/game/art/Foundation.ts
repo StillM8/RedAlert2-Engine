@@ -6,6 +6,8 @@ export interface FoundationCell {
 export interface Foundation {
     width: number;
     height: number;
+    /** True only for an authored Ares Foundation=Custom definition. */
+    custom?: boolean;
     /** Explicit occupied cells for Ares Foundation=Custom definitions. */
     cells?: readonly FoundationCell[];
     /** Optional outline cells used by factory/placement logic. */
@@ -82,6 +84,21 @@ export function getFoundationCells(foundation: Foundation): readonly FoundationC
 
 export function getFoundationOutline(foundation: Foundation): readonly FoundationCell[] {
     return foundation.outline ?? [];
+}
+
+/**
+ * Ares Advanced Rubble requires source and replacement foundations to match,
+ * and explicitly treats Custom versus built-in foundations as incompatible
+ * even when their occupied rectangles happen to be identical.
+ */
+export function areAresFoundationsEquivalent(a: Foundation, b: Foundation): boolean {
+    if (!!a.custom !== !!b.custom || a.width !== b.width || a.height !== b.height) {
+        return false;
+    }
+    const cellKey = (cell: FoundationCell) => `${cell.x},${cell.y}`;
+    const left = getFoundationCells(a).map(cellKey).sort();
+    const right = getFoundationCells(b).map(cellKey).sort();
+    return left.length === right.length && left.every((cell, index) => cell === right[index]);
 }
 
 /**
@@ -177,6 +194,7 @@ export function parseFoundation(reader: FoundationReader): Foundation {
     return {
         width,
         height,
+        custom: true,
         cells: occupiedCells,
         outline: outline.length ? outline : undefined,
     };
