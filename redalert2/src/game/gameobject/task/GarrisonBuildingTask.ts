@@ -28,10 +28,6 @@ export class GarrisonBuildingTask extends EnterBuildingTask {
             garrison.beginTemporaryOccupation(e.owner, this.game);
             this.game.events.dispatch(new BuildingGarrisonEvent(this.target));
         }
-        garrison.units.push(e);
-        if (this.target.rules.occupantsPowerBonus && this.target.rules.power > 0) {
-            this.target.owner.powerTrait?.updateFrom(this.target, "update", this.game);
-        }
-        garrison.updateOccupantWeapons(this.game);
+        garrison.addOccupant(e, this.game);
     }
 }
