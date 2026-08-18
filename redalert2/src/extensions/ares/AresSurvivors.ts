@@ -1,4 +1,5 @@
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
+import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 
 function iniOf(rules: any): any {
     return rules?.ini;
@@ -93,7 +94,7 @@ export function shouldAresPassengerSurvive(transport: any, context: any): boolea
     const chance = getAresSurvivorPassengerChance(transport);
     if (chance < 0) {
         // Original YR behavior represented by Ares' special -1 default.
-        return transport?.zone !== 2; // ZoneType.Air without importing simulation enum here.
+        return transport?.zone !== ZoneType.Air;
     }
     return rollAresSurvivorPercent(context, chance);
 }
