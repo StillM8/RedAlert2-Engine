@@ -22,6 +22,11 @@ export class AresGarrisonOccupantTrait implements NotifyDestroy {
         this.building = undefined;
     }
 
+    /** Trench traversal keeps the infantry in limbo and moves only its host. */
+    retarget(building: any): void {
+        this.building = building;
+    }
+
     release(): void {
         this.building = undefined;
     }
