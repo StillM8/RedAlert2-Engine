@@ -1,9 +1,9 @@
 /**
- * Data-only Ares TechnoType extensions used by Gunner IFVs and powered units.
+ * Data-only Ares TechnoType extensions used by shared runtime paths.
  *
- * This module deliberately stops at normalized rules data.  It does not decide
- * which passenger is active, resolve a provider against a house, or change
- * weapon/power runtime behavior.
+ * This module deliberately stops at normalized rules data. It does not decide
+ * which passenger is active, resolve a provider against a house, or perform
+ * player input/runtime actions itself.
  */
 
 export type AresIniValue = string | string[];
@@ -30,9 +30,17 @@ export interface AresPoweredByRules {
     relation: "any";
 }
 
+export interface AresManualControlRules {
+    /** Prevents player-selected direct attack/force-fire cursor actions only. */
+    noManualFire: boolean;
+    /** Parsed for the dedicated self-GuardArea cursor path; runtime support is separate. */
+    noSelfGuardArea: boolean;
+}
+
 export interface AresTechnoExtensions {
     ifv: AresIfvModeRules;
     poweredBy: AresPoweredByRules;
+    manualControl: AresManualControlRules;
 }
 
 export const DEFAULT_ARES_IFV_MODE = 0;
@@ -62,6 +70,14 @@ function parseInteger(value: string | undefined, defaultValue: number): number {
     if (value === undefined || !/^[+-]?\d+$/.test(value)) return defaultValue;
     const result = Number(value);
     return Number.isSafeInteger(result) ? result : defaultValue;
+}
+
+function parseBool(value: string | undefined, defaultValue = false): boolean {
+    if (value === undefined) return defaultValue;
+    const normalized = value.trim().toLocaleLowerCase("en-US");
+    if (["yes", "true", "1", "on"].includes(normalized)) return true;
+    if (["no", "false", "0", "off"].includes(normalized)) return false;
+    return defaultValue;
 }
 
 function parseTurretIndex(value: string | undefined): number {
@@ -133,9 +149,17 @@ export function parseAresPoweredByRules(section: AresTechnoSectionLike): AresPow
     };
 }
 
+export function parseAresManualControlRules(section: AresTechnoSectionLike): AresManualControlRules {
+    return {
+        noManualFire: parseBool(firstScalar(findEntry(section, "NoManualFire"))),
+        noSelfGuardArea: parseBool(firstScalar(findEntry(section, "NoSelfGuardArea"))),
+    };
+}
+
 export function parseAresTechnoExtensions(section: AresTechnoSectionLike): AresTechnoExtensions {
     return {
         ifv: parseAresIfvModeRules(section),
         poweredBy: parseAresPoweredByRules(section),
+        manualControl: parseAresManualControlRules(section),
     };
 }
