@@ -3,7 +3,7 @@ import { AresAdvancedRubbleTrait } from "@/game/gameobject/trait/AresAdvancedRub
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
 import { ObjectType } from "@/engine/type/ObjectType";
 
-function replacement(name: string): any {
+function replacement(name: string, foundation: any = { width: 1, height: 1 }): any {
     const rules = {
         name,
         capturable: true,
@@ -14,6 +14,7 @@ function replacement(name: string): any {
     return {
         name,
         rules,
+        art: { foundation },
         owner: undefined,
         garrisonTrait: { marker: true },
         traits: { remove: () => undefined },
@@ -23,13 +24,15 @@ function replacement(name: string): any {
             maxHitPoints: 500,
             setHitPoints(value: number) { this.hitPoints = value; },
         },
+        dispose: () => undefined,
     };
 }
 
-function source(owner: any, urban: any): any {
+function source(owner: any, urban: any, foundation: any = { width: 1, height: 1 }): any {
     return {
         name: "SOURCE",
         owner,
+        art: { foundation },
         isSpawned: true,
         isDestroyed: false,
         rules: { aresUrbanCombat: urban },
@@ -79,6 +82,8 @@ describe("Ares Advanced Rubble runtime", () => {
         expect(created.rules.unsellable).toBe(true);
         expect(created.rules.canBeOccupied).toBe(false);
         expect(created.garrisonTrait).toBeUndefined();
+        expect(created._buildStatus).toBe(1);
+        expect(created.lastBuildStatus).toBe(1);
         expect(events).toHaveLength(1);
     });
 
@@ -111,8 +116,68 @@ describe("Ares Advanced Rubble runtime", () => {
         expect(unspawned).toBe(1);
         expect(spawned).toBe(1);
         expect(intact.healthTrait.health).toBe(1);
+        expect(intact._buildStatus).toBe(1);
         expect(engineer.isSpawned).toBe(true);
         expect(intact.owner).toBe(defender);
+    });
+
+    test("custom and built-in foundations never match even with the same rectangle", () => {
+        const rubble = source({ id: "defender" }, {
+            rubbleIntact: {
+                target: "INTACT",
+                remove: false,
+                owner: "default",
+                strength: -1,
+            },
+        }, {
+            width: 1,
+            height: 1,
+            custom: true,
+            cells: [{ x: 0, y: 0 }],
+        });
+        const intact = replacement("INTACT", { width: 1, height: 1 });
+        let unspawned = 0;
+        const world: any = {
+            unspawnObject: () => { unspawned++; },
+            rules: { hasObject: () => true },
+            createObject: () => intact,
+        };
+
+        expect(() => new AresAdvancedRubbleTrait().repairWithEngineer(rubble, {}, world)).toThrow(
+            /foundation mismatch/i,
+        );
+        expect(unspawned).toBe(0);
+        expect(rubble.isSpawned).toBe(true);
+    });
+
+    test("different custom occupied-cell sets are rejected atomically", () => {
+        const rubble = source({ id: "defender" }, {
+            rubbleIntact: {
+                target: "INTACT",
+                remove: false,
+                owner: "default",
+                strength: -1,
+            },
+        }, {
+            width: 2,
+            height: 2,
+            custom: true,
+            cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }],
+        });
+        const intact = replacement("INTACT", {
+            width: 2,
+            height: 2,
+            custom: true,
+            cells: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
+        });
+        let unspawned = 0;
+        const world: any = {
+            unspawnObject: () => { unspawned++; },
+            rules: { hasObject: () => true },
+            createObject: () => intact,
+        };
+        expect(() => new AresAdvancedRubbleTrait().repairWithEngineer(rubble, {}, world)).toThrow();
+        expect(unspawned).toBe(0);
     });
 
     test("Rubble.*.Remove performs only cleanup/animation and creates no replacement", () => {
