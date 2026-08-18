@@ -6,6 +6,8 @@ import {
     registerAresPassengerRules,
 } from "@/extensions/ares/AresPassengers";
 import { TransportTrait } from "@/game/gameobject/trait/TransportTrait";
+import { EnterTransportOrder } from "@/game/order/EnterTransportOrder";
+import { DeployOrder } from "@/game/order/DeployOrder";
 
 function section(entries: Record<string, string>): IniSection {
     const result = new IniSection("Transport");
@@ -17,11 +19,20 @@ function passenger(name: string, size: number): any {
     return { name, rules: { name, size } };
 }
 
-function transport(entries: Record<string, string>, passengers = 3, sizeLimit = 3): { rules: any; trait: TransportTrait } {
+function transport(entries: Record<string, string>, passengers = 3, sizeLimit = 3): { rules: any; object: any; trait: TransportTrait } {
     const rules = { name: "Carrier", passengers, sizeLimit };
     registerAresPassengerRules(rules, section(entries));
-    const object = { name: "Carrier", rules } as any;
-    return { rules, trait: new TransportTrait(object) };
+    const object: any = {
+        name: "Carrier",
+        rules,
+        isVehicle: () => true,
+        isInfantry: () => false,
+        isBuilding: () => false,
+        isDestroyed: false,
+    };
+    const trait = new TransportTrait(object);
+    object.transportTrait = trait;
+    return { rules, object, trait };
 }
 
 describe("Ares passenger extensions", () => {
@@ -93,9 +104,32 @@ describe("Ares passenger extensions", () => {
         expect(trait.unitFitsInside(passenger("FITS", 2))).toBe(true);
     });
 
-    test("legacy transports retain size-based capacity when no Ares passenger keys are authored", () => {
+    test("NoManualEnter removes the player enter order without blocking scripted task semantics", () => {
+        const { object: carrier, trait } = transport({ "NoManualEnter": "yes" });
+        expect(trait.allowsManualEntry()).toBe(false);
+
+        const source = { isVehicle: () => false, isInfantry: () => true };
+        const order = new EnterTransportOrder({} as any);
+        order.set(source, { obj: carrier });
+        expect(order.isValid()).toBe(false);
+    });
+
+    test("NoManualUnload removes the player deploy/evacuate order", () => {
+        const { object: carrier, trait } = transport({ "NoManualUnload": "yes" });
+        trait.units.push(passenger("E1", 1));
+        expect(trait.allowsManualUnload()).toBe(false);
+
+        const order = new DeployOrder({} as any, false);
+        order.set(carrier, undefined);
+        expect(order.isValid()).toBe(false);
+        expect(order.process()).toBeUndefined();
+    });
+
+    test("legacy transports retain size-based capacity and manual controls when no Ares passenger keys are authored", () => {
         const { trait, rules } = transport({}, 3, 3);
         expect(getAresPassengerRules(rules)).toBeUndefined();
+        expect(trait.allowsManualEntry()).toBe(true);
+        expect(trait.allowsManualUnload()).toBe(true);
         const twoSeat = passenger("E1", 2);
         trait.units.push(twoSeat);
         expect(trait.getOccupiedCapacity()).toBe(2);
