@@ -6,6 +6,11 @@ import { NotifyTick } from './interface/NotifyTick';
 import { ZoneType } from '../unit/ZoneType';
 import { GameObject } from '../GameObject';
 import { World } from '@/game/World';
+import {
+    getAresPassengerCapacityCost,
+    getAresPassengerRules,
+    isAresPassengerTypeAllowed,
+} from '@/extensions/ares/AresPassengers';
 export class TransportTrait {
     private obj: GameObject;
     public units: GameObject[] = [];
@@ -14,11 +19,24 @@ export class TransportTrait {
         this.obj = obj;
     }
     unitFitsInside(unit: GameObject): boolean {
-        return (unit.rules.size <= this.obj.rules.sizeLimit &&
-            unit.rules.size <= this.getAvailableCapacity());
+        const rules = getAresPassengerRules(this.obj.rules);
+        const passengerTypeId = String(unit.rules?.name ?? unit.name ?? '');
+        // Ares' Specific Passengers gate is independent from size/capacity.
+        // SizeLimit is always respected even when Passengers.BySize=no.
+        if (!isAresPassengerTypeAllowed(rules, passengerTypeId) ||
+            unit.rules.size > this.obj.rules.sizeLimit) {
+            return false;
+        }
+        return this.getPassengerCapacityCost(unit) <= this.getAvailableCapacity();
+    }
+    private getPassengerCapacityCost(unit: GameObject): number {
+        return getAresPassengerCapacityCost(
+            getAresPassengerRules(this.obj.rules),
+            Number(unit.rules?.size ?? 0),
+        );
     }
     getOccupiedCapacity(): number {
-        return this.units.reduce((sum, unit) => sum + unit.rules.size, 0);
+        return this.units.reduce((sum, unit) => sum + this.getPassengerCapacityCost(unit), 0);
     }
     getMaxCapacity(): number {
         return this.obj.rules.passengers;
