@@ -163,6 +163,18 @@ export function isAresBuildingPassengerClassAllowed(
     return false;
 }
 
+/**
+ * Ares InitialPayload has a deliberately narrower BuildingType host rule than
+ * generic building absorption: a building must be occupiable or explicitly
+ * InfantryAbsorb=yes. UnitAbsorb=yes by itself is not sufficient.
+ */
+export function isAresInitialPayloadBuildingHost(
+    rules: AresPassengerRules | undefined,
+    hasGarrison: boolean,
+): boolean {
+    return hasGarrison || rules?.infantryAbsorb === true;
+}
+
 export function getAresPassengerCapacityCost(
     rules: AresPassengerRules | undefined,
     passengerSize: number,
