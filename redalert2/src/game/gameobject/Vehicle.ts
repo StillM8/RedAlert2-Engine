@@ -18,6 +18,8 @@ import { HoverBobTrait } from "@/game/gameobject/trait/HoverBobTrait";
 import { CrateBonuses } from "@/game/gameobject/unit/CrateBonuses";
 import { TilterTrait } from "@/game/gameobject/trait/TilterTrait";
 import { AresPassengerTurretTrait } from "@/game/gameobject/trait/AresPassengerTurretTrait";
+import { getAresPassengerRules } from "@/extensions/ares/AresPassengers";
+import { AresInitialPayloadTrait } from "@/game/gameobject/trait/AresInitialPayloadTrait";
 export const ROCKING_TICKS = 34;
 interface RockingState {
     ticksLeft: number;
@@ -109,6 +111,10 @@ export class Vehicle extends Techno {
             if (rules.aresChronoPrison?.passengerTurret) {
                 vehicle.traits.add(new AresPassengerTurretTrait());
             }
+        }
+        const passengerRules = getAresPassengerRules(rules as any);
+        if (passengerRules?.initialPayloadTypes.length && vehicle.transportTrait) {
+            vehicle.traits.add(new AresInitialPayloadTrait());
         }
         if (rules.turret) {
             vehicle.turretTrait = new TurretTrait();
