@@ -5,6 +5,7 @@ import {
     isWithinAresRadarJamRadius,
 } from "@/extensions/ares/AresRadarJammer";
 import { RadarTrait } from "@/game/trait/RadarTrait";
+import { MapShroudTrait } from "@/game/trait/MapShroudTrait";
 import { NotifyTick } from "@/game/trait/interface/NotifyTick";
 import { PowerLevel } from "@/game/player/trait/PowerTrait";
 
@@ -93,5 +94,39 @@ describe("Ares RadarJamRadius", () => {
         game.currentTick = 5;
         trait[NotifyTick.onTick](game);
         expect(disabled).toBe(false);
+    });
+
+    test("SpySat map reveal is withdrawn while every provider is jammed and restored when clear", () => {
+        const owner: any = {};
+        const enemy: any = {};
+        const spySat = techno(owner, 0, 0, { spySat: true });
+        spySat.isBuilding = () => true;
+        owner.buildings = new Set([spySat]);
+        owner.getOwnedObjects = () => new Set([spySat]);
+        const jammer = techno(enemy, 2, 0, { radarJamRadius: 5 });
+        enemy.getOwnedObjects = () => new Set([jammer]);
+        enemy.buildings = new Set();
+        const game: any = {
+            getCombatants: () => [owner, enemy],
+            alliances: { areAllied: () => false, getAllies: () => [] },
+        };
+
+        const trait: any = new MapShroudTrait(
+            { tileOccupation: { onChange: { subscribe: () => undefined, unsubscribe: () => undefined } } },
+            game.alliances,
+        );
+        trait.shroudByPlayer.set(owner, {});
+        let revealCount = 0;
+        let resetCount = 0;
+        trait.revealMap = () => { revealCount++; };
+        trait.resetShroud = () => { resetCount++; };
+
+        trait.updateSpySatState(owner, game, true);
+        expect(resetCount).toBe(1);
+        expect(revealCount).toBe(0);
+
+        jammer.isSpawned = false;
+        trait.updateSpySatState(owner, game, true);
+        expect(revealCount).toBe(1);
     });
 });
