@@ -7,6 +7,7 @@ import type { AresChronoPrisonWeaponRules } from "@/extensions/ares/AresChronoPr
 import { EnterObjectEvent } from "@/game/event/EnterObjectEvent";
 import { EnterTransportEvent } from "@/game/event/EnterTransportEvent";
 import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
+import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 
 export interface AresChronoPrisonWorld {
     events: {
@@ -48,7 +49,7 @@ function getMaxHitPoints(target: any): number {
 
 function getPsionicsImmunity(target: any): boolean {
     return target?.rules?.immuneToPsionics === true ||
-        target?.veteranTrait?.hasVeteranAbility?.("PSIONICSIMMUNE") === true;
+        target?.veteranTrait?.hasVeteranAbility?.(VeteranAbility.PSIONICS_IMMUNE) === true;
 }
 
 function getWeaponRules(weaponRules: {
