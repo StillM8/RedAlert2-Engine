@@ -10,6 +10,7 @@ import { Target, TargetBridgeMode } from '@/game/Target';
 import { AttackMoveOrder } from '@/game/order/AttackMoveOrder';
 import { OrderFeedbackType } from '@/game/order/OrderFeedbackType';
 import { GuardAreaOrder } from '@/game/order/GuardAreaOrder';
+import { allowsAresManualFire } from '@/extensions/ares/AresManualControl';
 class SelectAction {
     private force = false;
     private allowTypeSelect = false;
@@ -177,6 +178,7 @@ export class DefaultActionHandler {
                 : undefined;
         }
         const allWarpedOut = selected.every((unit) => unit.warpedOutTrait?.isActive?.());
+        const manualFireAllowed = allowsAresManualFire(sourceObject.rules);
         if (keyboardEvent?.ctrlKey && !allWarpedOut) {
             if (keyboardEvent.shiftKey) {
                 const target = this.attackMoveAction && this.createTargetForAction(hover, sourceObject, this.attackMoveAction);
@@ -190,7 +192,10 @@ export class DefaultActionHandler {
                     return this.guardAreaAction;
                 }
             }
-            else if (this.forceAttackAction) {
+            // Ares NoManualFire hooks Techno cursor selection for both objects
+            // and cells. Force-fire is therefore unavailable to the human
+            // player, while AttackMove/GuardArea remain autonomous behaviors.
+            else if (manualFireAllowed && this.forceAttackAction) {
                 const target = this.createTargetForAction(hover, sourceObject, this.forceAttackAction);
                 if (this.forceAttackAction.set(sourceObject, target).isValid()) {
                     return this.forceAttackAction;
@@ -204,6 +209,12 @@ export class DefaultActionHandler {
             }
         }
         for (const action of this.defaultActions) {
+            // This is deliberately a UI/input gate rather than an AttackOrder
+            // validity rule. AI, trigger, retaliation and opportunity-fire
+            // code may continue creating/processing attacks normally.
+            if (!manualFireAllowed && action instanceof AttackOrder) {
+                continue;
+            }
             if (action instanceof SelectAction) {
                 if (filter !== ActionFilter.NoSelect && !minimap && action.setForce(force).setTypeSelect(false).isValidTarget(hoveredObject)) {
                     return action;
