@@ -42,7 +42,7 @@ jobs:
         continue-on-error: true
 
   android:
-    name: Android RA2/YR/MO debug builds
+    name: Android debug build
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -85,7 +85,8 @@ jobs:
         with:
           gradle-version: 8.10.2
 
-      - name: Compile all game profiles
+      # Runtime RA2/YR/MO selection replaced the old Android product flavors.
+      # There is now one shell APK, so assemble the shared debug application.
+      - name: Compile shared debug application
         working-directory: android
-        run: gradle --no-daemon :app:assembleRa2Debug :app:assembleYrDebug :app:assembleMoDebug
-
+        run: gradle --no-daemon :app:assembleDebug
