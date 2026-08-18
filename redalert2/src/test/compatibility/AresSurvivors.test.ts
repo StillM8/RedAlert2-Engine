@@ -41,11 +41,32 @@ describe("Ares survivors", () => {
         expect(getAresSurvivorPassengerChance(object)).toBe(65);
     });
 
+    test("normalizes literal percentages without changing bare integer semantics", () => {
+        const object: any = {
+            veteranLevel: VeteranLevel.Veteran,
+            rules: rules({
+                "Survivor.VeteranPilotChance": "50%",
+                "Survivor.VeteranPassengerChance": "1",
+            }),
+        };
+        expect(getAresSurvivorPilotChance(object, 0.25)).toBe(50);
+        expect(getAresSurvivorPassengerChance(object)).toBe(1);
+    });
+
+    test("CrewEscape parsed as a fixed fraction is converted back to Ares percent units", () => {
+        const object: any = {
+            veteranLevel: VeteranLevel.None,
+            rules: rules({}),
+        };
+        expect(getAresSurvivorPilotChance(object, 0.5)).toBe(50);
+        expect(getAresSurvivorPilotChance(object, 50)).toBe(50);
+    });
+
     test("pilot chance falls back to CrewEscape while passenger -1 preserves retail ground/air behavior", () => {
         const ground: any = { zone: ZoneType.Ground, veteranLevel: VeteranLevel.None, rules: rules({}) };
         const air: any = { zone: ZoneType.Air, veteranLevel: VeteranLevel.None, rules: rules({}) };
         const context = { generateRandomInt: () => 99 };
-        expect(getAresSurvivorPilotChance(ground, 50)).toBe(50);
+        expect(getAresSurvivorPilotChance(ground, 0.5)).toBe(50);
         expect(getAresSurvivorPassengerChance(ground)).toBe(-1);
         expect(shouldAresPassengerSurvive(ground, context)).toBe(true);
         expect(shouldAresPassengerSurvive(air, context)).toBe(false);
