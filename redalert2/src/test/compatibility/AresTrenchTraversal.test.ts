@@ -122,7 +122,7 @@ describe("Ares IsTrench traversal", () => {
         expect(order.getPointerType(false)).toBe(PointerType.Occupy);
         const tasks = order.process();
         expect(tasks).toHaveLength(1);
-        tasks[0].tick(source);
+        tasks[0].onTick(source);
         expect(source.garrisonTrait.getOccupantCount()).toBe(0);
         expect(target.garrisonTrait.getOccupantCount()).toBe(1);
     });
