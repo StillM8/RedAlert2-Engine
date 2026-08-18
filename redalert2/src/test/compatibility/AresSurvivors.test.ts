@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { IniSection } from "@/data/IniFile";
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { LocomotorType } from "@/game/type/LocomotorType";
 import {
     getAresSideSurvivorOverride,
     getAresSurvivorPassengerChance,
@@ -48,6 +49,16 @@ describe("Ares survivors", () => {
         expect(getAresSurvivorPassengerChance(ground)).toBe(-1);
         expect(shouldAresPassengerSurvive(ground, context)).toBe(true);
         expect(shouldAresPassengerSurvive(air, context)).toBe(false);
+    });
+
+    test("original -1 still kills jumpjet cargo after the crashing transport has touched down", () => {
+        const jumpjet: any = {
+            zone: ZoneType.Ground,
+            isAircraft: () => false,
+            veteranLevel: VeteranLevel.None,
+            rules: { ...rules({}), locomotor: LocomotorType.Jumpjet },
+        };
+        expect(shouldAresPassengerSurvive(jumpjet, { generateRandomInt: () => 0 })).toBe(false);
     });
 
     test("explicit passenger chance allows airborne survivors and is rolled per passenger", () => {
