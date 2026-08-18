@@ -1,5 +1,6 @@
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { LocomotorType } from "@/game/type/LocomotorType";
 
 function iniOf(rules: any): any {
     return rules?.ini;
@@ -90,11 +91,25 @@ export function rollAresSurvivorPercent(context: any, percent: number): boolean 
     return context.generateRandomInt(0, 99) < percent;
 }
 
+/**
+ * Ares' -1 passenger chance means the original YR transport-class rule, not
+ * the object's transient zone at the moment destroyObject finally runs. A
+ * crashing jumpjet may already be back on the ground by then but must still
+ * retain the Nighthawk-style "cargo does not escape" default.
+ */
+export function usesOriginalAirbornePassengerDeath(transport: any): boolean {
+    const locomotor = transport?.rules?.locomotor;
+    return transport?.isAircraft?.() === true ||
+        transport?.rules?.consideredAircraft === true ||
+        locomotor === LocomotorType.Jumpjet ||
+        locomotor === LocomotorType.Aircraft ||
+        transport?.zone === ZoneType.Air;
+}
+
 export function shouldAresPassengerSurvive(transport: any, context: any): boolean {
     const chance = getAresSurvivorPassengerChance(transport);
     if (chance < 0) {
-        // Original YR behavior represented by Ares' special -1 default.
-        return transport?.zone !== ZoneType.Air;
+        return !usesOriginalAirbornePassengerDeath(transport);
     }
     return rollAresSurvivorPercent(context, chance);
 }
