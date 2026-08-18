@@ -20,6 +20,10 @@ import { TilterTrait } from "@/game/gameobject/trait/TilterTrait";
 import { AresPassengerTurretTrait } from "@/game/gameobject/trait/AresPassengerTurretTrait";
 import { getAresPassengerRules } from "@/extensions/ares/AresPassengers";
 import { AresInitialPayloadTrait } from "@/game/gameobject/trait/AresInitialPayloadTrait";
+import {
+    getAresSurvivorPilotCount,
+    isAresSurvivorRuntimeEnabled,
+} from "@/extensions/ares/AresSurvivors";
 export const ROCKING_TICKS = 34;
 interface RockingState {
     ticksLeft: number;
@@ -89,8 +93,12 @@ export class Vehicle extends Techno {
             vehicle.crashableTrait = new CrashableTrait(vehicle);
             vehicle.traits.add(vehicle.crashableTrait);
         }
-        if (rules.crewed) {
-            vehicle.crewedTrait = new CrewedTrait();
+        const aresSurvivorsEnabled = isAresSurvivorRuntimeEnabled(rules);
+        // Under Ares, PilotCount can opt a vehicle into pilot spawning even
+        // when Crewed=no. Outside Ares, retain the original Crewed-only trait.
+        if (rules.crewed ||
+            (aresSurvivorsEnabled && getAresSurvivorPilotCount({ rules }) > 0)) {
+            vehicle.crewedTrait = new CrewedTrait(aresSurvivorsEnabled);
             vehicle.traits.add(vehicle.crewedTrait);
         }
         if (rules.harvester) {
@@ -128,7 +136,7 @@ export class Vehicle extends Techno {
             vehicle.traits.add(vehicle.parasiteableTrait);
         }
         if (rules.naval && rules.underwater) {
-            vehicle.submergibleTrait = new SubmergibleTrait();
+            vehicle.submergibleTrait = new SubmergibleTrait(vehicle);
             vehicle.traits.add(vehicle.submergibleTrait);
         }
         if (rules.locomotor === LocomotorType.Hover) {
