@@ -5,9 +5,14 @@ import {
     DEFAULT_ARES_WEAPON_TURRET_INDEX,
     getAresWeaponTurretIndex,
     parseAresIfvModeRules,
+    parseAresManualControlRules,
     parseAresPoweredByRules,
     parseAresTechnoExtensions,
 } from "@/extensions/ares/AresTechnoExtensions";
+import {
+    allowsAresManualFire,
+    allowsAresSelfGuardArea,
+} from "@/extensions/ares/AresManualControl";
 
 function technoSection(source: string) {
     return new IniFile(source).getSection("Techno")!;
@@ -76,7 +81,51 @@ PoweredBy=PowerCore,  powercore , ,AuxGenerator, AUXGENERATOR
         });
     });
 
-    test("defaults missing PoweredBy to no providers and composes both models", () => {
+    test("parses Ares manual-control flags with false defaults", () => {
+        expect(parseAresManualControlRules(technoSection(`
+[Techno]
+NoManualFire=yes
+NoSelfGuardArea=ON
+`))).toEqual({
+            noManualFire: true,
+            noSelfGuardArea: true,
+        });
+        expect(parseAresManualControlRules(technoSection(`
+[Techno]
+NoManualFire=no
+NoSelfGuardArea=false
+`))).toEqual({
+            noManualFire: false,
+            noSelfGuardArea: false,
+        });
+        expect(parseAresManualControlRules(technoSection(`
+[Techno]
+`))).toEqual({
+            noManualFire: false,
+            noSelfGuardArea: false,
+        });
+    });
+
+    test("NoManualFire gates only the manual-input predicate", () => {
+        expect(allowsAresManualFire(undefined)).toBe(true);
+        expect(allowsAresManualFire({
+            ares: {
+                manualControl: { noManualFire: false, noSelfGuardArea: false },
+            } as any,
+        })).toBe(true);
+        expect(allowsAresManualFire({
+            ares: {
+                manualControl: { noManualFire: true, noSelfGuardArea: false },
+            } as any,
+        })).toBe(false);
+        expect(allowsAresSelfGuardArea({
+            ares: {
+                manualControl: { noManualFire: false, noSelfGuardArea: true },
+            } as any,
+        })).toBe(false);
+    });
+
+    test("defaults missing PoweredBy/manual control and composes all models", () => {
         const section = technoSection(`
 [Techno]
 IFVMode=1
@@ -89,6 +138,10 @@ IFVMode=1
                 weaponUiNames: new Map(),
             },
             poweredBy: { providers: [], relation: "any" },
+            manualControl: {
+                noManualFire: false,
+                noSelfGuardArea: false,
+            },
         });
     });
 });
