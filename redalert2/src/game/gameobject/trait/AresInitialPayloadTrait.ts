@@ -56,8 +56,8 @@ export class AresInitialPayloadTrait implements NotifySpawn {
                 }
             }
         }
-
-        host.operatorTrait?.refresh?.(host, world);
+        // Operator state is tick-owned. The passengers exist before the first
+        // gameplay tick, so the existing trait observes the correct state.
     }
 
     private resolvePayloadRules(rules: any, typeName: string, buildingHost: boolean): any | undefined {
