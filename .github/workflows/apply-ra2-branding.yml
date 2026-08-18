@@ -1,0 +1,616 @@
+name: Apply RA2 branding and release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/apply-ra2-branding.txt
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply branding, launcher icon switching, and release CI changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Restore the exact pre-custom-logo RA2 artwork.
+          git show 3162270ceacf0f8684c67367df6eac1832c2f66c:android/app/src/main/res/drawable/app_icon.png > android/app/src/main/res/drawable/app_icon.png
+          cp android/app/src/main/res/drawable/app_icon.png android/app/src/main/res/drawable/app_icon_ra2.png
+          git show 3162270ceacf0f8684c67367df6eac1832c2f66c:ios/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png > ios/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
+          cat > android/app/src/main/res/drawable/app_icon_yr.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <bitmap
+                      android:src="@drawable/app_icon_ra2"
+                      android:gravity="fill" />
+              </item>
+              <!-- Keep the RA2 art recognizable, but make YR installs visually distinct. -->
+              <item>
+                  <shape android:shape="rectangle">
+                      <solid android:color="#3D6A1B9A" />
+                  </shape>
+              </item>
+          </layer-list>
+          EOF
+
+          cat > android/app/src/main/res/values/strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Red Alert 2</string>
+              <string name="app_name_yr">Yuri&apos;s Revenge</string>
+          </resources>
+          EOF
+
+          cat > android/app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-feature
+                  android:glEsVersion="0x00020000"
+                  android:required="true" />
+
+              <application
+                  android:allowBackup="false"
+                  android:hardwareAccelerated="true"
+                  android:label="@string/app_name"
+                  android:icon="@drawable/app_icon_ra2"
+                  android:roundIcon="@drawable/app_icon_ra2"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.RA2"
+                  android:usesCleartextTraffic="${allowCleartext}">
+                  <activity
+                      android:name=".MainActivity"
+                      android:alwaysRetainTaskState="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="landscape" />
+
+                  <activity
+                      android:name=".IconSwitchActivity"
+                      android:excludeFromRecents="true"
+                      android:exported="false"
+                      android:noHistory="true"
+                      android:theme="@android:style/Theme.NoDisplay">
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:scheme="ra2launcher" />
+                      </intent-filter>
+                  </activity>
+
+                  <activity-alias
+                      android:name=".LauncherRA2"
+                      android:enabled="true"
+                      android:exported="true"
+                      android:icon="@drawable/app_icon_ra2"
+                      android:roundIcon="@drawable/app_icon_ra2"
+                      android:label="@string/app_name"
+                      android:targetActivity=".MainActivity">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity-alias>
+
+                  <activity-alias
+                      android:name=".LauncherYR"
+                      android:enabled="false"
+                      android:exported="true"
+                      android:icon="@drawable/app_icon_yr"
+                      android:roundIcon="@drawable/app_icon_yr"
+                      android:label="@string/app_name_yr"
+                      android:targetActivity=".MainActivity">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity-alias>
+
+                  <service
+                      android:name=".ModImportKeepAliveService"
+                      android:exported="false"
+                      android:foregroundServiceType="dataSync" />
+              </application>
+          </manifest>
+          EOF
+
+          cat > android/app/src/main/java/io/stillm8/rtsengine/IconSwitchActivity.kt <<'EOF'
+          package io.stillm8.rtsengine
+
+          import android.app.Activity
+          import android.content.ComponentName
+          import android.content.Intent
+          import android.content.pm.PackageManager
+          import android.os.Bundle
+          import java.util.Locale
+
+          /**
+           * Internal trampoline used by the shared TypeScript runtime to keep
+           * the Android launcher presentation in sync with the selected base game.
+           * No engine state lives here; it only toggles launcher aliases.
+           */
+          class IconSwitchActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  applyLauncherProfile(intent)
+                  finish()
+              }
+
+              override fun onNewIntent(intent: Intent) {
+                  super.onNewIntent(intent)
+                  setIntent(intent)
+                  applyLauncherProfile(intent)
+                  finish()
+              }
+
+              private fun applyLauncherProfile(intent: Intent?) {
+                  val uri = intent?.data ?: return
+                  if (!uri.scheme.equals("ra2launcher", ignoreCase = true)) return
+                  val profile = uri.host?.lowercase(Locale.ROOT) ?: return
+                  if (profile != "ra2" && profile != "yr") return
+
+                  val ra2 = ComponentName(packageName, "$packageName.LauncherRA2")
+                  val yr = ComponentName(packageName, "$packageName.LauncherYR")
+                  val target = if (profile == "yr") yr else ra2
+                  val other = if (profile == "yr") ra2 else yr
+
+                  // Enable the replacement first so there is never a launcher gap.
+                  packageManager.setComponentEnabledSetting(
+                      target,
+                      PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                      PackageManager.DONT_KILL_APP,
+                  )
+                  packageManager.setComponentEnabledSetting(
+                      other,
+                      PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                      PackageManager.DONT_KILL_APP,
+                  )
+              }
+          }
+          EOF
+
+          cat > redalert2/src/shell/androidLauncherIcon.ts <<'EOF'
+          /** Synchronize the Android launcher alias with the selected base game. */
+          export function syncAndroidLauncherIcon(baseProfile: string): void {
+              if (typeof window === 'undefined') return;
+              const params = new URLSearchParams(window.location.search);
+              if (params.get('platform') !== 'android') return;
+
+              const profile = baseProfile === 'yr' ? 'yr' : 'ra2';
+              const link = document.createElement('a');
+              link.href = `ra2launcher://${profile}`;
+              link.style.display = 'none';
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+          }
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('redalert2/src/Application.ts')
+          text = p.read_text()
+          needle = "import { isTauriDesktopShell } from './shell/nativeShell';\n"
+          replacement = needle + "import { syncAndroidLauncherIcon } from './shell/androidLauncherIcon';\n"
+          if "./shell/androidLauncherIcon" not in text:
+              if needle not in text:
+                  raise SystemExit('Application import anchor not found')
+              text = text.replace(needle, replacement, 1)
+          needle2 = "        const profile = contentSelection.profileId;\n"
+          replacement2 = needle2 + "        syncAndroidLauncherIcon(contentSelection.baseProfile);\n"
+          if "syncAndroidLauncherIcon(contentSelection.baseProfile)" not in text:
+              if needle2 not in text:
+                  raise SystemExit('Application content-selection anchor not found')
+              text = text.replace(needle2, replacement2, 1)
+          p.write_text(text)
+
+          p = Path('redalert2/src-tauri/tauri.conf.json')
+          import json
+          cfg = json.loads(p.read_text())
+          cfg['productName'] = 'Red Alert 2'
+          cfg['version'] = '0.1.0-beta.2'
+          cfg['app']['windows'][0]['title'] = 'Red Alert 2'
+          cfg['bundle']['shortDescription'] = 'A cross-platform Red Alert 2 and Yuri\'s Revenge engine'
+          cfg['bundle']['longDescription'] = "A cross-platform TypeScript and WebGL engine for user-provided Red Alert 2, Yuri's Revenge, and compatible mod content."
+          p.write_text(json.dumps(cfg, indent=2) + '\n')
+          PY
+
+          cat > .github/workflows/release.yml <<'EOF'
+          name: Release Red Alert 2
+
+          on:
+            workflow_dispatch:
+              inputs:
+                prerelease:
+                  description: Mark the GitHub Release as a prerelease
+                  required: false
+                  type: boolean
+                  default: true
+            push:
+              tags:
+                - "ra2-v*"
+
+          permissions:
+            contents: read
+
+          concurrency:
+            group: ra2-release-${{ github.ref }}
+            cancel-in-progress: false
+
+          env:
+            BUN_VERSION: "1.3.10"
+
+          jobs:
+            prepare:
+              runs-on: ubuntu-22.04
+              outputs:
+                source_sha: ${{ steps.release.outputs.source_sha }}
+                tag: ${{ steps.release.outputs.tag }}
+                version: ${{ steps.release.outputs.version }}
+                prerelease: ${{ steps.release.outputs.prerelease }}
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+                    fetch-depth: 0
+                - id: release
+                  shell: bash
+                  env:
+                    PRERELEASE_INPUT: ${{ inputs.prerelease }}
+                  run: |
+                    set -euo pipefail
+                    VERSION="$(python3 -c 'import json; print(json.load(open("redalert2/src-tauri/tauri.conf.json"))["version"])')"
+                    if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+                      SOURCE_SHA="$(git rev-parse HEAD)"
+                      TAG="ra2-v${VERSION}"
+                      PRERELEASE="${PRERELEASE_INPUT:-true}"
+                    else
+                      SOURCE_SHA="$GITHUB_SHA"
+                      TAG="$GITHUB_REF_NAME"
+                      [[ "$TAG" == "ra2-v${VERSION}" ]] || { echo "::error::Tag $TAG does not match version $VERSION"; exit 1; }
+                      git fetch origin main
+                      git merge-base --is-ancestor "$SOURCE_SHA" origin/main || { echo "::error::Release tag is not on main"; exit 1; }
+                      [[ "$VERSION" == *-* ]] && PRERELEASE=true || PRERELEASE=false
+                    fi
+                    [[ "$VERSION" == *-* ]] && PRERELEASE=true
+                    echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+                    echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+                    echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+                    echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+            validate:
+              needs: prepare
+              runs-on: ubuntu-22.04
+              defaults:
+                run:
+                  working-directory: redalert2
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ needs.prepare.outputs.source_sha }}
+                - uses: oven-sh/setup-bun@v2
+                  with:
+                    bun-version: ${{ env.BUN_VERSION }}
+                - run: bun install --frozen-lockfile
+                - run: bun test
+                - run: bun run build
+                - run: bun run typecheck:entry
+                  continue-on-error: true
+
+            android:
+              needs: [prepare, validate]
+              runs-on: ubuntu-22.04
+              env:
+                ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+                ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+                ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+                ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ needs.prepare.outputs.source_sha }}
+                - uses: oven-sh/setup-bun@v2
+                  with:
+                    bun-version: ${{ env.BUN_VERSION }}
+                - working-directory: redalert2
+                  run: bun install --frozen-lockfile
+                - name: Set Android version
+                  env:
+                    RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+                  run: |
+                    python3 - <<'PY'
+                    import os, re
+                    from pathlib import Path
+                    p = Path('android/app/build.gradle.kts')
+                    text = p.read_text()
+                    text = re.sub(r'versionCode\s*=\s*\d+', f'versionCode = {os.environ["GITHUB_RUN_NUMBER"]}', text, count=1)
+                    text = re.sub(r'versionName\s*=\s*"[^"]+"', f'versionName = "{os.environ["RELEASE_VERSION"]}"', text, count=1)
+                    p.write_text(text)
+                    PY
+                - uses: actions/setup-java@v4
+                  with:
+                    distribution: temurin
+                    java-version: "17"
+                - uses: android-actions/setup-android@v3
+                - run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+                - uses: gradle/actions/setup-gradle@v4
+                  with:
+                    gradle-version: 8.10.2
+                - name: Build release APK
+                  env:
+                    GRADLE_BIN: gradle
+                  run: ./scripts/build-android.sh --release
+                - name: Sign release APK
+                  id: sign
+                  env:
+                    RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    mkdir -p release-assets
+                    KEYSTORE="$RUNNER_TEMP/ra2-release.keystore"
+                    configured=0
+                    for value in "$ANDROID_KEYSTORE_BASE64" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
+                      [[ -n "$value" ]] && configured=$((configured + 1))
+                    done
+                    if [[ "$configured" -eq 4 ]]; then
+                      printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+                      STORE_PASS="$ANDROID_KEYSTORE_PASSWORD"
+                      KEY_ALIAS="$ANDROID_KEY_ALIAS"
+                      KEY_PASS="$ANDROID_KEY_PASSWORD"
+                      OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android.apk"
+                      echo "kind=release" >> "$GITHUB_OUTPUT"
+                    elif [[ "$configured" -eq 0 ]]; then
+                      STORE_PASS="android"
+                      KEY_ALIAS="ra2-dev"
+                      KEY_PASS="android"
+                      keytool -genkeypair -v -keystore "$KEYSTORE" -storepass "$STORE_PASS" -keypass "$KEY_PASS" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Red Alert 2 Development Build,O=StillM8,C=PK"
+                      OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android-dev-signed.apk"
+                      echo "kind=development" >> "$GITHUB_OUTPUT"
+                    else
+                      echo "::error::Android signing secrets are only partially configured. Set all four ANDROID_RELEASE_* secrets or remove them all."
+                      exit 1
+                    fi
+                    UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+                    BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
+                    ALIGNED="$RUNNER_TEMP/ra2-aligned.apk"
+                    "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
+                    "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$STORE_PASS" --key-pass "pass:$KEY_PASS" --out "$OUTPUT" "$ALIGNED"
+                    "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$OUTPUT"
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: ra2-android
+                    path: release-assets/*
+                    if-no-files-found: error
+                    retention-days: 14
+
+            windows:
+              needs: [prepare, validate]
+              runs-on: windows-2025
+              defaults:
+                run:
+                  working-directory: redalert2
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ needs.prepare.outputs.source_sha }}
+                - uses: oven-sh/setup-bun@v2
+                  with:
+                    bun-version: ${{ env.BUN_VERSION }}
+                - uses: dtolnay/rust-toolchain@stable
+                  with:
+                    targets: x86_64-pc-windows-msvc
+                - run: bun install --frozen-lockfile
+                - run: bun run tauri:build -- --target x86_64-pc-windows-msvc --ci --no-bundle
+                - shell: pwsh
+                  env:
+                    RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+                  run: |
+                    $exe = "src-tauri/target/x86_64-pc-windows-msvc/release/redalert2-desktop.exe"
+                    if (-not (Test-Path $exe)) { throw "Expected Windows executable not found" }
+                    New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+                    Copy-Item $exe "release-assets/Red-Alert-2-$env:RELEASE_VERSION-windows-x64.exe"
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: ra2-windows-x64
+                    path: redalert2/release-assets/*
+                    if-no-files-found: error
+                    retention-days: 14
+
+            macos:
+              needs: [prepare, validate]
+              strategy:
+                fail-fast: false
+                matrix:
+                  include:
+                    - runner: macos-15
+                      target: aarch64-apple-darwin
+                      arch: arm64
+                    - runner: macos-15-intel
+                      target: x86_64-apple-darwin
+                      arch: x64
+              runs-on: ${{ matrix.runner }}
+              defaults:
+                run:
+                  working-directory: redalert2
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ needs.prepare.outputs.source_sha }}
+                - uses: oven-sh/setup-bun@v2
+                  with:
+                    bun-version: ${{ env.BUN_VERSION }}
+                - uses: dtolnay/rust-toolchain@stable
+                  with:
+                    targets: ${{ matrix.target }}
+                - run: bun install --frozen-lockfile
+                - env:
+                    APPLE_SIGNING_IDENTITY: "-"
+                  run: bun run tauri:build -- --target ${{ matrix.target }} --ci
+                - shell: bash
+                  env:
+                    RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+                    TARGET: ${{ matrix.target }}
+                    ARCH: ${{ matrix.arch }}
+                  run: |
+                    set -euo pipefail
+                    mkdir -p release-assets
+                    DMG="$(find "src-tauri/target/$TARGET/release/bundle/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+                    APP="$(find "src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
+                    [[ -f "$DMG" && -d "$APP" ]]
+                    cp "$DMG" "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.dmg"
+                    ditto -c -k --sequesterRsrc --keepParent "$APP" "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.app.zip"
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: ra2-macos-${{ matrix.arch }}
+                    path: redalert2/release-assets/*
+                    if-no-files-found: error
+                    retention-days: 14
+
+            linux:
+              needs: [prepare, validate]
+              runs-on: ubuntu-22.04
+              defaults:
+                run:
+                  working-directory: redalert2
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    ref: ${{ needs.prepare.outputs.source_sha }}
+                - run: |
+                    sudo apt-get update
+                    sudo apt-get install -y build-essential curl file libayatana-appindicator3-dev libfuse2 librsvg2-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf rpm wget
+                - uses: oven-sh/setup-bun@v2
+                  with:
+                    bun-version: ${{ env.BUN_VERSION }}
+                - uses: dtolnay/rust-toolchain@stable
+                - run: bun install --frozen-lockfile
+                - env:
+                    APPIMAGE_EXTRACT_AND_RUN: "1"
+                  run: bun run tauri:build -- --ci
+                - shell: bash
+                  env:
+                    RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+                  run: |
+                    set -euo pipefail
+                    mkdir -p release-assets
+                    APPIMAGE="$(find src-tauri/target/release/bundle -type f -name '*.AppImage' -print -quit)"
+                    DEB="$(find src-tauri/target/release/bundle -type f -name '*.deb' -print -quit)"
+                    RPM="$(find src-tauri/target/release/bundle -type f -name '*.rpm' -print -quit)"
+                    [[ -f "$APPIMAGE" ]] && cp "$APPIMAGE" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.AppImage"
+                    [[ -f "$DEB" ]] && cp "$DEB" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.deb"
+                    [[ -f "$RPM" ]] && cp "$RPM" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.rpm"
+                    BINARY="src-tauri/target/release/redalert2-desktop"
+                    [[ -x "$BINARY" ]] || { echo "::error::Linux binary missing"; exit 1; }
+                    cp "$BINARY" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+                    chmod +x "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+                    tar -C release-assets -czf "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.tar.gz" "Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+                    rm "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: ra2-linux-x64
+                    path: redalert2/release-assets/*
+                    if-no-files-found: error
+                    retention-days: 14
+
+            release:
+              needs: [prepare, validate, android, windows, macos, linux]
+              runs-on: ubuntu-22.04
+              permissions:
+                contents: write
+              steps:
+                - uses: actions/download-artifact@v4
+                  with:
+                    pattern: ra2-*
+                    path: release-assets
+                    merge-multiple: true
+                - shell: bash
+                  run: |
+                    cd release-assets
+                    find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%P\0' | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+                - name: Publish GitHub release
+                  shell: bash
+                  env:
+                    GH_TOKEN: ${{ github.token }}
+                    TAG: ${{ needs.prepare.outputs.tag }}
+                    VERSION: ${{ needs.prepare.outputs.version }}
+                    SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+                    PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+                  run: |
+                    set -euo pipefail
+                    NOTES="$RUNNER_TEMP/notes.md"
+                    cat > "$NOTES" <<'NOTES'
+                    Cross-platform Red Alert 2 / Yuri's Revenge engine build from `main`.
+
+                    Android is signed with configured release credentials when available. If no Android release credentials are configured, CI signs with a throwaway development key so the APK is installable for testing; future dev-signed builds may require uninstall/reinstall.
+                    NOTES
+                    args=(release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" --title "Red Alert 2 $VERSION" --notes-file "$NOTES")
+                    [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+                    if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+                      gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "Red Alert 2 $VERSION" --notes-file "$NOTES"
+                    else
+                      gh "${args[@]}"
+                    fi
+                    mapfile -d '' ASSETS < <(find release-assets -maxdepth 1 -type f -print0 | sort -z)
+                    gh release upload "$TAG" "${ASSETS[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          EOF
+
+          # Remove the temporary release-trigger/monitor machinery created for beta.1.
+          rm -f \
+            .github/workflows/complete-release.yml \
+            .github/workflows/monitor-complete-release.yml \
+            .github/workflows/monitor-release.yml \
+            .github/workflows/trigger-release.yml \
+            .github/complete-release-monitor.txt \
+            .github/complete-release-run-status.json \
+            .github/complete-release-status.json \
+            .github/complete-release-trigger.txt \
+            .github/release-monitor.txt \
+            .github/release-run-status.json \
+            .github/release-trigger.txt \
+            .github/workflows/apply-ra2-branding.yml \
+            .github/apply-ra2-branding.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Restore Red Alert 2 branding and dynamic YR launcher icon"
+          git push origin HEAD:main
+
+      - name: Dispatch beta.2 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f prerelease=true
+          sleep 8
+          RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --event workflow_dispatch --branch main --limit 10 --json databaseId,headSha,createdAt --jq 'map(select(.headSha == "'"$SOURCE_SHA"'")) | sort_by(.createdAt) | reverse | .[0].databaseId // empty')"
+          [[ -n "$RUN_ID" ]] || { echo "::error::Could not find dispatched release run"; exit 1; }
+          echo "$RUN_ID" > /tmp/release-run-id.txt
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          printf '%s\n' "$RUN_ID" > .github/latest-release-run-id.txt
+          git add .github/latest-release-run-id.txt
+          git commit -m "Record beta.2 release run"
+          git push origin main
