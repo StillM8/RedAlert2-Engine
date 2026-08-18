@@ -32,6 +32,9 @@ export class CaptureBuildingTask extends EnterBuildingTask {
         }
         t.owner.buildingsCaptured++;
         this.game.changeObjectOwner(this.target, t.owner);
+        // A conventional engineer capture establishes a new true owner. This
+        // is distinct from Ares Bunker.Raidable's temporary garrison ownership.
+        this.target.garrisonTrait?.setTrueOwner?.(t.owner);
         if (this.target.rules.factoryOwnersPermanent) {
             t.owner.production?.addPermanentFactoryOwnerPlans(this.target.initialFactoryOwnerId);
         }
