@@ -13,6 +13,28 @@ function numberValue(rules: any, directName: string, iniName: string, fallback: 
     return Number(iniOf(rules)?.getNumber?.(iniName, fallback) ?? fallback);
 }
 
+/**
+ * Survivor chance keys are documented as 0..100 integers, but this engine's
+ * generic IniSection parser deliberately turns a literal `50%` into 0.5.
+ * Read the raw string here so both `50` and `50%` mean fifty percent while a
+ * bare `1` remains one percent (not one hundred percent).
+ */
+function percentValue(rules: any, directName: string, iniName: string, fallback: number): number {
+    const direct = rules?.[directName];
+    if (Number.isFinite(direct)) return Number(direct);
+    const raw = String(iniOf(rules)?.getString?.(iniName) ?? "").trim();
+    if (!raw) return fallback;
+    const percentLiteral = raw.endsWith("%");
+    const value = Number(percentLiteral ? raw.slice(0, -1).trim() : raw);
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function normalizePercentFallback(value: number): number {
+    // GeneralRules/CrewRules are populated through IniSection.getNumber(), so
+    // an authored 50% arrives here as 0.5. Plain numeric 50 remains 50.
+    return value >= 0 && value <= 1 ? value * 100 : value;
+}
+
 function rankPrefix(level: VeteranLevel | number | undefined): "Rookie" | "Veteran" | "Elite" {
     if ((level ?? VeteranLevel.None) >= VeteranLevel.Elite) return "Elite";
     if ((level ?? VeteranLevel.None) >= VeteranLevel.Veteran) return "Veteran";
@@ -48,13 +70,14 @@ export function getAresSurvivorPilotCount(object: any): number {
 
 export function getAresSurvivorPilotChance(object: any, crewEscapePercent: number): number {
     const prefix = rankPrefix(object?.veteranLevel);
-    const authored = numberValue(
+    const authored = percentValue(
         object?.rules,
         `survivor${prefix}PilotChance`,
         `Survivor.${prefix}PilotChance`,
         -1,
     );
-    return authored < 0 ? crewEscapePercent : Math.max(0, Math.min(100, authored));
+    const value = authored < 0 ? normalizePercentFallback(crewEscapePercent) : authored;
+    return Math.max(0, Math.min(100, value));
 }
 
 /**
@@ -63,7 +86,7 @@ export function getAresSurvivorPilotChance(object: any, crewEscapePercent: numbe
  */
 export function getAresSurvivorPassengerChance(object: any): number {
     const prefix = rankPrefix(object?.veteranLevel);
-    const authored = numberValue(
+    const authored = percentValue(
         object?.rules,
         `survivor${prefix}PassengerChance`,
         `Survivor.${prefix}PassengerChance`,
