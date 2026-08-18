@@ -32,6 +32,7 @@ import { DelayedKillTrait } from "@/game/gameobject/trait/DelayedKillTrait";
 import { BuildStatusChangeEvent } from "@/game/event/BuildStatusChangeEvent";
 import { NotifyBuildStatus } from "@/game/gameobject/trait/interface/NotifyBuildStatus";
 import { AresFirestormWallTrait } from "@/game/gameobject/trait/AresFirestormWallTrait";
+import { AresAdvancedRubbleTrait } from "@/game/gameobject/trait/AresAdvancedRubbleTrait";
 import {
     getAresPassengerRules,
     isAresInitialPayloadBuildingHost,
@@ -74,6 +75,7 @@ export class Building extends Techno {
     public firestormWallTrait?: AresFirestormWallTrait;
     public psychicDetectorTrait?: PsychicDetectorTrait;
     public tankBunkerTrait?: TankBunkerTrait;
+    public aresAdvancedRubbleTrait?: AresAdvancedRubbleTrait;
     static factory(owner: any, rules: TechnoRules, gameRules: any, art: any, world: any, coords: any): Building {
         const building = new this(owner, rules, art);
         if (rules.canBeOccupied) {
@@ -96,6 +98,11 @@ export class Building extends Techno {
             isAresInitialPayloadBuildingHost(passengerRules, !!building.garrisonTrait) &&
             (building.garrisonTrait || building.transportTrait)) {
             building.traits.add(new AresInitialPayloadTrait());
+        }
+        const urbanCombat = (rules as any).aresUrbanCombat;
+        if (urbanCombat?.rubbleDestroyed || urbanCombat?.rubbleIntact) {
+            building.aresAdvancedRubbleTrait = new AresAdvancedRubbleTrait();
+            building.traits.add(building.aresAdvancedRubbleTrait);
         }
         if (rules.canC4 && !rules.wall) {
             building.c4ChargeTrait = new C4ChargeTrait();
