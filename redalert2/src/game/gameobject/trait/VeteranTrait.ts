@@ -11,11 +11,13 @@ import {
     resolveAresVeterancyRecipients,
     type AresKillAttribution,
 } from '@/extensions/ares/AresVeterancy';
+import { getAresPassengerRules } from '@/extensions/ares/AresPassengers';
 interface GameObject {
     rules: {
         cost: number;
         veteranAbilities: Set<VeteranAbility>;
         eliteAbilities: Set<VeteranAbility>;
+        trainable?: boolean;
         dontScore?: boolean;
         insignificant?: boolean;
         organic?: boolean;
@@ -26,6 +28,8 @@ interface GameObject {
     sensorsTrait?: SensorsTrait;
     suppressionTrait?: any;
     unitOrderTrait: any;
+    transportTrait?: { units: GameObject[] };
+    veteranTrait?: VeteranTrait;
     explodes?: boolean;
     radarInvisible?: boolean;
     c4?: boolean;
@@ -125,6 +129,20 @@ export class VeteranTrait implements NotifyTargetDestroy {
             this.handlePromotion(this.gameObject, gameManager);
         }
     }
+    /**
+     * Ares Promote.IncludePassengers mirrors rank, not XP.  Existing passenger
+     * XP is discarded even when the passenger was already at the mirrored rank.
+     * This entry point deliberately does not recursively promote nested cargo.
+     */
+    setRankFromTransport(level: VeteranLevel, gameManager: GameManager): void {
+        const newLevel = Math.min(Math.max(level, VeteranLevel.None), this.veteranRules.veteranCap) as VeteranLevel;
+        const changed = newLevel !== this.veteranLevel;
+        this.xp = 0;
+        this.setVeteranLevel(newLevel);
+        if (changed) {
+            this.handlePromotion(this.gameObject, gameManager, false);
+        }
+    }
     isMaxLevel(): boolean {
         return this.veteranLevel === this.veteranRules.veteranCap;
     }
@@ -139,11 +157,9 @@ export class VeteranTrait implements NotifyTargetDestroy {
     }
     private setVeteranLevel(level: VeteranLevel): void {
         this.veteranLevel = level;
-        if (this.veteranLevel === VeteranLevel.Elite) {
-            this.gameObject.armedTrait?.toggleEliteWeapons?.(true);
-        }
+        this.gameObject.armedTrait?.toggleEliteWeapons?.(this.veteranLevel === VeteranLevel.Elite);
     }
-    private handlePromotion(gameObject: GameObject, gameManager: GameManager): void {
+    private handlePromotion(gameObject: GameObject, gameManager: GameManager, propagatePassengers = true): void {
         if (this.hasVeteranAbility(VeteranAbility.SELF_HEAL)) {
             if (!gameObject.traits.find(SelfHealingTrait)) {
                 gameManager.addObjectTrait(gameObject, new SelfHealingTrait());
@@ -194,6 +210,13 @@ export class VeteranTrait implements NotifyTargetDestroy {
         if (this.hasVeteranAbility(VeteranAbility.CRUSHER)) {
             if (!gameObject.crusher) {
                 gameObject.crusher = true;
+            }
+        }
+        if (propagatePassengers && getAresPassengerRules(gameObject.rules)?.promoteIncludePassengers) {
+            for (const passenger of gameObject.transportTrait?.units ?? []) {
+                if (passenger.rules.trainable === true && passenger.veteranTrait) {
+                    passenger.veteranTrait.setRankFromTransport(this.veteranLevel, gameManager);
+                }
             }
         }
         gameManager.events.dispatch(new UnitPromoteEvent(gameObject));

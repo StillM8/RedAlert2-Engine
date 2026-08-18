@@ -1,5 +1,6 @@
 import { ObjectType } from "@/engine/type/ObjectType";
 import { GarrisonTrait } from "@/game/gameobject/trait/GarrisonTrait";
+import { TransportTrait } from "@/game/gameobject/trait/TransportTrait";
 import { TurretTrait } from "@/game/gameobject/trait/TurretTrait";
 import { TechnoRules, FactoryType } from "@/game/rules/TechnoRules";
 import { PoweredTrait } from "@/game/gameobject/trait/PoweredTrait";
@@ -31,6 +32,8 @@ import { DelayedKillTrait } from "@/game/gameobject/trait/DelayedKillTrait";
 import { BuildStatusChangeEvent } from "@/game/event/BuildStatusChangeEvent";
 import { NotifyBuildStatus } from "@/game/gameobject/trait/interface/NotifyBuildStatus";
 import { AresFirestormWallTrait } from "@/game/gameobject/trait/AresFirestormWallTrait";
+import { getAresPassengerRules } from "@/extensions/ares/AresPassengers";
+import { AresInitialPayloadTrait } from "@/game/gameobject/trait/AresInitialPayloadTrait";
 export enum BuildStatus {
     BuildUp = 0,
     Ready = 1,
@@ -44,6 +47,8 @@ export class Building extends Techno {
     private _buildStatus: BuildStatus;
     public lastBuildStatus: BuildStatus;
     public garrisonTrait?: GarrisonTrait;
+    /** Shared passenger state for InfantryAbsorb/UnitAbsorb building hosts. */
+    public transportTrait?: TransportTrait;
     public c4ChargeTrait?: C4ChargeTrait;
     public delayedKillTrait?: DelayedKillTrait;
     public cabHutTrait?: CabHutTrait;
@@ -71,6 +76,20 @@ export class Building extends Techno {
         if (rules.canBeOccupied) {
             building.garrisonTrait = new GarrisonTrait(building, gameRules.audioVisual.conditionRed, rules.maxNumberOccupants);
             building.traits.add(building.garrisonTrait);
+        }
+        const passengerRules = getAresPassengerRules(rules);
+        // Ares Operator and InitialPayload use the ordinary YR absorb flags as
+        // the passenger host for buildings which are not urban garrisons.
+        if (!building.garrisonTrait &&
+            passengerRules &&
+            (passengerRules.infantryAbsorb || passengerRules.unitAbsorb) &&
+            Number((rules as any).passengers ?? 0) > 0) {
+            building.transportTrait = new TransportTrait(building as any);
+            building.traits.add(building.transportTrait);
+        }
+        if (passengerRules?.initialPayloadTypes.length &&
+            (building.garrisonTrait || building.transportTrait)) {
+            building.traits.add(new AresInitialPayloadTrait());
         }
         if (rules.canC4 && !rules.wall) {
             building.c4ChargeTrait = new C4ChargeTrait();

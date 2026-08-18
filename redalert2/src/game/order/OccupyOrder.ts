@@ -2,6 +2,7 @@ import { Order } from "@/game/order/Order";
 import { OrderType } from "@/game/order/OrderType";
 import { PointerType } from "@/engine/type/PointerType";
 import { GarrisonBuildingTask } from "@/game/gameobject/task/GarrisonBuildingTask";
+import { EnterBuildingTransportTask } from "@/game/gameobject/task/EnterBuildingTransportTask";
 import { RangeHelper } from "@/game/gameobject/unit/RangeHelper";
 import { OrderFeedbackType } from "@/game/order/OrderFeedbackType";
 import { MovementZone } from "@/game/type/MovementZone";
@@ -10,6 +11,10 @@ import { EnterRecyclerTask } from "@/game/gameobject/task/EnterRecyclerTask";
 import { EnterBunkerTask } from "@/game/gameobject/task/EnterBunkerTask";
 import { InfiltrateBuildingTask } from "@/game/gameobject/task/InfiltrateBuildingTask";
 import { EnterHospitalTask } from "@/game/gameobject/task/EnterHospitalTask";
+import {
+    getAresPassengerRules,
+    isAresBuildingPassengerClassAllowed,
+} from "@/extensions/ares/AresPassengers";
 export class OccupyOrder extends Order {
     private game: any;
     constructor(game: any) {
@@ -38,6 +43,9 @@ export class OccupyOrder extends Order {
             return true;
         }
         if (this.isBunkerEntry(this.sourceObject, this.target.obj)) {
+            return true;
+        }
+        if (this.isBuildingPassengerEntry(this.sourceObject, this.target.obj)) {
             return true;
         }
         if (!this.sourceObject.isInfantry()) {
@@ -81,6 +89,16 @@ export class OccupyOrder extends Order {
             this.game.areFriendly(unit, building) &&
             !unit.mindControllableTrait?.isActive();
     }
+    private isBuildingPassengerEntry(unit: any, building: any): boolean {
+        if (!building.transportTrait || building.transportTrait.allowsManualEntry?.() === false) {
+            return false;
+        }
+        const extension = getAresPassengerRules(building.rules);
+        return this.game.areFriendly(unit, building) &&
+            isAresBuildingPassengerClassAllowed(extension, unit) &&
+            !unit.mindControllableTrait?.isActive() &&
+            !unit.mindControllerTrait?.isActive();
+    }
     isAllowed(): boolean {
         const building = this.target.obj;
         const unit = this.sourceObject;
@@ -91,6 +109,9 @@ export class OccupyOrder extends Order {
         }
         if (this.isBunkerEntry(unit, building)) {
             return !building.tankBunkerTrait?.isOccupied();
+        }
+        if (this.isBuildingPassengerEntry(unit, building)) {
+            return building.transportTrait.unitFitsInside(unit);
         }
         if (building.hospitalTrait) {
             return unit.healthTrait.health < 100 &&
@@ -110,6 +131,9 @@ export class OccupyOrder extends Order {
         if (this.isBunkerEntry(unit, building)) {
             return [new EnterBunkerTask(this.game, building)];
         }
+        if (this.isBuildingPassengerEntry(unit, building)) {
+            return [new EnterBuildingTransportTask(this.game, building)];
+        }
         if (building.hospitalTrait) {
             return [new EnterHospitalTask(this.game, building)];
         }
@@ -121,6 +145,7 @@ export class OccupyOrder extends Order {
     onAdd(tasks: any[], replace: boolean): boolean {
         if (!replace) {
             const existingTask = tasks.find(task => task instanceof GarrisonBuildingTask ||
+                task instanceof EnterBuildingTransportTask ||
                 task instanceof InfiltrateBuildingTask);
             if (this.isValid() &&
                 this.isAllowed() &&

@@ -26,6 +26,7 @@ export class EnterTransportOrder extends Order {
     isValid(): boolean {
         return !(!this.target.obj?.isVehicle() ||
             !this.target.obj.transportTrait ||
+            !this.target.obj.transportTrait.allowsManualEntry?.() ||
             this.target.obj.isDestroyed ||
             this.target.obj === this.sourceObject ||
             !this.game.areFriendly(this.target.obj, this.sourceObject) ||
@@ -41,7 +42,8 @@ export class EnterTransportOrder extends Order {
             !!source.onBridge !== !!target.onBridge) {
             return false;
         }
-        return (source.zone !== ZoneType.Air &&
+        return (target.transportTrait.allowsManualEntry?.() !== false &&
+            source.zone !== ZoneType.Air &&
             target.zone !== ZoneType.Air &&
             target.transportTrait.unitFitsInside(source) &&
             target.moveTrait.moveState === MoveState.Idle &&
