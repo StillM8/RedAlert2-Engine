@@ -300,6 +300,18 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     if ((sectionKind === "Side" || sectionKind === "Country") && /^(?:sidebar\.(?:mixfileindex|yurifilenames)|tooltipcolor|eva\.tag|loadingtheme|graphicaltext\.(?:image|palette)|multiplayerscore\.(?:background|palette|bars|wintheme|losetheme))$/i.test(key)) {
         return "ares.side-ui";
     }
+    if (/^radarjamradius$/i.test(key)) {
+        return "ares.radar-jammers";
+    }
+    if (/^gattling\.cycle$/i.test(key)) {
+        return "ares.staged-weapons";
+    }
+    if (/^survivor\.(?:side\d+|pilotcount|(?:rookie|veteran|elite)(?:pilot|passenger)chance)$/i.test(key)) {
+        return "ares.survivors";
+    }
+    if (/^(?:passengers\.(?:allowed|disallowed|bysize)|nomanual(?:enter|unload)|initialpayload\.(?:types|nums)|promote\.includepassengers|infantryabsorb|unitabsorb)$/i.test(key)) {
+        return "ares.passenger-extensions";
+    }
     if (/^attacheffect\./i.test(key)) {
         return "ares.status-effects";
     }
@@ -477,7 +489,11 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     if (/^(splits|airburst(?:weapon|spread)?|cluster|proximity|aroundtarget|retarget(?:accuracy|self)?|attachedsystem)\b/i.test(key)) {
         return "ares.projectile-extensions";
     }
+    // Retain the legacy broad pattern for old compatibility fixtures while
+    // Gattling.Cycle above identifies the actual documented Ares capability.
     if (/^(stage|weaponstage|burstdelay|charge)\b/i.test(key)) return "ares.staged-weapons";
+    // Legacy placeholder spellings remain classified, but real Ares passenger
+    // keys are handled near the top of this function.
     if (/^(passengerdelete|passengerconsume|passengerslots?)\b/i.test(key)) return "ares.passenger-extensions";
     if (/^(palette|animpalette|projectilepalette)$/i.test(key) && /anim|projectile|weapon|warhead/i.test(section)) {
         return "ares.custom-animation-palettes";
@@ -711,9 +727,11 @@ export function formatMentalOmegaCompatibilityReport(report: MentalOmegaCompatib
             ? "unregistered"
             : support.implemented
                 ? "verified"
-                : support.parserImplemented
-                    ? "parsed-only"
-                    : "runtime-missing";
+                : support.runtimeImplemented
+                    ? "runtime-partial"
+                    : support.parserImplemented
+                        ? "parsed-only"
+                        : "runtime-missing";
         lines.push(`${usage.featureId}: ${usage.occurrences} occurrence(s), ${usage.definitionCount} definition(s), ${usage.sourceCount} source(s), ${status}`);
     }
     const appendKeyUsage = (title: string, usage: readonly IniKeyUsage[]): void => {
