@@ -8,7 +8,10 @@ import { ArmedTrait } from '@/game/gameobject/trait/ArmedTrait';
 import { AttackTrait } from '@/game/gameobject/trait/AttackTrait';
 import { Weapon } from '@/game/Weapon';
 import { WeaponType } from '@/game/WeaponType';
-import { canAresUrbanCombatInfantryOccupy } from '@/extensions/ares/AresUrbanCombatRuntime';
+import {
+    canAresTrenchTraverse,
+    canAresUrbanCombatInfantryOccupy,
+} from '@/extensions/ares/AresUrbanCombatRuntime';
 import { AresGarrisonOccupantTrait } from './AresGarrisonOccupantTrait';
 export class GarrisonTrait {
     private building: Building;
@@ -34,6 +37,9 @@ export class GarrisonTrait {
     }
     getOccupantCount(): number {
         return this.units.length;
+    }
+    getAvailableOccupantSlots(): number {
+        return Math.max(0, this.maxOccupants - this.units.length);
     }
     isTemporarilyOccupied(): boolean {
         return this.temporaryOccupation;
@@ -79,6 +85,37 @@ export class GarrisonTrait {
             },
         );
     }
+    /** Exact Ares #666 legality predicate for clicking from this occupied
+     * building into an adjacent same-ID trench segment. */
+    canTraverseTo(targetBuilding: any): boolean {
+        return canAresTrenchTraverse(this.building as any, targetBuilding);
+    }
+    /**
+     * Ares moves occupants in list order until the destination is full or the
+     * source is empty. The infantry never leaves limbo, so this is one atomic
+     * deterministic garrison-state transfer rather than a movement task.
+     */
+    traverseTo(targetBuilding: any, context: any): number {
+        if (!this.canTraverseTo(targetBuilding)) return 0;
+        const target: GarrisonTrait = targetBuilding.garrisonTrait;
+        let moved = 0;
+        while (this.units.length && target.getAvailableOccupantSlots() > 0) {
+            const unit = this.units.shift()!;
+            if (!target.addOccupant(unit, context)) {
+                // Capacity is the only expected refusal on Ares' redirect path;
+                // restore deterministic source ordering if a host veto occurs.
+                this.units.unshift(unit);
+                break;
+            }
+            moved++;
+        }
+        if (moved > 0) {
+            this.restoreTemporaryOwnerIfEmpty(context);
+            this.updateOccupantWeapons(context);
+            target.updateOccupantWeapons(context);
+        }
+        return moved;
+    }
     /**
      * Claim an empty neutral or Bunker.Raidable building for the entering
      * infantry while retaining the prior owner for Ares' automatic reversion.
@@ -123,6 +160,9 @@ export class GarrisonTrait {
         if (!occupant.aresGarrisonOccupantTrait) {
             occupant.aresGarrisonOccupantTrait = new AresGarrisonOccupantTrait(this.building as any);
             occupant.addTrait?.(occupant.aresGarrisonOccupantTrait);
+        }
+        else {
+            occupant.aresGarrisonOccupantTrait.retarget?.(this.building as any);
         }
         if ((this.building as any).rules.occupantsPowerBonus && (this.building as any).rules.power > 0) {
             (this.building as any).owner.powerTrait?.updateFrom(this.building, "update", context);
