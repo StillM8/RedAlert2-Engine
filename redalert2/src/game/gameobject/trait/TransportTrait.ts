@@ -29,6 +29,16 @@ export class TransportTrait {
         }
         return this.getPassengerCapacityCost(unit) <= this.getAvailableCapacity();
     }
+    /** NoManualEnter only suppresses player-issued entry. Script/AI code can
+     * still use EnterTransportTask directly, matching Ares' documented split. */
+    allowsManualEntry(): boolean {
+        return getAresPassengerRules(this.obj.rules)?.noManualEnter !== true;
+    }
+    /** NoManualUnload suppresses the player's deploy/evacuate order. Forced
+     * evacuation on destruction and script-owned lifecycle paths remain valid. */
+    allowsManualUnload(): boolean {
+        return getAresPassengerRules(this.obj.rules)?.noManualUnload !== true;
+    }
     private getPassengerCapacityCost(unit: GameObject): number {
         return getAresPassengerCapacityCost(
             getAresPassengerRules(this.obj.rules),
