@@ -56,7 +56,7 @@ export function resolveAresLightningRodCloudTile(
     for (const candidate of candidates) {
         if (candidate.isSpawned === false || candidate.isDisposed || candidate.isDestroyed ||
             candidate.isCrashing || candidate.limboData || !candidate.tile ||
-            candidate.isTechno?.() === false) {
+            candidate.isTechno?.() !== true) {
             continue;
         }
         const distance = distanceSquared(randomTile, candidate.tile);
