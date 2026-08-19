@@ -1,0 +1,48 @@
+name: Inspect cross-platform release build
+
+on:
+  push:
+    branches:
+      - beta
+    paths:
+      - .github/release-build-inspect-trigger.txt
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: beta
+          fetch-depth: 0
+      - name: Watch latest all-platform release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 5
+          RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch beta --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$RUN_ID" ]]; then
+            printf '%s\n' '{"status":"no-run-found"}' > "$RUNNER_TEMP/status.json"
+          else
+            gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --interval 5 --exit-status || true
+            gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json databaseId,status,conclusion,url,headSha,event,createdAt,updatedAt > "$RUNNER_TEMP/status.json"
+          fi
+      - name: Record final status
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin beta
+          git checkout -B beta origin/beta
+          cp "$RUNNER_TEMP/status.json" .github/release-build-inspect-status.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/release-build-inspect-status.json
+          git commit -m "Record cross-platform release build status" || exit 0
+          git pull --rebase origin beta
+          git push origin beta
