@@ -15,5 +15,7 @@ export enum VeteranAbility {
     GUARD_AREA = 13,
     CRUSHER = 14,
     /** Ares EMPIMMUNE veteran/elite ability. */
-    EMPIMMUNE = 15
+    EMPIMMUNE = 15,
+    /** Ares PSIONICSIMMUNE veteran/elite ability. */
+    PSIONICSIMMUNE = 16
 }
