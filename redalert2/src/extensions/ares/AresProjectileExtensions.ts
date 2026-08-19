@@ -21,6 +21,50 @@ export interface AresCellOffset {
     y: number;
 }
 
+export interface AresRangedTravelDecision {
+    /** Distance the projectile may move this tick in the caller's units. */
+    distance: number;
+    /** Accumulated distance after applying this movement. */
+    travelDistance: number;
+    /** True when the projectile has consumed all configured fuel/range. */
+    exhausted: boolean;
+}
+
+/**
+ * Resolve one deterministic movement step for Ares Ranged=yes projectiles.
+ *
+ * Keeping this unit-agnostic makes the rule independently testable; the game
+ * passes both distances in leptons.  Non-ranged projectiles are deliberately
+ * unchanged.  A zero range therefore detonates before travelling, while the
+ * documented default is supplied by WeaponRules as 390 cells.
+ */
+export function resolveAresRangedTravel(
+    requestedDistance: number,
+    travelDistance: number,
+    ranged: boolean,
+    maxTravelDistance: number,
+): AresRangedTravelDecision {
+    const requested = Math.max(0, requestedDistance);
+    const traveled = Math.max(0, travelDistance);
+    if (!ranged) {
+        return {
+            distance: requested,
+            travelDistance: traveled + requested,
+            exhausted: false,
+        };
+    }
+
+    const maximum = Math.max(0, maxTravelDistance);
+    const remaining = Math.max(0, maximum - traveled);
+    const distance = Math.min(requested, remaining);
+    const nextTravelDistance = traveled + distance;
+    return {
+        distance,
+        travelDistance: nextTravelDistance,
+        exhausted: nextTravelDistance >= maximum,
+    };
+}
+
 /**
  * Antares treats either Airburst or Splits as replacing the projectile's
  * ordinary detonation with child projectiles.
