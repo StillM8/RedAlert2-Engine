@@ -30,12 +30,14 @@ jobs:
           path = Path("scripts/ares-beta-closure-2.py")
           text = path.read_text()
           old = '''    actual = text.count(old)\n    if actual < count:\n        raise RuntimeError(f"{path}: expected at least {count} occurrence(s), found {actual}: {old[:140]!r}")\n    file.write_text(text.replace(old, new, count))\n'''
-          new = '''    actual = text.count(old)\n    if actual < count:\n        # The beta branch is intentionally moving while closure batches land.\n        # If the exact intended replacement is already present, this patch has\n        # already been applied and is safe to skip.  Any third state still fails\n        # loudly so an unrelated refactor cannot be mistaken for compatibility.\n        if new in text:\n            return\n        raise RuntimeError(f"{path}: expected old or already-applied new form; found {actual} old occurrence(s): {old[:140]!r}")\n    file.write_text(text.replace(old, new, count))\n'''
-          if old not in text:
-              if new not in text:
-                  raise SystemExit("Could not locate guarded replace helper")
-          else:
+          new = '''    # Many closure insertions intentionally retain their anchor as part of the\n    # replacement.  Test for the exact intended result first so a rerun never\n    # duplicates an import, interface, field, or function.\n    if new in text:\n        return\n    actual = text.count(old)\n    if actual < count:\n        raise RuntimeError(f"{path}: expected old or already-applied new form; found {actual} old occurrence(s): {old[:140]!r}")\n    file.write_text(text.replace(old, new, count))\n'''
+          previous = '''    actual = text.count(old)\n    if actual < count:\n        # The beta branch is intentionally moving while closure batches land.\n        # If the exact intended replacement is already present, this patch has\n        # already been applied and is safe to skip.  Any third state still fails\n        # loudly so an unrelated refactor cannot be mistaken for compatibility.\n        if new in text:\n            return\n        raise RuntimeError(f"{path}: expected old or already-applied new form; found {actual} old occurrence(s): {old[:140]!r}")\n    file.write_text(text.replace(old, new, count))\n'''
+          if old in text:
               path.write_text(text.replace(old, new, 1))
+          elif previous in text:
+              path.write_text(text.replace(previous, new, 1))
+          elif new not in text:
+              raise SystemExit("Could not locate guarded replace helper")
           PY
 
       - name: Apply guarded Ares runtime patch
