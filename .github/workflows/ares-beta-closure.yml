@@ -5,7 +5,7 @@ on:
     branches:
       - beta
     paths:
-      - scripts/ares-beta-closure-3.py
+      - scripts/ares-beta-closure-4.py
       - .github/ares-beta-trigger.txt
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply guarded Ares runtime patch
-        run: python3 scripts/ares-beta-closure-3.py
+        run: python3 scripts/ares-beta-closure-4.py
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -56,6 +56,6 @@ jobs:
             echo "No runtime changes to commit"
             exit 0
           fi
-          git commit -m "Implement Ares custom missile runtime"
+          git commit -m "Implement Ares lightning rod runtime"
           git pull --rebase origin beta
           git push origin HEAD:beta
