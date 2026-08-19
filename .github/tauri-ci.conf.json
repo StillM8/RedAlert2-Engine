@@ -1,0 +1,5 @@
+{
+  "build": {
+    "beforeBuildCommand": "echo Reusing validated frontend from CI artifact"
+  }
+}
