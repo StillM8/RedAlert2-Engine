@@ -7,9 +7,11 @@ import {
     hasAresProjectileSplitBehavior,
     sortAresSplitCandidates,
     shouldRetargetAresSplit,
+    resolveAresRangedTravel,
 } from "@/extensions/ares/AresProjectileExtensions";
 import { ProjectileRules } from "@/game/rules/ProjectileRules";
 import { Projectile } from "@/game/gameobject/Projectile";
+import { WeaponRules } from "@/game/rules/WeaponRules";
 
 describe("Ares projectile Airburst/Splits", () => {
     test("normalizes Antares defaults and explicit projectile extension fields", () => {
@@ -23,6 +25,9 @@ describe("Ares projectile Airburst/Splits", () => {
         section.set("RetargetAccuracy", "80%");
         section.set("RetargetSelf", "no");
         section.set("Proximity", "no");
+        section.set("Ranged", "yes");
+        section.set("AnimLength", "4");
+        section.set("AnimRate", "3");
         section.set("AttachedSystem", "SpeederShotSys");
 
         const rules = new ProjectileRules(ObjectType.Projectile, section);
@@ -36,6 +41,9 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(rules.retargetAccuracy).toBe(0.8);
         expect(rules.retargetSelf).toBe(false);
         expect(rules.proximity).toBe(false);
+        expect(rules.ranged).toBe(true);
+        expect(rules.animLength).toBe(4);
+        expect(rules.animRate).toBe(3);
         expect(rules.attachedSystem).toBe("SpeederShotSys");
     });
 
@@ -52,6 +60,32 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(rules.retargetSelf).toBe(true);
         expect(rules.attachedSystem).toBeUndefined();
         expect(rules.proximity).toBe(false);
+        expect(rules.ranged).toBe(false);
+        expect(rules.animLength).toBe(1);
+        expect(rules.animRate).toBe(1);
+    });
+
+    test("Ranged fuel travel is deterministic and ProjectileRange defaults to 390 cells", () => {
+        expect(resolveAresRangedTravel(80, 0, true, 100)).toEqual({
+            distance: 80,
+            travelDistance: 80,
+            exhausted: false,
+        });
+        expect(resolveAresRangedTravel(80, 80, true, 100)).toEqual({
+            distance: 20,
+            travelDistance: 100,
+            exhausted: true,
+        });
+        expect(resolveAresRangedTravel(80, 80, false, 100)).toEqual({
+            distance: 80,
+            travelDistance: 160,
+            exhausted: false,
+        });
+
+        const explicit = new IniSection("RangedWeapon");
+        explicit.set("ProjectileRange", "12.5");
+        expect(new WeaponRules(explicit).projectileRange).toBe(12.5);
+        expect(new WeaponRules(new IniSection("DefaultRangedWeapon")).projectileRange).toBe(390);
     });
 
     test("Airburst cell pool is circular, includes the center, and is stable", () => {

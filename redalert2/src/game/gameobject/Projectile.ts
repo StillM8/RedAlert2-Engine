@@ -33,6 +33,7 @@ import {
     hasAresProjectileSplitBehavior,
     sortAresSplitCandidates,
     shouldRetargetAresSplit,
+    resolveAresRangedTravel,
 } from '@/extensions/ares/AresProjectileExtensions';
 import {
     applyAresFirestormWallDamage,
@@ -66,6 +67,8 @@ export class Projectile extends GameObject {
     private targetLockLost: boolean;
     private limboTravelTicks: number;
     private homingTravelDistance: number;
+    /** Total physical travel distance used by Ares Ranged=yes fuel limits. */
+    private travelDistance: number;
     private homingTravelTicks: number;
     private velocity: Vector3;
     private sonicVisitedObjects: Map<any, Set<any>>;
@@ -118,6 +121,7 @@ export class Projectile extends GameObject {
         this.targetLockLost = false;
         this.limboTravelTicks = 0;
         this.homingTravelDistance = 0;
+        this.travelDistance = 0;
         this.homingTravelTicks = 0;
         this.velocity = new Vector3();
         this.sonicVisitedObjects = new Map();
@@ -350,10 +354,11 @@ export class Projectile extends GameObject {
             }
             this.direction = FacingUtil.fromMapCoords(new Vector2(this.homingMoveDir.x, this.homingMoveDir.z));
             const distanceToTarget = toTarget.length();
-            const moveDistance = Math.min(distanceToTarget, currentSpeed);
+            const rangedTravel = this.resolveRangedTravel(Math.min(distanceToTarget, currentSpeed));
+            const moveDistance = rangedTravel.distance;
             this.homingTravelDistance += moveDistance;
             this.homingTravelTicks++;
-            let shouldDetonate = false;
+            let shouldDetonate = rangedTravel.exhausted;
             let collisionType = CollisionType.None;
             let collisionTarget: any;
             if (moveDistance >= 1) {
@@ -379,7 +384,15 @@ export class Projectile extends GameObject {
                 }
             }
             else {
-                this.position.moveByLeptons3(toTarget);
+                // A Ranged projectile can consume its final fraction of fuel
+                // before reaching the target. Do not snap that final sub-lepton
+                // step to the target; detonate at the exact exhausted position.
+                const finalStep = rangedTravel.exhausted && moveDistance < distanceToTarget
+                    ? this.homingMoveDir.clone().setLength(moveDistance)
+                    : toTarget;
+                if (moveDistance > 0) {
+                    this.position.moveByLeptons3(finalStep);
+                }
                 shouldDetonate = true;
             }
             if (shouldDetonate) {
@@ -401,7 +414,8 @@ export class Projectile extends GameObject {
             if (this.rules.arcing) {
                 toAimPoint.y = 0;
             }
-            const moveDistance = Math.min(toAimPoint.length(), currentSpeed);
+            const rangedTravel = this.resolveRangedTravel(Math.min(toAimPoint.length(), currentSpeed));
+            const moveDistance = rangedTravel.distance;
             toAimPoint.setLength(moveDistance);
             if (this.rules.arcing) {
                 const currentOffset = Coords.vecWorldToGround(this.position.worldPosition
@@ -421,7 +435,7 @@ export class Projectile extends GameObject {
                         this.initialSelfPosition!.y -
                         this.position.worldPosition.y;
             }
-            let shouldDetonate = false;
+            let shouldDetonate = rangedTravel.exhausted;
             const newPos = toAimPoint.clone().add(this.position.worldPosition);
             if (game.map.isWithinHardBounds(newPos)) {
                 this.position.moveByLeptons3(toAimPoint);
@@ -456,7 +470,7 @@ export class Projectile extends GameObject {
                         this.position.moveByLeptons3(wallPos.clone().sub(this.position.worldPosition));
                     }
                 }
-                else if (this.overshootTiles) {
+                else if (!rangedTravel.exhausted && this.overshootTiles) {
                     const overshootVec = Coords.vecWorldToGround(oldVelocity).setLength(this.overshootTiles * Coords.LEPTONS_PER_TILE);
                     geometry.rotateVec2(overshootVec, game.generateRandomInt(-45, 45));
                     const overshootPos = Coords.vecGroundToWorld(overshootVec).add(this.position.worldPosition);
@@ -466,7 +480,7 @@ export class Projectile extends GameObject {
                     }
                     this.position.moveByLeptons(overshootVec.x, overshootVec.y);
                 }
-                else if (this.snapToTarget && !this.targetLockLost) {
+                else if (!rangedTravel.exhausted && this.snapToTarget && !this.targetLockLost) {
                     if (!game.map.isWithinHardBounds(targetPos)) {
                         game.unspawnObject(this);
                         return;
@@ -565,6 +579,16 @@ export class Projectile extends GameObject {
             }
         }
         return inRange;
+    }
+    private resolveRangedTravel(requestedDistance: number) {
+        const decision = resolveAresRangedTravel(
+            requestedDistance,
+            this.travelDistance,
+            !!this.rules.ranged,
+            (this.fromWeapon?.rules?.projectileRange ?? 390) * Coords.LEPTONS_PER_TILE,
+        );
+        this.travelDistance = decision.travelDistance;
+        return decision;
     }
     private updateSpeed(maxSpeed: number): number {
         let speed: number;

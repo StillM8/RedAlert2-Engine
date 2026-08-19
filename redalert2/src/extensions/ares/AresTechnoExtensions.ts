@@ -38,6 +38,8 @@ export interface AresManualControlRules {
 }
 
 export interface AresTechnoExtensions {
+    /** Per-Techno Ares parachute animation override. */
+    parachuteAnim?: string;
     ifv: AresIfvModeRules;
     poweredBy: AresPoweredByRules;
     manualControl: AresManualControlRules;
@@ -156,8 +158,17 @@ export function parseAresManualControlRules(section: AresTechnoSectionLike): Are
     };
 }
 
+export function resolveAresParachuteAnim(
+    rules: Pick<AresTechnoExtensions, 'parachuteAnim'> | undefined,
+    fallback: string,
+): string {
+    return rules?.parachuteAnim?.trim() || fallback;
+}
+
 export function parseAresTechnoExtensions(section: AresTechnoSectionLike): AresTechnoExtensions {
+    const parachuteAnim = firstScalar(findEntry(section, 'Parachute.Anim'));
     return {
+        ...(parachuteAnim === undefined ? {} : { parachuteAnim }),
         ifv: parseAresIfvModeRules(section),
         poweredBy: parseAresPoweredByRules(section),
         manualControl: parseAresManualControlRules(section),

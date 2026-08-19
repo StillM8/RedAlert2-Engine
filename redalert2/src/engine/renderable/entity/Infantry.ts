@@ -24,6 +24,7 @@ import { BoxIntersectObject3D } from "@/engine/renderable/entity/BoxIntersectObj
 import { ExtraLightHelper } from "@/engine/renderable/entity/unit/ExtraLightHelper";
 import { DebugRenderable } from "@/engine/renderable/DebugRenderable";
 import { MathUtils } from "@/engine/gfx/MathUtils";
+import { resolveAresParachuteAnim } from "@/extensions/ares/AresTechnoExtensions";
 export class Infantry {
     private gameObject: any;
     private rules: any;
@@ -359,7 +360,10 @@ export class Infantry {
             const nextSequence = this.sequenceQueue.shift();
             this.setAnimParams(nextSequence, deltaTime, !transitionSequence);
             if (nextSequence === SequenceType.Paradrop) {
-                const parachuteArt = this.rules.audioVisual.parachute;
+                const parachuteArt = resolveAresParachuteAnim(
+                    this.gameObject.rules.ares,
+                    this.rules.audioVisual.parachute,
+                );
                 this.paradropAnim = this.renderableManager.createAnim(parachuteArt, undefined, true);
                 this.paradropAnim.remapColor(owner.color);
                 this.paradropAnim.create3DObject();
