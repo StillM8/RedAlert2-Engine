@@ -35,6 +35,8 @@ export class WeaponRules {
     public neverUse!: boolean;
     public omniFire!: boolean;
     public projectile!: string;
+    /** Ares-restored maximum travel distance, in cells, for Ranged=yes projectiles. */
+    public projectileRange!: number;
     public radLevel!: number;
     public range!: number;
     public report!: string[];
@@ -80,6 +82,7 @@ export class WeaponRules {
         this.neverUse = this.rules.getBool("NeverUse");
         this.omniFire = this.rules.getBool("OmniFire");
         this.projectile = this.rules.getString("Projectile");
+        this.projectileRange = Math.max(0, this.rules.getNumber("ProjectileRange", 390));
         this.radLevel = this.rules.getNumber("RadLevel");
         this.range = this.rules.getNumber("Range");
         if (this.range === -2) {
