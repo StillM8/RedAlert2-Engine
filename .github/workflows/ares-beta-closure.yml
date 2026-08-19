@@ -21,6 +21,23 @@ jobs:
           ref: beta
           fetch-depth: 0
 
+      - name: Make guarded patch idempotent on an advancing beta tree
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/ares-beta-closure-2.py")
+          text = path.read_text()
+          old = '''    actual = text.count(old)\n    if actual < count:\n        raise RuntimeError(f"{path}: expected at least {count} occurrence(s), found {actual}: {old[:140]!r}")\n    file.write_text(text.replace(old, new, count))\n'''
+          new = '''    actual = text.count(old)\n    if actual < count:\n        # The beta branch is intentionally moving while closure batches land.\n        # If the exact intended replacement is already present, this patch has\n        # already been applied and is safe to skip.  Any third state still fails\n        # loudly so an unrelated refactor cannot be mistaken for compatibility.\n        if new in text:\n            return\n        raise RuntimeError(f"{path}: expected old or already-applied new form; found {actual} old occurrence(s): {old[:140]!r}")\n    file.write_text(text.replace(old, new, count))\n'''
+          if old not in text:
+              if new not in text:
+                  raise SystemExit("Could not locate guarded replace helper")
+          else:
+              path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply guarded Ares runtime patch
         run: python3 scripts/ares-beta-closure-2.py
 
