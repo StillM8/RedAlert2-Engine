@@ -8,9 +8,9 @@ export interface AresCustomMissileSectionLike {
 /**
  * Per-AircraftType Ares custom rocket data.
  *
- * The numeric defaults mirror Ares' documented Missile.* defaults. The model
- * deliberately stores author-facing RocketStruct values; conversion into the
- * engine's world/angle units happens at the host boundary.
+ * Ares deliberately defaults custom RocketStruct values to zero; mod authors
+ * are expected to provide meaningful Missile.* values when Missile.Custom=yes.
+ * Conversion into the engine's world/angle units happens at the host boundary.
  */
 export interface AresCustomMissileRules {
     custom: boolean;
@@ -50,17 +50,17 @@ export function hasAresCustomMissileFields(section: { entries?: Map<string, unkn
 export function parseAresCustomMissileRules(section: AresCustomMissileSectionLike): AresCustomMissileRules {
     return {
         custom: section.getBool("Missile.Custom"),
-        pauseFrames: Math.max(0, Math.floor(section.getNumber("Missile.PauseFrames", 20))),
-        tiltFrames: Math.max(0, Math.floor(section.getNumber("Missile.TiltFrames", 60))),
-        pitchInitial: section.getNumber("Missile.PitchInitial", 0.21),
-        pitchFinal: section.getNumber("Missile.PitchFinal", 0.5),
-        turnRate: Math.max(0, section.getNumber("Missile.TurnRate", 0.08)),
-        raiseRate: Math.max(0, section.getNumber("Missile.RaiseRate", 1)),
-        acceleration: Math.max(0, section.getNumber("Missile.Acceleration", 0.4)),
-        altitude: Math.max(0, section.getNumber("Missile.Altitude", 768)),
-        damage: Math.floor(section.getNumber("Missile.Damage", 200)),
-        eliteDamage: Math.floor(section.getNumber("Missile.EliteDamage", 400)),
-        bodyLength: Math.max(0, section.getNumber("Missile.BodyLength", 256)),
+        pauseFrames: Math.max(0, Math.floor(section.getNumber("Missile.PauseFrames"))),
+        tiltFrames: Math.max(0, Math.floor(section.getNumber("Missile.TiltFrames"))),
+        pitchInitial: section.getNumber("Missile.PitchInitial"),
+        pitchFinal: section.getNumber("Missile.PitchFinal"),
+        turnRate: Math.max(0, section.getNumber("Missile.TurnRate")),
+        raiseRate: Math.max(0, section.getNumber("Missile.RaiseRate")),
+        acceleration: Math.max(0, section.getNumber("Missile.Acceleration")),
+        altitude: Math.max(0, section.getNumber("Missile.Altitude")),
+        damage: Math.floor(section.getNumber("Missile.Damage")),
+        eliteDamage: Math.floor(section.getNumber("Missile.EliteDamage")),
+        bodyLength: Math.max(0, section.getNumber("Missile.BodyLength")),
         lazyCurve: section.getBool("Missile.LazyCurve"),
         warhead: optionalName(section, "Missile.Warhead"),
         eliteWarhead: optionalName(section, "Missile.EliteWarhead"),
