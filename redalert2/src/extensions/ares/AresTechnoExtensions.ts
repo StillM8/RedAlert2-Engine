@@ -161,8 +161,13 @@ export function parseAresManualControlRules(section: AresTechnoSectionLike): Are
 export function resolveAresParachuteAnim(
     rules: Pick<AresTechnoExtensions, 'parachuteAnim'> | undefined,
     fallback: string,
+    countryAnim?: string,
+    sideAnim?: string,
 ): string {
-    return rules?.parachuteAnim?.trim() || fallback;
+    return rules?.parachuteAnim?.trim() ||
+        countryAnim?.trim() ||
+        sideAnim?.trim() ||
+        fallback;
 }
 
 export function parseAresTechnoExtensions(section: AresTechnoSectionLike): AresTechnoExtensions {

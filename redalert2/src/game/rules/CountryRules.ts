@@ -31,6 +31,8 @@ export class CountryRules {
     public loadScreen?: string;
     public loadScreenPalette?: string;
     public loadingTheme?: string;
+    /** Country-level Ares parachute default, falling back to the side. */
+    public parachuteAnim?: string;
     public listIndex = 100;
     /** Authored [Countries] order, used as the deterministic fallback order. */
     public order = 0;
@@ -79,6 +81,7 @@ export class CountryRules {
         this.loadScreen = ini.getString("File.LoadScreen") || ini.getString("LoadingScreen") || ini.getString("LoadScreen") || undefined;
         this.loadScreenPalette = ini.getString("File.LoadScreenPAL") || ini.getString("LoadingScreenPalette") || ini.getString("LoadScreenPalette") || undefined;
         this.loadingTheme = ini.getString("LoadingTheme") || undefined;
+        this.parachuteAnim = ini.getString("Parachute.Anim") || sideDescriptor.parachuteAnim || undefined;
         this.multiplay = ini.getBool("Multiplay");
         this.listIndex = ini.getNumber("ListIndex", 100);
         this.order = metadata?.order ?? this.order;

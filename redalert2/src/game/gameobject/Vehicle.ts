@@ -136,7 +136,7 @@ export class Vehicle extends Techno {
             vehicle.traits.add(vehicle.parasiteableTrait);
         }
         if (rules.naval && rules.underwater) {
-            vehicle.submergibleTrait = new SubmergibleTrait(vehicle);
+            vehicle.submergibleTrait = new SubmergibleTrait();
             vehicle.traits.add(vehicle.submergibleTrait);
         }
         if (rules.locomotor === LocomotorType.Hover) {

@@ -616,6 +616,9 @@ export class TechnoRules extends ObjectRules {
             const normalized = key.trim().toLocaleLowerCase("en-US");
             return normalized === "poweredby" ||
                 normalized === "voiceifvrepair" ||
+                normalized === "parachute.anim" ||
+                normalized === "nomanualfire" ||
+                normalized === "noselfguardarea" ||
                 /^weaponturretindex\d+$/.test(normalized) ||
                 /^weaponuiname\d+$/.test(normalized);
         });

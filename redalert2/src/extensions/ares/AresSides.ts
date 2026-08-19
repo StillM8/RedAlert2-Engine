@@ -39,6 +39,8 @@ export interface SideDescriptor {
     technician?: string;
     survivorDivisor?: number;
     defaultDisguise?: string;
+    /** Ares side-level parachute fallback. */
+    parachuteAnim?: string;
     /** Antares side-level Hunter Seeker TechnoType fallback. */
     hunterSeeker?: string;
     /** Preserve unmodeled side fields for diagnostics and later capability parsing. */
@@ -111,6 +113,8 @@ export interface CountryDescriptor {
     loadScreen?: string;
     loadScreenPalette?: string;
     loadingTheme?: string;
+    /** Ares country-level parachute fallback, overriding the side default. */
+    parachuteAnim?: string;
     /** Preserve unmodeled country fields without losing extension data. */
     properties?: Readonly<Record<string, string>>;
 }
@@ -331,6 +335,7 @@ export class AresSideRegistry {
                     ? undefined
                     : sectionNumber(section, "SurvivorDivisor", 0),
                 defaultDisguise: sectionValue(section, "DefaultDisguise"),
+                parachuteAnim: sectionValue(section, "Parachute.Anim"),
                 hunterSeeker: sectionValue(section, "HunterSeeker"),
                 properties: sectionProperties(section),
             });
@@ -432,6 +437,7 @@ export class AresCountryRegistry {
                 loadScreen: sectionValue(section, "File.LoadScreen") ?? sectionValue(section, "LoadingScreen") ?? sectionValue(section, "LoadScreen"),
                 loadScreenPalette: sectionValue(section, "File.LoadScreenPAL") ?? sectionValue(section, "LoadingScreenPalette") ?? sectionValue(section, "LoadScreenPalette"),
                 loadingTheme: sectionValue(section, "LoadingTheme"),
+                parachuteAnim: sectionValue(section, "Parachute.Anim"),
                 properties: sectionProperties(section),
             });
         }

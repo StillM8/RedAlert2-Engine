@@ -363,6 +363,8 @@ export class Infantry {
                 const parachuteArt = resolveAresParachuteAnim(
                     this.gameObject.rules.ares,
                     this.rules.audioVisual.parachute,
+                    owner.country?.parachuteAnim,
+                    owner.country?.sideDefinition?.parachuteAnim,
                 );
                 this.paradropAnim = this.renderableManager.createAnim(parachuteArt, undefined, true);
                 this.paradropAnim.remapColor(owner.color);

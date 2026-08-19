@@ -21,6 +21,30 @@ export interface AresCellOffset {
     y: number;
 }
 
+export interface AresProjectileAnimationFrameInput {
+    direction: number;
+    rotates: boolean;
+    animLength: number;
+    animRate: number;
+    ageTicks: number;
+    frameCount: number;
+}
+
+/**
+ * Resolve the SHP frame for Ares animated Rotates=yes projectiles. Each of
+ * the 32 facings owns AnimLength consecutive frames. Simulation age is used
+ * so render-frame rate cannot change the selected frame.
+ */
+export function resolveAresProjectileAnimationFrame(input: AresProjectileAnimationFrameInput): number {
+    const frameCount = Math.max(1, Math.floor(input.frameCount));
+    if (!input.rotates) return 0;
+    const animLength = Math.max(1, Math.floor(input.animLength));
+    const animRate = Math.max(1, Math.floor(input.animRate));
+    const facing = Math.round((((input.direction - 45 + 360) % 360) / 360) * 32) % 32;
+    const animationFrame = Math.floor(Math.max(0, input.ageTicks) / animRate) % animLength;
+    return Math.min(frameCount - 1, facing * animLength + animationFrame);
+}
+
 export interface AresRangedTravelDecision {
     /** Distance the projectile may move this tick in the caller's units. */
     distance: number;

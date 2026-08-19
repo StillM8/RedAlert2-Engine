@@ -15,6 +15,7 @@ import { BatchedMesh } from "@/engine/gfx/batch/BatchedMesh";
 import { ObjectRules } from "@/game/rules/ObjectRules";
 import { quaternionFromVec3 } from "@/game/math/geometry";
 import { PaletteType } from "@/engine/type/PaletteType";
+import { resolveAresProjectileAnimationFrame } from "@/extensions/ares/AresProjectileExtensions";
 import * as THREE from "three";
 export class Projectile {
     private static waveGeometries = new Map<number, THREE.PlaneGeometry>();
@@ -140,7 +141,11 @@ export class Projectile {
         }
         this.blobShadow?.update(time, deltaTime);
         const direction = this.gameObject.direction;
+        const animatedRotatingShape = !!this.shpRenderable &&
+            this.objectArt.rotates &&
+            (this.gameObject.rules.animLength ?? 1) > 1;
         if (!this.vxlRotWrapper &&
+            !animatedRotatingShape &&
             this.lastDirection !== undefined &&
             this.lastDirection === direction) {
         }
@@ -183,10 +188,14 @@ export class Projectile {
         }
     }
     updateShapeFrame(direction: number): void {
-        let frame = 0;
-        if (this.objectArt.rotates) {
-            frame = Math.round((((direction - 45 + 360) % 360) / 360) * 32) % 32;
-        }
+        const frame = resolveAresProjectileAnimationFrame({
+            direction,
+            rotates: !!this.objectArt.rotates,
+            animLength: this.gameObject.rules.animLength ?? 1,
+            animRate: this.gameObject.rules.animRate ?? 1,
+            ageTicks: this.gameObject.ageTicks ?? 0,
+            frameCount: this.shpRenderable!.frameCount,
+        });
         this.shpRenderable!.setFrame(frame);
     }
     createObjects(parent: THREE.Object3D): void {

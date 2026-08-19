@@ -18,6 +18,7 @@ interface CountryRules {
     loadScreen?: string;
     loadScreenPalette?: string;
     loadingTheme?: string;
+    parachuteAnim?: string;
     multiplay: boolean;
     isMultiplayerPassive: boolean;
     canBeDriven: boolean;
@@ -96,6 +97,9 @@ export class Country {
     }
     get loadingTheme(): string | undefined {
         return this.rules.loadingTheme;
+    }
+    get parachuteAnim(): string | undefined {
+        return this.rules.parachuteAnim;
     }
     get isMultiplayerPassive(): boolean {
         return this.rules.isMultiplayerPassive;

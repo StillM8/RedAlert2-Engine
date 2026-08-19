@@ -56,6 +56,8 @@ export class Projectile extends GameObject {
     private detonationTimer: number;
     /** Game tick the projectile spawned; used for wave expansion rendering. */
     public spawnTick?: number;
+    /** Simulation-age clock for deterministic Ares projectile presentation. */
+    public ageTicks = 0;
     private collisionType: CollisionType;
     private direction: number;
     private zone: ZoneType;
@@ -264,6 +266,7 @@ export class Projectile extends GameObject {
         if (this.maxSpeed === undefined)
             return;
         super.update(game);
+        this.ageTicks++;
         if (this.state === ProjectileState.Impact) {
             if (this.detonationTimer > 0) {
                 this.detonationTimer--;
