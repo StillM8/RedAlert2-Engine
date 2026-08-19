@@ -49,7 +49,7 @@ function getMaxHitPoints(target: any): number {
 
 function getPsionicsImmunity(target: any): boolean {
     return target?.rules?.immuneToPsionics === true ||
-        target?.veteranTrait?.hasVeteranAbility?.(VeteranAbility.PSIONICS_IMMUNE) === true;
+        target?.veteranTrait?.hasVeteranAbility?.(VeteranAbility.PSIONICSIMMUNE) === true;
 }
 
 function getWeaponRules(weaponRules: {
