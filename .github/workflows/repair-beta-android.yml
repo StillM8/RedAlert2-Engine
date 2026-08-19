@@ -1,0 +1,366 @@
+name: Repair beta Android branding and signing
+
+on:
+  push:
+    branches:
+      - beta
+    paths:
+      - .github/workflows/repair-beta-android.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-build-verify:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out beta with history
+        uses: actions/checkout@v4
+        with:
+          ref: beta
+          fetch-depth: 0
+
+      - name: Restore RA2 branding, YR launcher alias, and stable beta signing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Restore the pre-custom-logo RA2 artwork already present in repository history.
+          git show 3162270ceacf0f8684c67367df6eac1832c2f66c:android/app/src/main/res/drawable/app_icon.png \
+            > android/app/src/main/res/drawable/app_icon_ra2.png
+          cp android/app/src/main/res/drawable/app_icon_ra2.png android/app/src/main/res/drawable/app_icon.png
+
+          cat > android/app/src/main/res/drawable/app_icon_yr.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <bitmap android:src="@drawable/app_icon_ra2" android:gravity="fill" />
+              </item>
+              <item>
+                  <shape android:shape="rectangle">
+                      <solid android:color="#526A1B9A" />
+                  </shape>
+              </item>
+          </layer-list>
+          EOF
+
+          cat > android/app/src/main/res/values/strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Red Alert 2</string>
+              <string name="app_name_yr">Yuri&apos;s Revenge</string>
+          </resources>
+          EOF
+
+          cat > android/app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+
+              <application
+                  android:allowBackup="false"
+                  android:hardwareAccelerated="true"
+                  android:label="@string/app_name"
+                  android:icon="@drawable/app_icon_ra2"
+                  android:roundIcon="@drawable/app_icon_ra2"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.RA2"
+                  android:usesCleartextTraffic="${allowCleartext}">
+                  <activity
+                      android:name=".MainActivity"
+                      android:alwaysRetainTaskState="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:screenOrientation="landscape"
+                      android:windowSoftInputMode="adjustNothing" />
+
+                  <activity
+                      android:name=".IconSwitchActivity"
+                      android:excludeFromRecents="true"
+                      android:exported="false"
+                      android:noHistory="true"
+                      android:theme="@android:style/Theme.NoDisplay">
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:scheme="ra2launcher" />
+                      </intent-filter>
+                  </activity>
+
+                  <activity-alias
+                      android:name=".LauncherRA2"
+                      android:enabled="true"
+                      android:exported="true"
+                      android:icon="@drawable/app_icon_ra2"
+                      android:roundIcon="@drawable/app_icon_ra2"
+                      android:label="@string/app_name"
+                      android:targetActivity=".MainActivity">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity-alias>
+
+                  <activity-alias
+                      android:name=".LauncherYR"
+                      android:enabled="false"
+                      android:exported="true"
+                      android:icon="@drawable/app_icon_yr"
+                      android:roundIcon="@drawable/app_icon_yr"
+                      android:label="@string/app_name_yr"
+                      android:targetActivity=".MainActivity">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity-alias>
+
+                  <service
+                      android:name=".ModImportKeepAliveService"
+                      android:exported="false"
+                      android:foregroundServiceType="dataSync" />
+              </application>
+          </manifest>
+          EOF
+
+          cat > android/app/src/main/java/io/stillm8/rtsengine/IconSwitchActivity.kt <<'EOF'
+          package io.stillm8.rtsengine
+
+          import android.app.Activity
+          import android.content.ComponentName
+          import android.content.Intent
+          import android.content.pm.PackageManager
+          import android.os.Bundle
+          import java.util.Locale
+
+          class IconSwitchActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  applyLauncherProfile(intent)
+                  finish()
+              }
+
+              override fun onNewIntent(intent: Intent) {
+                  super.onNewIntent(intent)
+                  setIntent(intent)
+                  applyLauncherProfile(intent)
+                  finish()
+              }
+
+              private fun applyLauncherProfile(intent: Intent?) {
+                  val uri = intent?.data ?: return
+                  if (!uri.scheme.equals("ra2launcher", ignoreCase = true)) return
+                  val profile = uri.host?.lowercase(Locale.ROOT) ?: return
+                  if (profile != "ra2" && profile != "yr") return
+
+                  val ra2 = ComponentName(packageName, "$packageName.LauncherRA2")
+                  val yr = ComponentName(packageName, "$packageName.LauncherYR")
+                  val target = if (profile == "yr") yr else ra2
+                  val other = if (profile == "yr") ra2 else yr
+
+                  packageManager.setComponentEnabledSetting(
+                      target,
+                      PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                      PackageManager.DONT_KILL_APP,
+                  )
+                  packageManager.setComponentEnabledSetting(
+                      other,
+                      PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                      PackageManager.DONT_KILL_APP,
+                  )
+              }
+          }
+          EOF
+
+          mkdir -p redalert2/src/shell
+          cat > redalert2/src/shell/androidLauncherIcon.ts <<'EOF'
+          /** Keep Android's launcher icon aligned with the selected base game. */
+          export function syncAndroidLauncherIcon(baseProfile: string): void {
+              if (typeof window === 'undefined') return;
+              const params = new URLSearchParams(window.location.search);
+              if (params.get('platform') !== 'android') return;
+
+              const profile = baseProfile === 'yr' ? 'yr' : 'ra2';
+              const link = document.createElement('a');
+              link.href = `ra2launcher://${profile}`;
+              link.style.display = 'none';
+              document.body.appendChild(link);
+              link.click();
+              link.remove();
+          }
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Patch anchor missing in {path}: {old!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'android/settings.gradle.kts',
+              'rootProject.name = "OpenRTSEngineAndroid"',
+              'rootProject.name = "RedAlert2EngineAndroid"',
+          )
+
+          p = Path('android/app/build.gradle.kts')
+          text = p.read_text()
+          if 'create("betaDev")' not in text:
+              anchor = '    buildTypes {\n'
+              signing = '''    signingConfigs {\n        create("betaDev") {\n            storeFile = rootProject.file("beta-debug.keystore")\n            storePassword = "android"\n            keyAlias = "androiddebugkey"\n            keyPassword = "android"\n        }\n    }\n\n'''
+              if anchor not in text:
+                  raise SystemExit('Android buildTypes anchor missing')
+              text = text.replace(anchor, signing + anchor, 1)
+          release_anchor = '''        release {\n            isMinifyEnabled = false\n            manifestPlaceholders["allowCleartext"] = "false"\n        }'''
+          release_replacement = '''        release {\n            isMinifyEnabled = false\n            signingConfig = signingConfigs.getByName("betaDev")\n            manifestPlaceholders["allowCleartext"] = "false"\n        }'''
+          if release_replacement not in text:
+              if release_anchor not in text:
+                  raise SystemExit('Android release signing anchor missing')
+              text = text.replace(release_anchor, release_replacement, 1)
+          p.write_text(text)
+
+          p = Path('redalert2/src/Application.ts')
+          text = p.read_text()
+          import_anchor = "import { isNativeShell, isTauriDesktopShell } from './shell/nativeShell';\n"
+          if "./shell/androidLauncherIcon" not in text:
+              if import_anchor not in text:
+                  raise SystemExit('Application native-shell import anchor missing')
+              text = text.replace(
+                  import_anchor,
+                  import_anchor + "import { syncAndroidLauncherIcon } from './shell/androidLauncherIcon';\n",
+                  1,
+              )
+          selection_anchor = '        const profile = contentSelection.profileId;\n'
+          if 'syncAndroidLauncherIcon(contentSelection.baseProfile);' not in text:
+              if selection_anchor not in text:
+                  raise SystemExit('Application content-selection anchor missing')
+              text = text.replace(
+                  selection_anchor,
+                  selection_anchor + '        syncAndroidLauncherIcon(contentSelection.baseProfile);\n',
+                  1,
+              )
+          p.write_text(text)
+
+          p = Path('android/app/src/main/java/io/stillm8/rtsengine/MainActivity.kt')
+          text = p.read_text().replace('OpenRTSEngine-Android/0.1', 'RedAlert2Engine-Android/0.1')
+          p.write_text(text)
+
+          p = Path('redalert2/src-tauri/tauri.conf.json')
+          cfg = json.loads(p.read_text())
+          cfg['productName'] = 'Red Alert 2'
+          cfg['app']['windows'][0]['title'] = 'Red Alert 2'
+          cfg['bundle']['shortDescription'] = "A cross-platform Red Alert 2 and Yuri's Revenge engine"
+          cfg['bundle']['longDescription'] = "A cross-platform TypeScript and WebGL engine for user-provided Red Alert 2, Yuri's Revenge, and compatible mod content."
+          p.write_text(json.dumps(cfg, indent=2) + '\n')
+          PY
+
+          if [[ ! -f android/beta-debug.keystore ]]; then
+            keytool -genkeypair \
+              -keystore android/beta-debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Red Alert 2 Beta Dev,O=StillM8,C=PK" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -noprompt
+          fi
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Install web dependencies
+        working-directory: redalert2
+        run: bun install --frozen-lockfile
+
+      - name: Run full engine and Ares regression tests
+        working-directory: redalert2
+        run: bun test
+
+      - name: Production web build
+        working-directory: redalert2
+        run: bun run build
+
+      - name: Entry typecheck
+        working-directory: redalert2
+        run: bun run typecheck:entry
+
+      - name: Stage WebView assets
+        shell: bash
+        run: |
+          rm -rf android/app/src/main/assets/WebDist
+          cp -R redalert2/dist android/app/src/main/assets/WebDist
+          mkdir -p android/app/src/main/assets/GameRes
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
+
+      - name: Build installable beta release APK
+        working-directory: android
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-alert-2-beta-signed-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Commit validated beta changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/repair-beta-android.yml
+          git add \
+            android/settings.gradle.kts \
+            android/app/build.gradle.kts \
+            android/app/src/main/AndroidManifest.xml \
+            android/app/src/main/java/io/stillm8/rtsengine/IconSwitchActivity.kt \
+            android/app/src/main/java/io/stillm8/rtsengine/MainActivity.kt \
+            android/app/src/main/res/drawable/app_icon.png \
+            android/app/src/main/res/drawable/app_icon_ra2.png \
+            android/app/src/main/res/drawable/app_icon_yr.xml \
+            android/app/src/main/res/values/strings.xml \
+            redalert2/src/Application.ts \
+            redalert2/src/shell/androidLauncherIcon.ts \
+            redalert2/src-tauri/tauri.conf.json
+          git add -f android/beta-debug.keystore
+          git commit -m "Fix Android signing and restore RA2/YR branding"
+          git pull --rebase origin beta
+          git push origin HEAD:beta
