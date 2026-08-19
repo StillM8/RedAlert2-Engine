@@ -251,6 +251,10 @@ export class TechnoRules extends ObjectRules {
     declare wall: boolean;
     /** Ares Firestorm.Wall; separate from ordinary wall terrain/connection rules. */
     declare firestormWall: boolean;
+    /** Ares BuildingType lightning-storm attraction flag. */
+    declare lightningRod: boolean;
+    /** Damage multiplier applied only to the rod itself for weather-storm hits. */
+    declare lightningRodModifier: number;
     declare gate: boolean;
     declare armor: ArmorType;
     declare strength: number;
@@ -710,6 +714,8 @@ export class TechnoRules extends ObjectRules {
         this.selfHealing = this.ini.getBool("SelfHealing");
         this.wall = this.ini.getBool("Wall");
         this.firestormWall = this.ini.getBool("Firestorm.Wall");
+        this.lightningRod = this.type === ObjectType.Building && this.ini.getBool("LightningRod");
+        this.lightningRodModifier = this.ini.getFixed("LightningRod.Modifier", 1);
         this.gate = this.ini.getBool("Gate");
         this.armor = this.armorRegistry.resolve(this.ini.getString("Armor"), ArmorType.None);
         this.strength = Math.floor(this.ini.getNumber("Strength"));

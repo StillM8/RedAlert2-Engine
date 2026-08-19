@@ -28,6 +28,7 @@ import {
 } from "@/extensions/ares/AresAttachEffectCombat";
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import type { AresAttachEffectApplyResult } from "@/extensions/ares/AresAttachEffectRuntime";
+import { resolveAresLightningRodDamage } from "@/extensions/ares/AresLightningRods";
 import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { CloakableTrait } from "@/game/gameobject/trait/CloakableTrait";
 import { applyAresChronoPrison } from "@/extensions/ares/AresChronoPrisonIntegration";
@@ -124,6 +125,8 @@ interface GameObjectRules {
     empModifier?: number;
     empThreshold?: number;
     wall: boolean;
+    lightningRod?: boolean;
+    lightningRodModifier?: number;
 }
 interface WarheadRules {
     aresAttachEffect?: AresAttachEffectDefinition;
@@ -337,7 +340,7 @@ export class Warhead {
         }
         return true;
     }
-    computeDamage(baseDamage: number, target: GameObject, gameWorld: GameWorld, isWeatherStorm = false): number {
+    computeDamage(baseDamage: number, target: GameObject, gameWorld: GameWorld, isWeatherStorm = false, ignoreLightningRod = false): number {
         let damage = baseDamage;
         if (damage > 0 && target.isTechno() && (target as TechnoObject).invulnerableTrait.isActive()) {
             return 0;
@@ -397,6 +400,7 @@ export class Warhead {
         if (target.isOverlay() && target.isBridge() && !this.rules.wall) {
             damage = 0;
         }
+        damage = resolveAresLightningRodDamage(damage, target, isWeatherStorm, ignoreLightningRod);
         return damage > 0 ? Math.floor(damage) : Math.ceil(damage);
     }
     inflictDamage(damage: number, target: GameObject, weaponInfo: WeaponInfo | undefined, gameWorld: GameWorld, isDirectHit = false): boolean {
@@ -537,7 +541,10 @@ export class Warhead {
         for (const obj of processedObjects) {
             if (obj.isDestroyed || obj.isCrashing)
                 continue;
-            let damage = this.computeDamage(baseDamage, obj, gameWorld, isWeatherStorm);
+            let damage = this.computeDamage(
+                baseDamage, obj, gameWorld, isWeatherStorm,
+                (weaponInfo as any)?.aresIgnoreLightningRod === true,
+            );
             if (baseDamage > 0 && obj.isTechno() && sourcePlayer) {
                 const isOwner = obj.owner === sourcePlayer;
                 const isFriendly = gameWorld.alliances.areAllied(obj.owner, sourcePlayer) || isOwner;

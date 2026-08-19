@@ -10,6 +10,7 @@ import { SuperWeaponEffect, TileCoord } from "@/game/superweapon/SuperWeaponEffe
 import { Game } from "@/game/Game";
 import { resolveAresSuperWeaponRange } from "@/game/superweapon/AresSuperWeaponRange";
 import { isLightningStormTileInRange } from "@/game/superweapon/LightningStormRange";
+import { resolveAresLightningRodCloudTile } from "@/extensions/ares/AresLightningRods";
 enum LightningStormState {
     Approaching,
     Manifesting
@@ -37,6 +38,7 @@ export class LightningStormEffect extends SuperWeaponEffect {
         tile: TileCoord,
         private readonly superWeaponDeferment?: number,
         superWeaponRange?: readonly number[],
+        private readonly ignoreLightningRod: boolean = false,
     ) {
         super(type, owner, tile);
         this.superWeaponRange = superWeaponRange?.slice();
@@ -111,7 +113,12 @@ export class LightningStormEffect extends SuperWeaponEffect {
                         randomTile = tileFinder.getNextTile();
                     }
                     if (randomTile) {
-                        this.spawnCloudAt(randomTile, game);
+                        const attractedTile = resolveAresLightningRodCloudTile(
+                            randomTile,
+                            game.updatableObjects,
+                            this.ignoreLightningRod,
+                        );
+                        this.spawnCloudAt(attractedTile, game);
                     }
                 }
             }
@@ -125,7 +132,7 @@ export class LightningStormEffect extends SuperWeaponEffect {
                         const bridge = game.map.tileOccupation.getBridgeOnTile(tile);
                         const elevation = bridge?.tileElevation ?? 0;
                         const zone = game.map.getTileZone(tile);
-                        warhead.detonate(game as any, lightningStorm.damage, tile, elevation, Coords.tile3dToWorld(tile.rx + 0.5, tile.ry + 0.5, tile.z + elevation), zone, bridge ? CollisionType.OnBridge : CollisionType.None, game.createTarget(bridge, tile), { player: this.owner, weapon: undefined } as any, false, undefined, undefined, true);
+                        warhead.detonate(game as any, lightningStorm.damage, tile, elevation, Coords.tile3dToWorld(tile.rx + 0.5, tile.ry + 0.5, tile.z + elevation), zone, bridge ? CollisionType.OnBridge : CollisionType.None, game.createTarget(bridge, tile), { player: this.owner, weapon: undefined, aresIgnoreLightningRod: this.ignoreLightningRod } as any, false, undefined, undefined, true);
                     }
                 }
                 else {

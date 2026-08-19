@@ -109,6 +109,7 @@ const EXTENSION_PREFIXES = [
     "message.",
     "text.",
     "light.",
+    "lightning.",
     "droppodweapon",
     "droppodtrailer",
     "money.",
@@ -168,6 +169,8 @@ export interface AresSuperWeaponDefinition {
     swAnyInhibitor?: boolean;
     swMaxCount?: number;
     swDeferment?: number;
+    /** Type=LightningStorm: bypass LightningRod attraction and damage scaling. */
+    lightningIgnoreLightningRod?: boolean;
     swActivationSound?: string;
     swCursor?: string;
     swNoCursor?: string;
@@ -354,6 +357,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnyInhibitor: getBool(section, "SW.AnyInhibitor"),
         swMaxCount: getNumber(section, "SW.MaxCount"),
         swDeferment: getNumber(section, "SW.Deferment"),
+        lightningIgnoreLightningRod: getBool(section, "Lightning.IgnoreLightningRod"),
         swActivationSound: getString(section, "SW.ActivationSound"),
         swCursor: getString(section, "Cursor") ?? getString(section, "SW.Cursor"),
         swNoCursor: getString(section, "NoCursor") ?? getString(section, "SW.NoCursor"),
