@@ -1,0 +1,49 @@
+name: Inspect Android beta repair
+
+on:
+  push:
+    branches:
+      - beta
+    paths:
+      - .github/android-beta-inspect.txt
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: beta
+          fetch-depth: 0
+      - name: Watch latest Android repair run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 5
+          RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow repair-beta-android.yml --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$RUN_ID" ]]; then
+            STATUS='{"status":"no-run-found"}'
+          else
+            gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --interval 5 --exit-status || true
+            STATUS="$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json databaseId,status,conclusion,url,headSha,event,createdAt,updatedAt)"
+          fi
+          printf '%s\n' "$STATUS" > "$RUNNER_TEMP/status.json"
+      - name: Record repair status on latest beta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin beta
+          git checkout -B beta origin/beta
+          cp "$RUNNER_TEMP/status.json" .github/android-beta-inspect-status.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/android-beta-inspect-status.json
+          git commit -m "Record inspected Android beta repair run" || exit 0
+          git pull --rebase origin beta
+          git push origin beta
