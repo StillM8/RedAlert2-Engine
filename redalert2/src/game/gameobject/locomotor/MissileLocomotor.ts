@@ -17,6 +17,8 @@ interface MissileRules {
     acceleration: number;
     lazyCurve: boolean;
     bodyLength: number;
+    /** RocketStruct turn rate is stored in radians per simulation tick. */
+    turnRate?: number;
 }
 interface GameObject {
     position: {
@@ -72,6 +74,12 @@ export class MissileLocomotor {
         this.missileRules = missileRules;
         this.flightPhase = FlightPhase.Boost;
     }
+    private getTurnRate(gameObject: GameObject): number {
+        const authored = this.missileRules.turnRate;
+        return authored === undefined
+            ? gameObject.rules.rot
+            : authored * (180 / Math.PI);
+    }
     selectNextWaypoint(gameObject: GameObject, waypoints: Waypoint[]): Waypoint {
         const lastWaypoint = waypoints[waypoints.length - 1];
         const bridge = this.game.map.tileOccupation.getBridgeOnTile(lastWaypoint.tile);
@@ -123,13 +131,13 @@ export class MissileLocomotor {
             case FlightPhase.Midcourse:
                 const horizontalDistance = new Vector2(targetDirection.x, targetDirection.z).length();
                 if (!this.missileRules.lazyCurve) {
-                    geometry.rotateVec3Towards(this.currentVelocity, new Vector3(this.currentVelocity.x, 0, this.currentVelocity.z), gameObject.rules.rot);
+                    geometry.rotateVec3Towards(this.currentVelocity, new Vector3(this.currentVelocity.x, 0, this.currentVelocity.z), this.getTurnRate(gameObject));
                     if (this.currentVelocity.y < 1) {
                         const length = this.currentVelocity.length();
                         this.currentVelocity.y = 0;
                         this.currentVelocity.setLength(length);
                     }
-                    geometry.rotateVec3Towards(this.currentVelocity, new Vector3(targetDirection.x, this.currentVelocity.y, targetDirection.z), gameObject.rules.rot);
+                    geometry.rotateVec3Towards(this.currentVelocity, new Vector3(targetDirection.x, this.currentVelocity.y, targetDirection.z), this.getTurnRate(gameObject));
                     gameObject.direction = FacingUtil.fromMapCoords(Coords.vecWorldToGround(this.currentVelocity));
                     gameObject.pitch = Math.sign(this.currentVelocity.y) *
                         geometry.angleDegBetweenVec3(this.currentVelocity, new Vector3(this.currentVelocity.x, 0, this.currentVelocity.z));
@@ -162,7 +170,7 @@ export class MissileLocomotor {
                     done = (this.descentTravelled + bodyLength) / curveLength >= 1;
                 }
                 else {
-                    geometry.rotateVec3Towards(this.currentVelocity, targetDirection, gameObject.rules.rot);
+                    geometry.rotateVec3Towards(this.currentVelocity, targetDirection, this.getTurnRate(gameObject));
                     gameObject.direction = FacingUtil.fromMapCoords(Coords.vecWorldToGround(this.currentVelocity));
                     gameObject.pitch = Math.sign(this.currentVelocity.y) *
                         geometry.angleDegBetweenVec3(this.currentVelocity, new Vector3(this.currentVelocity.x, 0, this.currentVelocity.z));

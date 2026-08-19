@@ -24,6 +24,8 @@ import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEff
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
 import { parseAresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
 import type { AresChronoshiftRules } from "@/extensions/ares/AresChronoshift";
+import { hasAresCustomMissileFields, parseAresCustomMissileRules } from "@/extensions/ares/AresCustomMissiles";
+import type { AresCustomMissileRules } from "@/extensions/ares/AresCustomMissiles";
 import { resolveAresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import type { AresDamageParticleSelection } from "@/extensions/ares/AresDamageParticles";
 import { getAresSuperWeaponProviderNames, hasAresSuperWeaponProvider } from "@/extensions/ares/AresSuperWeaponProviders";
@@ -206,6 +208,8 @@ export class TechnoRules extends ObjectRules {
     declare aresAttachEffect?: AresAttachEffectDefinition;
     /** Optional Ares Chronoshift eligibility data authored on this TechnoType. */
     declare aresChronoshift?: AresChronoshiftRules;
+    /** Ares per-Aircraft custom missile and missile-presentation settings. */
+    declare aresCustomMissile?: AresCustomMissileRules;
     /** Generic Ares Chrono Prison eligibility and turret behavior. */
     declare aresChronoPrison: AresChronoPrisonTechnoRules;
     /** Optional Ares damage-particle precedence resolved from this TechnoType. */
@@ -625,6 +629,9 @@ export class TechnoRules extends ObjectRules {
         this.ares = hasAresTechnoFields ? parseAresTechnoExtensions(this.ini) : undefined;
         const normalizedAresKeys = [...this.ini.entries.keys()].map((key: string) =>
             key.trim().toLocaleLowerCase("en-US"));
+        this.aresCustomMissile = this.type === ObjectType.Aircraft && hasAresCustomMissileFields(this.ini)
+            ? parseAresCustomMissileRules(this.ini)
+            : undefined;
         const findAresEntryKey = (key: string): string | undefined => {
             const expected = key.trim().toLocaleLowerCase("en-US");
             let matched: string | undefined;

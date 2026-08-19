@@ -43,7 +43,12 @@ export class LocomotorFactory {
             case LocomotorType.Aircraft:
                 return new WingedLocomotor(this.game);
             case LocomotorType.Missile:
-                return new MissileLocomotor(this.game, this.game.rules.general.getMissileRules(obj.name));
+                return new MissileLocomotor(
+                    this.game,
+                    obj.rules.aresCustomMissile?.custom
+                        ? obj.rules.aresCustomMissile
+                        : this.game.rules.general.getMissileRules(obj.name),
+                );
             case LocomotorType.Hover:
                 return new HoverLocomotor(this.game.rules.general.hover);
             default:

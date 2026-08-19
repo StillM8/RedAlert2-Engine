@@ -27,7 +27,7 @@ export class TrailerSmokePlugin {
             if (this.gameObject.isAircraft()) {
                 let anim;
                 if (this.gameObject.rules.missileSpawn) {
-                    anim = this.art.getAnimation("V3TRAIL");
+                    anim = this.art.getAnimation(this.gameObject.rules.aresCustomMissile?.trailerAnim ?? "V3TRAIL");
                 }
                 else if (this.gameObject.isCrashing) {
                     anim = this.art.getAnimation("SGRYSMK1");
@@ -35,7 +35,9 @@ export class TrailerSmokePlugin {
                 if (anim) {
                     const images = this.imageFinder.findByObjectArt(anim);
                     const palette = this.theater.getPalette(anim.paletteType, anim.customPaletteName);
-                    const spawnDelay = this.gameObject.art.spawnDelay;
+                    const spawnDelay = this.gameObject.rules.missileSpawn
+                        ? (this.gameObject.rules.aresCustomMissile?.trailerSeparation ?? this.gameObject.art.spawnDelay)
+                        : this.gameObject.art.spawnDelay;
                     this.trailerFx = new TrailerSmokeFx(this.gameObject.position.worldPosition, spawnDelay, anim, images, palette, this.gameSpeed);
                     this.renderableManager.addEffect(this.trailerFx);
                 }

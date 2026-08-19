@@ -14,6 +14,8 @@ import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { NotifyUnspawn } from "@/game/gameobject/trait/interface/NotifyUnspawn";
 import { NotifyWarpChange } from "@/game/gameobject/trait/interface/NotifyWarpChange";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
+import { resolveAresCustomMissilePayload } from "@/extensions/ares/AresCustomMissiles";
 interface MissileLaunch {
     missile: any;
     targetTile: any;
@@ -22,7 +24,10 @@ interface MissileLaunch {
     target: any;
     warhead: Warhead;
     damage: number;
+    weapon?: any;
+    missileRules: any;
     pauseFrames?: number;
+    takeOffAnimPlayed?: boolean;
 }
 export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySpawn, NotifyTeleport, NotifyTick, NotifyUnspawn, NotifyWarpChange {
     private spawns: any[] = [];
@@ -67,11 +72,16 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
     [NotifyDestroy.onDestroy](gameObject: any, world: any, damageSource: any, warhead: any): void {
         this.destroySpawns(gameObject, world, damageSource, warhead);
     }
+    private getMissileRules(aircraftType: any, world: any): any {
+        return aircraftType.aresCustomMissile?.custom
+            ? aircraftType.aresCustomMissile
+            : world.rules.general.getMissileRules(aircraftType.name);
+    }
     private pushNewSpawn(aircraftType: any, world: any, parent: any): void {
         const spawn = world.createUnitForPlayer(aircraftType, parent.owner);
         spawn.limboData = { selected: false, controlGroup: undefined };
         if (aircraftType.missileSpawn) {
-            spawn.pitch = 90 * world.rules.general.getMissileRules(aircraftType.name).pitchInitial;
+            spawn.pitch = 90 * this.getMissileRules(aircraftType, world).pitchInitial;
         }
         this.spawns.push(spawn);
         this.storage.push(spawn);
@@ -147,17 +157,34 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
             this.nextReloadTicks = undefined;
         }
         for (const launch of this.missileLaunches.slice()) {
-            const missileRules = world.rules.general.getMissileRules(launch.missile.name);
+            const missileRules = launch.missileRules;
             launch.pauseFrames ??= missileRules.pauseFrames;
             if (launch.pauseFrames > 0) {
                 launch.pauseFrames--;
             }
             if (launch.pauseFrames <= 0) {
-                const finalPitch = 90 * missileRules.pitchFinal;
-                const pitchIncrement = (90 * (missileRules.pitchFinal - missileRules.pitchInitial)) / missileRules.tiltFrames;
                 const missile = launch.missile;
+                if (!launch.takeOffAnimPlayed) {
+                    launch.takeOffAnimPlayed = true;
+                    const takeOffAnim = missile.rules.aresCustomMissile?.takeOffAnim;
+                    if (takeOffAnim && missile.tile) {
+                        world.events.dispatch(new TriggerAnimEvent(
+                            takeOffAnim, missile.tile, undefined, missile.owner, missile,
+                        ));
+                    }
+                }
+                const finalPitch = 90 * missileRules.pitchFinal;
+                const tiltFrames = Math.max(0, missileRules.tiltFrames ?? 0);
+                const pitchIncrement = tiltFrames > 0
+                    ? (90 * (missileRules.pitchFinal - missileRules.pitchInitial)) / tiltFrames
+                    : Number.POSITIVE_INFINITY;
                 if (missile.pitch < finalPitch) {
-                    missile.pitch = Math.min(finalPitch, missile.pitch + pitchIncrement);
+                    if ((missileRules.raiseRate ?? 0) > 0) {
+                        missile.position.worldPosition.y += missileRules.raiseRate;
+                    }
+                    missile.pitch = tiltFrames > 0
+                        ? Math.min(finalPitch, missile.pitch + pitchIncrement)
+                        : finalPitch;
                 }
                 else {
                     missile.unitOrderTrait.addTask(new TaskGroup(new MoveTask(world, launch.targetTile, !!launch.targetBridge), new CallbackTask(() => {
@@ -167,7 +194,7 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
                             const offset = Coords.vecGroundToWorld(FacingUtil.toMapCoords(missile.direction).multiplyScalar(1));
                             const detonationPos = launch.targetWorldPos.clone().add(offset);
                             const targetZone = world.map.getTileZone(launch.targetTile);
-                            launch.warhead.detonate(world, launch.damage, launch.targetTile, launch.targetBridge?.tileElevation ?? 0, detonationPos, targetZone, launch.targetBridge ? CollisionType.OnBridge : CollisionType.None, launch.target, { player: missile.owner, obj: missile, weapon: undefined, aresAttribution: { spawner: gameObject } } as any, false, undefined, undefined);
+                            launch.warhead.detonate(world, launch.damage, launch.targetTile, launch.targetBridge?.tileElevation ?? 0, detonationPos, targetZone, launch.targetBridge ? CollisionType.OnBridge : CollisionType.None, launch.target, { player: missile.owner, obj: missile, weapon: launch.weapon, aresAttribution: { spawner: gameObject } } as any, false, undefined, undefined);
                         }
                     })).setCancellable(false));
                     const missileIndex = this.spawns.indexOf(missile);
@@ -218,11 +245,28 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
                 return;
             this.storage.shift();
             if (spawn.missileSpawnTrait) {
-                let warheadType: string;
+                let warheadType: string | undefined;
                 let damage: number;
-                const isElite = launcher.veteranTrait?.isElite();
+                let payloadWeapon: any;
+                const isElite = launcher.veteranTrait?.isElite() === true;
                 const rules = world.rules;
-                if (launcher.rules.spawns === rules.general.v3Rocket.type) {
+                const customMissile = spawn.rules.aresCustomMissile?.custom
+                    ? spawn.rules.aresCustomMissile
+                    : undefined;
+                if (customMissile) {
+                    const payload = resolveAresCustomMissilePayload(customMissile, isElite);
+                    damage = payload.damage;
+                    warheadType = payload.warhead;
+                    if (payload.weapon) {
+                        payloadWeapon = rules.getWeapon(payload.weapon);
+                        damage = payloadWeapon.damage;
+                        warheadType = payloadWeapon.warhead;
+                    }
+                    if (!warheadType) {
+                        throw new Error(`Custom missile "${spawn.name}" requires Missile.Warhead or Missile.Weapon`);
+                    }
+                }
+                else if (launcher.rules.spawns === rules.general.v3Rocket.type) {
                     warheadType = isElite ? rules.combatDamage.v3EliteWarhead : rules.combatDamage.v3Warhead;
                     damage = isElite ? rules.general.v3Rocket.eliteDamage : rules.general.v3Rocket.damage;
                 }
@@ -233,6 +277,7 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
                 else {
                     throw new Error(`Unhandled missile type "${launcher.rules.spawns}"`);
                 }
+                const missileRules = this.getMissileRules(spawn.rules, world);
                 const warhead = new Warhead(world.rules.getWarhead(warheadType));
                 spawn.missileSpawnTrait.setDamage(damage).setWarhead(warhead).setLauncher(launcher);
                 this.missileLaunches.push({
@@ -243,6 +288,8 @@ export class AirSpawnTrait implements NotifyDestroy, NotifyOwnerChange, NotifySp
                     target: target,
                     warhead: warhead,
                     damage: damage,
+                    weapon: payloadWeapon,
+                    missileRules,
                     pauseFrames: undefined
                 });
             }
