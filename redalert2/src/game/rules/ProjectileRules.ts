@@ -2,8 +2,14 @@ import { ObjectRules } from './ObjectRules';
 import { ObjectType } from '@/engine/type/ObjectType';
 export class ProjectileRules extends ObjectRules {
     public acceleration!: number;
-    /** Vanilla/Ares projectile proximity detonation flag. */
+    /** Vanilla/YR projectile proximity flag; not part of the Ares ranged extension. */
     public proximity!: boolean;
+    /** Ares-restored TS fuel/range behavior. */
+    public ranged!: boolean;
+    /** Ares projectile SHP animation frames per facing. */
+    public animLength!: number;
+    /** Ares projectile SHP animation frame interval. */
+    public animRate!: number;
     /** Antares legacy cell-fanout behavior. */
     public airburst!: boolean;
     public airburstWeapon?: string;
@@ -54,6 +60,11 @@ export class ProjectileRules extends ObjectRules {
         acceleration = acceleration || 3;
         this.acceleration = acceleration;
         this.proximity = this.ini.getBool("Proximity");
+        this.ranged = this.ini.getBool("Ranged");
+        this.animLength = Math.max(1, Math.floor(this.ini.getNumber("AnimLength", 1)));
+        // Ares documents AnimRate as non-zero. Clamp malformed/zero authored
+        // values rather than allowing a divide/modulo-by-zero render path.
+        this.animRate = Math.max(1, Math.floor(Math.abs(this.ini.getNumber("AnimRate", 1))));
         this.airburst = this.ini.getBool("Airburst");
         this.airburstWeapon = this.ini.getString("AirburstWeapon") || undefined;
         this.cluster = Math.max(0, Math.floor(this.ini.getNumber("Cluster")));
