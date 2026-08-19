@@ -52,14 +52,22 @@ describe("Ares Urban Combat garrison integration", () => {
             bunkerRaidable: true,
             canBeOccupiedBy: ["GI"],
         });
-        const game = { areFriendly: (left: any, right: any) => left.owner === right.owner };
+        const game: any = {
+            areFriendly: (left: any, right: any) => left.owner === right.owner,
+            changeObjectOwner: (target: any, nextOwner: any) => { target.owner = nextOwner; },
+        };
 
         const gi = infantry("gi", attacker);
         const engineer = infantry("ENGINEER", attacker);
         expect(bunker.garrisonTrait.canAcceptOccupant(gi, game)).toBe(true);
         expect(bunker.garrisonTrait.canAcceptOccupant(engineer, game)).toBe(false);
 
-        bunker.garrisonTrait.addOccupant(gi, game as any);
+        // The real occupy task performs the temporary raid ownership transfer
+        // before inserting the first hostile occupant. Model that transaction
+        // here instead of directly adding a hostile occupant to a defender-owned
+        // bunker, which is not a reachable gameplay state.
+        expect(bunker.garrisonTrait.beginTemporaryOccupation(attacker, game)).toBe(true);
+        bunker.garrisonTrait.addOccupant(gi, game);
         expect(bunker.garrisonTrait.canAcceptOccupant(infantry("GI", defender), game)).toBe(false);
         expect(bunker.garrisonTrait.canAcceptOccupant(infantry("GI", attacker), game)).toBe(true);
     });
