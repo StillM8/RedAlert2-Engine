@@ -33,6 +33,7 @@ import { inGameViewportActive } from './gui/inGameViewport';
 import { getGameProfile } from './engine/GameProfile';
 import { ContentRegistry } from './content/ContentRegistry';
 import { isNativeShell, isTauriDesktopShell } from './shell/nativeShell';
+import { syncAndroidLauncherIcon } from './shell/androidLauncherIcon';
 
 const optionalDevModuleImporters: Record<string, () => Promise<any>> = {
     './tools/VxlTester': () => import('./tools/VxlTester'),
@@ -670,6 +671,7 @@ export class Application {
             location: window.location,
         });
         const profile = contentSelection.profileId;
+        syncAndroidLauncherIcon(contentSelection.profileId);
         const modName = contentSelection.kind === 'mod' ? contentSelection.modId : undefined;
         Engine.setActiveEngine(profile === "ra2" ? EngineType.RedAlert2 : EngineType.YurisRevenge);
         let gameResConfig = this.loadGameResConfig(this.localPrefs);

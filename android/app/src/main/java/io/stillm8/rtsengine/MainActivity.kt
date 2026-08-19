@@ -487,7 +487,7 @@ class MainActivity : Activity() {
                     connectTimeout = 20_000
                     readTimeout = 45_000
                     requestMethod = "GET"
-                    setRequestProperty("User-Agent", "OpenRTSEngine-Android/0.1")
+                    setRequestProperty("User-Agent", "RedAlert2Engine-Android/0.1")
                     setRequestProperty("Accept", "application/octet-stream,*/*")
                 }
                 job.connection = connection

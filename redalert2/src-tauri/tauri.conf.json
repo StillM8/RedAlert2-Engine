@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Open RTS Engine",
+  "productName": "Red Alert 2",
   "version": "0.1.0-beta.1",
   "identifier": "io.stillm8.rtsengine.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Open RTS Engine",
+        "title": "Red Alert 2",
         "width": 1280,
         "height": 720,
         "minWidth": 960,
@@ -30,8 +30,8 @@
     "active": true,
     "targets": "all",
     "category": "Game",
-    "shortDescription": "A cross-platform open real-time strategy engine",
-    "longDescription": "A TypeScript and WebGL real-time strategy engine that loads user-provided Red Alert 2, Yuri's Revenge, and compatible mod content.",
+    "shortDescription": "A cross-platform Red Alert 2 and Yuri's Revenge engine",
+    "longDescription": "A cross-platform TypeScript and WebGL engine for user-provided Red Alert 2, Yuri's Revenge, and compatible mod content.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

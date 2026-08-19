@@ -21,6 +21,15 @@ android {
         manifestPlaceholders["allowCleartext"] = "false"
     }
 
+    signingConfigs {
+        create("betaDev") {
+            storeFile = rootProject.file("beta-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -29,6 +38,7 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("betaDev")
             manifestPlaceholders["allowCleartext"] = "false"
         }
     }

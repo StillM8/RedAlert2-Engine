@@ -16,5 +16,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OpenRTSEngineAndroid"
+rootProject.name = "RedAlert2EngineAndroid"
 include(":app")
