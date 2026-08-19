@@ -1,1 +1,1 @@
-Monitor the current beta Ares closure batch.
+Monitor the current beta Ares closure batch: rerun-2.
