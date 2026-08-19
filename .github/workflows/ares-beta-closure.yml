@@ -6,6 +6,7 @@ on:
       - beta
     paths:
       - scripts/ares-beta-closure.py
+      - .github/ares-beta-trigger.txt
 
 permissions:
   contents: write
@@ -57,4 +58,5 @@ jobs:
             exit 0
           fi
           git commit -m "Implement Ares ranged projectiles and parachute overrides"
+          git pull --rebase origin beta
           git push origin HEAD:beta
