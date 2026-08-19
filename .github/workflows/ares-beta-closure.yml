@@ -5,7 +5,7 @@ on:
     branches:
       - beta
     paths:
-      - scripts/ares-beta-closure.py
+      - scripts/ares-beta-closure-2.py
       - .github/ares-beta-trigger.txt
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply guarded Ares runtime patch
-        run: python3 scripts/ares-beta-closure.py
+        run: python3 scripts/ares-beta-closure-2.py
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -44,7 +44,6 @@ jobs:
       - name: Entry typecheck
         working-directory: redalert2
         run: bun run typecheck:entry
-        continue-on-error: true
 
       - name: Commit validated runtime batch to beta
         shell: bash
@@ -57,6 +56,6 @@ jobs:
             echo "No runtime changes to commit"
             exit 0
           fi
-          git commit -m "Implement Ares ranged projectiles and parachute overrides"
+          git commit -m "Complete Ares parachute and projectile animation runtime"
           git pull --rebase origin beta
           git push origin HEAD:beta
