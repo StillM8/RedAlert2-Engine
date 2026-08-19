@@ -33,7 +33,7 @@ function target(owner: any, psionicsImmune: boolean): any {
         },
         veteranTrait: {
             hasVeteranAbility: (ability: VeteranAbility) =>
-                psionicsImmune && ability === VeteranAbility.PSIONICS_IMMUNE,
+                psionicsImmune && ability === VeteranAbility.PSIONICSIMMUNE,
         },
         invulnerableTrait: { isActive: () => false },
         isUnit: () => true,
