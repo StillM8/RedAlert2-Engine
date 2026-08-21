@@ -85,12 +85,14 @@ describe("Ares deterministic extension state", () => {
             instances: [],
             automaticPhase: "inactive" as const,
             automaticRemainingDelay: 0,
+            animationDamage: new Map(),
         };
         restoreAresAttachEffectExtensionState(target, state);
         expect(target).toEqual({
             instances: state.instances,
             automaticPhase: state.automaticPhase,
             automaticRemainingDelay: state.automaticRemainingDelay,
+            animationDamage: new Map(),
         });
 
         const trait = new AresAttachEffectTrait();
@@ -99,5 +101,42 @@ describe("Ares deterministic extension state", () => {
         expect(() => trait.restoreState({ ...state, instances: [{ ...state.instances[0], remainingFrames: -2 }] }))
             .toThrow();
         expect(trait.serializeState()).toEqual(state);
+    });
+
+    test("round-trips pending animation damage accumulation through the snapshot", () => {
+        // Two stacked occurrences of the same effect each keep their own
+        // partial damage accumulator.
+        const state = serializeAresAttachEffectExtensionState({
+            instances: [
+                { effectId: "burn", remainingFrames: 30, discardOnEntry: false },
+                { effectId: "burn", remainingFrames: 30, discardOnEntry: false },
+            ],
+            automaticPhase: "active",
+            automaticRemainingDelay: 0,
+            animationDamage: [
+                { effectId: "burn", occurrence: 0, accumulator: 12.5, frameAccumulator: 3.25 },
+                { effectId: "burn", occurrence: 1, accumulator: 0.5, frameAccumulator: 0 },
+            ],
+        });
+        expect(state.animationDamage).toHaveLength(2);
+
+        const trait = new AresAttachEffectTrait();
+        trait.restoreState(state);
+        expect(trait.serializeState()).toEqual(state);
+
+        const rejected = {
+            ...state,
+            animationDamage: [{ ...state.animationDamage![0], accumulator: -1 }],
+        };
+        expect(() => trait.restoreState(rejected)).toThrow();
+        expect(trait.serializeState()).toEqual(state);
+
+        // A snapshot without pending damage stays free of the optional field.
+        const clean = serializeAresAttachEffectExtensionState({
+            instances: [{ effectId: "armor", remainingFrames: 5, discardOnEntry: false }],
+            automaticPhase: "active",
+            automaticRemainingDelay: 0,
+        });
+        expect("animationDamage" in clean).toBe(false);
     });
 });

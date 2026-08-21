@@ -109,13 +109,63 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         return this.instances.map(instance => ({ ...instance }));
     }
 
+    /**
+     * Deterministic state fingerprint over live effect instances, the
+     * automatic-effect schedule, and pending animation-damage accumulation
+     * so lockstep hash checkpoints can detect AttachEffect divergence between
+     * peers or after a snapshot restore.
+     */
+    getHash(): number {
+        let hash = this.automaticPhase.length;
+        for (const instance of this.instances) {
+            hash = (hash * 31 + instance.remainingFrames) | 0;
+            hash = (hash * 31 + (instance.discardOnEntry ? 1 : 0)) | 0;
+        }
+        hash = (hash * 31 + this.automaticRemainingDelay) | 0;
+        // Accumulators are fractional; quantize to fixed-point so the integer
+        // hash is stable across identical floating-point sequences.
+        for (const effectId of [...this.animationDamageState.keys()].sort()) {
+            const states = this.animationDamageState.get(effectId)!;
+            states.forEach((state, occurrence) => {
+                if (!state) return;
+                for (const char of effectId) {
+                    hash = (hash * 31 + char.charCodeAt(0)) | 0;
+                }
+                hash = (hash * 31 + occurrence) | 0;
+                hash = (hash * 31 + Math.round(state.accumulator * 256)) | 0;
+                hash = (hash * 31 + Math.round(state.frameAccumulator * 256)) | 0;
+            });
+        }
+        return hash;
+    }
+
     /** Returns the AttachEffect state needed by a deterministic snapshot host. */
     serializeState(): AresAttachEffectExtensionState {
         return serializeAresAttachEffectExtensionState({
             instances: this.instances,
             automaticPhase: this.automaticPhase,
             automaticRemainingDelay: this.automaticRemainingDelay,
+            animationDamage: this.serializeAnimationDamage(),
         });
+    }
+
+    private serializeAnimationDamage() {
+        const snapshots = [];
+        for (const [effectId, states] of this.animationDamageState) {
+            states.forEach((state, occurrence) => {
+                if (!state) return;
+                // Zero accumulators carry no information; omitting them keeps
+                // damage-free snapshots identical to the original format.
+                if (state.accumulator === 0 && state.frameAccumulator === 0) return;
+                snapshots.push({
+                    effectId,
+                    occurrence,
+                    accumulator: state.accumulator,
+                    frameAccumulator: state.frameAccumulator,
+                });
+            });
+        }
+        return snapshots;
     }
 
     /** Restore active effects and the automatic scheduler as one state unit. */
@@ -124,13 +174,27 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             instances: this.instances,
             automaticPhase: this.automaticPhase,
             automaticRemainingDelay: this.automaticRemainingDelay,
+            animationDamage: new Map(),
         };
         restoreAresAttachEffectExtensionState(restored, state);
+        // Reconcile against the incoming instance list FIRST so the damage
+        // queue is sized to the restored effects, then overlay the snapshot's
+        // partial accumulators. Reconciling after the overlay would rebuild
+        // the queues from an empty previous list and silently zero them.
+        this.animationDamageState.clear();
+        this.reconcileAnimationDamageState([], restored.instances);
+        for (const [effectId, states] of restored.animationDamage) {
+            const existing = this.animationDamageState.get(effectId);
+            if (!existing) continue;
+            states.forEach((state, occurrence) => {
+                if (!state || !existing[occurrence]) return;
+                existing[occurrence].accumulator = state.accumulator;
+                existing[occurrence].frameAccumulator = state.frameAccumulator;
+            });
+        }
         this.instances = restored.instances.map(instance => ({ ...instance }));
         this.automaticPhase = restored.automaticPhase;
         this.automaticRemainingDelay = restored.automaticRemainingDelay;
-        this.animationDamageState.clear();
-        this.reconcileAnimationDamageState([], this.instances);
         this.presentationRevision++;
         this.animationRevision++;
         this.pruneDefinitions();
