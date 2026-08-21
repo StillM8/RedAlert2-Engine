@@ -65,8 +65,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresBounty.test.ts"],
-        notes: "Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. Save/load and multiplayer certification remain open.",
+        tests: ["AresBounty.test.ts", "AresBountyDisplay.test.ts"],
+        notes: "Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. The production SoundHandler consumes that event into the HUD message channel with the killer's house color and a raw-amount fallback for unauthored strings. Save/load (stateless by design: credits are already player state) and multiplayer certification remain open.",
     },
     {
         id: "ares.damage-particle-systems",
