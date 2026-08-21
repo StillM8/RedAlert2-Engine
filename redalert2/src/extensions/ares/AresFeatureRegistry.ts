@@ -461,8 +461,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresPassengers.test.ts", "AresBuildingPassengerHost.test.ts", "AresSurvivorRuntime.test.ts"],
-        notes: "Passengers.Allowed/Disallowed, Passengers.BySize, NoManualEnter/Unload, InitialPayload.Types/Nums, Promote.IncludePassengers, InfantryAbsorb and UnitAbsorb are normalized and consumed by shared transport/building entry paths. Initial payload obeys Ares building-host restrictions. Save/load, AI boarding policy, full open-topped edge parity, and multiplayer/target-content certification remain open.",
+        tests: ["AresPassengers.test.ts", "AresBuildingPassengerHost.test.ts", "AresSurvivorRuntime.test.ts", "AresPassengerLivePath.test.ts"],
+        notes: "Passengers.Allowed/Disallowed, Passengers.BySize, NoManualEnter/Unload, InitialPayload.Types/Nums, Promote.IncludePassengers, InfantryAbsorb and UnitAbsorb are normalized and consumed by shared transport/building entry paths. Initial payload obeys Ares building-host restrictions. The live player boarding path (EnterTransportOrder -> EnterTransportTask -> TransportTrait) is certified against Specific Passengers gates, and the transport hash covers held units plus the load queue for lockstep. AI boarding policy, full open-topped edge parity, and target-content certification remain open.",
     },
     {
         id: "ares.survivors",
