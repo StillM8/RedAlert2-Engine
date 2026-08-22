@@ -214,7 +214,16 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
         world.destroyObject(unit, context, true);
     }
     getHash(): number {
-        return fnv32a(this.units.map((unit) => unit.getHash()));
+        // Length-prefixed sections: held units and the boarding queue are
+        // distinct simulation state (a queued unit has not entered the hold
+        // and can still be refused), so a bare concatenation could map two
+        // different states onto the same hash.
+        return fnv32a([
+            this.units.length,
+            ...this.units.map((unit) => unit.getHash()),
+            this.loadQueue.length,
+            ...this.loadQueue.map((unit) => unit.getHash()),
+        ]);
     }
     debugGetState(): any[] {
         return this.units.map((unit) => unit.debugGetState());

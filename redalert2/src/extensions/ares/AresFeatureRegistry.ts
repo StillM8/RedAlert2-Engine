@@ -65,8 +65,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresBounty.test.ts"],
-        notes: "Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. Save/load and multiplayer certification remain open.",
+        tests: ["AresBounty.test.ts", "AresBountyDisplay.test.ts"],
+        notes: "Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. Bounty.Display currently has a functional HUD fallback (combat message with the killer's house color); spatial victim-position floating text parity with retail remains open. Save/load is not applicable (credits are already player state); multiplayer certification remains open.",
     },
     {
         id: "ares.damage-particle-systems",
@@ -461,8 +461,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresPassengers.test.ts", "AresBuildingPassengerHost.test.ts", "AresSurvivorRuntime.test.ts"],
-        notes: "Passengers.Allowed/Disallowed, Passengers.BySize, NoManualEnter/Unload, InitialPayload.Types/Nums, Promote.IncludePassengers, InfantryAbsorb and UnitAbsorb are normalized and consumed by shared transport/building entry paths. Initial payload obeys Ares building-host restrictions. Save/load, AI boarding policy, full open-topped edge parity, and multiplayer/target-content certification remain open.",
+        tests: ["AresPassengers.test.ts", "AresBuildingPassengerHost.test.ts", "AresSurvivorRuntime.test.ts", "AresPassengerLivePath.test.ts"],
+        notes: "Passengers.Allowed/Disallowed, Passengers.BySize, NoManualEnter/Unload, InitialPayload.Types/Nums, Promote.IncludePassengers, InfantryAbsorb and UnitAbsorb are normalized and consumed by shared transport/building entry paths. Initial payload obeys Ares building-host restrictions. The live player boarding path (EnterTransportOrder.process -> EnterTransportTask -> TransportTrait) is certified against Specific Passengers gates including the order-created task boarding into the hold, and the transport hash covers held units and the load queue with length-separated sections. AI boarding policy, full open-topped edge parity, and target-content certification remain open.",
     },
     {
         id: "ares.survivors",
@@ -479,8 +479,8 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         implemented: false,
         parserImplemented: true,
         runtimeImplemented: true,
-        tests: ["AresAttachEffect.test.ts", "AresAttachEffectRuntime.test.ts", "AresAttachEffectTraitBridge.test.ts", "AresAttachEffectObjectFactory.test.ts", "AresAttachEffectCombat.test.ts", "AresAttachEffectCombatCallsites.test.ts", "AresAnimationDamage.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "The documented AttachEffect fields are normalized for TechnoType and Warhead sections; ObjectFactory registration and a generic trait cover automatic TechnoType spawn timing, renewal, protection retry, effect instances, reapplication/stacking decisions, expiry, entry discard, aggregate numeric modifiers, and the generic combat callsites apply effective Speed/Armor/Firepower/ROF decisions. AttachEffect.Cloakable now grants a temporary cloak source and decloaks safely when the last source expires without removing permanent/veteran cloaking. Authored animations now attach to every techno renderable, loop with the unit, and are removed/recreated across cloak and TemporalHidesAnim transitions. Their Ares Damage, Damage.Delay, Warhead, and Weapon fields now run through the shared Warhead detonation path for attached effects. Standalone TriggerAnim and WarheadDetonate animation instances now use the same deterministic frame clock and area detonation bridge. Full transport/temporal state replay, save/load, AI, and deterministic multiplayer replay remain open.",
+        tests: ["AresAttachEffect.test.ts", "AresAttachEffectRuntime.test.ts", "AresAttachEffectTraitBridge.test.ts", "AresAttachEffectObjectFactory.test.ts", "AresAttachEffectCombat.test.ts", "AresAttachEffectCombatCallsites.test.ts", "AresAnimationDamage.test.ts", "AresExtensionState.test.ts", "AresAttachEffectRestoreDeterminism.test.ts", "AresCompatibilityScanner.test.ts"],
+        notes: "The documented AttachEffect fields are normalized for TechnoType and Warhead sections; ObjectFactory registration and a generic trait cover automatic TechnoType spawn timing, renewal, protection retry, effect instances, reapplication/stacking decisions, expiry, entry discard, aggregate numeric modifiers, and the generic combat callsites apply effective Speed/Armor/Firepower/ROF decisions. AttachEffect.Cloakable now grants a temporary cloak source and decloaks safely when the last source expires without removing permanent/veteran cloaking. Authored animations now attach to every techno renderable and are removed/recreated across cloak and TemporalHidesAnim transitions; their Ares Damage/Delay/Warhead/Weapon fields run through the shared Warhead detonation path. The versioned codec snapshots instances, scheduler phase/delay, per-stacked-occurrence damage accumulators with stable source-house names, and definition ORIGINS (rules family + owner name); restore rebinds definitions through a host resolver so modifiers/cloak/animation survive save/load, an unresolvable origin degrades to inert (matching a never-applied effect), and duplicate damage/origin entries are rejected transactionally. AresAttachEffectRestoreDeterminism certifies gameplay equivalence (aggregate modifiers + attribution + hash) across restore and expiry/renewal. Snapshot validation is schema/range plus locally provable semantics; live-rules cross-checks are host-side. AI behavior and lockstep play on real matches remain open.",
     },
     {
         id: "ares.unknown-key",

@@ -56,9 +56,8 @@ jobs:
       - name: Build web engine
         run: bun run build
 
-      - name: TypeScript entry check (informational)
+      - name: TypeScript entry check
         run: bun run typecheck:entry
-        continue-on-error: true
 
       - name: Upload validated WebView assets
         uses: actions/upload-artifact@v4

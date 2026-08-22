@@ -713,7 +713,16 @@ export class Warhead {
             return undefined;
         }
 
-        const techno = target as TechnoObject;
+        const techno = target as TechnoObject & {
+            aresAttachEffectTrait?: {
+                apply(effectId: string, definition: unknown, options: {
+                    protectedByIronCurtainOrForceShield?: boolean;
+                    context?: GameWorld;
+                    sourcePlayer?: Player;
+                    origin?: { kind: "warhead" | "techno"; ownerName: string };
+                }): AresAttachEffectApplyResult;
+            };
+        };
         const verses = this.rules.verses.get(target.rules.armor) ?? 1;
         if (verses === 0) {
             return undefined;
@@ -759,6 +768,10 @@ export class Warhead {
                 protectedByIronCurtainOrForceShield: techno.invulnerableTrait.isActive(),
                 context: gameWorld,
                 sourcePlayer,
+                origin: {
+                    kind: "warhead",
+                    ownerName: String(this.rules.name ?? ""),
+                },
             },
         );
         if (result.forceDecloak) {

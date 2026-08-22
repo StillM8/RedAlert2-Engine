@@ -128,6 +128,9 @@ export class SoundHandler {
             case EventType.AresIvanBombAttach:
                 this.handleAresIvanBombAttachSound(event);
                 break;
+            case EventType.AresBountyAward:
+                this.handleAresBountyAwardEvent(event);
+                break;
             case EventType.TriggerEva:
                 // Trigger/script "play speech" actions (including Ares
                 // restored triggers) reference an EVA dialog name; route it
@@ -269,6 +272,22 @@ export class SoundHandler {
         if (handle) {
             this.weaponLoopHandles.set(gameObject, { handle, soundName });
         }
+    }
+    private handleAresBountyAwardEvent(event: any): void {
+        // Ares Bounty.Display surfaces the signed credit award as a combat
+        // message. Retail shows floating text at the victim; the shared HUD
+        // message channel is this engine's equivalent presentation path.
+        // Awards keep the killer's house color, matching the shared-world
+        // presentation of superweapon messages.
+        const amount = event.amount as number;
+        if (!amount) return;
+        const killerColor: string | { color: { asHexString(): string } } =
+            event.player?.color ?? event.player ?? 'grey';
+        const label = amount > 0 ? 'TXT_BOUNTY_RECEIVED' : 'TXT_BOUNTY_LOST';
+        const text = this.strings.has?.(label)
+            ? this.strings.get(label, String(Math.abs(amount)))
+            : `${amount > 0 ? '+' : ''}${amount}`;
+        this.messageList.addSystemMessage(text, killerColor);
     }
     private handleAresIvanBombAttachSound(event: any): void {
         if (!event.soundName || !event.target?.position?.worldPosition) return;
