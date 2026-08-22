@@ -199,15 +199,19 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         for (const [effectId, states] of this.animationDamageState) {
             states.forEach((state, occurrence) => {
                 if (!state) return;
-                // Zero accumulators carry no information; omitting them keeps
-                // damage-free snapshots identical to the original format.
-                if (state.accumulator === 0 && state.frameAccumulator === 0) return;
+                // Zero accumulators carry no damage timing, but an ASSIGNED
+                // SOURCE still does: dropping it would silently reattribute
+                // future damage to the victim. Only fully empty states are
+                // omitted so definition-free snapshots stay byte-compatible.
+                const hasAccumulator = state.accumulator !== 0 || state.frameAccumulator !== 0;
+                const hasSource = state.sourcePlayer !== undefined && state.sourcePlayer !== null;
+                if (!hasAccumulator && !hasSource) return;
                 snapshots.push({
                     effectId,
                     occurrence,
                     accumulator: state.accumulator,
                     frameAccumulator: state.frameAccumulator,
-                    ...(state.sourcePlayer !== undefined && state.sourcePlayer !== null
+                    ...(hasSource
                         ? { sourcePlayerName: String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "") }
                         : {}),
                 });
