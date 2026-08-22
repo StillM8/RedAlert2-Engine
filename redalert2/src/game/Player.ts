@@ -161,6 +161,11 @@ export class Player {
             this.credits,
             this.country?.id ?? "",
             this.country?.sideId ?? "",
+            // Defeat flips isCombatant(), which gates Warhead fear logic,
+            // repair-order targeting, and asset redistribution; score breaks
+            // the redistribution tie-break. Both change future simulation.
+            this.defeated ? 1 : 0,
+            this.score,
             this.aresFirestormActive ? 1 : 0,
             this.production?.getHash?.() ?? 0,
             // Superweapon readiness/charge timers change future simulation
