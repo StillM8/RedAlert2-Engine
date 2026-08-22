@@ -76,6 +76,77 @@ describe("SuperWeaponsTrait lockstep hash", () => {
     });
 });
 
+/**
+ * Adversarial coverage for the historical shots-fired map.
+ *
+ * The global availability evaluator consults historical shot counts even for
+ * superweapons the player does NOT currently own (grant/revoke/reacquire),
+ * so the history collection must be hashed in full, independently of the
+ * owned-weapon collection. The cases below are collisions the previous
+ * hash (owned weapons + bare history size) could not detect.
+ */
+describe("SuperWeaponsTrait shot-history hash coverage", () => {
+    test("same history size, different historical superweapon names collide no longer", () => {
+        const peerA = new SuperWeaponsTrait();
+        peerA.recordAresSuperWeaponShot("FooSpecial", 1);
+        const peerB = new SuperWeaponsTrait();
+        peerB.recordAresSuperWeaponShot("BarSpecial", 1);
+        expect(peerB.getHash()).not.toBe(peerA.getHash());
+    });
+
+    test("same historical name, different shot count changes the hash", () => {
+        const one = new SuperWeaponsTrait();
+        one.recordAresSuperWeaponShot("FooSpecial", 1);
+        const two = new SuperWeaponsTrait();
+        two.recordAresSuperWeaponShot("FooSpecial", 2);
+        expect(two.getHash()).not.toBe(one.getHash());
+    });
+
+    test("removed superweapon with retained history stays hashed", () => {
+        const removed = new SuperWeaponsTrait();
+        removed.add(makeWeapon({ name: "FooSpecial" }));
+        removed.recordAresSuperWeaponShot("FooSpecial", 1);
+        removed.remove("FooSpecial");
+        expect(removed.has("FooSpecial")).toBe(false);
+        expect(removed.getAresShotsFired("FooSpecial")).toBe(1);
+
+        const neverOwned = new SuperWeaponsTrait();
+        neverOwned.recordAresSuperWeaponShot("BarSpecial", 1);
+        // Equal sizes, both empty owned collections — the old hash collided.
+        expect(neverOwned.getHash()).not.toBe(removed.getHash());
+    });
+
+    test("removal, availability reevaluation, reacquisition keeps deterministic history", () => {
+        const first = new SuperWeaponsTrait();
+        first.add(makeWeapon({ name: "FooSpecial" }));
+        first.recordAresSuperWeaponShot("FooSpecial", 3);
+        // Provider lost: the SW leaves the owned set, history persists.
+        first.remove("FooSpecial");
+        const midHash = first.getHash();
+        // Provider rebuilt: the SW returns and restores its historical count.
+        first.add(makeWeapon({ name: "FooSpecial" }));
+        expect(first.getHash()).not.toBe(midHash);
+
+        const second = new SuperWeaponsTrait();
+        second.recordAresSuperWeaponShot("FooSpecial", 3);
+        second.add(makeWeapon({ name: "FooSpecial" }));
+        // Same semantic state built in a different operation order.
+        expect(second.getHash()).toBe(first.getHash());
+    });
+
+    test("identical semantic histories hash identically regardless of insertion order", () => {
+        const forward = new SuperWeaponsTrait();
+        forward.recordAresSuperWeaponShot("Alpha", 1);
+        forward.recordAresSuperWeaponShot("Beta", 2);
+        forward.recordAresSuperWeaponShot("Gamma", 3);
+        const backward = new SuperWeaponsTrait();
+        backward.recordAresSuperWeaponShot("Gamma", 3);
+        backward.recordAresSuperWeaponShot("Beta", 2);
+        backward.recordAresSuperWeaponShot("Alpha", 1);
+        expect(backward.getHash()).toBe(forward.getHash());
+    });
+});
+
 /** Mirrors the trait's sorted-key algorithm with reversed insertion order. */
 class SuperWeightsOrderStub extends SuperWeaponsTrait {
     hashFor(names: string[]): number {
