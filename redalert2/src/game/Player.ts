@@ -163,6 +163,9 @@ export class Player {
             this.country?.sideId ?? "",
             this.aresFirestormActive ? 1 : 0,
             this.production?.getHash?.() ?? 0,
+            // Superweapon readiness/charge timers change future simulation
+            // (a ready SW can fire this tick) so they are canonical state.
+            this.superWeaponsTrait?.getHash?.() ?? 0,
             ...this.traits.getAll().map(trait => trait.getHash?.() ?? 0),
         ]);
     }
