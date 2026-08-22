@@ -16,6 +16,8 @@ import {
     restoreAresAttachEffectExtensionState,
     serializeAresAttachEffectExtensionState,
     type AresAttachEffectExtensionState,
+    type AresAttachEffectOriginSnapshot,
+    type AresAttachEffectRestoreContext,
     type AresAttachEffectStateTarget,
 } from "@/extensions/ares/AresAttachEffectState";
 import {
@@ -40,11 +42,31 @@ export interface AresAttachEffectTraitOptions {
     automaticEffect?: AresAttachEffectBinding;
 }
 
+/**
+ * Stable authored origin of an applied definition. Snapshots record this so
+ * restore can rebind the definition from rules instead of serializing the
+ * definition object itself; without it a restored effect would keep its
+ * instance but contribute no modifiers, damage, cloak, or animation.
+ */
+export interface AresAttachEffectOrigin {
+    kind: "warhead" | "techno";
+    ownerName: string;
+}
+
 interface AresAnimationDamageRuntimeState {
     accumulator: number;
     frameAccumulator: number;
     sourcePlayer?: any;
 }
+
+/** Distinct numeric identity per automatic phase; lengths collide. */
+const PHASE_HASH: Record<AresAttachEffectAutomaticPhase, number> = {
+    inactive: 0,
+    "waiting-initial": 1,
+    active: 2,
+    "waiting-renewal": 3,
+    disabled: 4,
+};
 
 export interface AresAttachEffectBinding {
     effectId: AresAttachEffectId;
@@ -85,6 +107,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     private readonly gameObject?: any;
     private instances: AresAttachEffectInstance[];
     private definitions: Map<AresAttachEffectId, AresAttachEffectDefinition>;
+    /** Authored origin per held effectId for snapshot rebinding. */
+    private origins = new Map<AresAttachEffectId, AresAttachEffectOrigin>();
     private automaticEffect?: AresAttachEffectBinding;
     private automaticPhase: AresAttachEffectAutomaticPhase = "inactive";
     private automaticRemainingDelay = 0;
@@ -110,17 +134,24 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
     }
 
     /**
-     * Deterministic state fingerprint over live effect instances, the
-     * automatic-effect schedule, and pending animation-damage accumulation
-     * so lockstep hash checkpoints can detect AttachEffect divergence between
-     * peers or after a snapshot restore.
+     * Deterministic state fingerprint over live effect instances (including
+     * effect identity), the exact automatic phase, pending animation-damage
+     * accumulation and its source attribution. Every input that changes
+     * simulation behavior is included so lockstep checkpoints and restore
+     * comparisons cannot pass while gameplay state diverges.
      */
     getHash(): number {
-        let hash = this.automaticPhase.length;
+        let hash = PHASE_HASH[this.automaticPhase];
         for (const instance of this.instances) {
+            for (const char of instance.effectId) {
+                hash = (hash * 31 + char.charCodeAt(0)) | 0;
+            }
             hash = (hash * 31 + instance.remainingFrames) | 0;
             hash = (hash * 31 + (instance.discardOnEntry ? 1 : 0)) | 0;
         }
+        // Instance count is folded in so a changed stack size cannot cancel
+        // out through identical per-instance contributions.
+        hash = (hash * 31 + this.instances.length) | 0;
         hash = (hash * 31 + this.automaticRemainingDelay) | 0;
         // Accumulators are fractional; quantize to fixed-point so the integer
         // hash is stable across identical floating-point sequences.
@@ -134,6 +165,15 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 hash = (hash * 31 + occurrence) | 0;
                 hash = (hash * 31 + Math.round(state.accumulator * 256)) | 0;
                 hash = (hash * 31 + Math.round(state.frameAccumulator * 256)) | 0;
+                if (state.sourcePlayer !== undefined && state.sourcePlayer !== null) {
+                    const identity = String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "");
+                    for (const char of identity) {
+                        hash = (hash * 31 + char.charCodeAt(0)) | 0;
+                    }
+                }
+                else {
+                    hash = (hash * 31 + (-1)) | 0;
+                }
             });
         }
         return hash;
@@ -146,6 +186,11 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             automaticPhase: this.automaticPhase,
             automaticRemainingDelay: this.automaticRemainingDelay,
             animationDamage: this.serializeAnimationDamage(),
+            origins: [...this.origins.entries()].map(([effectId, origin]) => ({
+                effectId,
+                kind: origin.kind,
+                ownerName: origin.ownerName,
+            })),
         });
     }
 
@@ -162,25 +207,47 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                     occurrence,
                     accumulator: state.accumulator,
                     frameAccumulator: state.frameAccumulator,
+                    ...(state.sourcePlayer !== undefined && state.sourcePlayer !== null
+                        ? { sourcePlayerName: String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "") }
+                        : {}),
                 });
             });
         }
         return snapshots;
     }
 
-    /** Restore active effects and the automatic scheduler as one state unit. */
-    restoreState(state: unknown): void {
+    /**
+     * Restore active effects, the automatic scheduler, damage attribution,
+     * and effect definitions as one state unit.
+     *
+     * `context.resolvePlayer` maps snapshot house names back to live Player
+     * objects; `context.resolveDefinition` rebinds each held effect to its
+     * authored definition from rules. Without a resolver the definitions map
+     * stays empty and restored effects are present but inert — the same
+     * observable behavior as a live trait that never received the effect.
+     */
+    restoreState(state: unknown, context: AresAttachEffectRestoreContext = {}): void {
         const restored: AresAttachEffectStateTarget = {
             instances: this.instances,
             automaticPhase: this.automaticPhase,
             automaticRemainingDelay: this.automaticRemainingDelay,
             animationDamage: new Map(),
+            definitions: new Map(),
         };
-        restoreAresAttachEffectExtensionState(restored, state);
+        restoreAresAttachEffectExtensionState(restored, state, context);
+        this.instances = restored.instances.map(instance => ({ ...instance }));
+        this.automaticPhase = restored.automaticPhase;
+        this.automaticRemainingDelay = restored.automaticRemainingDelay;
+        // Rebuild origins from the snapshot so a later re-snapshot of the
+        // restored trait keeps the rebinding information.
+        this.origins.clear();
+        for (const origin of (state as { origins?: readonly AresAttachEffectOriginSnapshot[] })?.origins ?? []) {
+            this.origins.set(origin.effectId, { kind: origin.kind, ownerName: origin.ownerName });
+        }
         // Reconcile against the incoming instance list FIRST so the damage
         // queue is sized to the restored effects, then overlay the snapshot's
-        // partial accumulators. Reconciling after the overlay would rebuild
-        // the queues from an empty previous list and silently zero them.
+        // partial accumulators and attribution. Reconciling after the overlay
+        // would rebuild the queues from an empty previous list and zero them.
         this.animationDamageState.clear();
         this.reconcileAnimationDamageState([], restored.instances);
         for (const [effectId, states] of restored.animationDamage) {
@@ -190,11 +257,24 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 if (!state || !existing[occurrence]) return;
                 existing[occurrence].accumulator = state.accumulator;
                 existing[occurrence].frameAccumulator = state.frameAccumulator;
+                if (state.sourcePlayer !== undefined) {
+                    existing[occurrence].sourcePlayer = state.sourcePlayer;
+                }
             });
         }
-        this.instances = restored.instances.map(instance => ({ ...instance }));
-        this.automaticPhase = restored.automaticPhase;
-        this.automaticRemainingDelay = restored.automaticRemainingDelay;
+        this.definitions = new Map(
+            [...this.definitions.entries()].filter(([effectId]) =>
+                this.automaticEffect?.effectId === effectId));
+        for (const [effectId, definition] of restored.definitions) {
+            this.definitions.set(effectId, definition as AresAttachEffectDefinition);
+        }
+        if (this.automaticEffect) {
+            this.definitions.set(this.automaticEffect.effectId, this.automaticEffect.definition);
+            this.origins.set(this.automaticEffect.effectId, {
+                kind: "techno",
+                ownerName: String(this.gameObject?.name ?? this.automaticEffect.effectId),
+            });
+        }
         this.presentationRevision++;
         this.animationRevision++;
         this.pruneDefinitions();
@@ -208,6 +288,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             protectedByIronCurtainOrForceShield?: boolean;
             context?: any;
             sourcePlayer?: any;
+            /** Authored origin recorded for snapshot rebinding. */
+            origin?: AresAttachEffectOrigin;
         } = {},
     ): AresAttachEffectApplyResult {
         const previousInstances = this.instances;
@@ -224,6 +306,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
 
         if (["applied", "reapplied", "stacked"].includes(result.decision)) {
             this.definitions.set(effectId, definition);
+            if (options.origin) {
+                this.origins.set(effectId, options.origin);
+            }
             if (effectId === this.automaticEffect?.effectId) {
                 this.automaticPhase = "active";
                 this.automaticRemainingDelay = 0;
@@ -462,6 +547,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         const activeIds = new Set(this.instances.map(instance => instance.effectId));
         for (const effectId of this.definitions.keys()) {
             if (!activeIds.has(effectId)) this.definitions.delete(effectId);
+        }
+        for (const effectId of this.origins.keys()) {
+            if (!activeIds.has(effectId)) this.origins.delete(effectId);
         }
         for (const effectId of this.animationDamageState.keys()) {
             if (!activeIds.has(effectId)) this.animationDamageState.delete(effectId);

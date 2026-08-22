@@ -86,6 +86,7 @@ describe("Ares deterministic extension state", () => {
             automaticPhase: "inactive" as const,
             automaticRemainingDelay: 0,
             animationDamage: new Map(),
+            definitions: new Map(),
         };
         restoreAresAttachEffectExtensionState(target, state);
         expect(target).toEqual({
@@ -93,6 +94,7 @@ describe("Ares deterministic extension state", () => {
             automaticPhase: state.automaticPhase,
             automaticRemainingDelay: state.automaticRemainingDelay,
             animationDamage: new Map(),
+            definitions: new Map(),
         });
 
         const trait = new AresAttachEffectTrait();
@@ -101,6 +103,36 @@ describe("Ares deterministic extension state", () => {
         expect(() => trait.restoreState({ ...state, instances: [{ ...state.instances[0], remainingFrames: -2 }] }))
             .toThrow();
         expect(trait.serializeState()).toEqual(state);
+    });
+
+    test("rebinds definitions from recorded origins during restore", () => {
+        const state = serializeAresAttachEffectExtensionState({
+            instances: [{ effectId: "slow", remainingFrames: 20, discardOnEntry: false }],
+            automaticPhase: "inactive",
+            automaticRemainingDelay: 0,
+            origins: [{ effectId: "slow", kind: "warhead", ownerName: "CryoBeam" }],
+        });
+        const trait = new AresAttachEffectTrait();
+        trait.restoreState(state, {
+            resolveDefinition: (kind, ownerName) =>
+                kind === "warhead" && ownerName === "CryoBeam"
+                    ? { speedMultiplier: 0.5 }
+                    : undefined,
+        });
+        // The restored trait contributes the rebound definition's modifier.
+        expect(trait.getAggregateMultipliers().speed).toBeCloseTo(0.5, 10);
+        // Re-snapshotting keeps the origin for a later restore generation.
+        expect(trait.serializeState().origins).toEqual([
+            { effectId: "slow", kind: "warhead", ownerName: "CryoBeam" },
+        ]);
+
+        // An unresolvable origin leaves the effect present but contributing
+        // nothing — identical to a live trait with no applied definition.
+        const inertTrait = new AresAttachEffectTrait();
+        inertTrait.restoreState(state, { resolveDefinition: () => undefined });
+        expect(inertTrait.getState()).toHaveLength(1);
+        expect(new AresAttachEffectTrait().getAggregateMultipliers())
+            .toEqual(inertTrait.getAggregateMultipliers());
     });
 
     test("round-trips pending animation damage accumulation through the snapshot", () => {

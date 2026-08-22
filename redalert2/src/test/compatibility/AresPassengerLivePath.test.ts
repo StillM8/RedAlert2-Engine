@@ -162,21 +162,23 @@ describe("Ares Specific Passengers live boarding path", () => {
         const rider = stubUnit({ name: "E1" });
         const game = stubGame(true);
 
-        const task = new EnterTransportTask(game, transport);
-        expect(task.isAllowed(rider)).toBe(true);
+        // Drive the production flow: the ORDER creates the task that boards.
+        const order = new EnterTransportOrder(game);
+        order.sourceObject = rider;
+        order.target = { obj: transport };
+        expect(order.isAllowed()).toBe(true);
+        const tasks = order.process();
+        expect(tasks).toHaveLength(1);
+        const task = tasks[0];
+        expect(task).toBeInstanceOf(EnterTransportTask);
 
-        // Drive the task to its entry state exactly like MoveInside completion.
+        // Simulate MoveInside completion: the passenger is co-located with the
+        // transport on the same layer, then the task's enter state runs.
+        (rider as any).movePerformed = true;
         task.onStart(rider);
-        (task as any).state = (task as any).constructorState ?? (task as any).state;
-        // EnterTransportTask pushes itself through states; simulate co-location
-        // and the final enter transition directly.
-        (rider as any).moveTrait.movePerformed = true;
-        const finished = task.onTick(rider);
-        if (!finished && !rider.limboData) {
-            // The task requested movement first; force the enter transition.
-            (task as any).state = 2;
-            task.onTick(rider);
-        }
+        task.onTick(rider);
+        // The task requested the enter transition; a second tick performs it.
+        task.onTick(rider);
         expect(rider.limboData?.inTransport).toBe(true);
         expect(transport.transportTrait.units).toContain(rider);
     });
@@ -195,5 +197,9 @@ describe("Ares Specific Passengers live boarding path", () => {
         order.sourceObject = second;
         order.target = { obj: transport };
         expect(order.isAllowed()).toBe(false);
+
+        // The task's final-entry guard independently refuses as well.
+        const task = new EnterTransportTask(game, transport);
+        expect(task.isAllowed(second)).toBe(false);
     });
 });
