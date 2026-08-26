@@ -1,6 +1,7 @@
 import { VeteranAbility } from "@/game/gameobject/unit/VeteranAbility";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
+import { fnv32aStrings } from "@/util/math";
 import { resolveAresEmpCounter } from "@/extensions/ares/AresEMP";
 import { HarvesterStatus } from "@/game/gameobject/trait/HarvesterTrait";
 
@@ -83,7 +84,17 @@ export class EmpTrait implements NotifyTick {
     }
 
     getHash(): number {
-        return this.remainingFrames;
+        // remainingFrames alone is NOT sufficient: stateApplied and the
+        // pre-EMP disabled flags decide what movement/attack state gets
+        // restored on expiry. Two units with equal EMP timers but different
+        // latent flags must diverge — they exit EMP into different states.
+        return fnv32aStrings([
+            "EmpTrait",
+            this.remainingFrames,
+            this.stateApplied ? 1 : 0,
+            this.previousMoveDisabled ? 1 : 0,
+            this.previousAttackDisabled ? 1 : 0,
+        ]);
     }
 
     debugGetState(): { remainingFrames: number; underEMP: boolean } {

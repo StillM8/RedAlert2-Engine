@@ -15,6 +15,13 @@ interface PlayerOwnedObject {
 export class Player {
     private _credits: number = 0;
     public readonly name: string;
+    /**
+     * Canonical identity: index in the deterministic PlayerList order,
+     * assigned by PlayerList.addPlayer. -1 while unregistered. This is the
+     * only safe cross-snapshot/hashing foreign key for a player; display
+     * names are not unique.
+     */
+    public playerListIndex: number = -1;
     public readonly country?: Country;
     public readonly startLocation: any;
     public readonly color: Color;

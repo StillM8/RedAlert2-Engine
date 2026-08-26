@@ -125,6 +125,12 @@ export class GameObject {
         const pos = this.position.worldPosition;
         return fnv32a([
             this.id,
+            // Owner identity is canonical state: targeting, bounty, veterancy,
+            // mind control, production, and scoring all branch on it. Hashed
+            // via the deterministic PlayerList index (names are not unique),
+            // with the name mixed in so unregistered owners still diverge.
+            this.owner?.playerListIndex ?? -1,
+            ...new TextEncoder().encode(this.owner?.name ?? ""),
             ...new Uint8Array(new Float64Array([pos.x, pos.y, pos.z]).buffer),
             ...this.traits.getAll().map((trait) => trait.getHash?.() ?? 0),
         ]);

@@ -2,6 +2,10 @@ import { Player } from './Player';
 export class PlayerList {
     private players: Player[] = [];
     addPlayer(player: Player): void {
+        // Canonical identity for hashing and snapshot foreign keys: the
+        // insertion order is deterministic across peers and world rebuilds,
+        // unlike display names (duplicates possible) or object identity.
+        player.playerListIndex = this.players.length;
         this.players.push(player);
     }
     getPlayerAt(index: number): Player {

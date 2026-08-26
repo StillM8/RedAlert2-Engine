@@ -18,6 +18,23 @@ The planning figure of 14,104 sections was not reproduced by the current packed 
 
 The current beta implementation batch started at `1b9c6a6250e76c28ee5f2a30cb09694f88bbdb88`. It extends the shared Ares superweapon AI host for the 149 MO-authored `SW.AITargeting` uses without adding Mental Omega-specific simulation branches. The aggregate counts above were not regenerated for this code-only change; the focused runtime and real-content checks below are current.
 
+### Deterministic-state inventory status
+
+Until the canonical-state inventory is complete, `Game.getHash()` should be
+read as a **simulation fingerprint**, not a certified canonical state hash:
+two equal fingerprints do not yet prove two worlds will simulate identically.
+Coverage now includes object ownership (via the deterministic PlayerList
+index assigned by `PlayerList.addPlayer`), ammo, veterancy rank/XP, weapon
+cooldown/burst state, armed-weapon selection, turret facings, order/task
+structure, EMP latent restore flags, and the Ares traits listed in the table
+below. Known uncovered canonical surfaces include per-task internals inside
+order task graphs, the global active-superweapon effect list, standalone
+animation damage runtime state, trigger/countdown state, locomotor state,
+and built-in AI internal state. New mutable simulation state must implement
+the [`DeterministicStateOwner`](../redalert2/src/game/gameobject/trait/DeterministicStateOwner.ts)
+contract (hash + transactional snapshot) or be explicitly classified as
+authored rules, derived, presentation-only, or external.
+
 | Check | Result |
 |---|---|
 | Full unit/regression suite | 581 passed, 0 failed, 1,924 expectations |

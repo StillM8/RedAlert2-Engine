@@ -1,5 +1,6 @@
 import { TaskRunner } from "@/game/gameobject/task/system/TaskRunner";
 import { TaskStatus } from "@/game/gameobject/task/system/TaskStatus";
+import { fnv32aStrings } from "@/util/math";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { WaitTicksTask } from "@/game/gameobject/task/system/WaitTicksTask";
 import { NotifyOwnerChange } from "@/game/gameobject/trait/interface/NotifyOwnerChange";
@@ -48,6 +49,31 @@ export class UnitOrderTrait implements NotifyTick, NotifyOwnerChange, NotifyTele
     private targetLinesConfig?: any;
     constructor(gameObject: GameObject) {
         this.gameObject = gameObject;
+    }
+    /**
+     * STRUCTURAL hash coverage, deliberately honest about its limits.
+     *
+     * Orders and tasks are an open object graph (tasks carry closures,
+     * children, and per-task primitives with no uniform surface), so a fully
+     * faithful fingerprint needs a per-task snapshot contract. What IS
+     * covered here — pending order count/types, queued flags, live task
+     * count/statuses/types, and waypoint progress presence — catches the
+     * common divergence class where two peers disagree on whether work is
+     * pending or in flight. Two peers running the SAME task types with the
+     * SAME statuses but different internal targets still collide until that
+     * per-task contract lands; treat those fields as canonical-but-unhashed.
+     */
+    getHash(): number {
+        return fnv32aStrings([
+            "UnitOrderTrait",
+            this.orders.length,
+            ...this.orders.map((order) => order.orderType),
+            this.queuedOrders.size,
+            this.tasks.length,
+            ...this.tasks.map((task) => `${task.constructor.name}:${task.status}`),
+            this.currentWaypoint ? 1 : 0,
+            this.waypointPath ? this.waypointPath.waypoints.length : -1,
+        ]);
     }
     [NotifyTick.onTick](gameObject: GameObject, deltaTime: number): void {
         if (!gameObject.isSpawned)
