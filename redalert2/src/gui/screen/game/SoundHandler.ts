@@ -10,6 +10,7 @@ import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { RadarEventType } from '@/game/rules/general/RadarRules';
 import { OrderFeedbackType } from '@/game/order/OrderFeedbackType';
 import { QueueType, QueueStatus } from '@/game/player/production/ProductionQueue';
+import { VeteranLevel } from '@/game/gameobject/unit/VeteranLevel';
 import { getAvailableBuildingSuperWeapon } from '@/game/gameobject/trait/SuperWeaponTrait';
 import {
     resolveAresSuperWeaponMessageColor,
@@ -507,9 +508,18 @@ export class SoundHandler {
     }
     private handleUnitPromoteSound(event: any): void {
         if (event.target.owner === this.player) {
-            const isElite = event.target.veteranLevel === 'Elite';
-            this.sound.play(isElite ? SoundKey.UpgradeEliteSound : SoundKey.UpgradeVeteranSound, ChannelType.Effect);
-            this.eva.play('EVA_UnitPromoted', true);
+            const level = event.level ?? event.target.veteranLevel;
+            const isElite = level === VeteranLevel.Elite || level === 2;
+            // Ares per-type overrides fall back to the global [AudioVisual]
+            // sounds, and the EVA override falls back to EVA_UnitPromoted.
+            const sound = isElite
+                ? (event.target.rules?.promoteEliteSound ?? SoundKey.UpgradeEliteSound)
+                : (event.target.rules?.promoteVeteranSound ?? SoundKey.UpgradeVeteranSound);
+            this.sound.play(sound, ChannelType.Effect);
+            const eva = isElite
+                ? event.target.rules?.evaElitePromoted
+                : event.target.rules?.evaVeteranPromoted;
+            this.eva.play(eva ?? 'EVA_UnitPromoted', true);
         }
     }
     private handleCratePickupSound(event: any): void {

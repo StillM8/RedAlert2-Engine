@@ -219,7 +219,7 @@ export class VeteranTrait implements NotifyTargetDestroy {
                 }
             }
         }
-        gameManager.events.dispatch(new UnitPromoteEvent(gameObject));
+        gameManager.events.dispatch(new UnitPromoteEvent(gameObject, this.veteranLevel));
     }
     getVeteranSightMultiplier(): number {
         return this.getVeteranAbilityMultiplier(VeteranAbility.SIGHT);

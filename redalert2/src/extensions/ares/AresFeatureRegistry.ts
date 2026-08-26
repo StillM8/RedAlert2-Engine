@@ -240,6 +240,15 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         notes: "Positive thresholds and negative in-air thresholds are evaluated after EMP counter updates; parachuting and non-air targets follow the documented distinction. Full hover/aircraft edge coverage, persistence, and network certification remain separate.",
     },
     {
+        id: "ares.promotion-presentation",
+        description: "Promotion sounds, EVA overrides, and flash timers",
+        implemented: false,
+        parserImplemented: true,
+        runtimeImplemented: true,
+        tests: ["AresPromotionSettings.test.ts"],
+        notes: "Per-type Promote.VeteranSound/Promote.EliteSound override the global [AudioVisual] sounds and EVA.VeteranPromoted/EVA.ElitePromoted override EVA_UnitPromoted at the shared promotion event, which now carries the achieved rank; VeteranFlashTimer/EliteFlashTimer and per-type Promote.*Flash frames are parsed. Per-unit visual flashing, persistence, and multiplayer certification remain open.",
+    },
+    {
         id: "ares.custom-superweapons",
         description: "Data-defined superweapon handlers and target filters",
         implemented: false,
