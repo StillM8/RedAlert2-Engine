@@ -1159,6 +1159,9 @@ export class Game {
             ...this.world.getAllObjects().map((obj: any) => obj.getHash()),
             ...this.playerList.getAll().map((player: any) => player.getHash()),
             this.alliances.getHash(),
+            // Standalone Ares animation damage keeps its own frame clock and
+            // pending-damage accumulators outside the object graph.
+            this.aresAnimationDamageRuntime.getHash(),
             ...this.traits.getAll().map((trait: any) => trait.getHash?.() ?? 0),
         ]);
     }

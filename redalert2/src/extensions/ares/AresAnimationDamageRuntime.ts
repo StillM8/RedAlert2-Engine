@@ -4,6 +4,7 @@ import {
     type AresAnimationDamageState,
 } from "@/extensions/ares/AresAnimationDamage";
 import { GameSpeed } from "@/game/GameSpeed";
+import { fnv32aStrings } from "@/util/math";
 
 export interface AresAnimationDamageSpawn {
     definition: AresAnimationDamageDefinition;
@@ -24,6 +25,38 @@ interface RuntimeInstance extends AresAnimationDamageSpawn {
     loopNumber: number;
     frameAccumulator: number;
     damageState: AresAnimationDamageState;
+}
+
+/** JSON-safe snapshot of one live animation-damage instance. */
+export interface AresAnimationDamageInstanceState {
+    /** Authored definition name; rebound against rules during restore. */
+    readonly definitionName: string;
+    readonly frame: number;
+    readonly loopNumber: number;
+    readonly frameAccumulator: number;
+    readonly accumulator: number;
+    readonly tileRx: number;
+    readonly tileRy: number;
+    readonly tileZ?: number;
+    readonly elevation: number;
+    readonly zone: unknown;
+    /** Canonical PlayerList index; absent when attribution fell back. */
+    readonly sourcePlayerIndex?: number;
+    /** Deterministic object id of the damaging source, if any. */
+    readonly sourceObjectId?: number;
+}
+
+export interface AresAnimationDamageRuntimeState {
+    readonly version: 1;
+    readonly nextId: number;
+    readonly instances: readonly AresAnimationDamageInstanceState[];
+}
+
+export interface AresAnimationDamageRestoreContext {
+    resolveTile?(rx: number, ry: number): unknown;
+    resolvePlayerByIndex?(index: number): unknown;
+    resolveObjectById?(id: number): unknown;
+    resolveDefinition?(name: string): AresAnimationDamageDefinition | undefined;
 }
 
 export interface AresAnimationDamageRuntimeHost {
@@ -57,6 +90,126 @@ export class AresAnimationDamageRuntime {
             damageState: { accumulator: 0 },
         });
         return true;
+    }
+
+    /**
+     * Canonical state: frame clock position, fractional timing, and the
+     * pending damage accumulator decide when and where future damage lands.
+     * Insertion order is deterministic, so ids are hashed as-is.
+     */
+    getHash(): number {
+        const parts: (string | number)[] = ["AresAnimationDamageRuntime", this.nextId];
+        for (const [id, instance] of this.instances) {
+            parts.push(
+                id,
+                instance.definition.name ?? "",
+                instance.frame,
+                instance.loopNumber,
+                instance.frameAccumulator,
+                instance.damageState.accumulator,
+                instance.tile?.rx ?? -1,
+                instance.tile?.ry ?? -1,
+            );
+        }
+        return fnv32aStrings(parts);
+    }
+
+    captureState(): AresAnimationDamageRuntimeState {
+        return {
+            version: 1,
+            nextId: this.nextId,
+            instances: [...this.instances.entries()].map(([id, instance]) => ({
+                definitionName: instance.definition.name ?? "",
+                frame: instance.frame,
+                loopNumber: instance.loopNumber,
+                frameAccumulator: instance.frameAccumulator,
+                accumulator: instance.damageState.accumulator,
+                tileRx: instance.tile?.rx ?? -1,
+                tileRy: instance.tile?.ry ?? -1,
+                ...(Number.isFinite(instance.tile?.z) ? { tileZ: instance.tile.z } : {}),
+                elevation: instance.elevation,
+                zone: instance.zone,
+                ...(instance.sourcePlayer?.playerListIndex !== undefined && instance.sourcePlayer !== undefined
+                    ? { sourcePlayerIndex: instance.sourcePlayer.playerListIndex }
+                    : {}),
+                ...(instance.sourceObject?.id !== undefined
+                    ? { sourceObjectId: instance.sourceObject.id }
+                    : {}),
+            })),
+        };
+    }
+
+    /**
+     * Replaces the live instance set only after the payload validates.
+     * Cross-references (tile/player/object/definition) rebind through the
+     * context; an unresolvable reference degrades that field to undefined
+     * instead of failing the whole restore, matching how a live effect with
+     * no source behaves.
+     */
+    restoreState(state: unknown, context: AresAnimationDamageRestoreContext = {}): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid Ares animation damage runtime state: expected an object");
+        }
+        const candidate = state as Partial<AresAnimationDamageRuntimeState> &
+            Record<string, unknown>;
+        if (candidate.version !== 1) {
+            throw new Error(`Unsupported Ares animation damage runtime state version: ${String(candidate.version)}`);
+        }
+        if (!Array.isArray(candidate.instances)) {
+            throw new Error("Invalid Ares animation damage runtime state: instances must be an array");
+        }
+        if (!Number.isSafeInteger(candidate.nextId) || (candidate.nextId as number) < 0) {
+            throw new Error("Invalid Ares animation damage runtime state: nextId");
+        }
+
+        // Validate everything before mutating anything.
+        for (const entry of candidate.instances as Array<Record<string, unknown>>) {
+            if (typeof entry !== "object" || entry === null) {
+                throw new Error("Invalid Ares animation damage runtime state: instance must be an object");
+            }
+            if (typeof entry.definitionName !== "string") {
+                throw new Error("Invalid Ares animation damage runtime state: instance has no definition name");
+            }
+            for (const key of ["frame", "loopNumber", "frameAccumulator", "accumulator", "tileRx", "tileRy", "elevation"] as const) {
+                if (typeof entry[key] !== "number" || !Number.isFinite(entry[key] as number)) {
+                    throw new Error(`Invalid Ares animation damage runtime state: instance ${key}`);
+                }
+            }
+            if (entry.sourcePlayerIndex !== undefined &&
+                (!Number.isSafeInteger(entry.sourcePlayerIndex) || (entry.sourcePlayerIndex as number) < 0)) {
+                throw new Error("Invalid Ares animation damage runtime state: sourcePlayerIndex");
+            }
+            if (entry.sourceObjectId !== undefined &&
+                (!Number.isSafeInteger(entry.sourceObjectId) || (entry.sourceObjectId as number) < 0)) {
+                throw new Error("Invalid Ares animation damage runtime state: sourceObjectId");
+            }
+        }
+
+        this.instances.clear();
+        for (const entry of candidate.instances as Array<Record<string, unknown>>) {
+            const tile = context.resolveTile?.(entry.tileRx as number, entry.tileRy as number) as any;
+            const definition = context.resolveDefinition?.(entry.definitionName as string);
+            this.instances.set(this.nextId++, {
+                ...(definition ? { definition } : { definition: { name: entry.definitionName } as AresAnimationDamageDefinition }),
+                tile,
+                position: tile?.center ?? undefined,
+                elevation: entry.elevation as number,
+                zone: entry.zone,
+                sourcePlayer: entry.sourcePlayerIndex !== undefined
+                    ? context.resolvePlayerByIndex?.(entry.sourcePlayerIndex as number)
+                    : undefined,
+                sourceObject: entry.sourceObjectId !== undefined
+                    ? context.resolveObjectById?.(entry.sourceObjectId as number)
+                    : undefined,
+                frame: entry.frame as number,
+                loopNumber: entry.loopNumber as number,
+                frameAccumulator: entry.frameAccumulator as number,
+                damageState: { accumulator: entry.accumulator as number },
+            });
+        }
+        // The counter continues past both the restored ids and any prior
+        // spawns so future spawns can never collide with restored entries.
+        this.nextId = Math.max(this.nextId, candidate.nextId as number);
     }
 
     update(host: AresAnimationDamageRuntimeHost): void {

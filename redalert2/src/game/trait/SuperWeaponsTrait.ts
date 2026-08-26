@@ -1,4 +1,5 @@
 import { NotifyWarpChange } from "@/game/trait/interface/NotifyWarpChange";
+import { fnv32aStrings } from "@/util/math";
 import { SuperWeapon, SuperWeaponStatus } from "@/game/SuperWeapon";
 import { SuperWeaponEffect, EffectStatus } from "@/game/superweapon/SuperWeaponEffect";
 import { NotifyPower } from "@/game/trait/interface/NotifyPower";
@@ -81,6 +82,26 @@ export class SuperWeaponsTrait {
         return this.effects.some((effect) =>
             effect.status !== EffectStatus.Finished && effect.type === type,
         );
+    }
+    /**
+     * Canonical state: every active superweapon effect carries phase/timer
+     * state that changes future ticks, and a pending ChronoSphere source
+     * decides where the dependent ChronoWarp teleports from. Effects are
+     * hashed in creation order, which is deterministic.
+     */
+    getHash(): number {
+        return fnv32aStrings([
+            "SuperWeaponsTrait",
+            ...this.effects.flatMap((effect) => {
+                const source = this.chronoSphereSources.get(effect);
+                return [
+                    effect.getHash(),
+                    source ? String(effect.type) : "",
+                    source?.tile?.rx ?? -1,
+                    source?.tile?.ry ?? -1,
+                ];
+            }),
+        ]);
     }
     [NotifyTick.onTick](t: any) {
         const aresAvailabilityRules = this.getAresAvailabilityRules(t);

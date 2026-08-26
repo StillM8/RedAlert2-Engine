@@ -1,4 +1,5 @@
 import { ObjectType } from "@/engine/type/ObjectType";
+import { fnv32aStrings } from "@/util/math";
 import type { AresSuperWeaponDefinition } from "@/extensions/ares/AresSuperWeapons";
 import { VeteranLevel } from "@/game/gameobject/unit/VeteranLevel";
 import { SpeedType } from "@/game/type/SpeedType";
@@ -148,6 +149,9 @@ export function applyAresDropPodVeterancy(object: any, veterancy: number, vetera
  */
 export class DropPodEffect extends SuperWeaponEffect {
     private completed = false;
+    getHash(): number {
+        return fnv32aStrings(["DropPodEffect", super.getHash(), this.completed ? 1 : 0]);
+    }
 
     constructor(
         type: string,

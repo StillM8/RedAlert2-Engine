@@ -1,4 +1,5 @@
 import { Coords } from "@/game/Coords";
+import { fnv32aStrings } from "@/util/math";
 import { Vector2 } from "@/game/math/Vector2";
 import { Vector3 } from "@/game/math/Vector3";
 import * as geometry from "@/game/math/geometry";
@@ -280,6 +281,19 @@ export class EMPulseEffect extends SuperWeaponEffect {
     private launchSites: EmpulseBuilding[] = [];
     private pendingFrames = 0;
     private launched = false;
+    getHash(): number {
+        return fnv32aStrings([
+            "EMPulseEffect",
+            super.getHash(),
+            this.pendingFrames,
+            this.launched ? 1 : 0,
+            ...this.launchSites.flatMap((site) => [
+                String(site.id ?? -1),
+                site.tile?.rx ?? site.centerTile?.rx ?? -1,
+                site.tile?.ry ?? site.centerTile?.ry ?? -1,
+            ]),
+        ]);
+    }
 
     constructor(
         type: any,

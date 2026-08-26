@@ -1,4 +1,5 @@
 import { DeathType } from "@/game/gameobject/common/DeathType";
+import { fnv32aStrings } from "@/util/math";
 import { StanceType } from "@/game/gameobject/infantry/StanceType";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
@@ -21,6 +22,22 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         destTile: any;
     }> = [];
     private delayTicks: number = 0;
+    getHash(): number {
+        // The destination cell, the teleport manifest, and the two-stage
+        // delay are all future-affecting; objects enter by deterministic id.
+        return fnv32aStrings([
+            "ChronoSphereEffect",
+            super.getHash(),
+            this.tile2?.rx ?? -1,
+            this.tile2?.ry ?? -1,
+            this.delayTicks,
+            ...this.objectsToTeleport.flatMap((entry) => [
+                entry.obj?.id ?? -1,
+                entry.destTile?.rx ?? -1,
+                entry.destTile?.ry ?? -1,
+            ]),
+        ]);
+    }
     constructor(
         e: any,
         t: any,

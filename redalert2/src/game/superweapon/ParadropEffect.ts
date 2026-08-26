@@ -1,4 +1,5 @@
 import { Coords } from "@/game/Coords";
+import { fnv32aStrings } from "@/util/math";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { Infantry } from "@/game/gameobject/Infantry";
 import { StanceType } from "@/game/gameobject/infantry/StanceType";
@@ -30,6 +31,21 @@ export class ParadropEffect extends SuperWeaponEffect {
     private passengerCount: number;
     private targetTile: any;
     private pdPlane: any;
+    getHash(): number {
+        // Spawn state machine, remaining delay, and the live aircraft
+        // identity decide all subsequent paradrop ticks.
+        return fnv32aStrings([
+            "ParadropEffect",
+            super.getHash(),
+            this.state,
+            this.failedAttempts,
+            this.spawnDelay,
+            this.passengerCount,
+            this.targetTile?.rx ?? -1,
+            this.targetTile?.ry ?? -1,
+            this.pdPlane?.id ?? -1,
+        ]);
+    }
     constructor(e: any, t: any, i: any, r: any, s: number) {
         super(e, t, i);
         this.paradropSquad = r;
