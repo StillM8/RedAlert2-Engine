@@ -10,6 +10,26 @@ import { Warhead } from "@/game/Warhead";
 import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
 import { AresFirestormWallStateChangeEvent } from "@/game/event/AresFirestormWallStateChangeEvent";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
+import { fnv32aStrings } from "@/util/math";
+
+export const ARES_FIRESTORM_WALL_STATE_VERSION = 1 as const;
+
+/** Versioned state for the wall's active latch and flicker cooldown. */
+export interface AresFirestormWallState {
+    readonly version: typeof ARES_FIRESTORM_WALL_STATE_VERSION;
+    /**
+     * Last known active state. Derived from the charge-drain superweapon,
+     * but the state-change event fires only on transitions, so the previous
+     * value decides whether a dispatch happens after a snapshot restore.
+     */
+    readonly active: boolean;
+    /**
+     * Remaining frames before the wall may consume the game RNG again for a
+     * wall-flicker roll. Because it gates `generateRandom` consumption, a
+     * diverged cooldown desynchronizes the entire deterministic RNG stream.
+     */
+    readonly flickerCooldownTicks: number;
+}
 
 /**
  * Runtime state for a BuildingType with Firestorm.Wall=yes.
@@ -72,6 +92,46 @@ export class AresFirestormWallTrait implements NotifySpawn, NotifyUnspawn, Notif
             ));
             this.flickerCooldownTicks = 15;
         }
+    }
+
+    getHash(): number {
+        return fnv32aStrings([
+            "AresFirestormWallTrait",
+            this.active ? 1 : 0,
+            this.flickerCooldownTicks,
+        ]);
+    }
+
+    serializeState(): AresFirestormWallState {
+        return {
+            version: ARES_FIRESTORM_WALL_STATE_VERSION,
+            active: this.active,
+            flickerCooldownTicks: this.flickerCooldownTicks,
+        };
+    }
+
+    /**
+     * Replaces both fields only after the payload validates. An invalid
+     * payload throws instead of mutating, so a corrupt snapshot cannot leave
+     * the trait half-restored.
+     */
+    restoreState(state: unknown): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid Ares Firestorm wall state: expected an object");
+        }
+        const candidate = state as Record<string, unknown>;
+        if (candidate.version !== ARES_FIRESTORM_WALL_STATE_VERSION) {
+            throw new Error(`Unsupported Ares Firestorm wall state version: ${String(candidate.version)}`);
+        }
+        if (typeof candidate.active !== "boolean") {
+            throw new Error("Invalid Ares Firestorm wall state: active must be a boolean");
+        }
+        const cooldown = candidate.flickerCooldownTicks;
+        if (!Number.isSafeInteger(cooldown) || (cooldown as number) < 0) {
+            throw new Error("Invalid Ares Firestorm wall state: flickerCooldownTicks must be a non-negative integer");
+        }
+        this.active = candidate.active;
+        this.flickerCooldownTicks = cooldown as number;
     }
 
     private updateConnections(building: any, map: any): void {
