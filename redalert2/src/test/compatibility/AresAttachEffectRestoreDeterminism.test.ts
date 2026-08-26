@@ -39,8 +39,8 @@ function definition(overrides: Partial<AresAttachEffectDefinition> = {}): AresAt
 const sovietPlayer = { name: "Soviet", id: 1 };
 const alliedPlayer = { name: "Allied", id: 2 };
 
-function resolvePlayer(name: string): unknown {
-    return [sovietPlayer, alliedPlayer].find(player => player.name === name);
+function resolvePlayerByIndex(index: number): unknown {
+    return index === 0 ? sovietPlayer : index === 1 ? alliedPlayer : undefined;
 }
 
 describe("Ares AttachEffect deterministic restore", () => {
@@ -105,14 +105,20 @@ describe("Ares AttachEffect deterministic restore", () => {
                 occurrence: 0,
                 accumulator: 3.5,
                 frameAccumulator: 0.25,
-                sourcePlayerName: "Soviet",
+                // Canonical identity: Soviet's deterministic PlayerList index.
+                sourcePlayerIndex: 0,
             }],
             origins: [{ effectId: "burn", kind: "warhead", ownerName: "FireWall" }],
         });
 
-        const restored = new AresAttachEffectTrait();
+        // Production traits always carry the index resolver (wired from the
+        // PlayerList), so re-snapshotting keeps the canonical identity.
+        const restored = new AresAttachEffectTrait({
+            getPlayerIndex: (player: any) =>
+                player === sovietPlayer ? 0 : player === alliedPlayer ? 1 : undefined,
+        });
         restored.restoreState(snapshotState, {
-            resolvePlayer,
+            resolvePlayerByIndex,
             resolveDefinition: () => definition({ duration: -1 }),
         });
 
@@ -122,8 +128,30 @@ describe("Ares AttachEffect deterministic restore", () => {
         expect(states?.[0]?.sourcePlayer).toBe(sovietPlayer);
         expect(states?.[0]?.accumulator).toBeCloseTo(3.5, 10);
 
-        // Re-snapshotting preserves both the value and the stable name.
-        expect(restored.serializeState().animationDamage?.[0]?.sourcePlayerName).toBe("Soviet");
+        // Re-snapshotting preserves the canonical index identity.
+        expect(restored.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(0);
+    });
+
+    test("legacy name-based snapshots still resolve via the fallback resolver", () => {
+        const legacySnapshot = serializeAresAttachEffectExtensionState({
+            instances: [{ effectId: "burn", remainingFrames: -1, discardOnEntry: false }],
+            automaticPhase: "inactive",
+            automaticRemainingDelay: 0,
+            animationDamage: [{
+                effectId: "burn",
+                occurrence: 0,
+                accumulator: 1,
+                frameAccumulator: 0,
+                sourcePlayerName: "Soviet",
+            }],
+            origins: [],
+        });
+        const restored = new AresAttachEffectTrait();
+        restored.restoreState(legacySnapshot, {
+            resolvePlayerByName: (name) => (name === "Soviet" ? sovietPlayer : undefined),
+        });
+        const states = (restored as any).animationDamageState.get("burn");
+        expect(states?.[0]?.sourcePlayer).toBe(sovietPlayer);
     });
 
     test("restored and live traits advance with identical state across expiry/renewal", () => {
@@ -186,7 +214,7 @@ describe("Ares AttachEffect deterministic restore", () => {
     });
 
     test("hash diverges when restored damage attribution differs", () => {
-        const make = (attacker: string | undefined): AresAttachEffectTrait => {
+        const make = (attackerIndex: number | undefined): AresAttachEffectTrait => {
             const trait = new AresAttachEffectTrait();
             trait.restoreState({
                 version: 1,
@@ -198,14 +226,14 @@ describe("Ares AttachEffect deterministic restore", () => {
                     occurrence: 0,
                     accumulator: 2,
                     frameAccumulator: 0,
-                    ...(attacker ? { sourcePlayerName: attacker } : {}),
+                    ...(attackerIndex !== undefined ? { sourcePlayerIndex: attackerIndex } : {}),
                 }],
                 origins: [],
-            }, { resolvePlayer });
+            }, { resolvePlayerByIndex });
             return trait;
         };
-        expect(make("Soviet").getHash()).not.toBe(make("Allied").getHash());
-        expect(make("Soviet").getHash()).not.toBe(make(undefined).getHash());
+        expect(make(0).getHash()).not.toBe(make(1).getHash());
+        expect(make(0).getHash()).not.toBe(make(undefined).getHash());
     });
 
     test("codec rejects duplicate damage entries and duplicate origins transactionally", () => {

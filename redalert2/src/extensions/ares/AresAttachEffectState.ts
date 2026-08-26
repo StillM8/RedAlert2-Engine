@@ -16,10 +16,17 @@ export interface AresAttachEffectDamageStateSnapshot {
     readonly accumulator: number;
     readonly frameAccumulator: number;
     /**
-     * Stable house identity of the attacker whose effect is dealing this
-     * damage; resolved back to the live Player during restore. Absent means
+     * Canonical house identity of the attacker whose effect is dealing this
+     * damage: the player's index in the deterministic PlayerList order.
+     * Resolved back to the live Player during restore. Absent means
      * attribution already fell back to the target's owner.
+     *
+     * sourcePlayerName is retained only to read legacy snapshots; names are
+     * display strings (getPlayerByName returns the FIRST match) and must not
+     * be used as a savegame foreign key for new state.
      */
+    readonly sourcePlayerIndex?: number;
+    /** Legacy field from earlier snapshots; superseded by sourcePlayerIndex. */
     readonly sourcePlayerName?: string;
 }
 
@@ -62,8 +69,14 @@ export type AresAttachEffectResolvedDefinition =
     | undefined;
 
 export interface AresAttachEffectRestoreContext {
-    /** Resolve a stable house name back to the live player object. */
-    resolvePlayer?(name: string): unknown;
+    /**
+     * Resolve a canonical player index (PlayerList order) back to the live
+     * player object. Returns undefined for an out-of-range index so corrupt
+     * snapshots degrade instead of throwing mid-restore.
+     */
+    resolvePlayerByIndex?(index: number): unknown;
+    /** Legacy name-based resolution for pre-index snapshots. */
+    resolvePlayerByName?(name: string): unknown;
     /**
      * Resolve an authored AttachEffect definition from its rules origin.
      * Return undefined when the rules no longer define it (mod change);
@@ -193,6 +206,10 @@ function normalizeAnimationDamage(
             (candidate.frameAccumulator as number) < 0) {
             throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid frame accumulator`);
         }
+        if (candidate.sourcePlayerIndex !== undefined &&
+            (!Number.isSafeInteger(candidate.sourcePlayerIndex) || (candidate.sourcePlayerIndex as number) < 0)) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid source player index`);
+        }
         if (candidate.sourcePlayerName !== undefined &&
             (typeof candidate.sourcePlayerName !== "string" || (candidate.sourcePlayerName as string).length === 0)) {
             throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid source player`);
@@ -202,6 +219,9 @@ function normalizeAnimationDamage(
             occurrence: candidate.occurrence as number,
             accumulator: candidate.accumulator as number,
             frameAccumulator: candidate.frameAccumulator as number,
+            ...(candidate.sourcePlayerIndex !== undefined
+                ? { sourcePlayerIndex: candidate.sourcePlayerIndex as number }
+                : {}),
             ...(candidate.sourcePlayerName !== undefined
                 ? { sourcePlayerName: candidate.sourcePlayerName as string }
                 : {}),
@@ -289,12 +309,22 @@ export function restoreAresAttachEffectExtensionState(
         new Map<string, { accumulator: number; frameAccumulator: number; sourcePlayer?: unknown }[]>();
     for (const entry of animationDamage) {
         const queue = target.animationDamage.get(entry.effectId) ?? [];
+        // Canonical identity first (PlayerList index); legacy name fallback
+        // keeps older snapshots loadable. An unresolvable identity leaves
+        // attribution unset rather than failing the whole restore — the
+        // runtime then falls back to the target's owner, exactly as a live
+        // effect applied without a source player does.
+        let resolvedSource: unknown;
+        if (entry.sourcePlayerIndex !== undefined && context.resolvePlayerByIndex) {
+            resolvedSource = context.resolvePlayerByIndex(entry.sourcePlayerIndex);
+        }
+        else if (entry.sourcePlayerName !== undefined && context.resolvePlayerByName) {
+            resolvedSource = context.resolvePlayerByName(entry.sourcePlayerName);
+        }
         queue[entry.occurrence] = {
             accumulator: entry.accumulator,
             frameAccumulator: entry.frameAccumulator,
-            ...(entry.sourcePlayerName !== undefined && context.resolvePlayer
-                ? { sourcePlayer: context.resolvePlayer(entry.sourcePlayerName) }
-                : {}),
+            ...(resolvedSource !== undefined ? { sourcePlayer: resolvedSource } : {}),
         };
         target.animationDamage.set(entry.effectId, queue);
     }

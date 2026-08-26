@@ -46,12 +46,6 @@ function effectDefinition(overrides: Partial<AresAttachEffectDefinition> = {}): 
     };
 }
 
-const sovietPlayer = { name: "Soviet", id: 1 };
-const alliedPlayer = { name: "Allied", id: 2 };
-function resolvePlayer(name: string): unknown {
-    return [sovietPlayer, alliedPlayer].find(player => player.name === name);
-}
-
 /** Applies deterministic gameplay inputs: credits and effect mutations. */
 const standardInputEffect: InputEffect = (world, input) => {
     const player = world.players[input.value % world.players.length];
@@ -139,7 +133,10 @@ describe("deterministic restore qualification (behavioral)", () => {
                 .find((candidate: any) => candidate.id === entry.objectId);
             expect(object).toBeDefined();
             object.aresAttachEffectTrait.restoreState(entry.state, {
-                resolvePlayer,
+                // Canonical identity: PlayerList order is identical across
+                // both worlds, so index resolution lands on the restored
+                // world's own Player objects.
+                resolvePlayerByIndex: (index: number) => restored.players[index],
                 resolveDefinition: (kind: string, ownerName: string) => {
                     if (kind === "warhead") {
                         // Same authored data the live branch applied.
@@ -203,8 +200,9 @@ describe("deterministic restore qualification (behavioral)", () => {
         for (const entry of snapshots) {
             const object = brokenRestore.game.world.getAllObjects()
                 .find((candidate: any) => candidate.id === entry.id);
-            // Deliberately omit resolveDefinition: definitions stay empty.
-            object.aresAttachEffectTrait.restoreState(entry.state, { resolvePlayer });
+            // Deliberately omit resolveDefinition and the player resolver:
+            // definitions stay empty and attribution degrades to the victim.
+            object.aresAttachEffectTrait.restoreState(entry.state, {});
         }
         // The breakage precondition: the broken trait lost its non-automatic
         // definitions while live still holds them.

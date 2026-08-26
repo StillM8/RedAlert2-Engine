@@ -40,6 +40,12 @@ export interface AresAttachEffectTraitOptions {
     instances?: readonly AresAttachEffectInstance[];
     /** Optional TechnoType-owned effect that is scheduled from spawn onward. */
     automaticEffect?: AresAttachEffectBinding;
+    /**
+     * Resolves a live player to its canonical snapshot identity (PlayerList
+     * index). Supplied by the save host; when absent, damage attribution
+     * falls back to the legacy name field.
+     */
+    getPlayerIndex?(player: any): number | undefined;
 }
 
 /**
@@ -105,6 +111,7 @@ export interface AresAttachEffectPresentation {
  */
 export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUnspawn {
     private readonly gameObject?: any;
+    private readonly getPlayerIndex?: (player: any) => number | undefined;
     private instances: AresAttachEffectInstance[];
     private definitions: Map<AresAttachEffectId, AresAttachEffectDefinition>;
     /** Authored origin per held effectId for snapshot rebinding. */
@@ -118,6 +125,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
         this.gameObject = options.gameObject;
+        this.getPlayerIndex = options.getPlayerIndex;
         this.instances = (options.instances ?? []).map(instance => ({ ...instance }));
         this.definitions = new Map(options.definitions ?? []);
         this.automaticEffect = options.automaticEffect;
@@ -206,13 +214,23 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 const hasAccumulator = state.accumulator !== 0 || state.frameAccumulator !== 0;
                 const hasSource = state.sourcePlayer !== undefined && state.sourcePlayer !== null;
                 if (!hasAccumulator && !hasSource) return;
+                // Canonical identity is the deterministic PlayerList index.
+                // The legacy name field is written alongside only when no
+                // index resolver exists (host without player-list access),
+                // so older snapshots remain loadable either way.
+                const index = hasSource ? this.getPlayerIndex?.(state.sourcePlayer) : undefined;
                 snapshots.push({
                     effectId,
                     occurrence,
                     accumulator: state.accumulator,
                     frameAccumulator: state.frameAccumulator,
                     ...(hasSource
-                        ? { sourcePlayerName: String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "") }
+                        ? {
+                            ...(index !== undefined ? { sourcePlayerIndex: index } : {}),
+                            ...(index === undefined
+                                ? { sourcePlayerName: String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "") }
+                                : {}),
+                        }
                         : {}),
                 });
             });
@@ -224,8 +242,10 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
      * Restore active effects, the automatic scheduler, damage attribution,
      * and effect definitions as one state unit.
      *
-     * `context.resolvePlayer` maps snapshot house names back to live Player
-     * objects; `context.resolveDefinition` rebinds each held effect to its
+     * `context.resolvePlayerByIndex` maps snapshot player indexes (the
+     * canonical PlayerList-order identity) back to live Player objects;
+     * `context.resolvePlayerByName` is the legacy fallback for older
+     * snapshots. `context.resolveDefinition` rebinds each held effect to its
      * authored definition from rules. Without a resolver the definitions map
      * stays empty and restored effects are present but inert — the same
      * observable behavior as a live trait that never received the effect.

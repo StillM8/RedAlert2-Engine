@@ -122,11 +122,16 @@ export function createQualifiedWorld(options: WorldSeedOptions): QualifiedWorld 
     game.lastGameEndCheck = Number.MAX_SAFE_INTEGER;
 
     // Optional AttachEffect wiring uses the production trait registration
-    // shape (automatic binding keyed by object name).
+    // shape (automatic binding keyed by object name) including the
+    // PlayerList-index identity resolver used for damage attribution.
     if (options.attachEffectDefinition && options.attachAutomaticEffectId) {
         for (const object of world.getAllObjects()) {
             const trait = new AresAttachEffectTrait({
                 gameObject: object,
+                getPlayerIndex: (player: any) => {
+                    const index = players.indexOf(player);
+                    return index === -1 ? undefined : index;
+                },
                 automaticEffect: {
                     effectId: `${options.attachAutomaticEffectId}-${object.id}`,
                     definition: options.attachEffectDefinition,

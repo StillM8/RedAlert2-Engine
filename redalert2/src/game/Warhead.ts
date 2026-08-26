@@ -748,7 +748,16 @@ export class Warhead {
             }
         }
         if (!techno.aresAttachEffectTrait) {
-            const trait = new AresAttachEffectTrait({ gameObject: techno });
+            const trait = new AresAttachEffectTrait({
+                gameObject: techno,
+                // Canonical snapshot identity for damage attribution: the
+                // player's index in the deterministic PlayerList order.
+                getPlayerIndex: (player: Player) => {
+                    const players = gameWorld.getAllPlayers?.() ?? [];
+                    const index = players.indexOf(player);
+                    return index === -1 ? undefined : index;
+                },
+            });
             techno.aresAttachEffectTrait = trait;
             if (gameWorld.addObjectTrait) {
                 gameWorld.addObjectTrait(techno, trait);
