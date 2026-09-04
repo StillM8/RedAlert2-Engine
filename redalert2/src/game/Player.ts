@@ -118,6 +118,9 @@ export class Player {
         return this.getOrCreateObjectsForType(ObjectType.Building);
     }
     addUnitsBuilt(object: PlayerOwnedObject, count: number): void {
+        if (!Number.isSafeInteger(count) || count < 0) {
+            throw new RangeError("Units-built count must be a non-negative integer");
+        }
         this.unitsBuiltByType.set(object.type, (this.unitsBuiltByType.get(object.type) ?? 0) + count);
         if (object.buildLimit < 0) {
             this.limitedUnitsBuiltByName.set(object.name, (this.limitedUnitsBuiltByName.get(object.name) ?? 0) + count);
@@ -163,8 +166,18 @@ export class Player {
             this.country.hasVeteranUnit(object.type, object.name));
     }
     getHash(): number {
+        const negativeBuildLimitHistory: (string | number)[] = [
+            "negative-build-limit-history",
+            this.limitedUnitsBuiltByName.size,
+        ];
+        for (const [name, count] of [...this.limitedUnitsBuiltByName.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))) {
+            negativeBuildLimitHistory.push(name, count);
+        }
         return fnv32aStrings([
             "player",
+            "player-list-index",
+            this.playerListIndex,
             this.credits,
             this.country?.id ?? "",
             this.country?.sideId ?? "",
@@ -174,6 +187,7 @@ export class Player {
             this.defeated ? 1 : 0,
             this.score,
             this.aresFirestormActive ? 1 : 0,
+            ...negativeBuildLimitHistory,
             this.production?.getHash?.() ?? 0,
             // Superweapon readiness/charge timers change future simulation
             // (a ready SW can fire this tick) so they are canonical state.

@@ -1,4 +1,10 @@
-import { QueueType, ProductionQueue } from './ProductionQueue';
+import {
+    QueueType,
+    ProductionQueue,
+    type ProductionQueueState,
+    type ProductionQueueRestoreContext,
+    type QueueRestorePlan,
+} from './ProductionQueue';
 import { BuildCat, FactoryType } from '../../rules/TechnoRules';
 import { ObjectType } from '@/engine/type/ObjectType';
 import { EventDispatcher } from '@/util/event';
@@ -12,6 +18,18 @@ import {
     serializeAresProductionExtensionState,
     type AresProductionExtensionState,
 } from '@/extensions/ares/AresProductionState';
+
+export const PRODUCTION_STATE_VERSION = 1 as const;
+
+export interface ProductionState {
+    readonly version: typeof PRODUCTION_STATE_VERSION;
+    readonly extension: AresProductionExtensionState;
+    /** Mutable power/production modifier consumed by the next queue tick. */
+    readonly buildSpeedModifier: number;
+    readonly queues: readonly ProductionQueueState[];
+}
+
+export interface ProductionRestoreContext extends ProductionQueueRestoreContext {}
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -346,6 +364,81 @@ export class Production {
             reverseEngineeredPlans: this.reverseEngineeredPlans ?? [],
         });
     }
+
+    /** Complete canonical production state, including ordered queue progress. */
+    captureState(): ProductionState {
+        return {
+            version: PRODUCTION_STATE_VERSION,
+            extension: this.serializeState(),
+            buildSpeedModifier: this.buildSpeedModifier,
+            queues: this.getAllQueues()
+                .slice()
+                .sort((a, b) => a.type - b.type)
+                .map(queue => queue.captureState()),
+        };
+    }
+
+    /**
+     * Transactional full production restore. Every queue and extension set is
+     * prepared before any live queue or Ares collection is changed.
+     */
+    restoreDeterministicState(state: unknown, context: ProductionRestoreContext = {}): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid production state: expected an object");
+        }
+        const candidate = state as Record<string, unknown>;
+        if (candidate.version !== PRODUCTION_STATE_VERSION) {
+            throw new Error(`Unsupported production state version: ${String(candidate.version)}`);
+        }
+        if (!Array.isArray(candidate.queues)) {
+            throw new Error("Invalid production state: queues must be an array");
+        }
+        if (typeof candidate.buildSpeedModifier !== "number" ||
+            !Number.isFinite(candidate.buildSpeedModifier) || candidate.buildSpeedModifier < 0) {
+            throw new Error("Invalid production state: buildSpeedModifier");
+        }
+
+        const extensionTarget = {
+            stolenTech: new Set<number | SideId>(),
+            permanentFactoryOwnerPlans: new Set<string>(),
+            reverseEngineeredPlans: new Set<string>(),
+        };
+        restoreAresProductionExtensionState(extensionTarget, candidate.extension);
+
+        const queueByType = new Map<QueueType, ProductionQueue>();
+        for (const queue of this.getAllQueues()) queueByType.set(queue.type, queue);
+        const plans: Array<{ queue: ProductionQueue; plan: QueueRestorePlan }> = [];
+        const seenTypes = new Set<QueueType>();
+        for (const rawQueue of candidate.queues) {
+            if (typeof rawQueue !== "object" || rawQueue === null) {
+                throw new Error("Invalid production state: queue must be an object");
+            }
+            const type = (rawQueue as { type?: unknown }).type;
+            if (!Number.isSafeInteger(type) || !queueByType.has(type as QueueType)) {
+                throw new Error(`Invalid production state: unknown queue type ${String(type)}`);
+            }
+            if (seenTypes.has(type as QueueType)) {
+                throw new Error(`Invalid production state: duplicate queue type ${type}`);
+            }
+            seenTypes.add(type as QueueType);
+            const queue = queueByType.get(type as QueueType)!;
+            const plan = queue.prepareRestoreState(rawQueue, {
+                ...context,
+                resolveRules: context.resolveRules ?? ((name) => this.resolveRulesForQueue(type as QueueType, name)),
+            });
+            plans.push({ queue, plan });
+        }
+        if (seenTypes.size !== queueByType.size) {
+            throw new Error("Invalid production state: queue set is incomplete");
+        }
+
+        // Commit point: all extension and queue state is now validated and
+        // all authored rules have been resolved (in strict mode).
+        for (const { queue, plan } of plans) queue.applyRestorePlan(plan);
+        this.buildSpeedModifier = candidate.buildSpeedModifier as number;
+        this.replaceExtensionState(extensionTarget);
+        for (const { queue } of plans) queue.notifyUpdated();
+    }
     restoreState(state: unknown): void {
         if (!this.stolenTech) {
             this.stolenTech = new Set();
@@ -362,16 +455,12 @@ export class Production {
             reverseEngineeredPlans: this.reverseEngineeredPlans,
         }, state);
     }
-    /**
-     * Hashes extension-owned production state that changes the effective
-     * rules available to this player. Queue state is intentionally not added
-     * here because it is represented by the existing action/replay flow.
-     */
+    /** Hashes all future-affecting production state in stable queue order. */
     getHash(): number {
         const state = this.serializeState();
         const stolenTech = state.stolenTechs
             .map(value => `${typeof value === "number" ? "number" : "side"}:${value}`);
-        return fnv32aStrings([
+        const hashParts: (string | number)[] = [
             "production-extension-state",
             "stolen-tech",
             ...stolenTech,
@@ -379,7 +468,17 @@ export class Production {
             ...state.permanentFactoryOwnerPlans,
             "reverse-engineered-plans",
             ...state.reverseEngineeredPlans,
-        ]);
+            "build-speed-modifier",
+            this.buildSpeedModifier,
+            "queues",
+        ];
+        // Some extension-only callers construct a prototype-shaped Production
+        // with just the Ares sets; keep that narrow compatibility boundary
+        // hashable while real productions always carry their queue map.
+        for (const queue of (this.queues ? this.getAllQueues() : []).slice().sort((a, b) => a.type - b.type)) {
+            hashParts.push(queue.getHash());
+        }
+        return fnv32aStrings(hashParts);
     }
     debugGetState(): {
         stolenTechs: Array<number | SideId>;
@@ -399,5 +498,41 @@ export class Production {
         this.permanentFactoryOwnerPlans.clear();
         this.reverseEngineeredPlans.clear();
         this.player = undefined;
+    }
+
+    private replaceExtensionState(state: {
+        stolenTech: Set<number | SideId>;
+        permanentFactoryOwnerPlans: Set<string>;
+        reverseEngineeredPlans: Set<string>;
+    }): void {
+        this.stolenTech.clear();
+        for (const value of state.stolenTech) this.stolenTech.add(value);
+        this.permanentFactoryOwnerPlans.clear();
+        for (const value of state.permanentFactoryOwnerPlans) this.permanentFactoryOwnerPlans.add(value);
+        this.reverseEngineeredPlans.clear();
+        for (const value of state.reverseEngineeredPlans) this.reverseEngineeredPlans.add(value);
+    }
+
+    private resolveRulesForQueue(type: QueueType, name: string): unknown {
+        const objectType = type === QueueType.Structures || type === QueueType.Armory
+            ? ObjectType.Building
+            : type === QueueType.Infantry
+                ? ObjectType.Infantry
+                : type === QueueType.Vehicles || type === QueueType.Ships
+                    ? ObjectType.Vehicle
+                    : ObjectType.Aircraft;
+        try {
+            return this.rules?.getObject?.(name, objectType);
+        }
+        catch {
+            const rulesMap = objectType === ObjectType.Building
+                ? this.rules?.buildingRules
+                : objectType === ObjectType.Infantry
+                    ? this.rules?.infantryRules
+                    : objectType === ObjectType.Vehicle
+                        ? this.rules?.vehicleRules
+                        : this.rules?.aircraftRules;
+            return rulesMap?.get?.(name);
+        }
     }
 }
