@@ -905,13 +905,17 @@ export class Game {
         const bountyAward = resolveAresBountyAward(this, killer, obj);
         if (bountyAward) {
             const bountyTransaction = applyAresBountyAward(bountyAward);
-            if (bountyTransaction.display && bountyTransaction.appliedAmount !== 0) {
+            // Antares records the authored signed bounty for presentation,
+            // while the credit ledger applies the clamped transaction delta.
+            // Keep those two values distinct when a negative bounty exceeds
+            // the killer's available credits.
+            if (bountyTransaction.display && bountyTransaction.amount !== 0) {
                 const position = obj.position?.worldPosition?.clone?.() ?? obj.position?.worldPosition;
                 this.events.dispatch(new AresBountyAwardEvent(
                     bountyTransaction.player,
                     bountyTransaction.source,
                     bountyTransaction.target,
-                    bountyTransaction.appliedAmount,
+                    bountyTransaction.amount,
                     position,
                 ));
             }

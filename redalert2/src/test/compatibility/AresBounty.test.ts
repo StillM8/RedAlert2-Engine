@@ -223,4 +223,23 @@ describe("Ares Bounty", () => {
         });
         expect(hunterOwner.credits).toBe(250);
     });
+
+    test("keeps the authored negative amount for display when credits clamp", () => {
+        const hunterOwner = player("Hunter", true, 10);
+        const victimOwner = player("Victim");
+        const hunter = techno(hunterOwner, {
+            aresBounty: { enabled: true, value: 0, rookieValue: 0, veteranValue: 0, eliteValue: 0, display: true },
+        });
+        const victim = techno(victimOwner, {
+            aresBounty: { enabled: false, value: -50, rookieValue: -50, veteranValue: -50, eliteValue: -50 },
+        });
+        const game = gameFor(hunter, victim);
+        const events: any[] = [];
+        game.events = { dispatch: (event: any) => events.push(event) };
+
+        game.destroyObject(victim, { player: hunterOwner, obj: hunter });
+
+        expect(hunterOwner.credits).toBe(0);
+        expect(events.find(event => event.type === EventType.AresBountyAward)?.amount).toBe(-50);
+    });
 });

@@ -2,7 +2,10 @@ import { EventType } from "./EventType";
 
 /**
  * Published after the deterministic Ares bounty transaction succeeds and
- * before the victim is removed from the world. The position is a snapshot so
+ * before the victim is removed from the world. `amount` is the authored
+ * signed bounty value used by Ares presentation; the clamped ledger delta is
+ * intentionally kept on the transaction returned by AresBounty instead of
+ * being mislabeled as the display amount. The position is a snapshot so
  * presentation consumers do not depend on the victim's later lifecycle.
  */
 export class AresBountyAwardEvent {
