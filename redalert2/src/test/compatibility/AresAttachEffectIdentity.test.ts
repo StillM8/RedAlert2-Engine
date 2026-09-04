@@ -37,8 +37,9 @@ describe("Ares AttachEffect identity audit", () => {
         });
 
         // Automatic and warhead origins currently share the authored source
-        // name as their effect key. This is a reproduced aliasing behavior,
-        // not silently redefined here without Ares/Antares reference proof.
+        // name as their effect key. The Antares reference does not establish
+        // simultaneous cross-origin stacking, so preserve this namespace and
+        // its refresh behavior rather than inventing a new stacking rule.
         expect(result.decision).toBe("reapplied");
         expect(trait.getState()).toHaveLength(1);
         expect(trait.serializeState().origins).toEqual([{
@@ -57,10 +58,9 @@ describe("Ares AttachEffect identity audit", () => {
         trait.apply("Burn", definition({ animation: "BurnAnim" }), { sourcePlayer: original });
         trait.apply("Burn", definition({ animation: "BurnAnim" }), { sourcePlayer: latest });
 
-        // The current runtime intentionally carries the previous animation
-        // state through a refresh. Reference behavior for cross-player
-        // reapplication remains an evidence item, so this test prevents an
-        // accidental semantic change while the question is unresolved.
+        // Antares 419626d returns from the non-cumulative refresh path without
+        // replacing the existing effect's invoker, so residual damage remains
+        // attributed to the original applier.
         expect(trait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(0);
     });
 });

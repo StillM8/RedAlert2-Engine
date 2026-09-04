@@ -34,6 +34,9 @@ deterministic qualification must use strict mode.
 
 The AttachEffect identity audit also reproduced a shared source-name key when
 an automatic TechnoType effect and a Warhead effect use the same identifier.
-Current stacking/reapplication behavior is retained pending Ares/Antares
-reference evidence; `AresAttachEffectIdentity.test.ts` records the behavior
-without declaring it correct.
+The Antares `419626d` reference returns early for non-cumulative reapplication
+after refreshing the existing effect, so it does not replace the original
+invoker; `AresAttachEffectIdentity.test.ts` records that preserved residual
+damage attribution. The shared identifier namespace remains unchanged because
+the reference behavior does not establish simultaneous cross-origin stacking
+as a supported case.
