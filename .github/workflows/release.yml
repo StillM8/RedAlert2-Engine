@@ -149,6 +149,7 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          PUBLISH_RELEASE: ${{ needs.prepare.outputs.publish_release }}
         run: |
           set -euo pipefail
           configured=0
@@ -159,19 +160,15 @@ jobs:
             echo "::error::Set all four ANDROID_RELEASE_* secrets or none of them."
             exit 1
           fi
-          export PROD_SIGNING="$configured"
-          python3 - <<'PY'
-          import os, re
-          from pathlib import Path
-          p = Path('android/app/build.gradle.kts')
-          text = p.read_text()
-          text = re.sub(r'versionCode\s*=\s*\d+', f'versionCode = {os.environ["GITHUB_RUN_NUMBER"]}', text, count=1)
-          text = re.sub(r'versionName\s*=\s*"[^"]+"', f'versionName = "{os.environ["RELEASE_VERSION"]}"', text, count=1)
-          if os.environ['PROD_SIGNING'] == '4':
-              text = text.replace('            signingConfig = signingConfigs.getByName("betaDev")\n', '')
-          p.write_text(text)
-          PY
-          [[ "$configured" -eq 4 ]] && echo "mode=production" >> "$GITHUB_OUTPUT" || echo "mode=beta" >> "$GITHUB_OUTPUT"
+          if [[ "$PUBLISH_RELEASE" == "true" && "$configured" -ne 4 ]]; then
+            echo "::error::Published/tagged releases require all four ANDROID_RELEASE_* signing secrets."
+            exit 1
+          fi
+          if [[ "$PUBLISH_RELEASE" == "true" ]]; then
+            echo "mode=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=development" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-java@v4
         with:
@@ -199,7 +196,9 @@ jobs:
 
       - name: Assemble release APK
         working-directory: android
-        run: gradle --no-daemon :app:assembleRelease
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: gradle --no-daemon :app:assembleRelease -PreleaseVersionCode="$GITHUB_RUN_NUMBER" -PreleaseVersionName="$RELEASE_VERSION"
 
       - name: Package and verify installable APK
         shell: bash
@@ -212,7 +211,11 @@ jobs:
           BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
           SIGNED="android/app/build/outputs/apk/release/app-release.apk"
           UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android.apk"
+          if [[ "$SIGNING_MODE" == "production" ]]; then
+            OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android.apk"
+          else
+            OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-DEVELOPMENT-${GITHUB_RUN_NUMBER}-android.apk"
+          fi
 
           if [[ "$SIGNING_MODE" == "production" ]]; then
             [[ -f "$UNSIGNED" ]] || { echo "::error::Unsigned production APK missing"; exit 1; }
@@ -221,13 +224,8 @@ jobs:
             ALIGNED="$RUNNER_TEMP/ra2-aligned.apk"
             "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
             "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" --key-pass "pass:$ANDROID_KEY_PASSWORD" --out "$OUTPUT" "$ALIGNED"
-          elif [[ -f "$SIGNED" ]]; then
-            cp "$SIGNED" "$OUTPUT"
-          elif [[ -f "$UNSIGNED" && -f android/beta-debug.keystore ]]; then
-            ALIGNED="$RUNNER_TEMP/ra2-beta-aligned.apk"
-            "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
-            "$BUILD_TOOLS/apksigner" sign --ks android/beta-debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$OUTPUT" "$ALIGNED"
           elif [[ -f "$UNSIGNED" ]]; then
+            echo "Development APK: unsuitable for the production update line."
             KEYSTORE="$RUNNER_TEMP/ra2-temporary-dev.keystore"
             keytool -genkeypair -keystore "$KEYSTORE" -storepass android -keypass android -alias ra2-dev -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Red Alert 2 Development Build,O=StillM8,C=PK"
             ALIGNED="$RUNNER_TEMP/ra2-temp-aligned.apk"
