@@ -10,12 +10,25 @@ import { SuperWeaponsTrait } from "@/game/player/trait/SuperWeaponsTrait";
  * hashes or the desync goes undetected until gameplay visibly breaks.
  */
 
-function makeWeapon(overrides: Partial<{ status: number; chargeTicks: number; rechargeTicks: number; name: string }> = {}): any {
+function makeWeapon(overrides: Partial<{
+    status: number;
+    chargeTicks: number;
+    rechargeTicks: number;
+    chargeDrainRatio: number;
+    virtualChargeSinceTick?: number;
+    aresBatteryActive: boolean;
+    shotsFired: number;
+    name: string;
+}> = {}): any {
     return {
         name: overrides.name ?? "NukeSpecial",
         status: overrides.status ?? 1,
         chargeTicks: overrides.chargeTicks ?? 100,
         rechargeTicks: overrides.rechargeTicks ?? 500,
+        chargeDrainRatio: overrides.chargeDrainRatio ?? 1,
+        virtualChargeSinceTick: overrides.virtualChargeSinceTick,
+        aresBatteryActive: overrides.aresBatteryActive ?? false,
+        shotsFired: overrides.shotsFired ?? 0,
     };
 }
 
@@ -46,6 +59,22 @@ describe("SuperWeaponsTrait lockstep hash", () => {
         const at99 = new SuperWeaponsTrait();
         at99.add(makeWeapon({ chargeTicks: 99 }));
         expect(at99.getHash()).not.toBe(at100.getHash());
+    });
+
+    test("charge-drain ratio changes the hash even with the same charge timer", () => {
+        const normal = new SuperWeaponsTrait();
+        normal.add(makeWeapon({ chargeDrainRatio: 1 }));
+        const extended = new SuperWeaponsTrait();
+        extended.add(makeWeapon({ chargeDrainRatio: 2 }));
+        expect(extended.getHash()).not.toBe(normal.getHash());
+    });
+
+    test("VirtualCharge pause start changes the hash", () => {
+        const first = new SuperWeaponsTrait();
+        first.add(makeWeapon({ virtualChargeSinceTick: 100 }));
+        const second = new SuperWeaponsTrait();
+        second.add(makeWeapon({ virtualChargeSinceTick: 101 }));
+        expect(second.getHash()).not.toBe(first.getHash());
     });
 
     test("shots-fired divergence changes the hash", () => {

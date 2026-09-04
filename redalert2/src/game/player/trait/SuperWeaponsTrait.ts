@@ -48,9 +48,18 @@ export class SuperWeaponsTrait {
         for (const name of [...this.superWeapons.keys()].sort()) {
             const weapon = this.superWeapons.get(name)!;
             hash = mixString(hash, name);
-            hash = (hash * 31 + (weapon.status ?? 0)) | 0;
-            hash = (hash * 31 + (weapon.chargeTicks ?? 0)) | 0;
-            hash = (hash * 31 + (weapon.rechargeTicks ?? 0)) | 0;
+            if (typeof weapon.getHash === "function") {
+                hash = (hash * 31 + weapon.getHash()) | 0;
+            }
+            else {
+                hash = (hash * 31 + (weapon.status ?? 0)) | 0;
+                hash = (hash * 31 + (weapon.chargeTicks ?? 0)) | 0;
+                hash = (hash * 31 + (weapon.rechargeTicks ?? 0)) | 0;
+                hash = (hash * 31 + (weapon.chargeDrainRatio ?? 1)) | 0;
+                hash = (hash * 31 + (weapon.virtualChargeSinceTick ?? -1)) | 0;
+                hash = (hash * 31 + (weapon.aresBatteryActive ? 1 : 0)) | 0;
+                hash = (hash * 31 + (weapon.shotsFired ?? 0)) | 0;
+            }
             hash = (hash * 31 + (this.aresShotsFired.get(name) ?? 0)) | 0;
         }
         hash = (hash * 31 + this.superWeapons.size) | 0;
