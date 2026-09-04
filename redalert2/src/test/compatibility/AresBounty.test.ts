@@ -4,6 +4,7 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 import {
     awardAresBounty,
+    applyAresBountyAward,
     parseAresBountyGeneralRules,
     parseAresBountyTechnoRules,
     resolveAresBountyAward,
@@ -165,8 +166,27 @@ describe("Ares Bounty", () => {
         expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(0);
 
         game.areFriendly = () => false;
-        expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(-50);
+        expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(-10);
         expect(hunterOwner.credits).toBe(0);
+    });
+
+    test("reports the actually applied amount when a negative bounty exceeds credits", () => {
+        const hunterOwner = player("Hunter", true, 10);
+        const award = {
+            player: hunterOwner,
+            source: {},
+            target: {},
+            amount: -50,
+            display: true,
+        } as any;
+
+        const transaction = applyAresBountyAward(award);
+        expect(transaction).toMatchObject({
+            amount: -50,
+            creditsBefore: 10,
+            creditsAfter: 0,
+            appliedAmount: -10,
+        });
     });
 
     test("publishes a display event from the actual destruction path", () => {

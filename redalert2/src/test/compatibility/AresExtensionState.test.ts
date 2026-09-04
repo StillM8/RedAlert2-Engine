@@ -75,6 +75,37 @@ describe("Ares deterministic extension state", () => {
         expect(weapon.serializeAresState()).toEqual(snapshot);
     });
 
+    test("restored charge drain continues identically from a dirty SuperWeapon", () => {
+        const rules = {
+            rechargeTime: 1,
+            ares: { extensionType: "GenericWarhead" },
+        };
+        const makeWeapon = () => new SuperWeapon("Drain", rules, { credits: 0 });
+        const source = makeWeapon();
+        source.rechargeTicks = 100;
+        source.chargeTicks = 0;
+        source.status = SuperWeaponStatus.Ready;
+        expect(source.startChargeDrain(2)).toBe(true);
+        const game = { events: { dispatch: () => undefined } };
+        for (let tick = 0; tick < 17; tick++) source.update(game);
+        const snapshot = JSON.parse(JSON.stringify(source.serializeAresState()));
+
+        const restored = makeWeapon();
+        restored.rechargeTicks = 100;
+        restored.chargeTicks = 1;
+        restored.status = SuperWeaponStatus.Charging;
+        restored.restoreAresState(snapshot);
+        expect(restored.serializeAresState()).toEqual(snapshot);
+        expect(restored.getHash()).toBe(source.getHash());
+
+        for (let tick = 0; tick < 100; tick++) {
+            source.update(game);
+            restored.update(game);
+            expect(restored.serializeAresState()).toEqual(source.serializeAresState());
+            expect(restored.getHash()).toBe(source.getHash());
+        }
+    });
+
     test("restores AttachEffect instances and automatic scheduling as one unit", () => {
         const state = serializeAresAttachEffectExtensionState({
             instances: [{ effectId: "armor", remainingFrames: 12, discardOnEntry: true }],
@@ -133,6 +164,50 @@ describe("Ares deterministic extension state", () => {
         expect(inertTrait.getState()).toHaveLength(1);
         expect(new AresAttachEffectTrait().getAggregateMultipliers())
             .toEqual(inertTrait.getAggregateMultipliers());
+    });
+
+    test("AttachEffect codec restores transactionally when a later resolver throws", () => {
+        const target = {
+            instances: [{ effectId: "old", remainingFrames: 9, discardOnEntry: false }],
+            automaticPhase: "active" as const,
+            automaticRemainingDelay: 4,
+            animationDamage: new Map([
+                ["old", [{ accumulator: 0.5, frameAccumulator: 0.25, sourcePlayer: { id: 7 } }]],
+            ]),
+            definitions: new Map([["old", { speedMultiplier: 0.8 }]]),
+        };
+        const before = {
+            instances: target.instances.map(instance => ({ ...instance })),
+            automaticPhase: target.automaticPhase,
+            automaticRemainingDelay: target.automaticRemainingDelay,
+            animationDamage: [...target.animationDamage.entries()],
+            definitions: [...target.definitions.entries()],
+        };
+        const state = serializeAresAttachEffectExtensionState({
+            instances: [
+                { effectId: "first", remainingFrames: 10, discardOnEntry: false },
+                { effectId: "second", remainingFrames: 11, discardOnEntry: false },
+            ],
+            automaticPhase: "waiting-renewal",
+            automaticRemainingDelay: 3,
+            origins: [
+                { effectId: "first", kind: "warhead", ownerName: "First" },
+                { effectId: "second", kind: "warhead", ownerName: "Second" },
+            ],
+        });
+        let calls = 0;
+        expect(() => restoreAresAttachEffectExtensionState(target, state, {
+            strict: true,
+            resolveDefinition: () => {
+                if (calls++ === 0) return { speedMultiplier: 0.9 };
+                throw new Error("resolver failed on second origin");
+            },
+        })).toThrow(/second origin/);
+        expect(target.instances).toEqual(before.instances);
+        expect(target.automaticPhase).toBe(before.automaticPhase);
+        expect(target.automaticRemainingDelay).toBe(before.automaticRemainingDelay);
+        expect([...target.animationDamage.entries()]).toEqual(before.animationDamage);
+        expect([...target.definitions.entries()]).toEqual(before.definitions);
     });
 
     test("round-trips pending animation damage accumulation through the snapshot", () => {

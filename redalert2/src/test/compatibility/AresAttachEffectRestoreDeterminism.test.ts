@@ -4,6 +4,7 @@ import {
 } from "@/extensions/ares/AresAttachEffectState";
 import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import { Player } from "@/game/Player";
 
 /**
  * Deterministic-restore certification for AttachEffect extension state.
@@ -38,6 +39,27 @@ function definition(overrides: Partial<AresAttachEffectDefinition> = {}): AresAt
 
 const sovietPlayer = { name: "Soviet", id: 1 };
 const alliedPlayer = { name: "Allied", id: 2 };
+
+function playerWithIndex(name: string, playerListIndex: number): Player {
+    const player = new Player(name);
+    player.playerListIndex = playerListIndex;
+    return player;
+}
+
+function pendingDamageTrait(
+    sourcePlayer: any,
+    getPlayerIndex?: (player: any) => number | undefined,
+): AresAttachEffectTrait {
+    const trait = new AresAttachEffectTrait({ getPlayerIndex, gameObject: {} });
+    trait.apply("burn", definition({ duration: -1, animation: "BurnAnim" }), {
+        sourcePlayer,
+        origin: { kind: "warhead", ownerName: "FireWall" },
+    });
+    const state = (trait as any).animationDamageState.get("burn")?.[0];
+    state.accumulator = 0;
+    state.frameAccumulator = 0.25;
+    return trait;
+}
 
 function resolvePlayerByIndex(index: number): unknown {
     return index === 0 ? sovietPlayer : index === 1 ? alliedPlayer : undefined;
@@ -234,6 +256,121 @@ describe("Ares AttachEffect deterministic restore", () => {
         };
         expect(make(0).getHash()).not.toBe(make(1).getHash());
         expect(make(0).getHash()).not.toBe(make(undefined).getHash());
+    });
+
+    test("uses canonical player indexes for same-named pending damage sources", () => {
+        const first = playerWithIndex("Duplicate", 0);
+        const second = playerWithIndex("Duplicate", 1);
+        const getPlayerIndex = (player: any) => player.playerListIndex;
+
+        const firstTrait = pendingDamageTrait(first, getPlayerIndex);
+        const secondTrait = pendingDamageTrait(second, getPlayerIndex);
+
+        expect(firstTrait.getHash()).not.toBe(secondTrait.getHash());
+        expect(firstTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(0);
+        expect(secondTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(1);
+    });
+
+    test("uses canonical player indexes when display names are empty and no resolver is supplied", () => {
+        const first = playerWithIndex("", 7);
+        const second = playerWithIndex("", 8);
+
+        const firstTrait = pendingDamageTrait(first);
+        const secondTrait = pendingDamageTrait(second);
+
+        expect(firstTrait.getHash()).not.toBe(secondTrait.getHash());
+        expect(firstTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(7);
+        expect(secondTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(8);
+    });
+
+    test("does not accept a stale object-local index when a resolver rejects the player", () => {
+        const stale = playerWithIndex("Stale", 3);
+        const trait = pendingDamageTrait(stale, () => undefined);
+        const serialized = trait.serializeState().animationDamage?.[0];
+
+        expect(serialized?.sourcePlayerIndex).toBeUndefined();
+        expect(serialized?.sourcePlayerName).toBeUndefined();
+        expect(serialized?.sourcePlayerUnresolved).toBe(true);
+        expect(trait.getHash()).not.toBe(pendingDamageTrait(undefined).getHash());
+    });
+
+    test("restores canonical attribution into reconstructed players and preserves continued damage", () => {
+        const source = playerWithIndex("SameName", 0);
+        const live = pendingDamageTrait(source, (player) => player.playerListIndex);
+        const snapshot = live.serializeState();
+        const restoredSource = playerWithIndex("SameName", 0);
+        const restored = new AresAttachEffectTrait({
+            getPlayerIndex: (player) => player.playerListIndex,
+            gameObject: {},
+        });
+        restored.restoreState(snapshot, {
+            resolvePlayerByIndex: (index) => index === 0 ? restoredSource : undefined,
+            resolveDefinition: () => definition({ duration: -1, animation: "BurnAnim" }),
+        });
+
+        const restoredState = (restored as any).animationDamageState.get("burn")?.[0];
+        expect(restoredState.sourcePlayer).toBe(restoredSource);
+        expect(restored.getHash()).toBe(live.getHash());
+
+        const animationArt = {
+            getNumber: (key: string, fallback = 0) => key === "Damage" ? 1 : fallback,
+            getString: (_key: string, fallback = "") => fallback,
+            getBool: (_key: string, fallback = false) => fallback,
+        };
+        const makeContext = (requests: any[]) => ({
+            art: { getAnimation: () => ({ art: animationArt }) },
+            applyAresAnimationDamage: (request: any) => requests.push(request),
+        });
+        const liveRequests: any[] = [];
+        const restoredRequests: any[] = [];
+        live.advance({ context: makeContext(liveRequests) });
+        restored.advance({ context: makeContext(restoredRequests) });
+
+        expect(liveRequests).toHaveLength(1);
+        expect(restoredRequests).toHaveLength(1);
+        expect(liveRequests[0].sourcePlayer).toBe(source);
+        expect(restoredRequests[0].sourcePlayer).toBe(restoredSource);
+        expect(restoredRequests[0].damage).toBe(liveRequests[0].damage);
+        expect(restored.getHash()).toBe(live.getHash());
+        expect(restored.serializeState()).toEqual(live.serializeState());
+    });
+
+    test("detects a tampered canonical source index as a deterministic divergence", () => {
+        const source = playerWithIndex("SameName", 0);
+        const other = playerWithIndex("SameName", 1);
+        const live = pendingDamageTrait(source, (player) => player.playerListIndex);
+        const tampered = structuredClone(live.serializeState()) as any;
+        tampered.animationDamage[0].sourcePlayerIndex = 1;
+
+        const restored = new AresAttachEffectTrait({
+            getPlayerIndex: (player) => player.playerListIndex,
+        });
+        restored.restoreState(tampered, {
+            resolvePlayerByIndex: (index) => index === 0 ? source : index === 1 ? other : undefined,
+            resolveDefinition: () => definition({ duration: -1 }),
+        });
+
+        expect(restored.getHash()).not.toBe(live.getHash());
+        expect((restored as any).animationDamageState.get("burn")?.[0]?.sourcePlayer).toBe(other);
+    });
+
+    test("strict restore rejects unresolved canonical references without mutation", () => {
+        const source = playerWithIndex("Strict", 0);
+        const trait = pendingDamageTrait(source, (player) => player.playerListIndex);
+        const before = trait.serializeState();
+        expect(() => trait.restoreState(before, {
+            strict: true,
+            resolvePlayerByIndex: () => undefined,
+            resolveDefinition: () => undefined,
+        })).toThrow(/source player/);
+        expect(trait.serializeState()).toEqual(before);
+
+        expect(() => trait.restoreState(before, {
+            strict: true,
+            resolvePlayerByIndex: () => source,
+            resolveDefinition: () => undefined,
+        })).toThrow(/definition/);
+        expect(trait.serializeState()).toEqual(before);
     });
 
     test("codec rejects duplicate damage entries and duplicate origins transactionally", () => {

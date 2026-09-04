@@ -42,8 +42,8 @@ export interface AresAttachEffectTraitOptions {
     automaticEffect?: AresAttachEffectBinding;
     /**
      * Resolves a live player to its canonical snapshot identity (PlayerList
-     * index). Supplied by the save host; when absent, damage attribution
-     * falls back to the legacy name field.
+     * index). Supplied by the save host; when absent, a validated live
+     * PlayerList index is used before falling back to the legacy name field.
      */
     getPlayerIndex?(player: any): number | undefined;
 }
@@ -63,6 +63,10 @@ interface AresAnimationDamageRuntimeState {
     accumulator: number;
     frameAccumulator: number;
     sourcePlayer?: any;
+}
+
+function isCanonicalPlayerIndex(value: unknown): value is number {
+    return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
 /** Distinct numeric identity per automatic phase; lengths collide. */
@@ -174,13 +178,35 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 hash = (hash * 31 + Math.round(state.accumulator * 256)) | 0;
                 hash = (hash * 31 + Math.round(state.frameAccumulator * 256)) | 0;
                 if (state.sourcePlayer !== undefined && state.sourcePlayer !== null) {
-                    const identity = String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "");
-                    for (const char of identity) {
-                        hash = (hash * 31 + char.charCodeAt(0)) | 0;
+                    const index = this.resolveCanonicalPlayerIndex(state.sourcePlayer);
+                    if (index !== undefined) {
+                        // Canonical player identity. This tag keeps the
+                        // representation distinct from the legacy fallback.
+                        hash = (hash * 31 + 1) | 0;
+                        hash = (hash * 31 + index) | 0;
+                    }
+                    else if (this.getPlayerIndex) {
+                        // A configured resolver is authoritative. An
+                        // unregistered/stale player is not allowed to fall
+                        // back to a display name and masquerade as canonical.
+                        hash = (hash * 31 + 3) | 0;
+                    }
+                    else {
+                        // Legacy/test-only fallback. Names are not canonical;
+                        // tag the representation so it cannot collide with a
+                        // canonical index or an absent source.
+                        hash = (hash * 31 + 2) | 0;
+                        const identity = String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "");
+                        hash = (hash * 31 + identity.length) | 0;
+                        for (const char of identity) {
+                            hash = (hash * 31 + char.charCodeAt(0)) | 0;
+                        }
                     }
                 }
                 else {
-                    hash = (hash * 31 + (-1)) | 0;
+                    // Explicitly distinguish no source from both identity
+                    // representations above.
+                    hash = (hash * 31 + 0) | 0;
                 }
             });
         }
@@ -215,10 +241,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                 const hasSource = state.sourcePlayer !== undefined && state.sourcePlayer !== null;
                 if (!hasAccumulator && !hasSource) return;
                 // Canonical identity is the deterministic PlayerList index.
-                // The legacy name field is written alongside only when no
-                // index resolver exists (host without player-list access),
-                // so older snapshots remain loadable either way.
-                const index = hasSource ? this.getPlayerIndex?.(state.sourcePlayer) : undefined;
+                // The legacy name field is written only when no canonical
+                // index is available, so older snapshots remain loadable.
+                const index = hasSource ? this.resolveCanonicalPlayerIndex(state.sourcePlayer) : undefined;
                 snapshots.push({
                     effectId,
                     occurrence,
@@ -227,7 +252,10 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                     ...(hasSource
                         ? {
                             ...(index !== undefined ? { sourcePlayerIndex: index } : {}),
-                            ...(index === undefined
+                            ...(index === undefined && this.getPlayerIndex
+                                ? { sourcePlayerUnresolved: true as const }
+                                : {}),
+                            ...(index === undefined && !this.getPlayerIndex
                                 ? { sourcePlayerName: String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "") }
                                 : {}),
                         }
@@ -236,6 +264,21 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             });
         }
         return snapshots;
+    }
+
+    /**
+     * Resolve the same canonical identity used by snapshots and hashing.
+     * Resolver-backed identity wins; the live PlayerList index is a safe
+     * fallback for hosts that do not inject a resolver.
+     */
+    private resolveCanonicalPlayerIndex(player: any): number | undefined {
+        if (this.getPlayerIndex) {
+            const resolved = this.getPlayerIndex(player);
+            return isCanonicalPlayerIndex(resolved) ? resolved : undefined;
+        }
+
+        const direct = player?.playerListIndex;
+        return isCanonicalPlayerIndex(direct) ? direct : undefined;
     }
 
     /**

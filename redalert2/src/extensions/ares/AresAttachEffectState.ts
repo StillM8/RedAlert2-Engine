@@ -28,6 +28,8 @@ export interface AresAttachEffectDamageStateSnapshot {
     readonly sourcePlayerIndex?: number;
     /** Legacy field from earlier snapshots; superseded by sourcePlayerIndex. */
     readonly sourcePlayerName?: string;
+    /** A configured resolver rejected the live player; strict restore rejects this. */
+    readonly sourcePlayerUnresolved?: true;
 }
 
 /**
@@ -69,19 +71,20 @@ export type AresAttachEffectResolvedDefinition =
     | undefined;
 
 export interface AresAttachEffectRestoreContext {
+    /** Strict canonical restore rejects unresolved references and origins. */
+    strict?: boolean;
     /**
      * Resolve a canonical player index (PlayerList order) back to the live
-     * player object. Returns undefined for an out-of-range index so corrupt
-     * snapshots degrade instead of throwing mid-restore.
+     * player object. In permissive mode an out-of-range index degrades to
+     * owner attribution; strict canonical restore rejects it transactionally.
      */
     resolvePlayerByIndex?(index: number): unknown;
     /** Legacy name-based resolution for pre-index snapshots. */
     resolvePlayerByName?(name: string): unknown;
     /**
      * Resolve an authored AttachEffect definition from its rules origin.
-     * Return undefined when the rules no longer define it (mod change);
-     * the effect then stays present but inert, exactly like a live trait
-     * whose definition was never applied.
+     * In permissive mode undefined means the effect stays present but inert;
+     * strict canonical restore rejects the unresolved origin.
      */
     resolveDefinition?(
         kind: "warhead" | "techno",
@@ -214,6 +217,17 @@ function normalizeAnimationDamage(
             (typeof candidate.sourcePlayerName !== "string" || (candidate.sourcePlayerName as string).length === 0)) {
             throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid source player`);
         }
+        if (candidate.sourcePlayerUnresolved !== undefined && candidate.sourcePlayerUnresolved !== true) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid unresolved player marker`);
+        }
+        const sourceIdentityFields = [
+            candidate.sourcePlayerIndex !== undefined,
+            candidate.sourcePlayerName !== undefined,
+            candidate.sourcePlayerUnresolved === true,
+        ].filter(Boolean).length;
+        if (sourceIdentityFields > 1) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has conflicting player identities`);
+        }
         return {
             effectId: candidate.effectId,
             occurrence: candidate.occurrence as number,
@@ -224,6 +238,9 @@ function normalizeAnimationDamage(
                 : {}),
             ...(candidate.sourcePlayerName !== undefined
                 ? { sourcePlayerName: candidate.sourcePlayerName as string }
+                : {}),
+            ...(candidate.sourcePlayerUnresolved === true
+                ? { sourcePlayerUnresolved: true as const }
                 : {}),
         };
     });
@@ -263,9 +280,9 @@ function normalizeOrigins(
  * origin effectIds are rejected transactionally before any live mutation.
  * Cross-checks against live rules (origin resolvable after a mod change,
  * occurrence within a live stack) are the host's job via
- * `context.resolveDefinition` and instance-driven reconciliation; orphaned
- * entries degrade to inert instead of throwing so a changed mod cannot break
- * every subsequent load.
+ * `context.resolveDefinition` and instance-driven reconciliation. Permissive
+ * loads keep orphaned entries inert for legacy compatibility; strict
+ * canonical restore rejects unresolved references before the commit point.
  */
 export function restoreAresAttachEffectExtensionState(
     target: AresAttachEffectStateTarget,
@@ -302,41 +319,75 @@ export function restoreAresAttachEffectExtensionState(
         animationDamage,
         origins,
     });
-    target.instances = normalized.instances.map(instance => ({ ...instance }));
-    target.automaticPhase = normalized.automaticPhase;
-    target.automaticRemainingDelay = normalized.automaticRemainingDelay;
-    target.animationDamage =
+    const replacementInstances = normalized.instances.map(instance => ({ ...instance }));
+    const replacementAnimationDamage =
         new Map<string, { accumulator: number; frameAccumulator: number; sourcePlayer?: unknown }[]>();
     for (const entry of animationDamage) {
-        const queue = target.animationDamage.get(entry.effectId) ?? [];
+        const queue = replacementAnimationDamage.get(entry.effectId) ?? [];
         // Canonical identity first (PlayerList index); legacy name fallback
-        // keeps older snapshots loadable. An unresolvable identity leaves
-        // attribution unset rather than failing the whole restore — the
-        // runtime then falls back to the target's owner, exactly as a live
-        // effect applied without a source player does.
+        // keeps older snapshots loadable. In permissive mode an unresolvable
+        // identity leaves attribution unset and the runtime falls back to the
+        // target owner, matching a live effect without a source player. Strict
+        // canonical restore rejects the same input before the commit point.
         let resolvedSource: unknown;
-        if (entry.sourcePlayerIndex !== undefined && context.resolvePlayerByIndex) {
-            resolvedSource = context.resolvePlayerByIndex(entry.sourcePlayerIndex);
+        if (entry.sourcePlayerIndex !== undefined) {
+            if (!context.resolvePlayerByIndex) {
+                if (context.strict) {
+                    throw new Error(`Cannot restore Ares AttachEffect source player index ${entry.sourcePlayerIndex}`);
+                }
+            }
+            else {
+                resolvedSource = context.resolvePlayerByIndex(entry.sourcePlayerIndex);
+            }
+            if (context.strict && resolvedSource === undefined) {
+                throw new Error(`Cannot restore Ares AttachEffect source player index ${entry.sourcePlayerIndex}`);
+            }
         }
-        else if (entry.sourcePlayerName !== undefined && context.resolvePlayerByName) {
-            resolvedSource = context.resolvePlayerByName(entry.sourcePlayerName);
+        else if (entry.sourcePlayerUnresolved === true) {
+            if (context.strict) {
+                throw new Error(`Cannot restore unresolved Ares AttachEffect source player for ${entry.effectId}[${entry.occurrence}]`);
+            }
+        }
+        else if (entry.sourcePlayerName !== undefined) {
+            if (!context.resolvePlayerByName) {
+                if (context.strict) {
+                    throw new Error(`Cannot restore legacy Ares AttachEffect source player ${entry.sourcePlayerName}`);
+                }
+            }
+            else {
+                resolvedSource = context.resolvePlayerByName(entry.sourcePlayerName);
+            }
+            if (context.strict && resolvedSource === undefined) {
+                throw new Error(`Cannot restore legacy Ares AttachEffect source player ${entry.sourcePlayerName}`);
+            }
         }
         queue[entry.occurrence] = {
             accumulator: entry.accumulator,
             frameAccumulator: entry.frameAccumulator,
             ...(resolvedSource !== undefined ? { sourcePlayer: resolvedSource } : {}),
         };
-        target.animationDamage.set(entry.effectId, queue);
+        replacementAnimationDamage.set(entry.effectId, queue);
     }
     // Definition rebinding: re-resolve each held effect's authored definition
     // from its recorded rules origin. An unresolvable origin leaves that
-    // effect present but inert — identical to a live trait whose definition
-    // was never applied — instead of failing the whole restore.
-    target.definitions = new Map<string, unknown>();
+    // effect present but inert in permissive mode; strict restore rejects it.
+    const replacementDefinitions = new Map<string, unknown>();
     for (const origin of origins) {
         const resolved = context.resolveDefinition?.(origin.kind, origin.ownerName);
+        if (context.strict && resolved === undefined) {
+            throw new Error(`Cannot restore Ares AttachEffect definition ${origin.kind}:${origin.ownerName}`);
+        }
         if (resolved !== undefined) {
-            target.definitions.set(origin.effectId, resolved);
+            replacementDefinitions.set(origin.effectId, resolved);
         }
     }
+
+    // Commit point: all normalized state and every external reference has
+    // been resolved successfully. A resolver failure above leaves the
+    // caller's target completely untouched.
+    target.instances = replacementInstances;
+    target.automaticPhase = normalized.automaticPhase;
+    target.automaticRemainingDelay = normalized.automaticRemainingDelay;
+    target.animationDamage = replacementAnimationDamage;
+    target.definitions = replacementDefinitions;
 }

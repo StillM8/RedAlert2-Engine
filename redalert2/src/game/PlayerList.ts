@@ -15,11 +15,14 @@ export class PlayerList {
         return this.players[index];
     }
     getPlayerByName(name: string): Player {
-        const player = this.players.find(p => p.name === name);
-        if (!player) {
+        const matches = this.players.filter(p => p.name === name);
+        if (matches.length === 0) {
             throw new Error(`Player with name "${name}" not found`);
         }
-        return player;
+        if (matches.length > 1) {
+            throw new Error(`Player name "${name}" is ambiguous; use PlayerList index`);
+        }
+        return matches[0];
     }
     getPlayerNumber(player: Player): number {
         const index = this.players.indexOf(player);

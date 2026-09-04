@@ -28,7 +28,7 @@ export class ReplayRecorder {
             }
             this.replay.actionRecords.push({
                 tick,
-                playerId: action.player?.index ?? 0,
+                playerId: this.resolvePlayerObjectId(action.player),
                 actionType: action.actionType,
                 data: serialized,
             });
@@ -66,11 +66,24 @@ export class ReplayRecorder {
     }
 
     private resolvePlayerId(playerName: string): number {
-        try {
-            const player = this.game.getPlayerByName(playerName);
-            return player?.index ?? 0;
-        } catch {
-            return 0;
+        const player = this.game.getPlayerByName(playerName);
+        return this.resolvePlayerObjectId(player);
+    }
+
+    /** Replay wire fields already carry a numeric player slot. Keep that
+     * format, but source it from the canonical PlayerList membership rather
+     * than the display name or an unstable object property. */
+    private resolvePlayerObjectId(player: any): number {
+        let index: unknown;
+        if (player && typeof this.game.getPlayerNumber === 'function') {
+            index = this.game.getPlayerNumber(player);
         }
+        else {
+            index = player?.playerListIndex;
+        }
+        if (!Number.isSafeInteger(index) || (index as number) < 0 || (index as number) > 255) {
+            throw new Error('Replay player is not registered in the canonical PlayerList');
+        }
+        return index as number;
     }
 }
