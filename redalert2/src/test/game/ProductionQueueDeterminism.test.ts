@@ -6,6 +6,9 @@ import {
     QueueType,
 } from "@/game/player/production/ProductionQueue";
 import { ProductionTrait } from "@/game/trait/ProductionTrait";
+import { FactoryType } from "@/game/rules/TechnoRules";
+import { ObjectType } from "@/engine/type/ObjectType";
+import { Player } from "@/game/Player";
 
 const infantry = { name: "InfantryA", type: 1, cost: 100, buildTimeMultiplier: 1 };
 const vehicle = { name: "VehicleB", type: 2, cost: 200, buildTimeMultiplier: 1 };
@@ -92,6 +95,37 @@ describe("production queue deterministic state", () => {
             resolveRules: name => name === "MissingType" ? undefined : infantry,
         })).toThrow(/unresolved/);
         expect(destination.captureState()).toEqual(before);
+    });
+
+    test("hashes and restores infiltration-granted veteran factory types", () => {
+        const withoutInfiltration = new Production({}, 9, {}, {}, []);
+        const withInfiltration = new Production({}, 9, {}, {}, []);
+        withInfiltration.addVeteranType(FactoryType.UnitType);
+        expect(withInfiltration.getHash()).not.toBe(withoutInfiltration.getHash());
+
+        const productionPlayer: any = {
+            production: withInfiltration,
+            country: { hasVeteranUnit: () => false },
+        };
+        const vehicle = {
+            name: "FutureTank",
+            type: ObjectType.Vehicle,
+            owner: productionPlayer,
+            buildLimit: 0,
+        };
+        expect(Player.prototype.canProduceVeteran.call(productionPlayer, vehicle as any)).toBe(true);
+
+        const snapshot = JSON.parse(JSON.stringify(withInfiltration.captureState()));
+        const restored = new Production({}, 9, {}, {}, []);
+        restored.restoreDeterministicState(snapshot, { strict: true });
+        expect(restored.hasVeteranType(FactoryType.UnitType)).toBe(true);
+        expect(restored.getHash()).toBe(withInfiltration.getHash());
+
+        const before = restored.captureState();
+        const invalid = structuredClone(snapshot) as any;
+        invalid.veteranFactoryTypes = [999];
+        expect(() => restored.restoreDeterministicState(invalid)).toThrow(/veteranFactoryTypes/);
+        expect(restored.captureState()).toEqual(before);
     });
 
     test("restored progress continues with identical credits and ready tick", () => {

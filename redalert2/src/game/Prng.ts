@@ -26,6 +26,7 @@ export class Prng {
     }
     constructor(seed: number) {
         this.prng = new MersenneTwister(seed);
+        assertMersenneTwisterLayout(this.prng);
     }
     generateRandomInt(min: number, max: number): number {
         const random = this.prng.random();
@@ -43,7 +44,7 @@ export class Prng {
 
     /** Exact future-producing state of the wrapped MT19937 generator. */
     captureState(): PrngState {
-        const generator = this.prng as any;
+        const generator = assertMersenneTwisterLayout(this.prng);
         return {
             version: PRNG_STATE_VERSION,
             index: generator.mti,
@@ -95,10 +96,28 @@ export class Prng {
         }
 
         // Build the replacement generator completely before committing it.
-        const replacement = new MersenneTwister(0) as any;
+        const replacement = assertMersenneTwisterLayout(new MersenneTwister(0));
         replacement.mt = words;
         replacement.mti = candidate.index as number;
         this.prng = replacement;
         this.lastRandom = candidate.lastRandom as number | undefined;
     }
+}
+
+interface MersenneTwisterStateLayout {
+    mt: number[];
+    mti: number;
+}
+
+/** Fail clearly if a dependency upgrade changes the wrapped generator shape. */
+function assertMersenneTwisterLayout(value: unknown): MersenneTwisterStateLayout {
+    const generator = value as Partial<MersenneTwisterStateLayout> | null;
+    if (!generator || !Array.isArray(generator.mt) ||
+        generator.mt.length !== MT_STATE_LENGTH ||
+        !Number.isSafeInteger(generator.mti)) {
+        throw new Error(
+            "Unsupported mersenne-twister internal layout; expected mt[624] and integer mti",
+        );
+    }
+    return generator as MersenneTwisterStateLayout;
 }

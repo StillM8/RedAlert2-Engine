@@ -165,8 +165,10 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         // out through identical per-instance contributions.
         hash = (hash * 31 + this.instances.length) | 0;
         hash = (hash * 31 + this.automaticRemainingDelay) | 0;
-        // Accumulators are fractional; quantize to fixed-point so the integer
-        // hash is stable across identical floating-point sequences.
+        // Accumulators are future-affecting simulation state. Hash their exact
+        // IEEE-754 representation rather than quantizing them: a small
+        // difference can move the next frame/damage event across a tick.
+        const floatView = new DataView(new ArrayBuffer(8));
         for (const effectId of [...this.animationDamageState.keys()].sort()) {
             const states = this.animationDamageState.get(effectId)!;
             states.forEach((state, occurrence) => {
@@ -175,8 +177,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                     hash = (hash * 31 + char.charCodeAt(0)) | 0;
                 }
                 hash = (hash * 31 + occurrence) | 0;
-                hash = (hash * 31 + Math.round(state.accumulator * 256)) | 0;
-                hash = (hash * 31 + Math.round(state.frameAccumulator * 256)) | 0;
+                hash = mixFloat64(hash, state.accumulator, floatView);
+                hash = mixFloat64(hash, state.frameAccumulator, floatView);
                 if (state.sourcePlayer !== undefined && state.sourcePlayer !== null) {
                     const index = this.resolveCanonicalPlayerIndex(state.sourcePlayer);
                     if (index !== undefined) {
@@ -739,6 +741,14 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             resetAnimation: result.resetAnimation,
         };
     }
+}
+
+function mixFloat64(hash: number, value: number, view: DataView): number {
+    view.setFloat64(0, value, true);
+    for (let index = 0; index < 8; index++) {
+        hash = (hash * 31 + view.getUint8(index)) | 0;
+    }
+    return hash;
 }
 
 function finiteOrOne(value: number | undefined): number {

@@ -159,9 +159,9 @@ export function stepQualifiedWorld(
 }
 
 /**
- * Canonical behavioral checkpoint. Compares every state axis that can change
- * future simulation, NOT just the top-level hash — a hash blind to lost
- * state must not be able to certify equality here.
+ * Canonical behavioral checkpoint. Compares every canonical axis represented
+ * by this qualification fixture, NOT just the top-level hash — a hash blind
+ * to lost state must not be able to certify equality here.
  */
 export function captureCheckpoint(world: QualifiedWorld): Record<string, unknown> {
     const game = world.game;

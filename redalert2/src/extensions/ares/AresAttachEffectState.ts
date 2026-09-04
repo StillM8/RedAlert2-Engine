@@ -319,6 +319,19 @@ export function restoreAresAttachEffectExtensionState(
         animationDamage,
         origins,
     });
+    if (context.strict) {
+        const activeEffectIds = new Set(normalized.instances.map(instance => instance.effectId));
+        for (const effectId of activeEffectIds) {
+            if (!seenOrigin.has(effectId)) {
+                throw new Error(`Cannot restore Ares AttachEffect ${effectId}: missing definition origin`);
+            }
+        }
+        for (const entry of animationDamage) {
+            if (!activeEffectIds.has(entry.effectId)) {
+                throw new Error(`Cannot restore Ares AttachEffect animation damage for inactive effect ${entry.effectId}`);
+            }
+        }
+    }
     const replacementInstances = normalized.instances.map(instance => ({ ...instance }));
     const replacementAnimationDamage =
         new Map<string, { accumulator: number; frameAccumulator: number; sourcePlayer?: unknown }[]>();

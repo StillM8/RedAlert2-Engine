@@ -13,20 +13,37 @@ import {
     canAresUrbanCombatInfantryOccupy,
 } from '@/extensions/ares/AresUrbanCombatRuntime';
 import { AresGarrisonOccupantTrait } from './AresGarrisonOccupantTrait';
+
+export interface GarrisonTraitOptions {
+    /** Resolves a live player to its canonical PlayerList identity. */
+    getPlayerIndex?(player: any): number | undefined;
+}
+
+function isCanonicalPlayerIndex(value: unknown): value is number {
+    return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
 export class GarrisonTrait {
     private building: Building;
     private evacThreshold: number;
     private maxOccupants: number;
     private units: Unit[] = [];
+    private readonly getPlayerIndex?: (player: any) => number | undefined;
     /** Owner that must receive a neutral/raidable bunker again once the
      * temporary occupants leave. This is explicit state instead of the old
      * TechLevel=-1 heuristic so player-owned Bunker.Raidable buildings work. */
     private trueOwner: any;
     private temporaryOccupation: boolean = false;
-    constructor(building: Building, evacThreshold: number, maxOccupants: number) {
+    constructor(
+        building: Building,
+        evacThreshold: number,
+        maxOccupants: number,
+        options: GarrisonTraitOptions = {},
+    ) {
         this.building = building;
         this.evacThreshold = evacThreshold;
         this.maxOccupants = maxOccupants;
+        this.getPlayerIndex = options.getPlayerIndex;
         this.trueOwner = (building as any).owner;
     }
     isOccupied(): boolean {
@@ -242,10 +259,14 @@ export class GarrisonTrait {
         // Temporary ownership is already present in the building's owner hash;
         // include the retained true owner identity so two peers cannot silently
         // disagree about who receives an emptied raidable bunker.
-        const ownerIdentity = String(this.trueOwner?.id ?? this.trueOwner?.name ?? this.trueOwner?.country?.id ?? '');
+        const ownerIdentity = this.getTrueOwnerIdentity();
         return fnv32aStrings([
+            "garrison",
+            "temporary-owner",
             this.temporaryOccupation ? 1 : 0,
-            ownerIdentity,
+            ownerIdentity.tag,
+            ...ownerIdentity.parts,
+            "occupants",
             ...this.units.map(unit => unit.getHash()),
         ]);
     }
@@ -263,6 +284,27 @@ export class GarrisonTrait {
     dispose(): void {
         this.building = undefined as any;
         this.trueOwner = undefined;
+    }
+
+    private getTrueOwnerIdentity(): { tag: number; parts: (string | number)[] } {
+        if (!this.trueOwner) {
+            return { tag: 0, parts: [] };
+        }
+        const index = this.getPlayerIndex
+            ? this.getPlayerIndex(this.trueOwner)
+            : this.trueOwner.playerListIndex;
+        if (isCanonicalPlayerIndex(index)) {
+            return { tag: 1, parts: [index] };
+        }
+        if (this.getPlayerIndex) {
+            // A configured resolver is authoritative. Do not let a stale
+            // object-local index or display name masquerade as canonical.
+            return { tag: 3, parts: [] };
+        }
+        // Legacy/test-only fallback. Explicitly domain-separate it from both
+        // canonical identity and an unresolved configured resolver.
+        const fallback = String(this.trueOwner.id ?? this.trueOwner.name ?? this.trueOwner.country?.id ?? "");
+        return { tag: 2, parts: [fallback.length, fallback] };
     }
     evacuate(context: GameContext, forceDestroy: boolean = false): void {
         const building: any = this.building;

@@ -10,7 +10,7 @@ snapshot when that subsystem has a restore codec.
 | --- | --- | --- | --- | --- | --- | --- |
 | PRNG | MT19937 624-word state, index, last emitted value | yes | yes | transactional | 4,537 + 5,000 continuation | closed for codec |
 | Players | credits, defeat/score, Firestorm flag, negative BuildLimit history, owned production/SW state | yes | partial | partial | adversarial hash tests | full Player snapshot open |
-| Production | ordered queue items, quantities, status, spend/fraction/progress, build-speed modifier, Ares plans | yes | yes | transactional | tick continuation/ready transition | closed for codec |
+| Production | ordered queue items, quantities, status, spend/fraction/progress, build-speed modifier, veteran factory unlocks, Ares plans | yes | yes | transactional | tick continuation/ready transition and veteran-production decision | veteran/history closed; derived factory state open |
 | GameObjects | stable object ID, owner PlayerList index, position, registered trait hashes | yes | no full-world codec | no full-world codec | owner/trait negative controls | full-world restore open |
 | Transport | held order, boarding queue order, crash latch | yes | yes | transactional in strict mode | restore and lifecycle tests | closed for codec |
 | AttachEffect | instances, scheduler, residual timing/attribution, authored origins | yes | yes | strict and legacy modes | 100-tick continuation | subsystem qualified |
@@ -31,6 +31,15 @@ Strict restore paths reject unresolved authored definitions and required
 cross-world references before replacing live state. Legacy save callers may
 use permissive modes where retained compatibility requires inert placeholders;
 deterministic qualification must use strict mode.
+
+`Production.veteranTypes` is historical canonical state: infiltration changes
+whether future units are produced as veterans, so it is included in the
+versioned production snapshot and hash. `factoryCounts` and `primaryFactories`
+are intentionally not copied into that snapshot. They are world-derived state
+and must be rebuilt deterministically from canonical owned factory objects
+before a future full-world restore can resume production; the queue codec does
+not claim to close that integration. `FactoryTrait` delivery/status/retry state
+has the same outstanding full-GameObject closure obligation.
 
 The AttachEffect identity audit also reproduced a shared source-name key when
 an automatic TechnoType effect and a Warhead effect use the same identifier.

@@ -49,6 +49,8 @@ function playerWithIndex(name: string, playerListIndex: number): Player {
 function pendingDamageTrait(
     sourcePlayer: any,
     getPlayerIndex?: (player: any) => number | undefined,
+    accumulator = 0,
+    frameAccumulator = 0.25,
 ): AresAttachEffectTrait {
     const trait = new AresAttachEffectTrait({ getPlayerIndex, gameObject: {} });
     trait.apply("burn", definition({ duration: -1, animation: "BurnAnim" }), {
@@ -56,8 +58,8 @@ function pendingDamageTrait(
         origin: { kind: "warhead", ownerName: "FireWall" },
     });
     const state = (trait as any).animationDamageState.get("burn")?.[0];
-    state.accumulator = 0;
-    state.frameAccumulator = 0.25;
+    state.accumulator = accumulator;
+    state.frameAccumulator = frameAccumulator;
     return trait;
 }
 
@@ -224,6 +226,32 @@ describe("Ares AttachEffect deterministic restore", () => {
             .not.toBe(build("disabled", 0).getHash());
     });
 
+    test("hashes exact fractional animation state when it changes the next tick", () => {
+        // These values collide under the old Math.round(value * 256) hash,
+        // but the second state reaches the next animation frame one tick
+        // earlier after the same 0.5-frame advance.
+        const first = pendingDamageTrait(undefined, undefined, 0, 0.499);
+        const second = pendingDamageTrait(undefined, undefined, 0, 0.5);
+        expect(first.getHash()).not.toBe(second.getHash());
+
+        const animationArt = {
+            getNumber: (key: string, fallback = 0) => key === "Damage" ? 1 :
+                key === "Rate" ? 450 : fallback,
+            getString: (_key: string, fallback = "") => fallback,
+            getBool: (_key: string, fallback = false) => fallback,
+        };
+        const makeContext = (requests: any[]) => ({
+            art: { getAnimation: () => ({ art: animationArt }) },
+            applyAresAnimationDamage: (request: any) => requests.push(request),
+        });
+        const firstRequests: any[] = [];
+        const secondRequests: any[] = [];
+        first.advance({ context: makeContext(firstRequests) });
+        second.advance({ context: makeContext(secondRequests) });
+        expect(firstRequests).toHaveLength(0);
+        expect(secondRequests).toHaveLength(1);
+    });
+
     test("hash distinguishes hold-vs-queue boundary in transport state", () => {
         // Covered in TransportTrait terms by AresPassengerLivePath; here we
         // assert the AttachEffect instance-count separator directly.
@@ -363,6 +391,15 @@ describe("Ares AttachEffect deterministic restore", () => {
             resolvePlayerByIndex: () => undefined,
             resolveDefinition: () => undefined,
         })).toThrow(/source player/);
+        expect(trait.serializeState()).toEqual(before);
+
+        const missingOrigin = structuredClone(before) as any;
+        delete missingOrigin.origins;
+        expect(() => trait.restoreState(missingOrigin, {
+            strict: true,
+            resolvePlayerByIndex: () => source,
+            resolveDefinition: () => definition({ duration: -1 }),
+        })).toThrow(/missing definition origin/);
         expect(trait.serializeState()).toEqual(before);
 
         expect(() => trait.restoreState(before, {

@@ -3,8 +3,8 @@ import { GarrisonTrait } from "@/game/gameobject/trait/GarrisonTrait";
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
 import { SellTrait } from "@/game/trait/SellTrait";
 
-function owner(id: string, neutral = false): any {
-    return { id, isNeutral: neutral, isAi: false, credits: 0, buildingsCaptured: 0 };
+function owner(id: string, neutral = false, playerListIndex = -1): any {
+    return { id, playerListIndex, isNeutral: neutral, isAi: false, credits: 0, buildingsCaptured: 0 };
 }
 
 function building(trueOwner: any, urban: any): any {
@@ -118,5 +118,27 @@ describe("Ares Urban Combat garrison integration", () => {
         bunker.garrisonTrait.addOccupant(raider, game);
         raider.aresGarrisonOccupantTrait[NotifyDestroy.onDestroy](raider, game);
         expect(bunker.owner).toBe(captured);
+    });
+
+    test("hashes retained temporary owners by canonical PlayerList index", () => {
+        const firstDefender = owner("Duplicate", false, 0);
+        const secondDefender = owner("Duplicate", false, 1);
+        const attacker = owner("attacker", false, 2);
+        const urban = { bunkerRaidable: true, canBeOccupiedBy: [] };
+        const first = building(firstDefender, urban);
+        const second = building(secondDefender, urban);
+        const game: any = {
+            areFriendly: (left: any, right: any) => left.owner === right.owner,
+            changeObjectOwner: (target: any, nextOwner: any) => { target.owner = nextOwner; },
+        };
+
+        expect(first.garrisonTrait.beginTemporaryOccupation(attacker, game)).toBe(true);
+        expect(second.garrisonTrait.beginTemporaryOccupation(attacker, game)).toBe(true);
+        expect(first.garrisonTrait.getHash()).not.toBe(second.garrisonTrait.getHash());
+
+        expect(first.garrisonTrait.restoreTemporaryOwnerIfEmpty(game)).toBe(true);
+        expect(second.garrisonTrait.restoreTemporaryOwnerIfEmpty(game)).toBe(true);
+        expect(first.owner).toBe(firstDefender);
+        expect(second.owner).toBe(secondDefender);
     });
 });

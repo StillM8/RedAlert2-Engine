@@ -19,13 +19,15 @@ import {
     type AresProductionExtensionState,
 } from '@/extensions/ares/AresProductionState';
 
-export const PRODUCTION_STATE_VERSION = 1 as const;
+export const PRODUCTION_STATE_VERSION = 2 as const;
 
 export interface ProductionState {
     readonly version: typeof PRODUCTION_STATE_VERSION;
     readonly extension: AresProductionExtensionState;
     /** Mutable power/production modifier consumed by the next queue tick. */
     readonly buildSpeedModifier: number;
+    /** Historical factory unlocks granted by infiltration. */
+    readonly veteranFactoryTypes: readonly FactoryType[];
     readonly queues: readonly ProductionQueueState[];
 }
 
@@ -41,7 +43,7 @@ export class Production {
     private _onQueueUpdate: EventDispatcher<any>;
     private primaryFactories: Map<any, any>;
     private factoryCounts: Map<any, number>;
-    private veteranTypes: Set<any>;
+    private veteranTypes: Set<FactoryType>;
     private stolenTech: Set<number | SideId>;
     /** Stable country IDs whose complete factory plans were permanently captured. */
     private permanentFactoryOwnerPlans: Set<string>;
@@ -307,11 +309,14 @@ export class Production {
     hasAnyFactory(): boolean {
         return this.primaryFactories.size > 0;
     }
-    addVeteranType(type: any) {
+    addVeteranType(type: FactoryType) {
+        if (!isFactoryType(type)) {
+            throw new RangeError(`Invalid veteran factory type ${String(type)}`);
+        }
         this.veteranTypes.add(type);
     }
-    hasVeteranType(type: any): boolean {
-        return this.veteranTypes.has(type);
+    hasVeteranType(type: FactoryType): boolean {
+        return this.veteranTypes?.has(type) ?? false;
     }
     private hasStolenTech(value: number | SideId): boolean {
         if (typeof value === "number") {
@@ -371,6 +376,7 @@ export class Production {
             version: PRODUCTION_STATE_VERSION,
             extension: this.serializeState(),
             buildSpeedModifier: this.buildSpeedModifier,
+            veteranFactoryTypes: this.getVeteranFactoryTypes(),
             queues: this.getAllQueues()
                 .slice()
                 .sort((a, b) => a.type - b.type)
@@ -397,6 +403,7 @@ export class Production {
             !Number.isFinite(candidate.buildSpeedModifier) || candidate.buildSpeedModifier < 0) {
             throw new Error("Invalid production state: buildSpeedModifier");
         }
+        const veteranFactoryTypes = normalizeVeteranFactoryTypes(candidate.veteranFactoryTypes);
 
         const extensionTarget = {
             stolenTech: new Set<number | SideId>(),
@@ -436,6 +443,8 @@ export class Production {
         // all authored rules have been resolved (in strict mode).
         for (const { queue, plan } of plans) queue.applyRestorePlan(plan);
         this.buildSpeedModifier = candidate.buildSpeedModifier as number;
+        this.veteranTypes.clear();
+        for (const type of veteranFactoryTypes) this.veteranTypes.add(type);
         this.replaceExtensionState(extensionTarget);
         for (const { queue } of plans) queue.notifyUpdated();
     }
@@ -458,6 +467,7 @@ export class Production {
     /** Hashes all future-affecting production state in stable queue order. */
     getHash(): number {
         const state = this.serializeState();
+        const veteranFactoryTypes = this.getVeteranFactoryTypes();
         const stolenTech = state.stolenTechs
             .map(value => `${typeof value === "number" ? "number" : "side"}:${value}`);
         const hashParts: (string | number)[] = [
@@ -470,6 +480,9 @@ export class Production {
             ...state.reverseEngineeredPlans,
             "build-speed-modifier",
             this.buildSpeedModifier,
+            "veteran-factory-types",
+            veteranFactoryTypes.length,
+            ...veteranFactoryTypes,
             "queues",
         ];
         // Some extension-only callers construct a prototype-shaped Production
@@ -513,6 +526,17 @@ export class Production {
         for (const value of state.reverseEngineeredPlans) this.reverseEngineeredPlans.add(value);
     }
 
+    private getVeteranFactoryTypes(): FactoryType[] {
+        return [...(this.veteranTypes ?? [])]
+            .map((type) => {
+                if (!isFactoryType(type)) {
+                    throw new Error(`Invalid veteran factory type ${String(type)}`);
+                }
+                return type;
+            })
+            .sort((a, b) => a - b);
+    }
+
     private resolveRulesForQueue(type: QueueType, name: string): unknown {
         const objectType = type === QueueType.Structures || type === QueueType.Armory
             ? ObjectType.Building
@@ -535,4 +559,26 @@ export class Production {
             return rulesMap?.get?.(name);
         }
     }
+}
+
+function isFactoryType(value: unknown): value is FactoryType {
+    return Number.isSafeInteger(value) &&
+        (value as number) >= FactoryType.None &&
+        (value as number) <= FactoryType.AircraftType;
+}
+
+function normalizeVeteranFactoryTypes(value: unknown): FactoryType[] {
+    if (!Array.isArray(value)) {
+        throw new Error("Invalid production state: veteranFactoryTypes must be an array");
+    }
+    const types = value.map((entry, index) => {
+        if (!isFactoryType(entry)) {
+            throw new Error(`Invalid production state: veteranFactoryTypes[${index}]`);
+        }
+        return entry;
+    });
+    if (new Set(types).size !== types.length) {
+        throw new Error("Invalid production state: duplicate veteran factory type");
+    }
+    return types.sort((a, b) => a - b);
 }
