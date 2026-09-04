@@ -71,6 +71,33 @@ const standardInputEffect: InputEffect = (world, input) => {
 };
 
 describe("deterministic restore qualification (behavioral)", () => {
+    test("qualification captures the live source and restores into a fresh world", () => {
+        const result = qualifyRestore({
+            seed: 1337,
+            ticksBeforeSnapshot: 30,
+            ticksAfterSnapshot: 90,
+            effect: standardInputEffect,
+            capture: (world) => ({
+                currentTick: world.game.currentTick,
+                prng: world.game.prng.captureState(),
+                nextObjectId: world.game.nextObjectId.value,
+                credits: world.players.map(player => player.credits),
+            }),
+            restore: (world, rawSnapshot) => {
+                const snapshot = rawSnapshot as any;
+                world.game.currentTick = snapshot.currentTick;
+                world.game.prng.restoreState(snapshot.prng);
+                world.game.nextObjectId.value = snapshot.nextObjectId;
+                world.players.forEach((player, index) => {
+                    player.credits = snapshot.credits[index];
+                });
+            },
+        });
+
+        expect(result.passed).toBe(true);
+        expect(result.checkpointsCompared).toBeGreaterThanOrEqual(3);
+    });
+
     test("uninterrupted worlds with the same seed are checkpoint-identical", () => {
         // Sanity gate: two independent builds of the same world must agree,
         // otherwise any restore comparison below would be meaningless.
@@ -117,9 +144,11 @@ describe("deterministic restore qualification (behavioral)", () => {
             }));
         expect(snapshots.length).toBeGreaterThan(0);
 
-        // Restore into an independently built world. It must first replay
-        // through the pre-snapshot ticks so its tick counter and PRNG align,
-        // exactly as qualifyRestore does; then the snapshot state applies.
+        // Restore into an independently built world. This is intentionally a
+        // narrow AttachEffect slice qualification: the world is replayed to
+        // align state because this test captures only trait state, not a full
+        // world snapshot. The generic qualifyRestore helper above requires a
+        // source capture callback and is the full-world-shaped abstraction.
         const restored = createQualifiedWorld({
             seed: 20260822,
             attachEffectDefinition: effectDefinition({ duration: 45 }),

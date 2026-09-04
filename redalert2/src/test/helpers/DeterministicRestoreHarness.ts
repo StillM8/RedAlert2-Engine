@@ -13,16 +13,16 @@ import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEff
  *
  * Pattern under test:
  *
- *   W1 = createWorld(seed); run(N); snapshot
- *   W2 = createWorld(seed); restore(snapshot)
+ *   W1 = createWorld(seed); run(N); snapshot = capture(W1)
+ *   W2 = createWorld(seed); restore(W2, snapshot)
  *   run both with identical inputs for M ticks
  *   compare canonical state at controlled checkpoints
  *
  * The comparison is deliberately BEHAVIORAL, not just hash equality: the
- * checkpoint compares the full canonical state surface (players, objects,
- * traits) plus the lockstep hash, so a hash that is blind to lost state
- * cannot certify a restore. Every subsystem test builds on this helper so
- * future save/restore work has one qualification path.
+ * checkpoint compares the selected canonical state surface (players,
+ * objects, traits) plus the lockstep hash. The caller's capture/restore pair
+ * defines the state slice under qualification; the helper never labels a
+ * subsystem slice as a full-world save.
  */
 
 export const RESTORE_QUALIFICATION_TICK = 120;
@@ -167,7 +167,7 @@ export function captureCheckpoint(world: QualifiedWorld): Record<string, unknown
     const game = world.game;
     return {
         tick: game.currentTick,
-        prngLastRandom: game.prng.getLastRandom(),
+        prng: game.prng.captureState(),
         nextObjectId: game.nextObjectId.value,
         hash: game.getHash(),
         players: world.players.map(player => ({
@@ -220,17 +220,20 @@ function diffCheckpoints(
 export interface RestoreQualificationOptions extends WorldSeedOptions {
     ticksBeforeSnapshot: number;
     ticksAfterSnapshot: number;
-    snapshot: unknown;
+    /** Capture the live world; the helper never accepts a pre-supplied snapshot. */
+    capture: (source: QualifiedWorld) => unknown;
     restore: (target: QualifiedWorld, snapshot: unknown) => void;
     effect: InputEffect;
+    checkpoint?: (world: QualifiedWorld) => Record<string, unknown>;
 }
 
 /**
  * Qualify one snapshot/restore implementation:
  *
- *   W1 runs ticksBeforeSnapshot, snapshots, continues to the end.
- *   W2 is freshly built with the same seed and restores the SAME snapshot
- *   at the equivalent tick, then both continue on identical inputs.
+ *   W1 runs ticksBeforeSnapshot and captures its own state.
+ *   W2 is freshly built with the same seed and restores that captured state
+ *   without replaying the pre-snapshot history, then both continue on
+ *   identical inputs.
  *
  * Checkpoints compare behavioral state (not merely hashes) every interval.
  */
@@ -247,27 +250,31 @@ export function qualifyRestore(options: RestoreQualificationOptions): RestoreQua
     for (let tick = 0; tick <= options.ticksBeforeSnapshot; tick++) {
         stepQualifiedWorld(live, tick, inputsByTick, options.effect);
     }
+    const snapshot = options.capture(live);
 
     const restored = createQualifiedWorld(options);
-    // Fast-forward the fresh world through the same pre-snapshot ticks so its
-    // tick counter and PRNG align before the snapshot is applied. This keeps
-    // the comparison focused on restored STATE rather than replay mechanics.
-    for (let tick = 0; tick <= options.ticksBeforeSnapshot; tick++) {
-        stepQualifiedWorld(restored, tick, inputsByTick, options.effect);
-    }
-    options.restore(restored, options.snapshot);
+    options.restore(restored, snapshot);
 
+    const checkpoint = options.checkpoint ?? captureCheckpoint;
     let checkpointsCompared = 0;
-    let firstDivergence: RestoreQualificationResult["firstDivergence"];
+    let firstDivergence = diffCheckpoints(
+        checkpoint(live),
+        checkpoint(restored),
+    );
+    if (firstDivergence) {
+        checkpointsCompared++;
+    }
+
     for (let tick = options.ticksBeforeSnapshot + 1; tick <= totalTicks; tick++) {
+        if (firstDivergence) break;
         stepQualifiedWorld(live, tick, inputsByTick, options.effect);
         stepQualifiedWorld(restored, tick, inputsByTick, options.effect);
         if ((tick - options.ticksBeforeSnapshot) % RESTORE_QUALIFICATION_CHECKPOINT_INTERVAL === 0 ||
             tick === totalTicks) {
             checkpointsCompared++;
             const divergence = diffCheckpoints(
-                captureCheckpoint(live),
-                captureCheckpoint(restored),
+                checkpoint(live),
+                checkpoint(restored),
             );
             if (divergence && !firstDivergence) {
                 firstDivergence = divergence;

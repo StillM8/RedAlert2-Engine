@@ -1,6 +1,7 @@
 import { Task } from "@/game/gameobject/task/system/Task";
 import { FacingUtil } from "@/game/gameobject/unit/FacingUtil";
 export class TurnTask extends Task {
+    public readonly deterministicType = "turn";
     private direction: number;
     public cancellable: boolean = false;
     constructor(direction: number) {
@@ -17,5 +18,9 @@ export class TurnTask extends Task {
         entity.direction = facing;
         entity.spinVelocity = delta;
         return false;
+    }
+
+    getDeterministicState(): Record<string, unknown> {
+        return { ...super.getDeterministicState(), type: this.deterministicType, direction: this.direction };
     }
 }

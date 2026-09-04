@@ -22,6 +22,7 @@ interface Task {
     useChildTargetLines?: boolean;
     children?: Task[];
     getTargetLinesConfig?(gameObject: GameObject): any;
+    getDeterministicState?(): Record<string, unknown>;
 }
 interface Order {
     isValid(): boolean;
@@ -51,26 +52,29 @@ export class UnitOrderTrait implements NotifyTick, NotifyOwnerChange, NotifyTele
         this.gameObject = gameObject;
     }
     /**
-     * STRUCTURAL hash coverage, deliberately honest about its limits.
+     * BOUNDED hash coverage, deliberately honest about its limits.
      *
      * Orders and tasks are an open object graph (tasks carry closures,
      * children, and per-task primitives with no uniform surface), so a fully
      * faithful fingerprint needs a per-task snapshot contract. What IS
      * covered here — pending order count/types, queued flags, live task
-     * count/statuses/types, and waypoint progress presence — catches the
-     * common divergence class where two peers disagree on whether work is
-     * pending or in flight. Two peers running the SAME task types with the
-     * SAME statuses but different internal targets still collide until that
-     * per-task contract lands; treat those fields as canonical-but-unhashed.
+     * descriptors for tasks with an explicit contract, and waypoint progress
+     * presence — catches common divergence classes. Closure-bearing and
+     * target-bearing tasks without an override remain explicitly marked
+     * "unclassified-task" and are canonical-but-unqualified.
      */
     getHash(): number {
         return fnv32aStrings([
             "UnitOrderTrait",
             this.orders.length,
-            ...this.orders.map((order) => order.orderType),
+            ...this.orders.flatMap((order) => [order.orderType, this.queuedOrders.has(order) ? 1 : 0]),
+            "queued-orders",
             this.queuedOrders.size,
             this.tasks.length,
-            ...this.tasks.map((task) => `${task.constructor.name}:${task.status}`),
+            ...this.tasks.map((task) => JSON.stringify(task.getDeterministicState?.() ?? {
+                type: "unclassified-task",
+                status: task.status,
+            })),
             this.currentWaypoint ? 1 : 0,
             this.waypointPath ? this.waypointPath.waypoints.length : -1,
         ]);
