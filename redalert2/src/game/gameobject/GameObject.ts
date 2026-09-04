@@ -123,15 +123,31 @@ export class GameObject {
     }
     getHash() {
         const pos = this.position.worldPosition;
+        const positionBytes = new Uint8Array(24);
+        const positionView = new DataView(positionBytes.buffer);
+        positionView.setFloat64(0, pos.x, true);
+        positionView.setFloat64(8, pos.y, true);
+        positionView.setFloat64(16, pos.z, true);
+        const ownerIndex = Number.isSafeInteger(this.owner?.playerListIndex) && this.owner.playerListIndex >= 0
+            ? this.owner.playerListIndex
+            : undefined;
+        const ownerFallbackName = ownerIndex === undefined
+            ? new TextEncoder().encode(this.owner?.name ?? "")
+            : [];
         return fnv32a([
             this.id,
             // Owner identity is canonical state: targeting, bounty, veterancy,
-            // mind control, production, and scoring all branch on it. Hashed
-            // via the deterministic PlayerList index (names are not unique),
-            // with the name mixed in so unregistered owners still diverge.
-            this.owner?.playerListIndex ?? -1,
-            ...new TextEncoder().encode(this.owner?.name ?? ""),
-            ...new Uint8Array(new Float64Array([pos.x, pos.y, pos.z]).buffer),
+            // mind control, production, and scoring all branch on it. A
+            // registered owner uses only the deterministic PlayerList index;
+            // an unregistered owner is an explicitly tagged test/legacy
+            // fallback and must not be confused with a canonical index.
+            ownerIndex === undefined ? 2 : 1,
+            ownerIndex ?? -1,
+            ...ownerFallbackName,
+            // Explicit little-endian encoding keeps the hash independent of
+            // host typed-array byte order across WebView, native, and Rust
+            // integration environments.
+            ...positionBytes,
             ...this.traits.getAll().map((trait) => trait.getHash?.() ?? 0),
         ]);
     }

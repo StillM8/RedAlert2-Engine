@@ -49,6 +49,15 @@ describe("canonical state ownership coverage", () => {
         const checkpointB = captureCheckpoint(second) as any;
         expect(checkpointA.objects[5].hash).not.toBe(checkpointB.objects[5].hash);
     });
+
+    test("registered object hashes do not include presentation-only owner names", () => {
+        const world = createQualifiedWorld({ seed: 9002 });
+        const object = world.game.world.getAllObjects()[5];
+        object.owner = { playerListIndex: 0, name: "Display A" };
+        const firstHash = object.getHash();
+        object.owner = { playerListIndex: 0, name: "Display B" };
+        expect(object.getHash()).toBe(firstHash);
+    });
 });
 
 describe("core trait hash coverage", () => {
@@ -280,14 +289,14 @@ describe("standalone animation damage runtime state", () => {
     test("invalid payloads throw without mutating", () => {
         const { runtime } = spawnOne();
         const before = runtime.getHash();
-        expect(() => runtime.restoreState({ version: 2, nextId: 1, instances: [] }))
+        expect(() => runtime.restoreState({ version: 1, nextId: 1, instances: [] }))
             .toThrow(/version/i);
-        expect(() => runtime.restoreState({ version: 1, nextId: 1, instances: [{}] }))
+        expect(() => runtime.restoreState({ version: 2, nextId: 1, instances: [{}] }))
             .toThrow(/definition/i);
         expect(() => runtime.restoreState({
-            version: 1,
-            nextId: 1,
-            instances: [{ definitionName: "x", frame: "a", loopNumber: 0, frameAccumulator: 0, accumulator: 0, tileRx: 0, tileRy: 0, elevation: 0 }],
+            version: 2,
+            nextId: 2,
+            instances: [{ id: 1, definitionName: "x", frame: "a", loopNumber: 0, frameAccumulator: 0, accumulator: 0, tileRx: 0, tileRy: 0, positionX: 0, positionY: 0, positionZ: 0, elevation: 0 }],
         })).toThrow(/frame/i);
         expect(runtime.getHash()).toBe(before);
     });
