@@ -93,4 +93,16 @@ describe("transport canonical lifecycle state", () => {
         expect(destructionPasses).toBe(0);
         expect(trait.units).toEqual([]);
     });
+
+    test("rejects resolver identity mismatches transactionally", () => {
+        const trait = makeTransport();
+        trait.units = [cargo(10)];
+        const before = trait.captureState();
+
+        expect(() => trait.restoreState({ ...before }, {
+            strict: true,
+            resolveObjectById: () => cargo(11),
+        })).toThrow(/resolver returned/);
+        expect(trait.captureState()).toEqual(before);
+    });
 });

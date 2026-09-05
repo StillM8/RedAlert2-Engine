@@ -35,11 +35,13 @@ deterministic qualification must use strict mode.
 
 `Production.veteranTypes` is historical canonical state: infiltration changes
 whether future units are produced as veterans, so it is included in the
-versioned production snapshot and hash. `factoryCounts` and `primaryFactories`
-are intentionally not copied into that snapshot. They are world-derived state
-and `Production.rebuildFactoryDerivedState()` rebuilds them from canonical
-owned factory objects in object-ID order; a future full-world restore must call
-that entry point before resuming production. The queue codec does not claim to
+versioned production snapshot and hash. `factoryCounts` is world-derived and
+`Production.rebuildFactoryDerivedState()` rebuilds it from canonical owned
+factory objects. `primaryFactories` is canonical selection state because the
+player can explicitly change the primary factory through the deploy order; its
+stable object IDs are included in the production snapshot and hash, then
+rebound after the count rebuild. A future full-world restore must call that
+entry point before resuming production. The queue codec does not claim to
 close that integration. `FactoryTrait` delivery/status/retry state has the
 same outstanding full-GameObject closure obligation.
 

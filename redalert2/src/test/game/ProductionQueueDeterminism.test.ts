@@ -149,6 +149,42 @@ describe("production queue deterministic state", () => {
         expect(production.getPrimaryFactory(FactoryType.UnitType)).toBe(first);
     });
 
+    test("snapshots explicit primary-factory selection separately from derived counts", () => {
+        const first = { id: 20, name: "WarFactoryB", rules: { factory: FactoryType.UnitType } };
+        const second = { id: 10, name: "WarFactoryA", rules: { factory: FactoryType.UnitType } };
+        const sourcePlayer: any = { buildings: new Set([first, second]) };
+        const source = new Production(sourcePlayer, 9, {}, {}, []);
+        source.setPrimaryFactory(first);
+        const defaultSelection = new Production({ buildings: new Set([first, second]) }, 9, {}, {}, []);
+
+        expect(source.getPrimaryFactory(FactoryType.UnitType)).toBe(first);
+        expect(source.getHash()).not.toBe(defaultSelection.getHash());
+
+        const snapshot = JSON.parse(JSON.stringify(source.captureState()));
+        expect(snapshot.primaryFactoryObjectIds).toEqual([{ factoryType: FactoryType.UnitType, objectId: 20 }]);
+
+        const destinationPlayer: any = { buildings: new Set([first, second]) };
+        const destination = new Production(destinationPlayer, 9, {}, {}, []);
+        destination.setPrimaryFactory(second);
+        destination.restoreDeterministicState(snapshot, {
+            strict: true,
+            resolveObjectById: id => [first, second].find(factory => factory.id === id),
+        });
+        expect(destination.getFactoryCount(FactoryType.UnitType)).toBe(2);
+        expect(destination.getPrimaryFactory(FactoryType.UnitType)).toBe(first);
+        expect(destination.captureState()).toEqual(snapshot);
+        expect(destination.getHash()).toBe(source.getHash());
+
+        const before = destination.captureState();
+        const unresolved = structuredClone(snapshot) as any;
+        unresolved.primaryFactoryObjectIds[0].objectId = 999;
+        expect(() => destination.restoreDeterministicState(unresolved, {
+            strict: true,
+            resolveObjectById: () => undefined,
+        })).toThrow(/primary factory/);
+        expect(destination.captureState()).toEqual(before);
+    });
+
     test("rejects impossible queue status and per-type quantity combinations transactionally", () => {
         const source = queueWith(infantry);
         const restored = queueWith(vehicle);

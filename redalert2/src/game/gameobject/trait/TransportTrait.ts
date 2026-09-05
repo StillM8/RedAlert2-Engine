@@ -243,10 +243,16 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
     }
 
     captureState(): TransportTraitState {
+        const heldUnitIds = this.units.map(unit => requiredObjectId(unit));
+        const loadQueueUnitIds = this.loadQueue.map(unit => requiredObjectId(unit));
+        const allIds = [...heldUnitIds, ...loadQueueUnitIds];
+        if (new Set(allIds).size !== allIds.length) {
+            throw new Error("Cannot serialize transport with duplicate cargo reference");
+        }
         return {
             version: TRANSPORT_STATE_VERSION,
-            heldUnitIds: this.units.map(unit => requiredObjectId(unit)),
-            loadQueueUnitIds: this.loadQueue.map(unit => requiredObjectId(unit)),
+            heldUnitIds,
+            loadQueueUnitIds,
             crashPassengersResolved: this.crashPassengersResolved,
         };
     }
@@ -281,6 +287,9 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
             const object = context.resolveObjectById?.(id);
             if (context.strict && !object) {
                 throw new Error(`Cannot restore transport object ${id}: unresolved`);
+            }
+            if (object && object.id !== id) {
+                throw new Error(`Cannot restore transport object ${id}: resolver returned ${String(object.id)}`);
             }
             return object;
         };

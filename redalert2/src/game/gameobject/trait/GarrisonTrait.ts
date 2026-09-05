@@ -358,8 +358,22 @@ export class GarrisonTrait {
             if (!unit) {
                 throw new Error(`Cannot restore garrison occupant ${id}: unresolved`);
             }
+            if (unit.id !== id) {
+                throw new Error(`Cannot restore garrison occupant ${id}: resolver returned ${String(unit.id)}`);
+            }
             return unit;
         });
+        if (new Set(units).size !== units.length) {
+            throw new Error("Invalid garrison state: resolver returned duplicate occupants");
+        }
+        if (owner && (owner as any).playerListIndex !== undefined &&
+            (owner as any).playerListIndex !== ownerIndex) {
+            throw new Error(`Cannot restore garrison owner ${ownerIndex}: resolver returned a different player`);
+        }
+        if (context.strict && ownerIndex !== undefined &&
+            !isCanonicalPlayerIndex((owner as any)?.playerListIndex)) {
+            throw new Error(`Cannot restore garrison owner ${ownerIndex}: resolver returned an unindexed player`);
+        }
 
         this.units = units;
         this.trueOwner = owner;
