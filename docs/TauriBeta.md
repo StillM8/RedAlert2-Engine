@@ -10,23 +10,22 @@ the simulation engine, add a second renderer, or bundle retail game files.
 | --- | --- | --- |
 | Windows | `bun run tauri:build -- --target x86_64-pc-windows-msvc --no-bundle` | Windows, Rust, MSVC C++ Build Tools, WebView2 |
 | Linux | `bun run tauri:build` | Rust and WebKitGTK 4.1 development packages |
-| macOS | `bun run tauri:build -- --target universal-apple-darwin` | macOS, Rust, Xcode Command Line Tools |
+| macOS Apple Silicon | `bun run tauri:build -- --target aarch64-apple-darwin` | Apple Silicon macOS, Rust, Xcode Command Line Tools |
+| macOS Intel | `bun run tauri:build -- --target x86_64-apple-darwin` | Intel macOS, Rust, Xcode Command Line Tools |
 
-The macOS target is built as a universal bundle. It contains both
-`aarch64-apple-darwin` (Apple Silicon) and `x86_64-apple-darwin` (Intel), so
-the same `.app` or `.dmg` runs on both Mac architectures. Tauri must build it
-on macOS because the Apple SDK, linker, and WebKit frameworks are not
-available in WSL/Linux. The repository includes a manually-triggerable GitHub
-Actions workflow at `.github/workflows/tauri-macos.yml` for producing the
-unsigned universal bundle.
+Tauri must build on macOS because the Apple SDK, linker, and WebKit frameworks
+are not available in WSL/Linux. The release workflow builds and validates
+separate Apple Silicon and Intel bundles, DMGs, and `.app.zip` archives. See
+`docs/ReleaseCI.md` for the release contract and signing paths. A universal
+local bundle remains possible, but it is not the artifact contract used by
+release CI.
 
 For Windows portable releases, use the MSVC target. The MSVC WebView2 binding
 uses `WebView2LoaderStatic.lib`, so the result is one `redalert2-desktop.exe`
 instead of the GNU cross-build's EXE plus `WebView2Loader.dll`. This does not
 bundle the WebView2 browser runtime itself; the target Windows machine still
-needs WebView2 installed. The repository includes a manually-triggerable
-workflow at `.github/workflows/tauri-windows.yml` that verifies the single-file
-output.
+needs WebView2 installed. Release CI verifies both the portable executable and
+the NSIS installer. See `docs/ReleaseCI.md` for the complete artifact list.
 
 Run the desktop beta locally with:
 

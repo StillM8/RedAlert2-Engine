@@ -17,6 +17,16 @@ env:
   BUN_VERSION: "1.3.10"
 
 jobs:
+  workflow-lint:
+    name: ci / workflow-lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Validate GitHub Actions expressions and workflow syntax
+        uses: docker://rhysd/actionlint:1.7.7
+
   web-typecheck:
     name: web / typecheck
     runs-on: ubuntu-22.04
@@ -102,6 +112,7 @@ jobs:
           src/test/compatibility/AresAnimationDamageRuntimeDeterminism.test.ts
           src/test/compatibility/AresAttachEffectIdentity.test.ts
           src/test/compatibility/AresAttachEffectRestoreDeterminism.test.ts
+          src/test/compatibility/AresUrbanCombatGarrisonIntegration.test.ts
       - name: Job summary
         if: always()
         run: |
