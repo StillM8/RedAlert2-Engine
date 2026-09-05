@@ -299,6 +299,7 @@ export class ProductionQueue {
 
         const items: QueueItem[] = [];
         let totalQuantity = 0;
+        const quantitiesByType = new Map<string, number>();
         for (const [index, rawItem] of candidate.items.entries()) {
             if (typeof rawItem !== "object" || rawItem === null) {
                 throw new Error(`Invalid production queue state: item ${index} must be an object`);
@@ -319,6 +320,11 @@ export class ProductionQueue {
             if (totalQuantity > maxSize) {
                 throw new Error("Invalid production queue state: item quantity exceeds maxSize");
             }
+            const typeQuantity = (quantitiesByType.get(item.technoTypeName) ?? 0) + quantity;
+            if (typeQuantity > maxItemQuantity) {
+                throw new Error(`Invalid production queue state: ${item.technoTypeName} exceeds maxItemQuantity`);
+            }
+            quantitiesByType.set(item.technoTypeName, typeQuantity);
             const rules = context.resolveRules?.(item.technoTypeName);
             if (context.strict && rules === undefined) {
                 throw new Error(`Cannot restore production queue item: rules ${item.technoTypeName} are unresolved`);
@@ -337,6 +343,19 @@ export class ProductionQueue {
         }
         if (size > maxSize) {
             throw new Error("Invalid production queue state: size exceeds maxSize");
+        }
+        if (size === 0 && status !== QueueStatus.Idle) {
+            throw new Error("Invalid production queue state: empty queue must be idle");
+        }
+        if (size > 0 && status === QueueStatus.Idle) {
+            throw new Error("Invalid production queue state: non-empty queue cannot be idle");
+        }
+        if (status === QueueStatus.Ready) {
+            const first = items[0];
+            if (!first || first.progress !== 1 ||
+                (first.creditsEach > 0 && first.creditsSpent !== first.creditsEach)) {
+                throw new Error("Invalid production queue state: ready queue has incomplete first item");
+            }
         }
         return { maxSize, maxItemQuantity, size, status, items };
     }

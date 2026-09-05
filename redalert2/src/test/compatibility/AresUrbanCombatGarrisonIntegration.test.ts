@@ -141,4 +141,40 @@ describe("Ares Urban Combat garrison integration", () => {
         expect(first.owner).toBe(firstDefender);
         expect(second.owner).toBe(secondDefender);
     });
+
+    test("round-trips retained owner and occupant IDs transactionally", () => {
+        const defender = owner("Duplicate", false, 0);
+        const attacker = owner("attacker", false, 2);
+        const source = building(defender, { bunkerRaidable: true, canBeOccupiedBy: [] });
+        const raider = infantry("GI", attacker);
+        raider.id = 40;
+        const game: any = {
+            areFriendly: (left: any, right: any) => left.owner === right.owner,
+            changeObjectOwner: (target: any, nextOwner: any) => { target.owner = nextOwner; },
+        };
+        expect(source.garrisonTrait.beginTemporaryOccupation(attacker, game)).toBe(true);
+        source.garrisonTrait.addOccupant(raider, game);
+        const snapshot = JSON.parse(JSON.stringify(source.garrisonTrait.captureState()));
+
+        const destination = building(attacker, { bunkerRaidable: true, canBeOccupiedBy: [] });
+        const dirty = infantry("Dirty", attacker);
+        dirty.id = 99;
+        destination.garrisonTrait.addOccupant(dirty, game);
+        destination.garrisonTrait.restoreState(snapshot, {
+            strict: true,
+            resolveObjectById: id => id === 40 ? raider : undefined,
+            resolvePlayerByIndex: index => index === 0 ? defender : undefined,
+        });
+
+        expect(destination.garrisonTrait.captureState()).toEqual(snapshot);
+        expect(destination.garrisonTrait.getOccupantCount()).toBe(1);
+
+        const before = destination.garrisonTrait.captureState();
+        expect(() => destination.garrisonTrait.restoreState(snapshot, {
+            strict: true,
+            resolveObjectById: () => undefined,
+            resolvePlayerByIndex: () => defender,
+        })).toThrow(/unresolved/);
+        expect(destination.garrisonTrait.captureState()).toEqual(before);
+    });
 });

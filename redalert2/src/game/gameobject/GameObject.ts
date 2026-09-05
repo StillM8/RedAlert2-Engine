@@ -8,6 +8,7 @@ import { NotifySpawn } from '@/game/gameobject/trait/interface/NotifySpawn';
 import { NotifyUnspawn } from '@/game/gameobject/trait/interface/NotifyUnspawn';
 import { NotifyAttack } from '@/game/gameobject/trait/interface/NotifyAttack';
 import { DeathType } from '@/game/gameobject/common/DeathType';
+import { setCanonicalFloat64 } from '@/util/number';
 export class GameObject {
     public traits: Traits;
     public cachedTraits: {
@@ -125,9 +126,9 @@ export class GameObject {
         const pos = this.position.worldPosition;
         const positionBytes = new Uint8Array(24);
         const positionView = new DataView(positionBytes.buffer);
-        positionView.setFloat64(0, pos.x, true);
-        positionView.setFloat64(8, pos.y, true);
-        positionView.setFloat64(16, pos.z, true);
+        setCanonicalFloat64(positionView, 0, pos.x, "GameObject.position.x");
+        setCanonicalFloat64(positionView, 8, pos.y, "GameObject.position.y");
+        setCanonicalFloat64(positionView, 16, pos.z, "GameObject.position.z");
         const ownerIndex = Number.isSafeInteger(this.owner?.playerListIndex) && this.owner.playerListIndex >= 0
             ? this.owner.playerListIndex
             : undefined;

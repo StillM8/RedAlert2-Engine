@@ -128,6 +128,58 @@ describe("production queue deterministic state", () => {
         expect(restored.captureState()).toEqual(before);
     });
 
+    test("rebuilds factory counts and primary selection from canonical object IDs", () => {
+        const first = { id: 20, name: "WarFactoryB", rules: { factory: FactoryType.UnitType } };
+        const second = { id: 10, name: "WarFactoryA", rules: { factory: FactoryType.UnitType } };
+        const barracks = { id: 30, name: "Barracks", rules: { factory: FactoryType.InfantryType } };
+        const player: any = { buildings: new Set([first, second, barracks]) };
+        const production = new Production(player, 9, {}, {}, []);
+
+        production.rebuildFactoryDerivedState();
+
+        expect(production.getFactoryCount(FactoryType.UnitType)).toBe(2);
+        expect(production.getFactoryCount(FactoryType.InfantryType)).toBe(1);
+        expect(production.getPrimaryFactory(FactoryType.UnitType)).toBe(second);
+        expect(production.getPrimaryFactory(FactoryType.InfantryType)).toBe(barracks);
+        expect(production.hasAnyFactory()).toBe(true);
+
+        player.buildings.delete(second);
+        production.rebuildFactoryDerivedState();
+        expect(production.getFactoryCount(FactoryType.UnitType)).toBe(1);
+        expect(production.getPrimaryFactory(FactoryType.UnitType)).toBe(first);
+    });
+
+    test("rejects impossible queue status and per-type quantity combinations transactionally", () => {
+        const source = queueWith(infantry);
+        const restored = queueWith(vehicle);
+        const before = restored.captureState();
+
+        const idleWithItems = structuredClone(source.captureState()) as any;
+        idleWithItems.status = QueueStatus.Idle;
+        expect(() => restored.restoreState(idleWithItems, { strict: true, resolveRules: () => infantry }))
+            .toThrow(/non-empty queue cannot be idle/);
+        expect(restored.captureState()).toEqual(before);
+
+        const readyWithoutCompletion = structuredClone(source.captureState()) as any;
+        readyWithoutCompletion.status = QueueStatus.Ready;
+        readyWithoutCompletion.items[0].progress = 0;
+        expect(() => restored.restoreState(readyWithoutCompletion, { strict: true, resolveRules: () => infantry }))
+            .toThrow(/ready queue/);
+        expect(restored.captureState()).toEqual(before);
+
+        const perTypeOverflow = structuredClone(source.captureState()) as any;
+        perTypeOverflow.maxSize = 20;
+        perTypeOverflow.maxItemQuantity = 1;
+        perTypeOverflow.size = 2;
+        perTypeOverflow.items = [
+            { ...perTypeOverflow.items[0], quantity: 1 },
+            { ...perTypeOverflow.items[0], quantity: 1 },
+        ];
+        expect(() => restored.restoreState(perTypeOverflow, { strict: true, resolveRules: () => infantry }))
+            .toThrow(/maxItemQuantity/);
+        expect(restored.captureState()).toEqual(before);
+    });
+
     test("restored progress continues with identical credits and ready tick", () => {
         const source = queueWith(infantry);
         const restored = queue();

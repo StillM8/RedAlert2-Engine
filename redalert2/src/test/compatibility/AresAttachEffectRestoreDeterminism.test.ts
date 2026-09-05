@@ -205,6 +205,24 @@ describe("Ares AttachEffect deterministic restore", () => {
         expect(restored.serializeState()).toEqual(live.serializeState());
     });
 
+    test("strict restore accepts a constructor-owned automatic effect without an external origin", () => {
+        const automaticDefinition = definition({ armorMultiplier: 0.75, duration: 10 });
+        const live = new AresAttachEffectTrait({
+            automaticEffect: { effectId: "aura", definition: automaticDefinition },
+        });
+        live.apply("aura", automaticDefinition, { origin: { kind: "techno", ownerName: "AuraUnit" } });
+        const snapshot = structuredClone(live.serializeState()) as any;
+        delete snapshot.origins;
+
+        const restored = new AresAttachEffectTrait({
+            automaticEffect: { effectId: "aura", definition: automaticDefinition },
+        });
+        restored.restoreState(snapshot, { strict: true });
+
+        expect(restored.getAggregateMultipliers().armor).toBeCloseTo(0.75, 10);
+        expect(restored.getState()).toEqual(live.getState());
+    });
+
     test("hash distinguishes different effects with identical durations", () => {
         const armorTrait = new AresAttachEffectTrait();
         armorTrait.apply("armor", definition(), { origin: { kind: "techno", ownerName: "X" } });
@@ -433,6 +451,37 @@ describe("Ares AttachEffect deterministic restore", () => {
         const before = trait.serializeState();
         expect(() => trait.restoreState(base)).toThrow(/duplicate/);
         // Transactional: failed restore leaves the prior state untouched.
+        expect(trait.serializeState()).toEqual(before);
+    });
+
+    test("strict restore rejects orphan origins and out-of-range animation occurrences", () => {
+        const trait = new AresAttachEffectTrait();
+        const before = trait.serializeState();
+        const orphan = {
+            version: 1 as const,
+            instances: [{ effectId: "burn", remainingFrames: 10, discardOnEntry: false }],
+            automaticPhase: "inactive" as const,
+            automaticRemainingDelay: 0,
+            origins: [
+                { effectId: "burn", kind: "warhead" as const, ownerName: "W" },
+                { effectId: "ghost", kind: "warhead" as const, ownerName: "W" },
+            ],
+        };
+        expect(() => trait.restoreState(orphan, {
+            strict: true,
+            resolveDefinition: () => definition(),
+        })).toThrow(/effect instance is absent/);
+        expect(trait.serializeState()).toEqual(before);
+
+        const occurrence = {
+            ...orphan,
+            origins: [{ effectId: "burn", kind: "warhead" as const, ownerName: "W" }],
+            animationDamage: [{ effectId: "burn", occurrence: 1, accumulator: 1, frameAccumulator: 0 }],
+        };
+        expect(() => trait.restoreState(occurrence, {
+            strict: true,
+            resolveDefinition: () => definition(),
+        })).toThrow(/missing occurrence/);
         expect(trait.serializeState()).toEqual(before);
     });
 });

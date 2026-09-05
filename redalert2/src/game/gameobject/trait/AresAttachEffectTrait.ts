@@ -25,6 +25,7 @@ import {
     parseAresAnimationDamage,
 } from "@/extensions/ares/AresAnimationDamage";
 import { GameSpeed } from "@/game/GameSpeed";
+import { mixCanonicalFloat64 } from "@/util/number";
 
 export interface AresAttachEffectMultipliers {
     speed: number;
@@ -177,8 +178,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
                     hash = (hash * 31 + char.charCodeAt(0)) | 0;
                 }
                 hash = (hash * 31 + occurrence) | 0;
-                hash = mixFloat64(hash, state.accumulator, floatView);
-                hash = mixFloat64(hash, state.frameAccumulator, floatView);
+                hash = mixCanonicalFloat64(hash, state.accumulator, floatView, `AttachEffect.${effectId}.accumulator`);
+                hash = mixCanonicalFloat64(hash, state.frameAccumulator, floatView, `AttachEffect.${effectId}.frameAccumulator`);
                 if (state.sourcePlayer !== undefined && state.sourcePlayer !== null) {
                     const index = this.resolveCanonicalPlayerIndex(state.sourcePlayer);
                     if (index !== undefined) {
@@ -303,7 +304,10 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             animationDamage: new Map(),
             definitions: new Map(),
         };
-        restoreAresAttachEffectExtensionState(restored, state, context);
+        restoreAresAttachEffectExtensionState(restored, state, {
+            ...context,
+            automaticEffectId: context.automaticEffectId ?? this.automaticEffect?.effectId,
+        });
         this.instances = restored.instances.map(instance => ({ ...instance }));
         this.automaticPhase = restored.automaticPhase;
         this.automaticRemainingDelay = restored.automaticRemainingDelay;
@@ -741,14 +745,6 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             resetAnimation: result.resetAnimation,
         };
     }
-}
-
-function mixFloat64(hash: number, value: number, view: DataView): number {
-    view.setFloat64(0, value, true);
-    for (let index = 0; index < 8; index++) {
-        hash = (hash * 31 + view.getUint8(index)) | 0;
-    }
-    return hash;
 }
 
 function finiteOrOne(value: number | undefined): number {

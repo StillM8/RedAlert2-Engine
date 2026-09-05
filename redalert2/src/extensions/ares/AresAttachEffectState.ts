@@ -90,6 +90,13 @@ export interface AresAttachEffectRestoreContext {
         kind: "warhead" | "techno",
         ownerName: string,
     ): unknown;
+    /**
+     * Effect ID whose authored definition is supplied by the host's
+     * constructor-owned automatic TechnoType binding. A strict snapshot may
+     * omit an origin for this one effect because it is not an external rule
+     * reference.
+     */
+    automaticEffectId?: string;
 }
 
 export interface AresAttachEffectStateTarget {
@@ -322,13 +329,22 @@ export function restoreAresAttachEffectExtensionState(
     if (context.strict) {
         const activeEffectIds = new Set(normalized.instances.map(instance => instance.effectId));
         for (const effectId of activeEffectIds) {
-            if (!seenOrigin.has(effectId)) {
+            if (!seenOrigin.has(effectId) && effectId !== context.automaticEffectId) {
                 throw new Error(`Cannot restore Ares AttachEffect ${effectId}: missing definition origin`);
+            }
+        }
+        for (const effectId of seenOrigin) {
+            if (!activeEffectIds.has(effectId)) {
+                throw new Error(`Cannot restore Ares AttachEffect origin ${effectId}: effect instance is absent`);
             }
         }
         for (const entry of animationDamage) {
             if (!activeEffectIds.has(entry.effectId)) {
                 throw new Error(`Cannot restore Ares AttachEffect animation damage for inactive effect ${entry.effectId}`);
+            }
+            const occurrenceCount = normalized.instances.filter(instance => instance.effectId === entry.effectId).length;
+            if (entry.occurrence >= occurrenceCount) {
+                throw new Error(`Cannot restore Ares AttachEffect animation damage for missing occurrence ${entry.effectId}[${entry.occurrence}]`);
             }
         }
     }

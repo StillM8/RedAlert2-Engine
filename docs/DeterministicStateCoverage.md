@@ -10,9 +10,10 @@ snapshot when that subsystem has a restore codec.
 | --- | --- | --- | --- | --- | --- | --- |
 | PRNG | MT19937 624-word state, index, last emitted value | yes | yes | transactional | 4,537 + 5,000 continuation | closed for codec |
 | Players | credits, defeat/score, Firestorm flag, negative BuildLimit history, owned production/SW state | yes | partial | partial | adversarial hash tests | full Player snapshot open |
-| Production | ordered queue items, quantities, status, spend/fraction/progress, build-speed modifier, veteran factory unlocks, Ares plans | yes | yes | transactional | tick continuation/ready transition and veteran-production decision | veteran/history closed; derived factory state open |
+| Production | ordered queue items, quantities, status, spend/fraction/progress, build-speed modifier, veteran factory unlocks, Ares plans | yes | yes | transactional | tick continuation/ready transition, veteran-production decision, and factory rebuild | veteran/history closed; full-world restore integration open |
 | GameObjects | stable object ID, owner PlayerList index, position, registered trait hashes | yes | no full-world codec | no full-world codec | owner/trait negative controls | full-world restore open |
 | Transport | held order, boarding queue order, crash latch | yes | yes | transactional in strict mode | restore and lifecycle tests | closed for codec |
+| Garrison | occupant object IDs, temporary occupation, retained true-owner PlayerList index | yes | yes | transactional | duplicate-name owner and dirty-destination restore tests | trait codec closed; full-world integration open |
 | AttachEffect | instances, scheduler, residual timing/attribution, authored origins | yes | yes | strict and legacy modes | 100-tick continuation | subsystem qualified |
 | Standalone animation damage | runtime ID/next ID, frame clock, accumulators, exact position, tile/elevation/zone, player identity | yes | yes | transactional strict mode | 100-tick continuation | subsystem qualified |
 | Superweapons | owned charge/status/shot state, Ares ratios/pause timestamp/battery, active effect hashes | yes | partial | partial | hash and charge tests | active-effect full restore open |
@@ -36,10 +37,16 @@ deterministic qualification must use strict mode.
 whether future units are produced as veterans, so it is included in the
 versioned production snapshot and hash. `factoryCounts` and `primaryFactories`
 are intentionally not copied into that snapshot. They are world-derived state
-and must be rebuilt deterministically from canonical owned factory objects
-before a future full-world restore can resume production; the queue codec does
-not claim to close that integration. `FactoryTrait` delivery/status/retry state
-has the same outstanding full-GameObject closure obligation.
+and `Production.rebuildFactoryDerivedState()` rebuilds them from canonical
+owned factory objects in object-ID order; a future full-world restore must call
+that entry point before resuming production. The queue codec does not claim to
+close that integration. `FactoryTrait` delivery/status/retry state has the
+same outstanding full-GameObject closure obligation.
+
+`GarrisonTrait` now has a small trait-level codec for occupant object IDs,
+temporary occupation, and retained owner PlayerList identity. It does not claim
+to restore the owning GameObject, player ownership, or the complete world
+membership graph; those remain full-world restore responsibilities.
 
 The AttachEffect identity audit also reproduced a shared source-name key when
 an automatic TechnoType effect and a Warhead effect use the same identifier.

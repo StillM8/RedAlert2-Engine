@@ -264,6 +264,32 @@ export class Production {
     getPrimaryFactory(type: FactoryType): any {
         return this.primaryFactories.get(type);
     }
+    /**
+     * Rebuilds the world-derived factory indexes after a full-world restore.
+     *
+     * `factoryCounts` and `primaryFactories` are not authored history: they
+     * are projections of the player's currently owned factory buildings. A
+     * restored world must rebuild them from the canonical object set instead
+     * of restoring Map insertion order. Real GameObjects have unique,
+     * deterministic numeric IDs, so ascending ID preserves the retail
+     * "first surviving factory" selection across peers.
+     */
+    rebuildFactoryDerivedState(buildings: Iterable<any> = this.player?.buildings ?? []): void {
+        const factories = [...buildings]
+            .map((building, order) => ({ building, order, type: building?.rules?.factory }))
+            .filter(({ type }) => isFactoryType(type) && type !== FactoryType.None)
+            .sort(compareFactoryBuildings);
+        const counts = new Map<FactoryType, number>();
+        const primaries = new Map<FactoryType, any>();
+        for (const { building, type } of factories) {
+            counts.set(type, (counts.get(type) ?? 0) + 1);
+            if (!primaries.has(type)) {
+                primaries.set(type, building);
+            }
+        }
+        this.factoryCounts = counts;
+        this.primaryFactories = primaries;
+    }
     setPrimaryFactory(building: any) {
         if (building.rules.factory) {
             this.primaryFactories.set(building.rules.factory, building);
@@ -446,6 +472,10 @@ export class Production {
         this.veteranTypes.clear();
         for (const type of veteranFactoryTypes) this.veteranTypes.add(type);
         this.replaceExtensionState(extensionTarget);
+        // These indexes are derived from the already-live world. They are
+        // rebuilt only after every serialized field has validated, so a
+        // failed restore cannot leave a partially rebuilt production object.
+        this.rebuildFactoryDerivedState();
         for (const { queue } of plans) queue.notifyUpdated();
     }
     restoreState(state: unknown): void {
@@ -581,4 +611,27 @@ function normalizeVeteranFactoryTypes(value: unknown): FactoryType[] {
         throw new Error("Invalid production state: duplicate veteran factory type");
     }
     return types.sort((a, b) => a - b);
+}
+
+function compareFactoryBuildings(
+    left: { building: any; order: number; type: FactoryType },
+    right: { building: any; order: number; type: FactoryType },
+): number {
+    const leftId = left.building?.id;
+    const rightId = right.building?.id;
+    if (Number.isSafeInteger(leftId) && Number.isSafeInteger(rightId) && leftId !== rightId) {
+        return leftId - rightId;
+    }
+    if (Number.isSafeInteger(leftId) !== Number.isSafeInteger(rightId)) {
+        return Number.isSafeInteger(leftId) ? -1 : 1;
+    }
+    const leftName = String(left.building?.name ?? "");
+    const rightName = String(right.building?.name ?? "");
+    if (leftName < rightName) return -1;
+    if (leftName > rightName) return 1;
+    if (left.type !== right.type) return left.type - right.type;
+    // Only legacy test doubles can reach this fallback; production objects
+    // always have an ID. Retaining their supplied order keeps the adapter
+    // usable without pretending that object identity is canonical.
+    return left.order - right.order;
 }

@@ -102,7 +102,7 @@ export const DEFAULT_ARES_FEATURES: readonly ExtensionFeature[] = [
         parserImplemented: true,
         runtimeImplemented: true,
         tests: ["AresUrbanCombat.test.ts", "AresUrbanCombatRuntimeAdapter.test.ts", "AresUrbanCombatProjectileHook.test.ts", "AresCompatibilityScanner.test.ts"],
-        notes: "The documented Urban Combat fields are normalized and the projectile path now applies generic pass-through, fatal-rate, and occupant damage decisions while preserving ordinary detonation when optional data is absent. Trench traversal, raidable capture, rubble transitions, foundation validation, broader projectile/occupant integration, save/load, and multiplayer synchronization remain open.",
+        notes: "The documented Urban Combat fields are normalized and the projectile path now applies generic pass-through, fatal-rate, and occupant damage decisions while preserving ordinary detonation when optional data is absent. Trench traversal, raidable capture, rubble transitions, foundation validation, and broader projectile/occupant integration remain open; GarrisonTrait now has a trait-level occupant/retained-owner codec, while full-world save/load and multiplayer synchronization remain open.",
     },
     {
         id: "ares.pcx-cameos",
