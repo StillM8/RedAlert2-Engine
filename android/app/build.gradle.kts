@@ -15,19 +15,15 @@ android {
         applicationId = "io.stillm8.rtsengine"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = providers.gradleProperty("releaseVersionCode")
+            .map(String::toInt)
+            .orElse(1)
+            .get()
+        versionName = providers.gradleProperty("releaseVersionName")
+            .orElse("0.0.1")
+            .get()
 
         manifestPlaceholders["allowCleartext"] = "false"
-    }
-
-    signingConfigs {
-        create("betaDev") {
-            storeFile = rootProject.file("beta-debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
     }
 
     buildTypes {
@@ -38,7 +34,6 @@ android {
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("betaDev")
             manifestPlaceholders["allowCleartext"] = "false"
         }
     }

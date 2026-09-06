@@ -10,6 +10,7 @@ import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { RadarEventType } from '@/game/rules/general/RadarRules';
 import { OrderFeedbackType } from '@/game/order/OrderFeedbackType';
 import { QueueType, QueueStatus } from '@/game/player/production/ProductionQueue';
+import { VeteranLevel } from '@/game/gameobject/unit/VeteranLevel';
 import { getAvailableBuildingSuperWeapon } from '@/game/gameobject/trait/SuperWeaponTrait';
 import {
     resolveAresSuperWeaponMessageColor,
@@ -127,6 +128,9 @@ export class SoundHandler {
                 break;
             case EventType.AresIvanBombAttach:
                 this.handleAresIvanBombAttachSound(event);
+                break;
+            case EventType.AresBountyAward:
+                this.handleAresBountyAwardEvent(event);
                 break;
             case EventType.TriggerEva:
                 // Trigger/script "play speech" actions (including Ares
@@ -269,6 +273,22 @@ export class SoundHandler {
         if (handle) {
             this.weaponLoopHandles.set(gameObject, { handle, soundName });
         }
+    }
+    private handleAresBountyAwardEvent(event: any): void {
+        // Ares Bounty.Display surfaces the signed credit award as a combat
+        // message. Retail shows floating text at the victim; the shared HUD
+        // message channel is this engine's equivalent presentation path.
+        // Awards keep the killer's house color, matching the shared-world
+        // presentation of superweapon messages.
+        const amount = event.amount as number;
+        if (!amount) return;
+        const killerColor: string | { color: { asHexString(): string } } =
+            event.player?.color ?? event.player ?? 'grey';
+        const label = amount > 0 ? 'TXT_BOUNTY_RECEIVED' : 'TXT_BOUNTY_LOST';
+        const text = this.strings.has?.(label)
+            ? this.strings.get(label, String(Math.abs(amount)))
+            : `${amount > 0 ? '+' : ''}${amount}`;
+        this.messageList.addSystemMessage(text, killerColor);
     }
     private handleAresIvanBombAttachSound(event: any): void {
         if (!event.soundName || !event.target?.position?.worldPosition) return;
@@ -488,9 +508,18 @@ export class SoundHandler {
     }
     private handleUnitPromoteSound(event: any): void {
         if (event.target.owner === this.player) {
-            const isElite = event.target.veteranLevel === 'Elite';
-            this.sound.play(isElite ? SoundKey.UpgradeEliteSound : SoundKey.UpgradeVeteranSound, ChannelType.Effect);
-            this.eva.play('EVA_UnitPromoted', true);
+            const level = event.level ?? event.target.veteranLevel;
+            const isElite = level === VeteranLevel.Elite || level === 2;
+            // Ares per-type overrides fall back to the global [AudioVisual]
+            // sounds, and the EVA override falls back to EVA_UnitPromoted.
+            const sound = isElite
+                ? (event.target.rules?.promoteEliteSound ?? SoundKey.UpgradeEliteSound)
+                : (event.target.rules?.promoteVeteranSound ?? SoundKey.UpgradeVeteranSound);
+            this.sound.play(sound, ChannelType.Effect);
+            const eva = isElite
+                ? event.target.rules?.evaElitePromoted
+                : event.target.rules?.evaVeteranPromoted;
+            this.eva.play(eva ?? 'EVA_UnitPromoted', true);
         }
     }
     private handleCratePickupSound(event: any): void {

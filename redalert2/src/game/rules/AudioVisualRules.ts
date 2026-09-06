@@ -53,6 +53,10 @@ export class AudioVisualRules {
     public firestormAirAnim: string = 'FSAIR';
     /** Ares global fallback for TechnoType Bounty.Display. */
     public bountyDisplay = false;
+    /** Ares promotion flash frames; per-type Promote.*Flash overrides these. */
+    public veteranFlashTimer = 0;
+    /** Retail YR elite flash duration; Ares VeteranFlashTimer mirrors it. */
+    public eliteFlashTimer = 0;
     readIni(ini: any, generalIni?: any): AudioVisualRules {
         this.ini = ini;
         // YR's rulesmd.ini omits many [AudioVisual] keys that RA2's rules.ini
@@ -110,6 +114,8 @@ export class AudioVisualRules {
         this.weatherConBoltExplosion = str("WeatherConBoltExplosion", "EXPLOLB");
         this.weatherConBolts = arr("WeatherConBolts", ["WCLBOLT1", "WCLBOLT2", "WCLBOLT3"]);
         this.bountyDisplay = ini.getBool("BountyDisplay");
+        this.veteranFlashTimer = ini.getNumber("VeteranFlashTimer", 0);
+        this.eliteFlashTimer = ini.getNumber("EliteFlashTimer", 0);
         this.firestormActiveAnim = str("FirestormActiveAnim", "GAFSDF_A");
         this.firestormIdleAnim = str("FirestormIdleAnim", "FSIDLE");
         this.firestormGroundAnim = str("FirestormGroundAnim", "FSGRND");

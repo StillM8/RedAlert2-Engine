@@ -1,5 +1,6 @@
 package io.stillm8.rtsengine
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.Manifest
 import android.content.Intent
@@ -1228,6 +1229,7 @@ class MainActivity : Activity() {
     }
 
     @Deprecated("Use Activity Result APIs when this shell grows more activities")
+    @SuppressLint("WrongConstant")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == GAME_DIRECTORY_REQUEST) {

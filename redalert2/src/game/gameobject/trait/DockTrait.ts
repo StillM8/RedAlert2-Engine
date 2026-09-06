@@ -40,6 +40,7 @@ interface Unit {
     name: string;
     tile: Tile;
     isDestroyed: boolean;
+    isDisposed: boolean;
     owner: any;
     rules: {
         consideredAircraft?: boolean;
@@ -328,6 +329,38 @@ export class DockTrait implements NotifyDestroy, NotifyOwnerChange, NotifySell, 
         return index !== -1 ? index : undefined;
     }
     dispose(): void {
+        // Death paths that skip the repair-cleanup branch (temporal erase,
+        // forced cleanup) must still release their docked units: otherwise
+        // unitsByDockNumber keeps the unit linked to a disposed building and
+        // a docked aircraft reads isDocked()==true forever, never taking off.
+        // Only LIVE units are released; destroyed ones have already had
+        // traits.dispose() run and undockUnitAt would throw on the missing
+        // DockableTrait.
+        for (let index = 0; index < this.unitsByDockNumber.length; index++) {
+            const unit = this.unitsByDockNumber[index];
+            if (unit && !unit.isDestroyed && !unit.isDisposed) {
+                try {
+                    this.undockUnitAt(index);
+                }
+                catch (error) {
+                    if (!(error instanceof Error) || !error.message.includes("No matching trait")) {
+                        throw error;
+                    }
+                    // The unit lost its DockableTrait between the check and
+                    // the release; the slot still must not keep referencing it.
+                    this.unitsByDockNumber[index] = undefined;
+                }
+            }
+            else if (unit) {
+                this.unitsByDockNumber[index] = undefined;
+            }
+        }
+        for (let index = 0; index < this.reservedDocks.length; index++) {
+            const reserved = this.reservedDocks[index];
+            if (reserved && (reserved.isDestroyed || reserved.isDisposed)) {
+                this.reservedDocks[index] = undefined;
+            }
+        }
         this.building = undefined as any;
     }
 }

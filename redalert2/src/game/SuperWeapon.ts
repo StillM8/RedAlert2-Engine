@@ -12,6 +12,7 @@ import {
 } from '@/extensions/ares/AresSuperWeaponMoney';
 import { setAresFirestormActive } from '@/extensions/ares/AresFirestorm';
 import { setAresBatteryActiveForWeapon } from '@/extensions/ares/AresBattery';
+import { fnv32aStrings } from '@/util/math';
 import {
     restoreAresSuperWeaponExtensionState,
     serializeAresSuperWeaponExtensionState,
@@ -110,6 +111,22 @@ export class SuperWeapon {
             return Math.max(0, Math.min(1, 1 - this.chargeTicks / duration));
         }
         return (this.rechargeTicks - this.chargeTicks) / this.rechargeTicks;
+    }
+
+    /** Hashes the same mutable fields emitted by the Ares state codec. */
+    getHash(): number {
+        const state = this.serializeAresState();
+        return fnv32aStrings([
+            "superweapon-state",
+            this.name,
+            state.status,
+            state.chargeTicks,
+            state.shotsFired,
+            state.chargeDrainRatio,
+            state.virtualChargeSinceTick === undefined ? "none" : "present",
+            state.virtualChargeSinceTick ?? -1,
+            state.aresBatteryActive ? 1 : 0,
+        ]);
     }
 
     /** Returns the Ares-owned state required by a save, replay, or snapshot host. */

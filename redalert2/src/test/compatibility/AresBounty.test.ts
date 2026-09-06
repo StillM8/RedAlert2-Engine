@@ -4,6 +4,7 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import { ArmorRegistry } from "@/extensions/ares/AresArmor";
 import {
     awardAresBounty,
+    applyAresBountyAward,
     parseAresBountyGeneralRules,
     parseAresBountyTechnoRules,
     resolveAresBountyAward,
@@ -165,8 +166,27 @@ describe("Ares Bounty", () => {
         expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(0);
 
         game.areFriendly = () => false;
-        expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(-50);
+        expect(awardAresBounty(game, { player: hunterOwner, obj: hunter }, victim)).toBe(-10);
         expect(hunterOwner.credits).toBe(0);
+    });
+
+    test("reports the actually applied amount when a negative bounty exceeds credits", () => {
+        const hunterOwner = player("Hunter", true, 10);
+        const award = {
+            player: hunterOwner,
+            source: {},
+            target: {},
+            amount: -50,
+            display: true,
+        } as any;
+
+        const transaction = applyAresBountyAward(award);
+        expect(transaction).toMatchObject({
+            amount: -50,
+            creditsBefore: 10,
+            creditsAfter: 0,
+            appliedAmount: -10,
+        });
     });
 
     test("publishes a display event from the actual destruction path", () => {
@@ -202,5 +222,24 @@ describe("Ares Bounty", () => {
             position: { x: 12, y: 0, z: 34 },
         });
         expect(hunterOwner.credits).toBe(250);
+    });
+
+    test("keeps the authored negative amount for display when credits clamp", () => {
+        const hunterOwner = player("Hunter", true, 10);
+        const victimOwner = player("Victim");
+        const hunter = techno(hunterOwner, {
+            aresBounty: { enabled: true, value: 0, rookieValue: 0, veteranValue: 0, eliteValue: 0, display: true },
+        });
+        const victim = techno(victimOwner, {
+            aresBounty: { enabled: false, value: -50, rookieValue: -50, veteranValue: -50, eliteValue: -50 },
+        });
+        const game = gameFor(hunter, victim);
+        const events: any[] = [];
+        game.events = { dispatch: (event: any) => events.push(event) };
+
+        game.destroyObject(victim, { player: hunterOwner, obj: hunter });
+
+        expect(hunterOwner.credits).toBe(0);
+        expect(events.find(event => event.type === EventType.AresBountyAward)?.amount).toBe(-50);
     });
 });

@@ -1,4 +1,5 @@
 import { ObjectType } from "@/engine/type/ObjectType";
+import { fnv32aStrings } from "@/util/math";
 import { Infantry } from "@/game/gameobject/Infantry";
 import { SpeedType } from "@/game/type/SpeedType";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
@@ -214,6 +215,9 @@ export function discardUnspawnedObject(object: any): void {
 
 export class UnitDeliveryEffect extends SuperWeaponEffect {
     private remainingTicks: number;
+    getHash(): number {
+        return fnv32aStrings(["UnitDeliveryEffect", super.getHash(), this.remainingTicks]);
+    }
 
     constructor(
         type: string,

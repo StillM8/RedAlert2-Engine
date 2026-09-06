@@ -56,11 +56,14 @@ export class ObjectFactory {
     private tileOccupation: any;
     private bridges: any;
     private nextObjectId: any;
-    constructor(tiles: any, tileOccupation: any, bridges: any, nextObjectId: any) {
+    /** Deterministic PlayerList order source for canonical snapshot identity. */
+    private playerList: { getAll?(): any[] } | undefined;
+    constructor(tiles: any, tileOccupation: any, bridges: any, nextObjectId: any, playerList?: { getAll?(): any[] }) {
         this.tiles = tiles;
         this.tileOccupation = tileOccupation;
         this.bridges = bridges;
         this.nextObjectId = nextObjectId;
+        this.playerList = playerList;
     }
     create(objectType: any, name: string, rulesIni: any, artIni: any): any {
         let rules: any;
@@ -229,6 +232,13 @@ export class ObjectFactory {
             if (gameObject.rules.aresAttachEffect) {
                 gameObject.aresAttachEffectTrait = new AresAttachEffectTrait({
                     gameObject,
+                    // Canonical snapshot identity for damage attribution: the
+                    // player's index in the deterministic PlayerList order.
+                    getPlayerIndex: (player: any) => {
+                        const players = this.playerList?.getAll?.() ?? [];
+                        const index = players.indexOf(player);
+                        return index === -1 ? undefined : index;
+                    },
                     automaticEffect: {
                         effectId: gameObject.name,
                         definition: gameObject.rules.aresAttachEffect,

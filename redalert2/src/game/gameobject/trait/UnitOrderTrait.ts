@@ -1,5 +1,6 @@
 import { TaskRunner } from "@/game/gameobject/task/system/TaskRunner";
 import { TaskStatus } from "@/game/gameobject/task/system/TaskStatus";
+import { fnv32aStrings } from "@/util/math";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { WaitTicksTask } from "@/game/gameobject/task/system/WaitTicksTask";
 import { NotifyOwnerChange } from "@/game/gameobject/trait/interface/NotifyOwnerChange";
@@ -21,6 +22,7 @@ interface Task {
     useChildTargetLines?: boolean;
     children?: Task[];
     getTargetLinesConfig?(gameObject: GameObject): any;
+    getDeterministicState?(): Record<string, unknown>;
 }
 interface Order {
     isValid(): boolean;
@@ -48,6 +50,34 @@ export class UnitOrderTrait implements NotifyTick, NotifyOwnerChange, NotifyTele
     private targetLinesConfig?: any;
     constructor(gameObject: GameObject) {
         this.gameObject = gameObject;
+    }
+    /**
+     * BOUNDED hash coverage, deliberately honest about its limits.
+     *
+     * Orders and tasks are an open object graph (tasks carry closures,
+     * children, and per-task primitives with no uniform surface), so a fully
+     * faithful fingerprint needs a per-task snapshot contract. What IS
+     * covered here — pending order count/types, queued flags, live task
+     * descriptors for tasks with an explicit contract, and waypoint progress
+     * presence — catches common divergence classes. Closure-bearing and
+     * target-bearing tasks without an override remain explicitly marked
+     * "unclassified-task" and are canonical-but-unqualified.
+     */
+    getHash(): number {
+        return fnv32aStrings([
+            "UnitOrderTrait",
+            this.orders.length,
+            ...this.orders.flatMap((order) => [order.orderType, this.queuedOrders.has(order) ? 1 : 0]),
+            "queued-orders",
+            this.queuedOrders.size,
+            this.tasks.length,
+            ...this.tasks.map((task) => JSON.stringify(task.getDeterministicState?.() ?? {
+                type: "unclassified-task",
+                status: task.status,
+            })),
+            this.currentWaypoint ? 1 : 0,
+            this.waypointPath ? this.waypointPath.waypoints.length : -1,
+        ]);
     }
     [NotifyTick.onTick](gameObject: GameObject, deltaTime: number): void {
         if (!gameObject.isSpawned)

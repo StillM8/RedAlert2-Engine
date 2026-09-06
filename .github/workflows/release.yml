@@ -78,11 +78,13 @@ jobs:
             [[ "$VERSION" == *-* ]] && PRERELEASE=true
           fi
 
-          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
-          echo "publish_release=$PUBLISH_RELEASE" >> "$GITHUB_OUTPUT"
+          {
+            echo "source_sha=$SOURCE_SHA"
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "prerelease=$PRERELEASE"
+            echo "publish_release=$PUBLISH_RELEASE"
+          } >> "$GITHUB_OUTPUT"
 
   validate:
     name: Validate once + build frontend once
@@ -149,6 +151,7 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          PUBLISH_RELEASE: ${{ needs.prepare.outputs.publish_release }}
         run: |
           set -euo pipefail
           configured=0
@@ -159,19 +162,15 @@ jobs:
             echo "::error::Set all four ANDROID_RELEASE_* secrets or none of them."
             exit 1
           fi
-          export PROD_SIGNING="$configured"
-          python3 - <<'PY'
-          import os, re
-          from pathlib import Path
-          p = Path('android/app/build.gradle.kts')
-          text = p.read_text()
-          text = re.sub(r'versionCode\s*=\s*\d+', f'versionCode = {os.environ["GITHUB_RUN_NUMBER"]}', text, count=1)
-          text = re.sub(r'versionName\s*=\s*"[^"]+"', f'versionName = "{os.environ["RELEASE_VERSION"]}"', text, count=1)
-          if os.environ['PROD_SIGNING'] == '4':
-              text = text.replace('            signingConfig = signingConfigs.getByName("betaDev")\n', '')
-          p.write_text(text)
-          PY
-          [[ "$configured" -eq 4 ]] && echo "mode=production" >> "$GITHUB_OUTPUT" || echo "mode=beta" >> "$GITHUB_OUTPUT"
+          if [[ "$PUBLISH_RELEASE" == "true" && "$configured" -ne 4 ]]; then
+            echo "::error::Published/tagged releases require all four ANDROID_RELEASE_* signing secrets."
+            exit 1
+          fi
+          if [[ "$PUBLISH_RELEASE" == "true" ]]; then
+            echo "mode=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=development" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-java@v4
         with:
@@ -199,7 +198,9 @@ jobs:
 
       - name: Assemble release APK
         working-directory: android
-        run: gradle --no-daemon :app:assembleRelease
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: gradle --no-daemon :app:assembleRelease -PreleaseVersionCode="$GITHUB_RUN_NUMBER" -PreleaseVersionName="$RELEASE_VERSION"
 
       - name: Package and verify installable APK
         shell: bash
@@ -210,9 +211,12 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets
           BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/36.0.0"
-          SIGNED="android/app/build/outputs/apk/release/app-release.apk"
           UNSIGNED="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android.apk"
+          if [[ "$SIGNING_MODE" == "production" ]]; then
+            OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-android.apk"
+          else
+            OUTPUT="release-assets/Red-Alert-2-${RELEASE_VERSION}-DEVELOPMENT-${GITHUB_RUN_NUMBER}-android.apk"
+          fi
 
           if [[ "$SIGNING_MODE" == "production" ]]; then
             [[ -f "$UNSIGNED" ]] || { echo "::error::Unsigned production APK missing"; exit 1; }
@@ -221,13 +225,8 @@ jobs:
             ALIGNED="$RUNNER_TEMP/ra2-aligned.apk"
             "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
             "$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" --key-pass "pass:$ANDROID_KEY_PASSWORD" --out "$OUTPUT" "$ALIGNED"
-          elif [[ -f "$SIGNED" ]]; then
-            cp "$SIGNED" "$OUTPUT"
-          elif [[ -f "$UNSIGNED" && -f android/beta-debug.keystore ]]; then
-            ALIGNED="$RUNNER_TEMP/ra2-beta-aligned.apk"
-            "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "$ALIGNED"
-            "$BUILD_TOOLS/apksigner" sign --ks android/beta-debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$OUTPUT" "$ALIGNED"
           elif [[ -f "$UNSIGNED" ]]; then
+            echo "Development APK: unsuitable for the production update line."
             KEYSTORE="$RUNNER_TEMP/ra2-temporary-dev.keystore"
             keytool -genkeypair -keystore "$KEYSTORE" -storepass android -keypass android -alias ra2-dev -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Red Alert 2 Development Build,O=StillM8,C=PK"
             ALIGNED="$RUNNER_TEMP/ra2-temp-aligned.apk"
@@ -239,6 +238,7 @@ jobs:
           fi
 
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$OUTPUT"
+          "$BUILD_TOOLS/zipalign" -c -p 4 "$OUTPUT"
           test -s "$OUTPUT"
 
       - uses: actions/upload-artifact@v4
@@ -293,6 +293,29 @@ jobs:
           name: release-web-dist
           path: redalert2/dist
 
+      - name: Configure Windows production signing
+        id: windows-signing
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+          PUBLISH_RELEASE: ${{ needs.prepare.outputs.publish_release }}
+        run: |
+          $values = @($env:WINDOWS_SIGNING_CERTIFICATE_BASE64, $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD)
+          $configured = @($values | Where-Object { $_ -and $_.Length -gt 0 }).Count
+          if ($configured -ne 0 -and $configured -ne 2) {
+            throw "Set both WINDOWS_SIGNING_CERTIFICATE_* secrets or neither."
+          }
+          if ($env:PUBLISH_RELEASE -eq "true" -and $configured -ne 2) {
+            throw "Published releases require Windows Authenticode signing secrets."
+          }
+          if ($configured -eq 2) {
+            "mode=production" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            "mode=development" >> $env:GITHUB_OUTPUT
+          }
+
       - name: Build portable executable and NSIS installer
         run: bun run tauri:build -- --config ../.github/tauri-ci.conf.json --target x86_64-pc-windows-msvc --ci --bundles nsis
 
@@ -300,11 +323,27 @@ jobs:
         shell: pwsh
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          WINDOWS_SIGNING_MODE: ${{ steps.windows-signing.outputs.mode }}
+          WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
         run: |
           $portable = "src-tauri/target/x86_64-pc-windows-msvc/release/redalert2-desktop.exe"
           $installer = Get-ChildItem "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis" -Filter *.exe -File | Select-Object -First 1
           if (-not (Test-Path $portable)) { throw "Portable Windows executable missing" }
           if (-not $installer) { throw "NSIS setup executable missing" }
+          if ((Get-Item $portable).Length -le 0 -or $installer.Length -le 0) { throw "Windows executable is empty" }
+          if ($env:WINDOWS_SIGNING_MODE -eq "production") {
+            $certificate = Join-Path $env:RUNNER_TEMP "ra2-release-signing.pfx"
+            [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64))
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -Last 1
+            if (-not $signtool) { throw "Windows SDK signtool.exe was not found" }
+            foreach ($path in @($portable, $installer.FullName)) {
+              & $signtool.FullName sign /fd SHA256 /f $certificate /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD /tr "http://timestamp.digicert.com" /td SHA256 $path
+              if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed for $path" }
+              & $signtool.FullName verify /pa $path
+              if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed for $path" }
+            }
+          }
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item $portable "release-assets/Red-Alert-2-$env:RELEASE_VERSION-windows-x64-portable.exe"
           Copy-Item $installer.FullName "release-assets/Red-Alert-2-$env:RELEASE_VERSION-windows-x64-setup.exe"
@@ -329,7 +368,7 @@ jobs:
             arch: arm64
           - runner: macos-15-intel
             target: x86_64-apple-darwin
-            arch: x64
+            arch: x86_64
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -371,15 +410,52 @@ jobs:
           name: release-web-dist
           path: redalert2/dist
 
-      - name: Configure ad-hoc macOS signing
+      - name: Configure macOS signing
+        id: macos-signing
         shell: bash
+        env:
+          MACOS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_BASE64 }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          PUBLISH_RELEASE: ${{ needs.prepare.outputs.publish_release }}
         run: |
+          set -euo pipefail
+          configured=0
+          for value in "$MACOS_SIGNING_CERTIFICATE_BASE64" "$MACOS_SIGNING_CERTIFICATE_PASSWORD" "$MACOS_SIGNING_IDENTITY"; do
+            [[ -n "$value" ]] && configured=$((configured + 1))
+          done
+          if [[ "$configured" -ne 0 && "$configured" -ne 3 ]]; then
+            echo "::error::Set all MACOS_SIGNING_* secrets or none of them."
+            exit 1
+          fi
+          if [[ "$PUBLISH_RELEASE" == "true" && "$configured" -ne 3 ]]; then
+            echo "::error::Published releases require macOS Developer ID signing secrets."
+            exit 1
+          fi
+          if [[ "$configured" -eq 3 ]]; then
+            CERTIFICATE="$RUNNER_TEMP/ra2-release-signing.p12"
+            KEYCHAIN="$RUNNER_TEMP/ra2-release-signing.keychain-db"
+            KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+            printf '%s' "$MACOS_SIGNING_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE"
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security import "$CERTIFICATE" -k "$KEYCHAIN" -P "$MACOS_SIGNING_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+            security list-keychains -d user -s "$KEYCHAIN"
+            security default-keychain -s "$KEYCHAIN"
+            echo "mode=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=development" >> "$GITHUB_OUTPUT"
+          fi
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
           p = Path('src-tauri/tauri.conf.json')
           cfg = json.loads(p.read_text())
-          cfg.setdefault('bundle', {}).setdefault('macOS', {})['signingIdentity'] = '-'
+          identity = os.environ.get('MACOS_SIGNING_IDENTITY') or '-'
+          cfg.setdefault('bundle', {}).setdefault('macOS', {})['signingIdentity'] = identity
           p.write_text(json.dumps(cfg, indent=2) + '\n')
           PY
 
@@ -392,6 +468,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           TARGET: ${{ matrix.target }}
           ARCH: ${{ matrix.arch }}
+          MACOS_SIGNING_MODE: ${{ steps.macos-signing.outputs.mode }}
         run: |
           set -euo pipefail
           mkdir -p release-assets
@@ -400,8 +477,15 @@ jobs:
           [[ -f "$DMG" ]] || { echo "::error::macOS DMG missing"; exit 1; }
           [[ -d "$APP" ]] || { echo "::error::macOS app bundle missing"; exit 1; }
           codesign --verify --deep --strict "$APP"
+          BINARY="$APP/Contents/MacOS/redalert2-desktop"
+          [[ -x "$BINARY" ]] || { echo "::error::macOS app executable missing"; exit 1; }
+          ARCHES="$(lipo -archs "$BINARY")"
+          grep -qw "$ARCH" <<< "$ARCHES" || { echo "::error::Expected $ARCH executable, got $ARCHES"; exit 1; }
+          [[ "$MACOS_SIGNING_MODE" != "production" || "$(codesign -dv --verbose=4 "$APP" 2>&1 | grep -c 'Authority=Developer ID Application' || true)" -gt 0 ]] || { echo "::error::Production macOS app is not Developer ID signed"; exit 1; }
           cp "$DMG" "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.dmg"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.app.zip"
+          [[ -s "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.dmg" ]] || { echo "::error::macOS DMG is empty"; exit 1; }
+          [[ -s "release-assets/Red-Alert-2-${RELEASE_VERSION}-macOS-${ARCH}.app.zip" ]] || { echo "::error::macOS app zip is empty"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -478,15 +562,21 @@ jobs:
           [[ -f "$APPIMAGE" ]] || { echo "::error::AppImage missing"; exit 1; }
           [[ -f "$DEB" ]] || { echo "::error::DEB missing"; exit 1; }
           [[ -f "$RPM" ]] || { echo "::error::RPM missing"; exit 1; }
+          [[ -s "$APPIMAGE" && -s "$DEB" && -s "$RPM" ]] || { echo "::error::Linux package is empty"; exit 1; }
+          file "$APPIMAGE" | grep -Eiq 'x86-64|amd64' || { echo "::error::AppImage is not x86-64"; exit 1; }
+          dpkg-deb --info "$DEB" >/dev/null
+          rpm -qip "$RPM" >/dev/null
           cp "$APPIMAGE" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.AppImage"
           cp "$DEB" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.deb"
           cp "$RPM" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.rpm"
           BINARY="src-tauri/target/release/redalert2-desktop"
           [[ -x "$BINARY" ]] || { echo "::error::Linux binary missing"; exit 1; }
+          file "$BINARY" | grep -Eiq 'ELF 64-bit.*x86-64' || { echo "::error::Linux binary is not x86-64"; exit 1; }
           cp "$BINARY" "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
           chmod +x "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
           tar -C release-assets -czf "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.tar.gz" "Red-Alert-2-${RELEASE_VERSION}-linux-x64"
           rm "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64"
+          tar -tzf "release-assets/Red-Alert-2-${RELEASE_VERSION}-linux-x64.tar.gz" | grep -Fq "Red-Alert-2-${RELEASE_VERSION}-linux-x64"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -497,7 +587,7 @@ jobs:
 
   checksums:
     name: SHA-256 manifest
-    needs: [android, windows, macos, linux]
+    needs: [prepare, android, windows, macos, linux]
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
@@ -509,10 +599,37 @@ jobs:
 
       - name: Generate checksums
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          PUBLISH_RELEASE: ${{ needs.prepare.outputs.publish_release }}
         run: |
           set -euo pipefail
           cd release-assets
-          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%P\0' | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          if [[ "$PUBLISH_RELEASE" == "true" ]]; then
+            ANDROID_ARTIFACT="Red-Alert-2-${RELEASE_VERSION}-android.apk"
+          else
+            ANDROID_ARTIFACT="Red-Alert-2-${RELEASE_VERSION}-DEVELOPMENT-${GITHUB_RUN_NUMBER}-android.apk"
+          fi
+          required=(
+            "$ANDROID_ARTIFACT"
+            "Red-Alert-2-${RELEASE_VERSION}-windows-x64-portable.exe"
+            "Red-Alert-2-${RELEASE_VERSION}-windows-x64-setup.exe"
+            "Red-Alert-2-${RELEASE_VERSION}-macOS-arm64.dmg"
+            "Red-Alert-2-${RELEASE_VERSION}-macOS-arm64.app.zip"
+            "Red-Alert-2-${RELEASE_VERSION}-macOS-x86_64.dmg"
+            "Red-Alert-2-${RELEASE_VERSION}-macOS-x86_64.app.zip"
+            "Red-Alert-2-${RELEASE_VERSION}-linux-x64.AppImage"
+            "Red-Alert-2-${RELEASE_VERSION}-linux-x64.deb"
+            "Red-Alert-2-${RELEASE_VERSION}-linux-x64.rpm"
+            "Red-Alert-2-${RELEASE_VERSION}-linux-x64.tar.gz"
+          )
+          for artifact in "${required[@]}"; do
+            [[ -s "$artifact" ]] || { echo "::error::Missing release artifact $artifact"; exit 1; }
+          done
+          [[ "$(find . -maxdepth 1 -type f | wc -l)" -eq "${#required[@]}" ]] || { echo "::error::Unexpected release artifact count"; exit 1; }
+          for artifact in "${required[@]}"; do
+            sha256sum "$artifact"
+          done > SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -550,7 +667,7 @@ jobs:
           cat > "$NOTES" <<'NOTES'
           Cross-platform Red Alert 2 / Yuri's Revenge engine build.
 
-          Includes Android APK, Windows portable/setup EXEs, Linux AppImage/DEB/RPM/portable archive, Intel and Apple Silicon macOS DMGs/app bundles, and SHA-256 checksums.
+          Includes Android APK, Windows portable/setup EXEs, Linux AppImage/DEB/RPM/portable archive, Intel and Apple Silicon macOS DMGs/app zips, and SHA-256 checksums.
           NOTES
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

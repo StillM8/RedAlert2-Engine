@@ -1,0 +1,487 @@
+import { describe, expect, test } from "bun:test";
+import {
+    serializeAresAttachEffectExtensionState,
+} from "@/extensions/ares/AresAttachEffectState";
+import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
+import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import { Player } from "@/game/Player";
+
+/**
+ * Deterministic-restore certification for AttachEffect extension state.
+ *
+ * These tests assert GAMEPLAY EQUIVALENCE, not merely hash equality: a
+ * restored trait must produce the same aggregate modifiers, the same damage
+ * attribution, and the same hashes as the live trait it was captured from.
+ * Hash equality alone is insufficient evidence because a hash that is blind
+ * to lost state will happily match while gameplay diverges.
+ */
+
+function definition(overrides: Partial<AresAttachEffectDefinition> = {}): AresAttachEffectDefinition {
+    return {
+        duration: 45,
+        speedMultiplier: 1,
+        armorMultiplier: 1,
+        firepowerMultiplier: 1,
+        rofMultiplier: 1,
+        cloakable: false,
+        forceDecloak: false,
+        discardOnEntry: false,
+        penetratesIronCurtain: false,
+        delay: 0,
+        initialDelay: 0,
+        cumulative: false,
+        animResetOnReapply: false,
+        temporalHidesAnim: false,
+        extensionEntries: new Map(),
+        ...overrides,
+    };
+}
+
+const sovietPlayer = { name: "Soviet", id: 1 };
+const alliedPlayer = { name: "Allied", id: 2 };
+
+function playerWithIndex(name: string, playerListIndex: number): Player {
+    const player = new Player(name);
+    player.playerListIndex = playerListIndex;
+    return player;
+}
+
+function pendingDamageTrait(
+    sourcePlayer: any,
+    getPlayerIndex?: (player: any) => number | undefined,
+    accumulator = 0,
+    frameAccumulator = 0.25,
+): AresAttachEffectTrait {
+    const trait = new AresAttachEffectTrait({ getPlayerIndex, gameObject: {} });
+    trait.apply("burn", definition({ duration: -1, animation: "BurnAnim" }), {
+        sourcePlayer,
+        origin: { kind: "warhead", ownerName: "FireWall" },
+    });
+    const state = (trait as any).animationDamageState.get("burn")?.[0];
+    state.accumulator = accumulator;
+    state.frameAccumulator = frameAccumulator;
+    return trait;
+}
+
+function resolvePlayerByIndex(index: number): unknown {
+    return index === 0 ? sovietPlayer : index === 1 ? alliedPlayer : undefined;
+}
+
+describe("Ares AttachEffect deterministic restore", () => {
+    test("restored trait keeps aggregate modifiers via definition rebinding", () => {
+        const live = new AresAttachEffectTrait();
+        live.apply("armor", definition({ armorMultiplier: 0.75 }), {
+            origin: { kind: "warhead", ownerName: "RadBeam" },
+        });
+        live.apply("firepower", definition({ firepowerMultiplier: 1.4 }), {
+            origin: { kind: "warhead", ownerName: "RageBeam" },
+        });
+        const snapshot = live.serializeState();
+
+        // Restore with the production-style resolver backed by rules data.
+        const restored = new AresAttachEffectTrait();
+        restored.restoreState(snapshot, {
+            resolveDefinition: (kind, ownerName) => {
+                if (kind === "warhead" && ownerName === "RadBeam") return definition({ armorMultiplier: 0.75 });
+                if (kind === "warhead" && ownerName === "RageBeam") return definition({ firepowerMultiplier: 1.4 });
+                return undefined;
+            },
+        });
+
+        // Gameplay equivalence, not just hash equality.
+        expect(restored.getAggregateMultipliers()).toEqual(live.getAggregateMultipliers());
+        expect(restored.getAggregateMultipliers().armor).toBeCloseTo(0.75, 10);
+        expect(restored.getAggregateMultipliers().firepower).toBeCloseTo(1.4, 10);
+        expect(restored.getHash()).toBe(live.getHash());
+    });
+
+    test("an unresolvable origin leaves the effect present but inert", () => {
+        const live = new AresAttachEffectTrait();
+        live.apply("armor", definition({ armorMultiplier: 0.5 }), {
+            origin: { kind: "warhead", ownerName: "RemovedWarhead" },
+        });
+        const snapshot = live.serializeState();
+
+        const restored = new AresAttachEffectTrait();
+        restored.restoreState(snapshot, { resolveDefinition: () => undefined });
+
+        // The instance survives (matching a live trait whose effect was
+        // applied but whose definition source disappeared), but contributes
+        // no modifier — identical to a live trait with no definition.
+        expect(restored.getState()).toHaveLength(1);
+        const inert = new AresAttachEffectTrait();
+        expect(restored.getAggregateMultipliers()).toEqual(inert.getAggregateMultipliers());
+    });
+
+    test("pending animation damage keeps its attacker attribution after restore", () => {
+        const live = new AresAttachEffectTrait();
+        live.apply("burn", definition({ duration: -1 }), {
+            sourcePlayer: sovietPlayer,
+            origin: { kind: "warhead", ownerName: "FireWall" },
+        });
+        // Force a non-zero accumulator so the damage entry serializes.
+        const snapshotState = serializeAresAttachEffectExtensionState({
+            instances: [{ effectId: "burn", remainingFrames: -1, discardOnEntry: false }],
+            automaticPhase: "inactive",
+            automaticRemainingDelay: 0,
+            animationDamage: [{
+                effectId: "burn",
+                occurrence: 0,
+                accumulator: 3.5,
+                frameAccumulator: 0.25,
+                // Canonical identity: Soviet's deterministic PlayerList index.
+                sourcePlayerIndex: 0,
+            }],
+            origins: [{ effectId: "burn", kind: "warhead", ownerName: "FireWall" }],
+        });
+
+        // Production traits always carry the index resolver (wired from the
+        // PlayerList), so re-snapshotting keeps the canonical identity.
+        const restored = new AresAttachEffectTrait({
+            getPlayerIndex: (player: any) =>
+                player === sovietPlayer ? 0 : player === alliedPlayer ? 1 : undefined,
+        });
+        restored.restoreState(snapshotState, {
+            resolvePlayerByIndex,
+            resolveDefinition: () => definition({ duration: -1 }),
+        });
+
+        // The restored runtime state must carry the LIVE Soviet player object,
+        // not undefined (which would fall back to the victim's own house).
+        const states = (restored as any).animationDamageState.get("burn");
+        expect(states?.[0]?.sourcePlayer).toBe(sovietPlayer);
+        expect(states?.[0]?.accumulator).toBeCloseTo(3.5, 10);
+
+        // Re-snapshotting preserves the canonical index identity.
+        expect(restored.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(0);
+    });
+
+    test("legacy name-based snapshots still resolve via the fallback resolver", () => {
+        const legacySnapshot = serializeAresAttachEffectExtensionState({
+            instances: [{ effectId: "burn", remainingFrames: -1, discardOnEntry: false }],
+            automaticPhase: "inactive",
+            automaticRemainingDelay: 0,
+            animationDamage: [{
+                effectId: "burn",
+                occurrence: 0,
+                accumulator: 1,
+                frameAccumulator: 0,
+                sourcePlayerName: "Soviet",
+            }],
+            origins: [],
+        });
+        const restored = new AresAttachEffectTrait();
+        restored.restoreState(legacySnapshot, {
+            resolvePlayerByName: (name) => (name === "Soviet" ? sovietPlayer : undefined),
+        });
+        const states = (restored as any).animationDamageState.get("burn");
+        expect(states?.[0]?.sourcePlayer).toBe(sovietPlayer);
+    });
+
+    test("restored and live traits advance with identical state across expiry/renewal", () => {
+        const automaticDefinition = definition({ duration: 10, delay: 3 });
+        const live = new AresAttachEffectTrait({
+            automaticEffect: { effectId: "aura", definition: automaticDefinition },
+        });
+        live.apply("aura", automaticDefinition, {
+            origin: { kind: "techno", ownerName: "AuraUnit" },
+        });
+        const snapshot = live.serializeState();
+
+        const restored = new AresAttachEffectTrait({
+            automaticEffect: { effectId: "aura", definition: automaticDefinition },
+        });
+        restored.restoreState(snapshot, {
+            resolveDefinition: () => automaticDefinition,
+        });
+
+        for (let tick = 0; tick < 25; tick++) {
+            live.advanceTick();
+            restored.advanceTick();
+            expect(restored.getHash()).toBe(live.getHash());
+            // Modifiers must also stay equivalent at every tick.
+            expect(restored.getAggregateMultipliers()).toEqual(live.getAggregateMultipliers());
+        }
+        expect(restored.serializeState()).toEqual(live.serializeState());
+    });
+
+    test("strict restore accepts a constructor-owned automatic effect without an external origin", () => {
+        const automaticDefinition = definition({ armorMultiplier: 0.75, duration: 10 });
+        const live = new AresAttachEffectTrait({
+            automaticEffect: { effectId: "aura", definition: automaticDefinition },
+        });
+        live.apply("aura", automaticDefinition, { origin: { kind: "techno", ownerName: "AuraUnit" } });
+        const snapshot = structuredClone(live.serializeState()) as any;
+        delete snapshot.origins;
+
+        const restored = new AresAttachEffectTrait({
+            automaticEffect: { effectId: "aura", definition: automaticDefinition },
+        });
+        restored.restoreState(snapshot, { strict: true });
+
+        expect(restored.getAggregateMultipliers().armor).toBeCloseTo(0.75, 10);
+        expect(restored.getState()).toEqual(live.getState());
+    });
+
+    test("hash distinguishes different effects with identical durations", () => {
+        const armorTrait = new AresAttachEffectTrait();
+        armorTrait.apply("armor", definition(), { origin: { kind: "techno", ownerName: "X" } });
+        const fireTrait = new AresAttachEffectTrait();
+        fireTrait.apply("firepower", definition(), { origin: { kind: "techno", ownerName: "Y" } });
+        expect(armorTrait.getHash()).not.toBe(fireTrait.getHash());
+    });
+
+    test("hash distinguishes phases of equal string length", () => {
+        const build = (phase: string, delay: number): AresAttachEffectTrait => {
+            const trait = new AresAttachEffectTrait();
+            (trait as any).automaticPhase = phase;
+            (trait as any).automaticRemainingDelay = delay;
+            return trait;
+        };
+        expect(build("waiting-initial", 4).getHash())
+            .not.toBe(build("waiting-renewal", 4).getHash());
+        expect(build("inactive", 0).getHash())
+            .not.toBe(build("disabled", 0).getHash());
+    });
+
+    test("hashes exact fractional animation state when it changes the next tick", () => {
+        // These values collide under the old Math.round(value * 256) hash,
+        // but the second state reaches the next animation frame one tick
+        // earlier after the same 0.5-frame advance.
+        const first = pendingDamageTrait(undefined, undefined, 0, 0.499);
+        const second = pendingDamageTrait(undefined, undefined, 0, 0.5);
+        expect(first.getHash()).not.toBe(second.getHash());
+
+        const animationArt = {
+            getNumber: (key: string, fallback = 0) => key === "Damage" ? 1 :
+                key === "Rate" ? 450 : fallback,
+            getString: (_key: string, fallback = "") => fallback,
+            getBool: (_key: string, fallback = false) => fallback,
+        };
+        const makeContext = (requests: any[]) => ({
+            art: { getAnimation: () => ({ art: animationArt }) },
+            applyAresAnimationDamage: (request: any) => requests.push(request),
+        });
+        const firstRequests: any[] = [];
+        const secondRequests: any[] = [];
+        first.advance({ context: makeContext(firstRequests) });
+        second.advance({ context: makeContext(secondRequests) });
+        expect(firstRequests).toHaveLength(0);
+        expect(secondRequests).toHaveLength(1);
+    });
+
+    test("hash distinguishes hold-vs-queue boundary in transport state", () => {
+        // Covered in TransportTrait terms by AresPassengerLivePath; here we
+        // assert the AttachEffect instance-count separator directly.
+        const oneApplied = new AresAttachEffectTrait();
+        oneApplied.apply("a", definition(), {});
+        const twoApplied = new AresAttachEffectTrait();
+        twoApplied.apply("a", definition(), {});
+        twoApplied.apply("b", definition(), {});
+        expect(oneApplied.getHash()).not.toBe(twoApplied.getHash());
+    });
+
+    test("hash diverges when restored damage attribution differs", () => {
+        const make = (attackerIndex: number | undefined): AresAttachEffectTrait => {
+            const trait = new AresAttachEffectTrait();
+            trait.restoreState({
+                version: 1,
+                instances: [{ effectId: "burn", remainingFrames: -1, discardOnEntry: false }],
+                automaticPhase: "inactive",
+                automaticRemainingDelay: 0,
+                animationDamage: [{
+                    effectId: "burn",
+                    occurrence: 0,
+                    accumulator: 2,
+                    frameAccumulator: 0,
+                    ...(attackerIndex !== undefined ? { sourcePlayerIndex: attackerIndex } : {}),
+                }],
+                origins: [],
+            }, { resolvePlayerByIndex });
+            return trait;
+        };
+        expect(make(0).getHash()).not.toBe(make(1).getHash());
+        expect(make(0).getHash()).not.toBe(make(undefined).getHash());
+    });
+
+    test("uses canonical player indexes for same-named pending damage sources", () => {
+        const first = playerWithIndex("Duplicate", 0);
+        const second = playerWithIndex("Duplicate", 1);
+        const getPlayerIndex = (player: any) => player.playerListIndex;
+
+        const firstTrait = pendingDamageTrait(first, getPlayerIndex);
+        const secondTrait = pendingDamageTrait(second, getPlayerIndex);
+
+        expect(firstTrait.getHash()).not.toBe(secondTrait.getHash());
+        expect(firstTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(0);
+        expect(secondTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(1);
+    });
+
+    test("uses canonical player indexes when display names are empty and no resolver is supplied", () => {
+        const first = playerWithIndex("", 7);
+        const second = playerWithIndex("", 8);
+
+        const firstTrait = pendingDamageTrait(first);
+        const secondTrait = pendingDamageTrait(second);
+
+        expect(firstTrait.getHash()).not.toBe(secondTrait.getHash());
+        expect(firstTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(7);
+        expect(secondTrait.serializeState().animationDamage?.[0]?.sourcePlayerIndex).toBe(8);
+    });
+
+    test("does not accept a stale object-local index when a resolver rejects the player", () => {
+        const stale = playerWithIndex("Stale", 3);
+        const trait = pendingDamageTrait(stale, () => undefined);
+        const serialized = trait.serializeState().animationDamage?.[0];
+
+        expect(serialized?.sourcePlayerIndex).toBeUndefined();
+        expect(serialized?.sourcePlayerName).toBeUndefined();
+        expect(serialized?.sourcePlayerUnresolved).toBe(true);
+        expect(trait.getHash()).not.toBe(pendingDamageTrait(undefined).getHash());
+    });
+
+    test("restores canonical attribution into reconstructed players and preserves continued damage", () => {
+        const source = playerWithIndex("SameName", 0);
+        const live = pendingDamageTrait(source, (player) => player.playerListIndex);
+        const snapshot = live.serializeState();
+        const restoredSource = playerWithIndex("SameName", 0);
+        const restored = new AresAttachEffectTrait({
+            getPlayerIndex: (player) => player.playerListIndex,
+            gameObject: {},
+        });
+        restored.restoreState(snapshot, {
+            resolvePlayerByIndex: (index) => index === 0 ? restoredSource : undefined,
+            resolveDefinition: () => definition({ duration: -1, animation: "BurnAnim" }),
+        });
+
+        const restoredState = (restored as any).animationDamageState.get("burn")?.[0];
+        expect(restoredState.sourcePlayer).toBe(restoredSource);
+        expect(restored.getHash()).toBe(live.getHash());
+
+        const animationArt = {
+            getNumber: (key: string, fallback = 0) => key === "Damage" ? 1 : fallback,
+            getString: (_key: string, fallback = "") => fallback,
+            getBool: (_key: string, fallback = false) => fallback,
+        };
+        const makeContext = (requests: any[]) => ({
+            art: { getAnimation: () => ({ art: animationArt }) },
+            applyAresAnimationDamage: (request: any) => requests.push(request),
+        });
+        const liveRequests: any[] = [];
+        const restoredRequests: any[] = [];
+        live.advance({ context: makeContext(liveRequests) });
+        restored.advance({ context: makeContext(restoredRequests) });
+
+        expect(liveRequests).toHaveLength(1);
+        expect(restoredRequests).toHaveLength(1);
+        expect(liveRequests[0].sourcePlayer).toBe(source);
+        expect(restoredRequests[0].sourcePlayer).toBe(restoredSource);
+        expect(restoredRequests[0].damage).toBe(liveRequests[0].damage);
+        expect(restored.getHash()).toBe(live.getHash());
+        expect(restored.serializeState()).toEqual(live.serializeState());
+    });
+
+    test("detects a tampered canonical source index as a deterministic divergence", () => {
+        const source = playerWithIndex("SameName", 0);
+        const other = playerWithIndex("SameName", 1);
+        const live = pendingDamageTrait(source, (player) => player.playerListIndex);
+        const tampered = structuredClone(live.serializeState()) as any;
+        tampered.animationDamage[0].sourcePlayerIndex = 1;
+
+        const restored = new AresAttachEffectTrait({
+            getPlayerIndex: (player) => player.playerListIndex,
+        });
+        restored.restoreState(tampered, {
+            resolvePlayerByIndex: (index) => index === 0 ? source : index === 1 ? other : undefined,
+            resolveDefinition: () => definition({ duration: -1 }),
+        });
+
+        expect(restored.getHash()).not.toBe(live.getHash());
+        expect((restored as any).animationDamageState.get("burn")?.[0]?.sourcePlayer).toBe(other);
+    });
+
+    test("strict restore rejects unresolved canonical references without mutation", () => {
+        const source = playerWithIndex("Strict", 0);
+        const trait = pendingDamageTrait(source, (player) => player.playerListIndex);
+        const before = trait.serializeState();
+        expect(() => trait.restoreState(before, {
+            strict: true,
+            resolvePlayerByIndex: () => undefined,
+            resolveDefinition: () => undefined,
+        })).toThrow(/source player/);
+        expect(trait.serializeState()).toEqual(before);
+
+        const missingOrigin = structuredClone(before) as any;
+        delete missingOrigin.origins;
+        expect(() => trait.restoreState(missingOrigin, {
+            strict: true,
+            resolvePlayerByIndex: () => source,
+            resolveDefinition: () => definition({ duration: -1 }),
+        })).toThrow(/missing definition origin/);
+        expect(trait.serializeState()).toEqual(before);
+
+        expect(() => trait.restoreState(before, {
+            strict: true,
+            resolvePlayerByIndex: () => source,
+            resolveDefinition: () => undefined,
+        })).toThrow(/definition/);
+        expect(trait.serializeState()).toEqual(before);
+    });
+
+    test("codec rejects duplicate damage entries and duplicate origins transactionally", () => {
+        const base = {
+            version: 1 as const,
+            instances: [
+                { effectId: "burn", remainingFrames: 30, discardOnEntry: false },
+                { effectId: "burn", remainingFrames: 30, discardOnEntry: false },
+            ],
+            automaticPhase: "active" as const,
+            automaticRemainingDelay: 0,
+            animationDamage: [
+                { effectId: "burn", occurrence: 0, accumulator: 1, frameAccumulator: 0 },
+                { effectId: "burn", occurrence: 0, accumulator: 2, frameAccumulator: 0 },
+            ],
+            origins: [
+                { effectId: "burn", kind: "warhead" as const, ownerName: "W" },
+                { effectId: "burn", kind: "warhead" as const, ownerName: "W2" },
+            ],
+        };
+
+        const trait = new AresAttachEffectTrait();
+        const before = trait.serializeState();
+        expect(() => trait.restoreState(base)).toThrow(/duplicate/);
+        // Transactional: failed restore leaves the prior state untouched.
+        expect(trait.serializeState()).toEqual(before);
+    });
+
+    test("strict restore rejects orphan origins and out-of-range animation occurrences", () => {
+        const trait = new AresAttachEffectTrait();
+        const before = trait.serializeState();
+        const orphan = {
+            version: 1 as const,
+            instances: [{ effectId: "burn", remainingFrames: 10, discardOnEntry: false }],
+            automaticPhase: "inactive" as const,
+            automaticRemainingDelay: 0,
+            origins: [
+                { effectId: "burn", kind: "warhead" as const, ownerName: "W" },
+                { effectId: "ghost", kind: "warhead" as const, ownerName: "W" },
+            ],
+        };
+        expect(() => trait.restoreState(orphan, {
+            strict: true,
+            resolveDefinition: () => definition(),
+        })).toThrow(/effect instance is absent/);
+        expect(trait.serializeState()).toEqual(before);
+
+        const occurrence = {
+            ...orphan,
+            origins: [{ effectId: "burn", kind: "warhead" as const, ownerName: "W" }],
+            animationDamage: [{ effectId: "burn", occurrence: 1, accumulator: 1, frameAccumulator: 0 }],
+        };
+        expect(() => trait.restoreState(occurrence, {
+            strict: true,
+            resolveDefinition: () => definition(),
+        })).toThrow(/missing occurrence/);
+        expect(trait.serializeState()).toEqual(before);
+    });
+});

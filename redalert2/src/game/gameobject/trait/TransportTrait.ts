@@ -1,4 +1,4 @@
-import { fnv32a } from '@/util/math';
+import { fnv32aStrings } from '@/util/math';
 import { NotifyDestroy } from './interface/NotifyDestroy';
 import { NotifyCrash } from './interface/NotifyCrash';
 import { ScatterTask } from '../task/ScatterTask';
@@ -23,6 +23,20 @@ export interface TransportTraitOptions {
     manualEntry?: boolean;
     /** Whether ordinary player-issued evacuation/deploy may empty this hold. */
     manualUnload?: boolean;
+}
+
+export const TRANSPORT_STATE_VERSION = 1 as const;
+
+export interface TransportTraitState {
+    readonly version: typeof TRANSPORT_STATE_VERSION;
+    readonly heldUnitIds: readonly number[];
+    readonly loadQueueUnitIds: readonly number[];
+    readonly crashPassengersResolved: boolean;
+}
+
+export interface TransportRestoreContext {
+    resolveObjectById?(id: number): GameObject | undefined;
+    strict?: boolean;
 }
 
 export class TransportTrait implements NotifyDestroy, NotifyCrash {
@@ -214,7 +228,76 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
         world.destroyObject(unit, context, true);
     }
     getHash(): number {
-        return fnv32a(this.units.map((unit) => unit.getHash()));
+        const state = this.captureState();
+        return fnv32aStrings([
+            "transport-state",
+            "held",
+            state.heldUnitIds.length,
+            ...state.heldUnitIds,
+            "load-queue",
+            state.loadQueueUnitIds.length,
+            ...state.loadQueueUnitIds,
+            "crash-passengers-resolved",
+            state.crashPassengersResolved ? 1 : 0,
+        ]);
+    }
+
+    captureState(): TransportTraitState {
+        const heldUnitIds = this.units.map(unit => requiredObjectId(unit));
+        const loadQueueUnitIds = this.loadQueue.map(unit => requiredObjectId(unit));
+        const allIds = [...heldUnitIds, ...loadQueueUnitIds];
+        if (new Set(allIds).size !== allIds.length) {
+            throw new Error("Cannot serialize transport with duplicate cargo reference");
+        }
+        return {
+            version: TRANSPORT_STATE_VERSION,
+            heldUnitIds,
+            loadQueueUnitIds,
+            crashPassengersResolved: this.crashPassengersResolved,
+        };
+    }
+
+    /** Transactionally rebinds ordered cargo references and crash lifecycle. */
+    restoreState(state: unknown, context: TransportRestoreContext = {}): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid transport state: expected an object");
+        }
+        const candidate = state as Record<string, unknown>;
+        if (candidate.version !== TRANSPORT_STATE_VERSION) {
+            throw new Error(`Unsupported transport state version: ${String(candidate.version)}`);
+        }
+        if (!Array.isArray(candidate.heldUnitIds) || !Array.isArray(candidate.loadQueueUnitIds)) {
+            throw new Error("Invalid transport state: cargo lists must be arrays");
+        }
+        if (typeof candidate.crashPassengersResolved !== "boolean") {
+            throw new Error("Invalid transport state: crashPassengersResolved");
+        }
+        const ids = [...candidate.heldUnitIds, ...candidate.loadQueueUnitIds];
+        const seen = new Set<number>();
+        for (const id of ids) {
+            if (!Number.isSafeInteger(id) || (id as number) < 0) {
+                throw new Error("Invalid transport state: object id");
+            }
+            if (seen.has(id as number)) {
+                throw new Error(`Invalid transport state: duplicate object id ${id}`);
+            }
+            seen.add(id as number);
+        }
+        const resolve = (id: number): GameObject | undefined => {
+            const object = context.resolveObjectById?.(id);
+            if (context.strict && !object) {
+                throw new Error(`Cannot restore transport object ${id}: unresolved`);
+            }
+            if (object && object.id !== id) {
+                throw new Error(`Cannot restore transport object ${id}: resolver returned ${String(object.id)}`);
+            }
+            return object;
+        };
+        const held = (candidate.heldUnitIds as number[]).map(resolve).filter((unit): unit is GameObject => !!unit);
+        const loadQueue = (candidate.loadQueueUnitIds as number[]).map(resolve).filter((unit): unit is GameObject => !!unit);
+        this.units = held;
+        this.loadQueue = loadQueue;
+        this.crashPassengersResolved = candidate.crashPassengersResolved;
     }
     debugGetState(): any[] {
         return this.units.map((unit) => unit.debugGetState());
@@ -222,4 +305,11 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
     dispose(): void {
         this.obj = undefined;
     }
+}
+
+function requiredObjectId(object: GameObject): number {
+    if (!Number.isSafeInteger(object?.id) || object.id < 0) {
+        throw new Error("Cannot serialize transport reference without a valid object id");
+    }
+    return object.id;
 }

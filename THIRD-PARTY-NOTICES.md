@@ -4,9 +4,26 @@ This repository is a derivative work. Everything below is vendored, bundled, or
 incorporated, with its licence and copyright as published by its author. Where a
 component declares no licence, that is stated plainly rather than guessed at.
 
-Modifications by this project are dated **2 August 2026** and are isolated to
-the commits after `c43e987`; reproduce the exact set with
-`git diff c43e987 HEAD --stat`.
+Modifications by this project are dated **2 August 2026**. The historical
+comparison point `c43e987b6054eb7a8a34e251fae9b64601c68cfd` is from the earlier
+upstream repository [ammaarreshi/RedAlert2-Mac-iOS-iPad](https://github.com/ammaarreshi/RedAlert2-Mac-iOS-iPad),
+not from this repository. Do not run `git diff c43e987 HEAD` here and assume it
+identifies the provenance.
+
+To reproduce a cross-repository tree comparison, use a temporary checkout:
+
+```sh
+UPSTREAM_DIR="$(mktemp -d)"
+git clone --no-checkout https://github.com/ammaarreshi/RedAlert2-Mac-iOS-iPad.git "$UPSTREAM_DIR/source"
+git -C "$UPSTREAM_DIR/source" fetch --no-tags origin c43e987b6054eb7a8a34e251fae9b64601c68cfd
+git -C "$UPSTREAM_DIR/source" archive c43e987b6054eb7a8a34e251fae9b64601c68cfd | tar -x -C "$UPSTREAM_DIR"
+git diff --no-index --stat "$UPSTREAM_DIR" . || test "$?" -eq 1
+```
+
+The final command returns status 1 when the trees differ; that difference is
+the reportable comparison, not a same-repository commit range. This procedure
+does not alter this repository's history and does not resolve the licensing or
+provenance uncertainty described below.
 
 ## Application identity
 

@@ -10,23 +10,101 @@ export type AresAttachEffectStatePhase =
     | "waiting-renewal"
     | "disabled";
 
+export interface AresAttachEffectDamageStateSnapshot {
+    readonly effectId: string;
+    readonly occurrence: number;
+    readonly accumulator: number;
+    readonly frameAccumulator: number;
+    /**
+     * Canonical house identity of the attacker whose effect is dealing this
+     * damage: the player's index in the deterministic PlayerList order.
+     * Resolved back to the live Player during restore. Absent means
+     * attribution already fell back to the target's owner.
+     *
+     * sourcePlayerName is retained only to read legacy snapshots; names are
+     * display strings (getPlayerByName returns the FIRST match) and must not
+     * be used as a savegame foreign key for new state.
+     */
+    readonly sourcePlayerIndex?: number;
+    /** Legacy field from earlier snapshots; superseded by sourcePlayerIndex. */
+    readonly sourcePlayerName?: string;
+    /** A configured resolver rejected the live player; strict restore rejects this. */
+    readonly sourcePlayerUnresolved?: true;
+}
+
+/**
+ * Where a restored effect's definition must be re-resolved from. Definitions
+ * are authored rules data, not runtime state: snapshots record the stable
+ * origin so restore can rebind against the same rules objects that created
+ * the effect instead of serializing arbitrary definition objects.
+ */
+export interface AresAttachEffectOriginSnapshot {
+    readonly effectId: string;
+    /** "warhead" or "techno" — which rules family owns this definition. */
+    readonly kind: "warhead" | "techno";
+    /** WarheadType/TechnoType section name owning the AttachEffect fields. */
+    readonly ownerName: string;
+}
+
 export interface AresAttachEffectExtensionState {
     readonly version: typeof ARES_ATTACH_EFFECT_STATE_VERSION;
     readonly instances: readonly AresAttachEffectInstance[];
     readonly automaticPhase: AresAttachEffectStatePhase;
     readonly automaticRemainingDelay: number;
+    /** Partial animation-damage accumulation; omitted when no damage is pending. */
+    readonly animationDamage?: readonly AresAttachEffectDamageStateSnapshot[];
+    /** Definition origins to rebind after restore; omitted when none are held. */
+    readonly origins?: readonly AresAttachEffectOriginSnapshot[];
 }
 
 export interface AresAttachEffectStateSource {
     readonly instances: readonly AresAttachEffectInstance[];
     readonly automaticPhase: AresAttachEffectStatePhase | string;
     readonly automaticRemainingDelay: number;
+    readonly animationDamage?: readonly AresAttachEffectDamageStateSnapshot[];
+    readonly origins?: readonly AresAttachEffectOriginSnapshot[];
+}
+
+export type AresAttachEffectResolvedDefinition =
+    | { kind: "warhead"; definition: unknown }
+    | { kind: "techno"; definition: unknown }
+    | undefined;
+
+export interface AresAttachEffectRestoreContext {
+    /** Strict canonical restore rejects unresolved references and origins. */
+    strict?: boolean;
+    /**
+     * Resolve a canonical player index (PlayerList order) back to the live
+     * player object. In permissive mode an out-of-range index degrades to
+     * owner attribution; strict canonical restore rejects it transactionally.
+     */
+    resolvePlayerByIndex?(index: number): unknown;
+    /** Legacy name-based resolution for pre-index snapshots. */
+    resolvePlayerByName?(name: string): unknown;
+    /**
+     * Resolve an authored AttachEffect definition from its rules origin.
+     * In permissive mode undefined means the effect stays present but inert;
+     * strict canonical restore rejects the unresolved origin.
+     */
+    resolveDefinition?(
+        kind: "warhead" | "techno",
+        ownerName: string,
+    ): unknown;
+    /**
+     * Effect ID whose authored definition is supplied by the host's
+     * constructor-owned automatic TechnoType binding. A strict snapshot may
+     * omit an origin for this one effect because it is not an external rule
+     * reference.
+     */
+    automaticEffectId?: string;
 }
 
 export interface AresAttachEffectStateTarget {
     instances: AresAttachEffectInstance[];
     automaticPhase: AresAttachEffectStatePhase;
     automaticRemainingDelay: number;
+    animationDamage: Map<string, { accumulator: number; frameAccumulator: number; sourcePlayer?: unknown }[]>;
+    definitions: Map<string, unknown>;
 }
 
 const PHASES = new Set<AresAttachEffectStatePhase>([
@@ -82,12 +160,24 @@ function normalizeInstances(value: unknown): AresAttachEffectInstance[] {
 export function serializeAresAttachEffectExtensionState(
     source: AresAttachEffectStateSource,
 ): AresAttachEffectExtensionState {
-    return {
+    const animationDamage = normalizeAnimationDamage(source.animationDamage);
+    const origins = normalizeOrigins(source.origins);
+    const state: AresAttachEffectExtensionState = {
         version: ARES_ATTACH_EFFECT_STATE_VERSION,
         instances: normalizeInstances(source.instances),
         automaticPhase: normalizePhase(source.automaticPhase),
         automaticRemainingDelay: normalizeDelay(source.automaticRemainingDelay),
     };
+    // Keep optional fields absent when empty so damage-free, origin-free
+    // snapshots stay byte-identical to the original format.
+    if (animationDamage.length) {
+        (state as unknown as { animationDamage?: AresAttachEffectDamageStateSnapshot[] }).animationDamage =
+            animationDamage;
+    }
+    if (origins.length) {
+        (state as unknown as { origins?: AresAttachEffectOriginSnapshot[] }).origins = origins;
+    }
+    return state;
 }
 
 function assertStateObject(state: unknown): asserts state is {
@@ -95,27 +185,238 @@ function assertStateObject(state: unknown): asserts state is {
     instances: unknown;
     automaticPhase: unknown;
     automaticRemainingDelay: unknown;
+    animationDamage?: unknown;
+    origins?: unknown;
 } {
     if (typeof state !== "object" || state === null) {
         throw new Error("Invalid Ares AttachEffect state: expected an object");
     }
 }
 
-/** Replaces the live state only after the complete payload has been checked. */
+function normalizeAnimationDamage(
+    value: readonly AresAttachEffectDamageStateSnapshot[] | undefined,
+): AresAttachEffectDamageStateSnapshot[] {
+    if (!value?.length) return [];
+    return value.map((entry, index) => {
+        if (typeof entry !== "object" || entry === null) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} must be an object`);
+        }
+        const candidate = entry as unknown as Record<string, unknown>;
+        if (typeof candidate.effectId !== "string" || (candidate.effectId as string).length === 0) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has no effect ID`);
+        }
+        if (!Number.isSafeInteger(candidate.occurrence) || (candidate.occurrence as number) < 0) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid occurrence`);
+        }
+        if (typeof candidate.accumulator !== "number" || !Number.isFinite(candidate.accumulator) ||
+            (candidate.accumulator as number) < 0) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid accumulator`);
+        }
+        if (typeof candidate.frameAccumulator !== "number" || !Number.isFinite(candidate.frameAccumulator) ||
+            (candidate.frameAccumulator as number) < 0) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid frame accumulator`);
+        }
+        if (candidate.sourcePlayerIndex !== undefined &&
+            (!Number.isSafeInteger(candidate.sourcePlayerIndex) || (candidate.sourcePlayerIndex as number) < 0)) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid source player index`);
+        }
+        if (candidate.sourcePlayerName !== undefined &&
+            (typeof candidate.sourcePlayerName !== "string" || (candidate.sourcePlayerName as string).length === 0)) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid source player`);
+        }
+        if (candidate.sourcePlayerUnresolved !== undefined && candidate.sourcePlayerUnresolved !== true) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has invalid unresolved player marker`);
+        }
+        const sourceIdentityFields = [
+            candidate.sourcePlayerIndex !== undefined,
+            candidate.sourcePlayerName !== undefined,
+            candidate.sourcePlayerUnresolved === true,
+        ].filter(Boolean).length;
+        if (sourceIdentityFields > 1) {
+            throw new Error(`Invalid Ares AttachEffect state: animation damage ${index} has conflicting player identities`);
+        }
+        return {
+            effectId: candidate.effectId,
+            occurrence: candidate.occurrence as number,
+            accumulator: candidate.accumulator as number,
+            frameAccumulator: candidate.frameAccumulator as number,
+            ...(candidate.sourcePlayerIndex !== undefined
+                ? { sourcePlayerIndex: candidate.sourcePlayerIndex as number }
+                : {}),
+            ...(candidate.sourcePlayerName !== undefined
+                ? { sourcePlayerName: candidate.sourcePlayerName as string }
+                : {}),
+            ...(candidate.sourcePlayerUnresolved === true
+                ? { sourcePlayerUnresolved: true as const }
+                : {}),
+        };
+    });
+}
+
+function normalizeOrigins(
+    value: readonly AresAttachEffectOriginSnapshot[] | undefined,
+): AresAttachEffectOriginSnapshot[] {
+    if (!value?.length) return [];
+    return value.map((entry, index) => {
+        if (typeof entry !== "object" || entry === null) {
+            throw new Error(`Invalid Ares AttachEffect state: origin ${index} must be an object`);
+        }
+        const candidate = entry as unknown as Record<string, unknown>;
+        if (typeof candidate.effectId !== "string" || (candidate.effectId as string).length === 0) {
+            throw new Error(`Invalid Ares AttachEffect state: origin ${index} has no effect ID`);
+        }
+        if (candidate.kind !== "warhead" && candidate.kind !== "techno") {
+            throw new Error(`Invalid Ares AttachEffect state: origin ${index} has unsupported kind ${String(candidate.kind)}`);
+        }
+        if (typeof candidate.ownerName !== "string" || (candidate.ownerName as string).length === 0) {
+            throw new Error(`Invalid Ares AttachEffect state: origin ${index} has no owner name`);
+        }
+        return {
+            effectId: candidate.effectId,
+            kind: candidate.kind as "warhead" | "techno",
+            ownerName: candidate.ownerName as string,
+        };
+    });
+}
+
+/**
+ * Replaces the live state only after the complete payload has been checked.
+ *
+ * Validation covers schema/range checks plus the semantic checks provable
+ * locally: duplicate (effectId, occurrence) damage entries and duplicate
+ * origin effectIds are rejected transactionally before any live mutation.
+ * Cross-checks against live rules (origin resolvable after a mod change,
+ * occurrence within a live stack) are the host's job via
+ * `context.resolveDefinition` and instance-driven reconciliation. Permissive
+ * loads keep orphaned entries inert for legacy compatibility; strict
+ * canonical restore rejects unresolved references before the commit point.
+ */
 export function restoreAresAttachEffectExtensionState(
     target: AresAttachEffectStateTarget,
     state: unknown,
+    context: AresAttachEffectRestoreContext = {},
 ): void {
     assertStateObject(state);
     if (state.version !== ARES_ATTACH_EFFECT_STATE_VERSION) {
         throw new Error(`Unsupported Ares AttachEffect state version: ${String(state.version)}`);
     }
+    const animationDamage = normalizeAnimationDamage(state.animationDamage as
+        readonly AresAttachEffectDamageStateSnapshot[] | undefined);
+    const seenDamage = new Set<string>();
+    for (const entry of animationDamage) {
+        const key = `${entry.effectId}\0${entry.occurrence}`;
+        if (seenDamage.has(key)) {
+            throw new Error(`Invalid Ares AttachEffect state: duplicate damage entry ${entry.effectId}[${entry.occurrence}]`);
+        }
+        seenDamage.add(key);
+    }
+    const origins = normalizeOrigins(state.origins as readonly AresAttachEffectOriginSnapshot[] | undefined);
+    const seenOrigin = new Set<string>();
+    for (const entry of origins) {
+        if (seenOrigin.has(entry.effectId)) {
+            throw new Error(`Invalid Ares AttachEffect state: duplicate definition origin for ${entry.effectId}`);
+        }
+        seenOrigin.add(entry.effectId);
+    }
+
     const normalized = serializeAresAttachEffectExtensionState({
         instances: state.instances as AresAttachEffectInstance[],
         automaticPhase: normalizePhase(state.automaticPhase),
         automaticRemainingDelay: normalizeDelay(state.automaticRemainingDelay),
+        animationDamage,
+        origins,
     });
-    target.instances = normalized.instances.map(instance => ({ ...instance }));
+    if (context.strict) {
+        const activeEffectIds = new Set(normalized.instances.map(instance => instance.effectId));
+        for (const effectId of activeEffectIds) {
+            if (!seenOrigin.has(effectId) && effectId !== context.automaticEffectId) {
+                throw new Error(`Cannot restore Ares AttachEffect ${effectId}: missing definition origin`);
+            }
+        }
+        for (const effectId of seenOrigin) {
+            if (!activeEffectIds.has(effectId)) {
+                throw new Error(`Cannot restore Ares AttachEffect origin ${effectId}: effect instance is absent`);
+            }
+        }
+        for (const entry of animationDamage) {
+            if (!activeEffectIds.has(entry.effectId)) {
+                throw new Error(`Cannot restore Ares AttachEffect animation damage for inactive effect ${entry.effectId}`);
+            }
+            const occurrenceCount = normalized.instances.filter(instance => instance.effectId === entry.effectId).length;
+            if (entry.occurrence >= occurrenceCount) {
+                throw new Error(`Cannot restore Ares AttachEffect animation damage for missing occurrence ${entry.effectId}[${entry.occurrence}]`);
+            }
+        }
+    }
+    const replacementInstances = normalized.instances.map(instance => ({ ...instance }));
+    const replacementAnimationDamage =
+        new Map<string, { accumulator: number; frameAccumulator: number; sourcePlayer?: unknown }[]>();
+    for (const entry of animationDamage) {
+        const queue = replacementAnimationDamage.get(entry.effectId) ?? [];
+        // Canonical identity first (PlayerList index); legacy name fallback
+        // keeps older snapshots loadable. In permissive mode an unresolvable
+        // identity leaves attribution unset and the runtime falls back to the
+        // target owner, matching a live effect without a source player. Strict
+        // canonical restore rejects the same input before the commit point.
+        let resolvedSource: unknown;
+        if (entry.sourcePlayerIndex !== undefined) {
+            if (!context.resolvePlayerByIndex) {
+                if (context.strict) {
+                    throw new Error(`Cannot restore Ares AttachEffect source player index ${entry.sourcePlayerIndex}`);
+                }
+            }
+            else {
+                resolvedSource = context.resolvePlayerByIndex(entry.sourcePlayerIndex);
+            }
+            if (context.strict && resolvedSource === undefined) {
+                throw new Error(`Cannot restore Ares AttachEffect source player index ${entry.sourcePlayerIndex}`);
+            }
+        }
+        else if (entry.sourcePlayerUnresolved === true) {
+            if (context.strict) {
+                throw new Error(`Cannot restore unresolved Ares AttachEffect source player for ${entry.effectId}[${entry.occurrence}]`);
+            }
+        }
+        else if (entry.sourcePlayerName !== undefined) {
+            if (!context.resolvePlayerByName) {
+                if (context.strict) {
+                    throw new Error(`Cannot restore legacy Ares AttachEffect source player ${entry.sourcePlayerName}`);
+                }
+            }
+            else {
+                resolvedSource = context.resolvePlayerByName(entry.sourcePlayerName);
+            }
+            if (context.strict && resolvedSource === undefined) {
+                throw new Error(`Cannot restore legacy Ares AttachEffect source player ${entry.sourcePlayerName}`);
+            }
+        }
+        queue[entry.occurrence] = {
+            accumulator: entry.accumulator,
+            frameAccumulator: entry.frameAccumulator,
+            ...(resolvedSource !== undefined ? { sourcePlayer: resolvedSource } : {}),
+        };
+        replacementAnimationDamage.set(entry.effectId, queue);
+    }
+    // Definition rebinding: re-resolve each held effect's authored definition
+    // from its recorded rules origin. An unresolvable origin leaves that
+    // effect present but inert in permissive mode; strict restore rejects it.
+    const replacementDefinitions = new Map<string, unknown>();
+    for (const origin of origins) {
+        const resolved = context.resolveDefinition?.(origin.kind, origin.ownerName);
+        if (context.strict && resolved === undefined) {
+            throw new Error(`Cannot restore Ares AttachEffect definition ${origin.kind}:${origin.ownerName}`);
+        }
+        if (resolved !== undefined) {
+            replacementDefinitions.set(origin.effectId, resolved);
+        }
+    }
+
+    // Commit point: all normalized state and every external reference has
+    // been resolved successfully. A resolver failure above leaves the
+    // caller's target completely untouched.
+    target.instances = replacementInstances;
     target.automaticPhase = normalized.automaticPhase;
     target.automaticRemainingDelay = normalized.automaticRemainingDelay;
+    target.animationDamage = replacementAnimationDamage;
+    target.definitions = replacementDefinitions;
 }

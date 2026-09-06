@@ -1,4 +1,5 @@
 import { Coords } from "@/game/Coords";
+import { fnv32aStrings } from "@/util/math";
 import { CollisionType } from "@/game/gameobject/unit/CollisionType";
 import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
@@ -29,6 +30,10 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
     private ticksLeft = DEFERMENT_TICKS;
     private initialDeferment: number;
     private readonly superWeaponRange?: readonly number[];
+    getHash(): number {
+        // The countdown decides the detonation tick.
+        return fnv32aStrings(["PsychicDominatorEffect", super.getHash(), this.ticksLeft]);
+    }
 
     constructor(
         type: any,

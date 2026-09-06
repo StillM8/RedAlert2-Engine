@@ -8,6 +8,7 @@ import { NotifySpawn } from '@/game/gameobject/trait/interface/NotifySpawn';
 import { NotifyUnspawn } from '@/game/gameobject/trait/interface/NotifyUnspawn';
 import { NotifyAttack } from '@/game/gameobject/trait/interface/NotifyAttack';
 import { DeathType } from '@/game/gameobject/common/DeathType';
+import { setCanonicalFloat64 } from '@/util/number';
 export class GameObject {
     public traits: Traits;
     public cachedTraits: {
@@ -123,9 +124,31 @@ export class GameObject {
     }
     getHash() {
         const pos = this.position.worldPosition;
+        const positionBytes = new Uint8Array(24);
+        const positionView = new DataView(positionBytes.buffer);
+        setCanonicalFloat64(positionView, 0, pos.x, "GameObject.position.x");
+        setCanonicalFloat64(positionView, 8, pos.y, "GameObject.position.y");
+        setCanonicalFloat64(positionView, 16, pos.z, "GameObject.position.z");
+        const ownerIndex = Number.isSafeInteger(this.owner?.playerListIndex) && this.owner.playerListIndex >= 0
+            ? this.owner.playerListIndex
+            : undefined;
+        const ownerFallbackName = ownerIndex === undefined
+            ? new TextEncoder().encode(this.owner?.name ?? "")
+            : [];
         return fnv32a([
             this.id,
-            ...new Uint8Array(new Float64Array([pos.x, pos.y, pos.z]).buffer),
+            // Owner identity is canonical state: targeting, bounty, veterancy,
+            // mind control, production, and scoring all branch on it. A
+            // registered owner uses only the deterministic PlayerList index;
+            // an unregistered owner is an explicitly tagged test/legacy
+            // fallback and must not be confused with a canonical index.
+            ownerIndex === undefined ? 2 : 1,
+            ownerIndex ?? -1,
+            ...ownerFallbackName,
+            // Explicit little-endian encoding keeps the hash independent of
+            // host typed-array byte order across WebView, native, and Rust
+            // integration environments.
+            ...positionBytes,
             ...this.traits.getAll().map((trait) => trait.getHash?.() ?? 0),
         ]);
     }

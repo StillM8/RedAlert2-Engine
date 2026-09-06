@@ -1,5 +1,7 @@
 import { TaskStatus } from "./TaskStatus";
 export class Task {
+    /** Stable type id for deterministic descriptors; subclasses must override. */
+    public readonly deterministicType: string = "unclassified-task";
     public status: TaskStatus;
     public children: Task[];
     public cancellable: boolean;
@@ -52,4 +54,23 @@ export class Task {
         }
     }
     getTargetLinesConfig(object: any): any { }
+
+    /**
+     * Bounded canonical descriptor. Tasks carrying targets/closures must
+     * override this with stable IDs; the explicit unclassified marker keeps
+     * the remaining coverage gap visible without using constructor.name.
+     */
+    getDeterministicState(): Record<string, unknown> {
+        return {
+            type: this.deterministicType,
+            status: this.status,
+            cancellable: this.cancellable,
+            blocking: this.blocking,
+            waitingForChildrenToFinish: this.waitingForChildrenToFinish,
+            preventOpportunityFire: this.preventOpportunityFire,
+            preventLanding: this.preventLanding,
+            isAttackMove: this.isAttackMove,
+            children: this.children.map(child => child.getDeterministicState()),
+        };
+    }
 }

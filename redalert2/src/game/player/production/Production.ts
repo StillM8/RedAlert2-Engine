@@ -1,4 +1,10 @@
-import { QueueType, ProductionQueue } from './ProductionQueue';
+import {
+    QueueType,
+    ProductionQueue,
+    type ProductionQueueState,
+    type ProductionQueueRestoreContext,
+    type QueueRestorePlan,
+} from './ProductionQueue';
 import { BuildCat, FactoryType } from '../../rules/TechnoRules';
 import { ObjectType } from '@/engine/type/ObjectType';
 import { EventDispatcher } from '@/util/event';
@@ -12,6 +18,30 @@ import {
     serializeAresProductionExtensionState,
     type AresProductionExtensionState,
 } from '@/extensions/ares/AresProductionState';
+
+export const PRODUCTION_STATE_VERSION = 3 as const;
+
+export interface ProductionState {
+    readonly version: typeof PRODUCTION_STATE_VERSION;
+    readonly extension: AresProductionExtensionState;
+    /** Mutable power/production modifier consumed by the next queue tick. */
+    readonly buildSpeedModifier: number;
+    /** Historical factory unlocks granted by infiltration. */
+    readonly veteranFactoryTypes: readonly FactoryType[];
+    /** Explicitly selected primary factory per factory category. */
+    readonly primaryFactoryObjectIds: readonly ProductionPrimaryFactoryState[];
+    readonly queues: readonly ProductionQueueState[];
+}
+
+export interface ProductionPrimaryFactoryState {
+    readonly factoryType: FactoryType;
+    readonly objectId: number;
+}
+
+export interface ProductionRestoreContext extends ProductionQueueRestoreContext {
+    /** Resolves a stable world object ID for an explicitly selected factory. */
+    resolveObjectById?(id: number): any | undefined;
+}
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -23,7 +53,7 @@ export class Production {
     private _onQueueUpdate: EventDispatcher<any>;
     private primaryFactories: Map<any, any>;
     private factoryCounts: Map<any, number>;
-    private veteranTypes: Set<any>;
+    private veteranTypes: Set<FactoryType>;
     private stolenTech: Set<number | SideId>;
     /** Stable country IDs whose complete factory plans were permanently captured. */
     private permanentFactoryOwnerPlans: Set<string>;
@@ -244,6 +274,34 @@ export class Production {
     getPrimaryFactory(type: FactoryType): any {
         return this.primaryFactories.get(type);
     }
+    /**
+     * Rebuilds the world-derived factory counts after a full-world restore.
+     *
+     * Counts are projections of the player's currently owned factory
+     * buildings. Primary selection is different: DeployOrder can explicitly
+     * change it, so restoreDeterministicState rebinds its canonical object IDs
+     * separately after this count rebuild. When no explicit selection exists,
+     * the first stable factory ID is the deterministic fallback.
+     */
+    rebuildFactoryDerivedState(buildings: Iterable<any> = this.player?.buildings ?? []): void {
+        const previousPrimaries = this.primaryFactories ?? new Map<FactoryType, any>();
+        const factories = [...buildings]
+            .map((building, order) => ({ building, order, type: building?.rules?.factory }))
+            .filter(({ type }) => isFactoryType(type) && type !== FactoryType.None)
+            .sort(compareFactoryBuildings);
+        const counts = new Map<FactoryType, number>();
+        const primaries = new Map<FactoryType, any>();
+        for (const { building, type } of factories) {
+            counts.set(type, (counts.get(type) ?? 0) + 1);
+            if (!primaries.has(type)) {
+                const previous = previousPrimaries.get(type);
+                primaries.set(type, factories.some(candidate =>
+                    candidate.type === type && candidate.building === previous) ? previous : building);
+            }
+        }
+        this.factoryCounts = counts;
+        this.primaryFactories = primaries;
+    }
     setPrimaryFactory(building: any) {
         if (building.rules.factory) {
             this.primaryFactories.set(building.rules.factory, building);
@@ -289,11 +347,14 @@ export class Production {
     hasAnyFactory(): boolean {
         return this.primaryFactories.size > 0;
     }
-    addVeteranType(type: any) {
+    addVeteranType(type: FactoryType) {
+        if (!isVeteranFactoryType(type)) {
+            throw new RangeError(`Invalid veteran factory type ${String(type)}`);
+        }
         this.veteranTypes.add(type);
     }
-    hasVeteranType(type: any): boolean {
-        return this.veteranTypes.has(type);
+    hasVeteranType(type: FactoryType): boolean {
+        return this.veteranTypes?.has(type) ?? false;
     }
     private hasStolenTech(value: number | SideId): boolean {
         if (typeof value === "number") {
@@ -346,6 +407,113 @@ export class Production {
             reverseEngineeredPlans: this.reverseEngineeredPlans ?? [],
         });
     }
+
+    /** Complete canonical production state, including ordered queue progress. */
+    captureState(): ProductionState {
+        return {
+            version: PRODUCTION_STATE_VERSION,
+            extension: this.serializeState(),
+            buildSpeedModifier: this.buildSpeedModifier,
+            veteranFactoryTypes: this.getVeteranFactoryTypes(),
+            primaryFactoryObjectIds: this.getPrimaryFactoryStates(),
+            queues: this.getAllQueues()
+                .slice()
+                .sort((a, b) => a.type - b.type)
+                .map(queue => queue.captureState()),
+        };
+    }
+
+    /**
+     * Transactional full production restore. Every queue and extension set is
+     * prepared before any live queue or Ares collection is changed.
+     */
+    restoreDeterministicState(state: unknown, context: ProductionRestoreContext = {}): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid production state: expected an object");
+        }
+        const candidate = state as Record<string, unknown>;
+        if (candidate.version !== PRODUCTION_STATE_VERSION) {
+            throw new Error(`Unsupported production state version: ${String(candidate.version)}`);
+        }
+        if (!Array.isArray(candidate.queues)) {
+            throw new Error("Invalid production state: queues must be an array");
+        }
+        if (typeof candidate.buildSpeedModifier !== "number" ||
+            !Number.isFinite(candidate.buildSpeedModifier) || candidate.buildSpeedModifier < 0) {
+            throw new Error("Invalid production state: buildSpeedModifier");
+        }
+        const veteranFactoryTypes = normalizeVeteranFactoryTypes(candidate.veteranFactoryTypes);
+        const primaryFactoryStates = normalizePrimaryFactoryStates(candidate.primaryFactoryObjectIds);
+
+        const extensionTarget = {
+            stolenTech: new Set<number | SideId>(),
+            permanentFactoryOwnerPlans: new Set<string>(),
+            reverseEngineeredPlans: new Set<string>(),
+        };
+        restoreAresProductionExtensionState(extensionTarget, candidate.extension);
+
+        const queueByType = new Map<QueueType, ProductionQueue>();
+        for (const queue of this.getAllQueues()) queueByType.set(queue.type, queue);
+        const plans: Array<{ queue: ProductionQueue; plan: QueueRestorePlan }> = [];
+        const seenTypes = new Set<QueueType>();
+        for (const rawQueue of candidate.queues) {
+            if (typeof rawQueue !== "object" || rawQueue === null) {
+                throw new Error("Invalid production state: queue must be an object");
+            }
+            const type = (rawQueue as { type?: unknown }).type;
+            if (!Number.isSafeInteger(type) || !queueByType.has(type as QueueType)) {
+                throw new Error(`Invalid production state: unknown queue type ${String(type)}`);
+            }
+            if (seenTypes.has(type as QueueType)) {
+                throw new Error(`Invalid production state: duplicate queue type ${type}`);
+            }
+            seenTypes.add(type as QueueType);
+            const queue = queueByType.get(type as QueueType)!;
+            const plan = queue.prepareRestoreState(rawQueue, {
+                ...context,
+                resolveRules: context.resolveRules ?? ((name) => this.resolveRulesForQueue(type as QueueType, name)),
+            });
+            plans.push({ queue, plan });
+        }
+        if (seenTypes.size !== queueByType.size) {
+            throw new Error("Invalid production state: queue set is incomplete");
+        }
+
+        const primaryFactories = new Map<FactoryType, any>();
+        for (const entry of primaryFactoryStates) {
+            const factory = context.resolveObjectById?.(entry.objectId) ??
+                [...(this.player?.buildings ?? [])].find((building: any) => building?.id === entry.objectId);
+            if (!factory) {
+                throw new Error(`Cannot restore primary factory ${entry.objectId}: unresolved`);
+            }
+            if (factory.id !== entry.objectId) {
+                throw new Error(`Cannot restore primary factory ${entry.objectId}: resolver returned ${String(factory.id)}`);
+            }
+            if (factory.rules?.factory !== entry.factoryType) {
+                throw new Error(`Invalid production state: object ${entry.objectId} is not a ${FactoryType[entry.factoryType]} factory`);
+            }
+            if (context.strict && !isOwnedByPlayer(this.player, factory)) {
+                throw new Error(`Cannot restore primary factory ${entry.objectId}: object is not owned by the restoring player`);
+            }
+            primaryFactories.set(entry.factoryType, factory);
+        }
+
+        // Commit point: all extension and queue state is now validated and
+        // all authored/world references have been resolved (in strict mode).
+        for (const { queue, plan } of plans) queue.applyRestorePlan(plan);
+        this.buildSpeedModifier = candidate.buildSpeedModifier as number;
+        this.veteranTypes.clear();
+        for (const type of veteranFactoryTypes) this.veteranTypes.add(type);
+        this.replaceExtensionState(extensionTarget);
+        // These indexes are derived from the already-live world. They are
+        // rebuilt only after every serialized field has validated, so a
+        // failed restore cannot leave a partially rebuilt production object.
+        this.rebuildFactoryDerivedState();
+        for (const [type, factory] of primaryFactories) {
+            this.primaryFactories.set(type, factory);
+        }
+        for (const { queue } of plans) queue.notifyUpdated();
+    }
     restoreState(state: unknown): void {
         if (!this.stolenTech) {
             this.stolenTech = new Set();
@@ -362,16 +530,13 @@ export class Production {
             reverseEngineeredPlans: this.reverseEngineeredPlans,
         }, state);
     }
-    /**
-     * Hashes extension-owned production state that changes the effective
-     * rules available to this player. Queue state is intentionally not added
-     * here because it is represented by the existing action/replay flow.
-     */
+    /** Hashes all future-affecting production state in stable queue order. */
     getHash(): number {
         const state = this.serializeState();
+        const veteranFactoryTypes = this.getVeteranFactoryTypes();
         const stolenTech = state.stolenTechs
             .map(value => `${typeof value === "number" ? "number" : "side"}:${value}`);
-        return fnv32aStrings([
+        const hashParts: (string | number)[] = [
             "production-extension-state",
             "stolen-tech",
             ...stolenTech,
@@ -379,7 +544,23 @@ export class Production {
             ...state.permanentFactoryOwnerPlans,
             "reverse-engineered-plans",
             ...state.reverseEngineeredPlans,
-        ]);
+            "build-speed-modifier",
+            this.buildSpeedModifier,
+            "veteran-factory-types",
+            veteranFactoryTypes.length,
+            ...veteranFactoryTypes,
+            "primary-factories",
+            this.getPrimaryFactoryStates().length,
+            ...this.getPrimaryFactoryStates().flatMap(entry => [entry.factoryType, entry.objectId]),
+            "queues",
+        ];
+        // Some extension-only callers construct a prototype-shaped Production
+        // with just the Ares sets; keep that narrow compatibility boundary
+        // hashable while real productions always carry their queue map.
+        for (const queue of (this.queues ? this.getAllQueues() : []).slice().sort((a, b) => a.type - b.type)) {
+            hashParts.push(queue.getHash());
+        }
+        return fnv32aStrings(hashParts);
     }
     debugGetState(): {
         stolenTechs: Array<number | SideId>;
@@ -400,4 +581,152 @@ export class Production {
         this.reverseEngineeredPlans.clear();
         this.player = undefined;
     }
+
+    private replaceExtensionState(state: {
+        stolenTech: Set<number | SideId>;
+        permanentFactoryOwnerPlans: Set<string>;
+        reverseEngineeredPlans: Set<string>;
+    }): void {
+        this.stolenTech.clear();
+        for (const value of state.stolenTech) this.stolenTech.add(value);
+        this.permanentFactoryOwnerPlans.clear();
+        for (const value of state.permanentFactoryOwnerPlans) this.permanentFactoryOwnerPlans.add(value);
+        this.reverseEngineeredPlans.clear();
+        for (const value of state.reverseEngineeredPlans) this.reverseEngineeredPlans.add(value);
+    }
+
+    private getVeteranFactoryTypes(): FactoryType[] {
+        return [...(this.veteranTypes ?? [])]
+            .map((type) => {
+                if (!isVeteranFactoryType(type)) {
+                    throw new Error(`Invalid veteran factory type ${String(type)}`);
+                }
+                return type;
+            })
+            .sort((a, b) => a - b);
+    }
+
+    private getPrimaryFactoryStates(): ProductionPrimaryFactoryState[] {
+        return [...(this.primaryFactories ?? [])]
+            .map(([factoryType, factory]) => {
+                if (!isFactoryType(factoryType) || factoryType === FactoryType.None) {
+                    throw new Error(`Invalid primary factory type ${String(factoryType)}`);
+                }
+                if (!Number.isSafeInteger(factory?.id) || factory.id < 0) {
+                    throw new Error(`Cannot serialize primary factory ${FactoryType[factoryType]} without a valid object id`);
+                }
+                return { factoryType, objectId: factory.id };
+            })
+            .sort((a, b) => a.factoryType - b.factoryType);
+    }
+
+    private resolveRulesForQueue(type: QueueType, name: string): unknown {
+        const objectType = type === QueueType.Structures || type === QueueType.Armory
+            ? ObjectType.Building
+            : type === QueueType.Infantry
+                ? ObjectType.Infantry
+                : type === QueueType.Vehicles || type === QueueType.Ships
+                    ? ObjectType.Vehicle
+                    : ObjectType.Aircraft;
+        try {
+            return this.rules?.getObject?.(name, objectType);
+        }
+        catch {
+            const rulesMap = objectType === ObjectType.Building
+                ? this.rules?.buildingRules
+                : objectType === ObjectType.Infantry
+                    ? this.rules?.infantryRules
+                    : objectType === ObjectType.Vehicle
+                        ? this.rules?.vehicleRules
+                        : this.rules?.aircraftRules;
+            return rulesMap?.get?.(name);
+        }
+    }
+}
+
+function isFactoryType(value: unknown): value is FactoryType {
+    return Number.isSafeInteger(value) &&
+        (value as number) >= FactoryType.None &&
+        (value as number) <= FactoryType.AircraftType;
+}
+
+function normalizeVeteranFactoryTypes(value: unknown): FactoryType[] {
+    if (!Array.isArray(value)) {
+        throw new Error("Invalid production state: veteranFactoryTypes must be an array");
+    }
+    const types = value.map((entry, index) => {
+        if (!isVeteranFactoryType(entry)) {
+            throw new Error(`Invalid production state: veteranFactoryTypes[${index}]`);
+        }
+        return entry;
+    });
+    if (new Set(types).size !== types.length) {
+        throw new Error("Invalid production state: duplicate veteran factory type");
+    }
+    return types.sort((a, b) => a - b);
+}
+
+function isVeteranFactoryType(value: unknown): value is FactoryType {
+    return isFactoryType(value) && value !== FactoryType.None;
+}
+
+function normalizePrimaryFactoryStates(value: unknown): ProductionPrimaryFactoryState[] {
+    if (!Array.isArray(value)) {
+        throw new Error("Invalid production state: primaryFactoryObjectIds must be an array");
+    }
+    const states = value.map((entry, index) => {
+        if (typeof entry !== "object" || entry === null) {
+            throw new Error(`Invalid production state: primaryFactoryObjectIds[${index}]`);
+        }
+        const candidate = entry as Record<string, unknown>;
+        if (!isFactoryType(candidate.factoryType) || candidate.factoryType === FactoryType.None) {
+            throw new Error(`Invalid production state: primaryFactoryObjectIds[${index}].factoryType`);
+        }
+        if (!Number.isSafeInteger(candidate.objectId) || (candidate.objectId as number) < 0) {
+            throw new Error(`Invalid production state: primaryFactoryObjectIds[${index}].objectId`);
+        }
+        return {
+            factoryType: candidate.factoryType,
+            objectId: candidate.objectId as number,
+        };
+    });
+    if (new Set(states.map(state => state.factoryType)).size !== states.length) {
+        throw new Error("Invalid production state: duplicate primary factory type");
+    }
+    if (new Set(states.map(state => state.objectId)).size !== states.length) {
+        throw new Error("Invalid production state: duplicate primary factory object");
+    }
+    return states.sort((a, b) => a.factoryType - b.factoryType);
+}
+
+function compareFactoryBuildings(
+    left: { building: any; order: number; type: FactoryType },
+    right: { building: any; order: number; type: FactoryType },
+): number {
+    const leftId = left.building?.id;
+    const rightId = right.building?.id;
+    if (Number.isSafeInteger(leftId) && Number.isSafeInteger(rightId) && leftId !== rightId) {
+        return leftId - rightId;
+    }
+    if (Number.isSafeInteger(leftId) !== Number.isSafeInteger(rightId)) {
+        return Number.isSafeInteger(leftId) ? -1 : 1;
+    }
+    const leftName = String(left.building?.name ?? "");
+    const rightName = String(right.building?.name ?? "");
+    if (leftName < rightName) return -1;
+    if (leftName > rightName) return 1;
+    if (left.type !== right.type) return left.type - right.type;
+    // Only legacy test doubles can reach this fallback; production objects
+    // always have an ID. Retaining their supplied order keeps the adapter
+    // usable without pretending that object identity is canonical.
+    return left.order - right.order;
+}
+
+function isOwnedByPlayer(player: any, object: any): boolean {
+    const buildings = player?.buildings;
+    if (!buildings || typeof buildings[Symbol.iterator] !== "function") return false;
+    for (const building of buildings) {
+        if (building === object) return true;
+    }
+    return false;
 }

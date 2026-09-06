@@ -15,6 +15,13 @@ interface PlayerOwnedObject {
 export class Player {
     private _credits: number = 0;
     public readonly name: string;
+    /**
+     * Canonical identity: index in the deterministic PlayerList order,
+     * assigned by PlayerList.addPlayer. -1 while unregistered. This is the
+     * only safe cross-snapshot/hashing foreign key for a player; display
+     * names are not unique.
+     */
+    public playerListIndex: number = -1;
     public readonly country?: Country;
     public readonly startLocation: any;
     public readonly color: Color;
@@ -111,6 +118,9 @@ export class Player {
         return this.getOrCreateObjectsForType(ObjectType.Building);
     }
     addUnitsBuilt(object: PlayerOwnedObject, count: number): void {
+        if (!Number.isSafeInteger(count) || count < 0) {
+            throw new RangeError("Units-built count must be a non-negative integer");
+        }
         this.unitsBuiltByType.set(object.type, (this.unitsBuiltByType.get(object.type) ?? 0) + count);
         if (object.buildLimit < 0) {
             this.limitedUnitsBuiltByName.set(object.name, (this.limitedUnitsBuiltByName.get(object.name) ?? 0) + count);
@@ -156,13 +166,32 @@ export class Player {
             this.country.hasVeteranUnit(object.type, object.name));
     }
     getHash(): number {
+        const negativeBuildLimitHistory: (string | number)[] = [
+            "negative-build-limit-history",
+            this.limitedUnitsBuiltByName.size,
+        ];
+        for (const [name, count] of [...this.limitedUnitsBuiltByName.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))) {
+            negativeBuildLimitHistory.push(name, count);
+        }
         return fnv32aStrings([
             "player",
+            "player-list-index",
+            this.playerListIndex,
             this.credits,
             this.country?.id ?? "",
             this.country?.sideId ?? "",
+            // Defeat flips isCombatant(), which gates Warhead fear logic,
+            // repair-order targeting, and asset redistribution; score breaks
+            // the redistribution tie-break. Both change future simulation.
+            this.defeated ? 1 : 0,
+            this.score,
             this.aresFirestormActive ? 1 : 0,
+            ...negativeBuildLimitHistory,
             this.production?.getHash?.() ?? 0,
+            // Superweapon readiness/charge timers change future simulation
+            // (a ready SW can fire this tick) so they are canonical state.
+            this.superWeaponsTrait?.getHash?.() ?? 0,
             ...this.traits.getAll().map(trait => trait.getHash?.() ?? 0),
         ]);
     }

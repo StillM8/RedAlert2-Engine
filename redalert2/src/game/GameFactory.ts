@@ -93,7 +93,7 @@ export class GameFactory {
         const alliances: Alliances = new Alliances(playerList);
         const unitSelection: UnitSelection = new UnitSelection();
         const tickCounter: BoxedVar<number> = new BoxedVar<number>(1);
-        const objectFactory: ObjectFactory = new ObjectFactory(gameMap.tiles, gameMap.tileOccupation, gameMap.bridges, tickCounter);
+        const objectFactory: ObjectFactory = new ObjectFactory(gameMap.tiles, gameMap.tileOccupation, gameMap.bridges, tickCounter, playerList);
         const actionFactory: ActionFactory = new ActionFactory();
         const botFactory: BotFactory = new BotFactory(botConfig);
         const botManager: BotManager = BotManager.factory(actionFactory, botFactory, debugBotIndex, actionLogger);

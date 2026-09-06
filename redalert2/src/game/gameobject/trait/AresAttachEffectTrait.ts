@@ -16,6 +16,8 @@ import {
     restoreAresAttachEffectExtensionState,
     serializeAresAttachEffectExtensionState,
     type AresAttachEffectExtensionState,
+    type AresAttachEffectOriginSnapshot,
+    type AresAttachEffectRestoreContext,
     type AresAttachEffectStateTarget,
 } from "@/extensions/ares/AresAttachEffectState";
 import {
@@ -23,6 +25,7 @@ import {
     parseAresAnimationDamage,
 } from "@/extensions/ares/AresAnimationDamage";
 import { GameSpeed } from "@/game/GameSpeed";
+import { mixCanonicalFloat64 } from "@/util/number";
 
 export interface AresAttachEffectMultipliers {
     speed: number;
@@ -38,6 +41,23 @@ export interface AresAttachEffectTraitOptions {
     instances?: readonly AresAttachEffectInstance[];
     /** Optional TechnoType-owned effect that is scheduled from spawn onward. */
     automaticEffect?: AresAttachEffectBinding;
+    /**
+     * Resolves a live player to its canonical snapshot identity (PlayerList
+     * index). Supplied by the save host; when absent, a validated live
+     * PlayerList index is used before falling back to the legacy name field.
+     */
+    getPlayerIndex?(player: any): number | undefined;
+}
+
+/**
+ * Stable authored origin of an applied definition. Snapshots record this so
+ * restore can rebind the definition from rules instead of serializing the
+ * definition object itself; without it a restored effect would keep its
+ * instance but contribute no modifiers, damage, cloak, or animation.
+ */
+export interface AresAttachEffectOrigin {
+    kind: "warhead" | "techno";
+    ownerName: string;
 }
 
 interface AresAnimationDamageRuntimeState {
@@ -45,6 +65,19 @@ interface AresAnimationDamageRuntimeState {
     frameAccumulator: number;
     sourcePlayer?: any;
 }
+
+function isCanonicalPlayerIndex(value: unknown): value is number {
+    return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+/** Distinct numeric identity per automatic phase; lengths collide. */
+const PHASE_HASH: Record<AresAttachEffectAutomaticPhase, number> = {
+    inactive: 0,
+    "waiting-initial": 1,
+    active: 2,
+    "waiting-renewal": 3,
+    disabled: 4,
+};
 
 export interface AresAttachEffectBinding {
     effectId: AresAttachEffectId;
@@ -83,8 +116,11 @@ export interface AresAttachEffectPresentation {
  */
 export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUnspawn {
     private readonly gameObject?: any;
+    private readonly getPlayerIndex?: (player: any) => number | undefined;
     private instances: AresAttachEffectInstance[];
     private definitions: Map<AresAttachEffectId, AresAttachEffectDefinition>;
+    /** Authored origin per held effectId for snapshot rebinding. */
+    private origins = new Map<AresAttachEffectId, AresAttachEffectOrigin>();
     private automaticEffect?: AresAttachEffectBinding;
     private automaticPhase: AresAttachEffectAutomaticPhase = "inactive";
     private automaticRemainingDelay = 0;
@@ -94,6 +130,7 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
 
     constructor(options: AresAttachEffectTraitOptions = {}) {
         this.gameObject = options.gameObject;
+        this.getPlayerIndex = options.getPlayerIndex;
         this.instances = (options.instances ?? []).map(instance => ({ ...instance }));
         this.definitions = new Map(options.definitions ?? []);
         this.automaticEffect = options.automaticEffect;
@@ -109,28 +146,208 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         return this.instances.map(instance => ({ ...instance }));
     }
 
+    /**
+     * Deterministic state fingerprint over live effect instances (including
+     * effect identity), the exact automatic phase, pending animation-damage
+     * accumulation and its source attribution. Every input that changes
+     * simulation behavior is included so lockstep checkpoints and restore
+     * comparisons cannot pass while gameplay state diverges.
+     */
+    getHash(): number {
+        let hash = PHASE_HASH[this.automaticPhase];
+        for (const instance of this.instances) {
+            for (const char of instance.effectId) {
+                hash = (hash * 31 + char.charCodeAt(0)) | 0;
+            }
+            hash = (hash * 31 + instance.remainingFrames) | 0;
+            hash = (hash * 31 + (instance.discardOnEntry ? 1 : 0)) | 0;
+        }
+        // Instance count is folded in so a changed stack size cannot cancel
+        // out through identical per-instance contributions.
+        hash = (hash * 31 + this.instances.length) | 0;
+        hash = (hash * 31 + this.automaticRemainingDelay) | 0;
+        // Accumulators are future-affecting simulation state. Hash their exact
+        // IEEE-754 representation rather than quantizing them: a small
+        // difference can move the next frame/damage event across a tick.
+        const floatView = new DataView(new ArrayBuffer(8));
+        for (const effectId of [...this.animationDamageState.keys()].sort()) {
+            const states = this.animationDamageState.get(effectId)!;
+            states.forEach((state, occurrence) => {
+                if (!state) return;
+                for (const char of effectId) {
+                    hash = (hash * 31 + char.charCodeAt(0)) | 0;
+                }
+                hash = (hash * 31 + occurrence) | 0;
+                hash = mixCanonicalFloat64(hash, state.accumulator, floatView, `AttachEffect.${effectId}.accumulator`);
+                hash = mixCanonicalFloat64(hash, state.frameAccumulator, floatView, `AttachEffect.${effectId}.frameAccumulator`);
+                if (state.sourcePlayer !== undefined && state.sourcePlayer !== null) {
+                    const index = this.resolveCanonicalPlayerIndex(state.sourcePlayer);
+                    if (index !== undefined) {
+                        // Canonical player identity. This tag keeps the
+                        // representation distinct from the legacy fallback.
+                        hash = (hash * 31 + 1) | 0;
+                        hash = (hash * 31 + index) | 0;
+                    }
+                    else if (this.getPlayerIndex) {
+                        // A configured resolver is authoritative. An
+                        // unregistered/stale player is not allowed to fall
+                        // back to a display name and masquerade as canonical.
+                        hash = (hash * 31 + 3) | 0;
+                    }
+                    else {
+                        // Legacy/test-only fallback. Names are not canonical;
+                        // tag the representation so it cannot collide with a
+                        // canonical index or an absent source.
+                        hash = (hash * 31 + 2) | 0;
+                        const identity = String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "");
+                        hash = (hash * 31 + identity.length) | 0;
+                        for (const char of identity) {
+                            hash = (hash * 31 + char.charCodeAt(0)) | 0;
+                        }
+                    }
+                }
+                else {
+                    // Explicitly distinguish no source from both identity
+                    // representations above.
+                    hash = (hash * 31 + 0) | 0;
+                }
+            });
+        }
+        return hash;
+    }
+
     /** Returns the AttachEffect state needed by a deterministic snapshot host. */
     serializeState(): AresAttachEffectExtensionState {
         return serializeAresAttachEffectExtensionState({
             instances: this.instances,
             automaticPhase: this.automaticPhase,
             automaticRemainingDelay: this.automaticRemainingDelay,
+            animationDamage: this.serializeAnimationDamage(),
+            origins: [...this.origins.entries()].map(([effectId, origin]) => ({
+                effectId,
+                kind: origin.kind,
+                ownerName: origin.ownerName,
+            })),
         });
     }
 
-    /** Restore active effects and the automatic scheduler as one state unit. */
-    restoreState(state: unknown): void {
+    private serializeAnimationDamage() {
+        const snapshots = [];
+        for (const [effectId, states] of this.animationDamageState) {
+            states.forEach((state, occurrence) => {
+                if (!state) return;
+                // Zero accumulators carry no damage timing, but an ASSIGNED
+                // SOURCE still does: dropping it would silently reattribute
+                // future damage to the victim. Only fully empty states are
+                // omitted so definition-free snapshots stay byte-compatible.
+                const hasAccumulator = state.accumulator !== 0 || state.frameAccumulator !== 0;
+                const hasSource = state.sourcePlayer !== undefined && state.sourcePlayer !== null;
+                if (!hasAccumulator && !hasSource) return;
+                // Canonical identity is the deterministic PlayerList index.
+                // The legacy name field is written only when no canonical
+                // index is available, so older snapshots remain loadable.
+                const index = hasSource ? this.resolveCanonicalPlayerIndex(state.sourcePlayer) : undefined;
+                snapshots.push({
+                    effectId,
+                    occurrence,
+                    accumulator: state.accumulator,
+                    frameAccumulator: state.frameAccumulator,
+                    ...(hasSource
+                        ? {
+                            ...(index !== undefined ? { sourcePlayerIndex: index } : {}),
+                            ...(index === undefined && this.getPlayerIndex
+                                ? { sourcePlayerUnresolved: true as const }
+                                : {}),
+                            ...(index === undefined && !this.getPlayerIndex
+                                ? { sourcePlayerName: String(state.sourcePlayer.name ?? state.sourcePlayer.id ?? "") }
+                                : {}),
+                        }
+                        : {}),
+                });
+            });
+        }
+        return snapshots;
+    }
+
+    /**
+     * Resolve the same canonical identity used by snapshots and hashing.
+     * Resolver-backed identity wins; the live PlayerList index is a safe
+     * fallback for hosts that do not inject a resolver.
+     */
+    private resolveCanonicalPlayerIndex(player: any): number | undefined {
+        if (this.getPlayerIndex) {
+            const resolved = this.getPlayerIndex(player);
+            return isCanonicalPlayerIndex(resolved) ? resolved : undefined;
+        }
+
+        const direct = player?.playerListIndex;
+        return isCanonicalPlayerIndex(direct) ? direct : undefined;
+    }
+
+    /**
+     * Restore active effects, the automatic scheduler, damage attribution,
+     * and effect definitions as one state unit.
+     *
+     * `context.resolvePlayerByIndex` maps snapshot player indexes (the
+     * canonical PlayerList-order identity) back to live Player objects;
+     * `context.resolvePlayerByName` is the legacy fallback for older
+     * snapshots. `context.resolveDefinition` rebinds each held effect to its
+     * authored definition from rules. Without a resolver the definitions map
+     * stays empty and restored effects are present but inert — the same
+     * observable behavior as a live trait that never received the effect.
+     */
+    restoreState(state: unknown, context: AresAttachEffectRestoreContext = {}): void {
         const restored: AresAttachEffectStateTarget = {
             instances: this.instances,
             automaticPhase: this.automaticPhase,
             automaticRemainingDelay: this.automaticRemainingDelay,
+            animationDamage: new Map(),
+            definitions: new Map(),
         };
-        restoreAresAttachEffectExtensionState(restored, state);
+        restoreAresAttachEffectExtensionState(restored, state, {
+            ...context,
+            automaticEffectId: context.automaticEffectId ?? this.automaticEffect?.effectId,
+        });
         this.instances = restored.instances.map(instance => ({ ...instance }));
         this.automaticPhase = restored.automaticPhase;
         this.automaticRemainingDelay = restored.automaticRemainingDelay;
+        // Rebuild origins from the snapshot so a later re-snapshot of the
+        // restored trait keeps the rebinding information.
+        this.origins.clear();
+        for (const origin of (state as { origins?: readonly AresAttachEffectOriginSnapshot[] })?.origins ?? []) {
+            this.origins.set(origin.effectId, { kind: origin.kind, ownerName: origin.ownerName });
+        }
+        // Reconcile against the incoming instance list FIRST so the damage
+        // queue is sized to the restored effects, then overlay the snapshot's
+        // partial accumulators and attribution. Reconciling after the overlay
+        // would rebuild the queues from an empty previous list and zero them.
         this.animationDamageState.clear();
-        this.reconcileAnimationDamageState([], this.instances);
+        this.reconcileAnimationDamageState([], restored.instances);
+        for (const [effectId, states] of restored.animationDamage) {
+            const existing = this.animationDamageState.get(effectId);
+            if (!existing) continue;
+            states.forEach((state, occurrence) => {
+                if (!state || !existing[occurrence]) return;
+                existing[occurrence].accumulator = state.accumulator;
+                existing[occurrence].frameAccumulator = state.frameAccumulator;
+                if (state.sourcePlayer !== undefined) {
+                    existing[occurrence].sourcePlayer = state.sourcePlayer;
+                }
+            });
+        }
+        this.definitions = new Map(
+            [...this.definitions.entries()].filter(([effectId]) =>
+                this.automaticEffect?.effectId === effectId));
+        for (const [effectId, definition] of restored.definitions) {
+            this.definitions.set(effectId, definition as AresAttachEffectDefinition);
+        }
+        if (this.automaticEffect) {
+            this.definitions.set(this.automaticEffect.effectId, this.automaticEffect.definition);
+            this.origins.set(this.automaticEffect.effectId, {
+                kind: "techno",
+                ownerName: String(this.gameObject?.name ?? this.automaticEffect.effectId),
+            });
+        }
         this.presentationRevision++;
         this.animationRevision++;
         this.pruneDefinitions();
@@ -144,6 +361,8 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             protectedByIronCurtainOrForceShield?: boolean;
             context?: any;
             sourcePlayer?: any;
+            /** Authored origin recorded for snapshot rebinding. */
+            origin?: AresAttachEffectOrigin;
         } = {},
     ): AresAttachEffectApplyResult {
         const previousInstances = this.instances;
@@ -160,6 +379,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
 
         if (["applied", "reapplied", "stacked"].includes(result.decision)) {
             this.definitions.set(effectId, definition);
+            if (options.origin) {
+                this.origins.set(effectId, options.origin);
+            }
             if (effectId === this.automaticEffect?.effectId) {
                 this.automaticPhase = "active";
                 this.automaticRemainingDelay = 0;
@@ -398,6 +620,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         const activeIds = new Set(this.instances.map(instance => instance.effectId));
         for (const effectId of this.definitions.keys()) {
             if (!activeIds.has(effectId)) this.definitions.delete(effectId);
+        }
+        for (const effectId of this.origins.keys()) {
+            if (!activeIds.has(effectId)) this.origins.delete(effectId);
         }
         for (const effectId of this.animationDamageState.keys()) {
             if (!activeIds.has(effectId)) this.animationDamageState.delete(effectId);

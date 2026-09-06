@@ -1,4 +1,5 @@
 import { Weapon } from "@/game/Weapon";
+import { fnv32aStrings } from "@/util/math";
 import { WeaponType } from "@/game/WeaponType";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
@@ -171,6 +172,22 @@ export class ArmedTrait implements NotifyTick, NotifyDestroy {
     }
     public getSpecialWeaponIndex(): number {
         return this.specialWeaponIndex;
+    }
+    /**
+     * Canonical firing state: the selected weapon/stage decides what fires,
+     * and each weapon's cooldown/burst position decides when. Elite rank is
+     * already visible through VeteranTrait; weapon selection re-derives from
+     * it, so only runtime-mutable state is fingerprinted here.
+     */
+    getHash(): number {
+        return fnv32aStrings([
+            "ArmedTrait",
+            this.specialWeaponIndex,
+            this.guardWeaponRangeOverride ?? -1,
+            this.primaryWeapon?.getHash() ?? 0,
+            this.secondaryWeapon?.getHash() ?? 0,
+            this.deathWeapon?.getHash() ?? 0,
+        ]);
     }
     public computeGuardScanRange(weapon?: Weapon): number {
         const maxWeaponRange = this.guardWeaponRangeOverride ??

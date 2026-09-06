@@ -1,4 +1,5 @@
 import { VeteranLevel } from '@/game/gameobject/unit/VeteranLevel';
+import { fnv32aStrings } from '@/util/math';
 import { NotifyTargetDestroy } from '@/game/trait/interface/NotifyTargetDestroy';
 import { UnitPromoteEvent } from '@/game/event/UnitPromoteEvent';
 import { VeteranAbility } from '@/game/gameobject/unit/VeteranAbility';
@@ -83,6 +84,32 @@ export class VeteranTrait implements NotifyTargetDestroy {
         this.veteranLevel = VeteranLevel.None;
         this.xp = 0;
         this.promotionThresh = gameObject.rules.cost * veteranRules.veteranRatio + 1;
+    }
+    /**
+     * Canonical state: rank selects weapons/abilities now, accumulated XP
+     * decides the next promotion tick. promotionThresh is rules-derived.
+     * XP is a float; Number-to-string formatting is deterministic in JS.
+     */
+    getHash(): number {
+        return fnv32aStrings(["VeteranTrait", this.veteranLevel, this.xp]);
+    }
+    captureState(): { level: VeteranLevel; xp: number } {
+        return { level: this.veteranLevel, xp: this.xp };
+    }
+    restoreState(state: unknown): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid VeteranTrait state");
+        }
+        const candidate = state as { level?: unknown; xp?: unknown };
+        if (!Number.isSafeInteger(candidate.level) || (candidate.level as number) < VeteranLevel.None ||
+            (candidate.level as number) > VeteranLevel.Elite) {
+            throw new Error("Invalid VeteranTrait state: level");
+        }
+        if (typeof candidate.xp !== "number" || !Number.isFinite(candidate.xp) || candidate.xp < 0) {
+            throw new Error("Invalid VeteranTrait state: xp");
+        }
+        this.veteranLevel = candidate.level as VeteranLevel;
+        this.xp = candidate.xp;
     }
     [NotifyTargetDestroy.onDestroy](source: GameObject, target: GameObject, weapon?: Weapon, gameManager?: GameManager, attribution?: AresKillAttribution): void {
         if (source.isDestroyed && !source.isCrashing)
@@ -219,7 +246,7 @@ export class VeteranTrait implements NotifyTargetDestroy {
                 }
             }
         }
-        gameManager.events.dispatch(new UnitPromoteEvent(gameObject));
+        gameManager.events.dispatch(new UnitPromoteEvent(gameObject, this.veteranLevel));
     }
     getVeteranSightMultiplier(): number {
         return this.getVeteranAbilityMultiplier(VeteranAbility.SIGHT);

@@ -109,6 +109,18 @@ export class TechnoRules extends ObjectRules {
     declare hijackerKillPilots: number;
     declare hijackerEnterSound?: string;
     declare hijackerLeaveSound?: string;
+    /** Ares promotion: per-type sound overriding [AudioVisual] UpgradeVeteranSound. */
+    declare promoteVeteranSound?: string;
+    /** Ares promotion: per-type sound overriding [AudioVisual] UpgradeEliteSound. */
+    declare promoteEliteSound?: string;
+    /** Ares promotion: flash frames overriding [AudioVisual] VeteranFlashTimer. */
+    declare promoteVeteranFlash?: number;
+    /** Ares promotion: flash frames overriding [AudioVisual] EliteFlashTimer. */
+    declare promoteEliteFlash?: number;
+    /** Ares promotion: EVA override, default EVA_UnitPromoted. */
+    declare evaVeteranPromoted?: string;
+    /** Ares promotion: EVA override, default EVA_UnitPromoted. */
+    declare evaElitePromoted?: string;
     declare prerequisite: string[];
     /** Ares alternative prerequisite lists; list entries are ANDed. */
     declare prerequisiteLists: string[][];
@@ -511,6 +523,19 @@ export class TechnoRules extends ObjectRules {
         this.hijackerKillPilots = this.ini.getNumber("VehicleThief.KillPilots", 0);
         this.hijackerEnterSound = this.ini.getString("VehicleThief.EnterSound") || undefined;
         this.hijackerLeaveSound = this.ini.getString("VehicleThief.LeaveSound") || undefined;
+        // Ares promotion presentation. Sounds/EVA fall back to the global
+        // [AudioVisual] defaults at consumption time; flash frames fall back
+        // to VeteranFlashTimer/EliteFlashTimer the same way.
+        this.promoteVeteranSound = this.ini.getString("Promote.VeteranSound") || undefined;
+        this.promoteEliteSound = this.ini.getString("Promote.EliteSound") || undefined;
+        this.promoteVeteranFlash = this.ini.has("Promote.VeteranFlash")
+            ? this.ini.getNumber("Promote.VeteranFlash")
+            : undefined;
+        this.promoteEliteFlash = this.ini.has("Promote.EliteFlash")
+            ? this.ini.getNumber("Promote.EliteFlash")
+            : undefined;
+        this.evaVeteranPromoted = this.ini.getString("EVA.VeteranPromoted") || undefined;
+        this.evaElitePromoted = this.ini.getString("EVA.ElitePromoted") || undefined;
         this.aresBounty = parseAresBountyTechnoRules(this.ini);
         this.aresVeterancy = parseAresVeterancyRules(this.ini);
         this.aresChronoPrison = parseAresChronoPrisonTechno(this.ini);

@@ -1,4 +1,5 @@
 import { Coords } from "@/game/Coords";
+import { fnv32aStrings } from "@/util/math";
 import { LightningStormCloudEvent } from "@/game/event/LightningStormCloudEvent";
 import { LightningStormManifestEvent } from "@/game/event/LightningStormManifestEvent";
 import { CollisionType } from "@/game/gameobject/unit/CollisionType";
@@ -44,6 +45,25 @@ export class LightningStormEffect extends SuperWeaponEffect {
         this.superWeaponRange = superWeaponRange?.slice();
     }
     private readonly superWeaponRange?: readonly number[];
+    getHash(): number {
+        // Phase and the four timers decide every future strike; cloud
+        // positions/lifetimes decide where bolts land.
+        return fnv32aStrings([
+            "LightningStormEffect",
+            super.getHash(),
+            this.state,
+            this.manifestStartTimer,
+            this.manifestEndTimer,
+            this.nextDirectHitTimer,
+            this.nextRandomHitTimer,
+            ...this.clouds.flatMap((cloud) => [
+                cloud.tile?.rx ?? -1,
+                cloud.tile?.ry ?? -1,
+                cloud.durationTicks,
+                cloud.ticksLeft,
+            ]),
+        ]);
+    }
     onStart(game: Game): void {
         const lightningStorm = game.rules.general.lightningStorm;
         // Antares resolves SW.Deferment per superweapon and falls back to

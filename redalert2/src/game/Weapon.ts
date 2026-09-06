@@ -1,4 +1,5 @@
 import { Warhead } from "@/game/Warhead";
+import { fnv32aStrings } from "@/util/math";
 import { FlhCoords } from "@/game/art/FlhCoords";
 import { WeaponFireEvent } from "@/game/event/WeaponFireEvent";
 import * as geometry from "@/game/math/geometry";
@@ -237,6 +238,24 @@ export class Weapon {
     }
     get name(): string {
         return this.rules.name;
+    }
+    /**
+     * Canonical firing state: cooldown decides when the next shot may fire,
+     * burst position decides which burst-delay and muzzle offset applies.
+     * distributedFireAngle is constructor-derived from rules, so it is not
+     * part of the fingerprint. rangeBonus is mutated at runtime (guard-range
+     * override) and is canonical.
+     */
+    getHash(): number {
+        return fnv32aStrings([
+            "Weapon",
+            this.cooldownTicks,
+            this.burstsLeft,
+            this.burstIndex,
+            this.useBurstDelay ? 1 : 0,
+            this.lateralMuzzleMult,
+            this.rangeBonus,
+        ]);
     }
     get minRange(): number {
         return this.rules.minimumRange;

@@ -13,20 +13,52 @@ import {
     canAresUrbanCombatInfantryOccupy,
 } from '@/extensions/ares/AresUrbanCombatRuntime';
 import { AresGarrisonOccupantTrait } from './AresGarrisonOccupantTrait';
+
+export interface GarrisonTraitOptions {
+    /** Resolves a live player to its canonical PlayerList identity. */
+    getPlayerIndex?(player: any): number | undefined;
+}
+
+export const GARRISON_STATE_VERSION = 1 as const;
+
+export interface GarrisonTraitState {
+    readonly version: typeof GARRISON_STATE_VERSION;
+    readonly occupantObjectIds: readonly number[];
+    readonly temporaryOccupation: boolean;
+    readonly trueOwnerPlayerIndex?: number;
+}
+
+export interface GarrisonRestoreContext {
+    resolveObjectById?(id: number): Unit | undefined;
+    resolvePlayerByIndex?(index: number): unknown;
+    strict?: boolean;
+}
+
+function isCanonicalPlayerIndex(value: unknown): value is number {
+    return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
 export class GarrisonTrait {
     private building: Building;
     private evacThreshold: number;
     private maxOccupants: number;
     private units: Unit[] = [];
+    private readonly getPlayerIndex?: (player: any) => number | undefined;
     /** Owner that must receive a neutral/raidable bunker again once the
      * temporary occupants leave. This is explicit state instead of the old
      * TechLevel=-1 heuristic so player-owned Bunker.Raidable buildings work. */
     private trueOwner: any;
     private temporaryOccupation: boolean = false;
-    constructor(building: Building, evacThreshold: number, maxOccupants: number) {
+    constructor(
+        building: Building,
+        evacThreshold: number,
+        maxOccupants: number,
+        options: GarrisonTraitOptions = {},
+    ) {
         this.building = building;
         this.evacThreshold = evacThreshold;
         this.maxOccupants = maxOccupants;
+        this.getPlayerIndex = options.getPlayerIndex;
         this.trueOwner = (building as any).owner;
     }
     isOccupied(): boolean {
@@ -242,10 +274,14 @@ export class GarrisonTrait {
         // Temporary ownership is already present in the building's owner hash;
         // include the retained true owner identity so two peers cannot silently
         // disagree about who receives an emptied raidable bunker.
-        const ownerIdentity = String(this.trueOwner?.id ?? this.trueOwner?.name ?? this.trueOwner?.country?.id ?? '');
+        const ownerIdentity = this.getTrueOwnerIdentity();
         return fnv32aStrings([
+            "garrison",
+            "temporary-owner",
             this.temporaryOccupation ? 1 : 0,
-            ownerIdentity,
+            ownerIdentity.tag,
+            ...ownerIdentity.parts,
+            "occupants",
             ...this.units.map(unit => unit.getHash()),
         ]);
     }
@@ -260,9 +296,123 @@ export class GarrisonTrait {
             trueOwner: String(this.trueOwner?.id ?? this.trueOwner?.name ?? this.trueOwner?.country?.id ?? '') || undefined,
         };
     }
+    /** Canonical garrison state; live unit/player references never cross a snapshot boundary. */
+    captureState(): GarrisonTraitState {
+        const occupantObjectIds = this.units.map((unit) => requiredObjectId(unit));
+        if (new Set(occupantObjectIds).size !== occupantObjectIds.length) {
+            throw new Error("Cannot serialize garrison with duplicate occupants");
+        }
+        const trueOwnerPlayerIndex = this.trueOwner
+            ? (this.getPlayerIndex
+                ? this.getPlayerIndex(this.trueOwner)
+                : this.trueOwner.playerListIndex)
+            : undefined;
+        if (this.trueOwner && !isCanonicalPlayerIndex(trueOwnerPlayerIndex)) {
+            throw new Error("Cannot serialize garrison true owner without a canonical PlayerList index");
+        }
+        return {
+            version: GARRISON_STATE_VERSION,
+            occupantObjectIds,
+            temporaryOccupation: this.temporaryOccupation,
+            ...(trueOwnerPlayerIndex === undefined ? {} : { trueOwnerPlayerIndex }),
+        };
+    }
+
+    /** Resolves every reference before replacing the live garrison state. */
+    restoreState(state: unknown, context: GarrisonRestoreContext = {}): void {
+        if (typeof state !== "object" || state === null) {
+            throw new Error("Invalid garrison state: expected an object");
+        }
+        const candidate = state as Record<string, unknown>;
+        if (candidate.version !== GARRISON_STATE_VERSION) {
+            throw new Error(`Unsupported garrison state version: ${String(candidate.version)}`);
+        }
+        if (!Array.isArray(candidate.occupantObjectIds) || typeof candidate.temporaryOccupation !== "boolean") {
+            throw new Error("Invalid garrison state: occupants and temporaryOccupation are required");
+        }
+        const ids = candidate.occupantObjectIds.map((id, index) => {
+            if (!Number.isSafeInteger(id) || (id as number) < 0) {
+                throw new Error(`Invalid garrison state: occupantObjectIds[${index}]`);
+            }
+            return id as number;
+        });
+        if (new Set(ids).size !== ids.length) {
+            throw new Error("Invalid garrison state: duplicate occupant object ID");
+        }
+        const ownerIndex = candidate.trueOwnerPlayerIndex;
+        if (ownerIndex !== undefined && !isCanonicalPlayerIndex(ownerIndex)) {
+            throw new Error("Invalid garrison state: trueOwnerPlayerIndex");
+        }
+        if (candidate.temporaryOccupation && ownerIndex === undefined) {
+            throw new Error("Invalid garrison state: temporary occupation has no retained owner");
+        }
+
+        const owner = ownerIndex === undefined
+            ? undefined
+            : context.resolvePlayerByIndex?.(ownerIndex as number);
+        if (ownerIndex !== undefined && !owner) {
+            throw new Error(`Cannot restore garrison owner ${ownerIndex}: unresolved`);
+        }
+        const units = ids.map((id) => {
+            const unit = context.resolveObjectById?.(id);
+            if (!unit) {
+                throw new Error(`Cannot restore garrison occupant ${id}: unresolved`);
+            }
+            if (unit.id !== id) {
+                throw new Error(`Cannot restore garrison occupant ${id}: resolver returned ${String(unit.id)}`);
+            }
+            return unit;
+        });
+        if (new Set(units).size !== units.length) {
+            throw new Error("Invalid garrison state: resolver returned duplicate occupants");
+        }
+        if (owner && (owner as any).playerListIndex !== undefined &&
+            (owner as any).playerListIndex !== ownerIndex) {
+            throw new Error(`Cannot restore garrison owner ${ownerIndex}: resolver returned a different player`);
+        }
+        if (context.strict && ownerIndex !== undefined &&
+            !isCanonicalPlayerIndex((owner as any)?.playerListIndex)) {
+            throw new Error(`Cannot restore garrison owner ${ownerIndex}: resolver returned an unindexed player`);
+        }
+
+        this.units = units;
+        this.trueOwner = owner;
+        this.temporaryOccupation = candidate.temporaryOccupation;
+        for (const unit of units) {
+            const occupant: any = unit;
+            if (!occupant.aresGarrisonOccupantTrait) {
+                occupant.aresGarrisonOccupantTrait = new AresGarrisonOccupantTrait(this.building as any);
+                occupant.addTrait?.(occupant.aresGarrisonOccupantTrait);
+            }
+            else {
+                occupant.aresGarrisonOccupantTrait.retarget?.(this.building as any);
+            }
+        }
+    }
     dispose(): void {
         this.building = undefined as any;
         this.trueOwner = undefined;
+    }
+
+    private getTrueOwnerIdentity(): { tag: number; parts: (string | number)[] } {
+        if (!this.trueOwner) {
+            return { tag: 0, parts: [] };
+        }
+        const index = this.getPlayerIndex
+            ? this.getPlayerIndex(this.trueOwner)
+            : this.trueOwner.playerListIndex;
+        if (isCanonicalPlayerIndex(index)) {
+            return { tag: 1, parts: [index] };
+        }
+        if (this.getPlayerIndex) {
+            // A configured resolver is authoritative. Do not let a stale
+            // object-local index or display name masquerade as canonical.
+            return { tag: 3, parts: [] };
+        }
+        // Legacy/test-only fallback. Explicitly domain-separate it from both
+        // canonical identity and an unresolved configured resolver.
+        const fallback = String(this.trueOwner.id ?? this.trueOwner.name ?? this.trueOwner.country?.id ?? "");
+        return { tag: 2, parts: [fallback.length, fallback] };
     }
     evacuate(context: GameContext, forceDestroy: boolean = false): void {
         const building: any = this.building;
@@ -313,4 +463,11 @@ export class GarrisonTrait {
             (context as any).events.dispatch(new BuildingEvacuateEvent(building, oldOwner));
         }
     }
+}
+
+function requiredObjectId(object: any): number {
+    if (!Number.isSafeInteger(object?.id) || object.id < 0) {
+        throw new Error("Cannot serialize garrison reference without a valid object id");
+    }
+    return object.id;
 }

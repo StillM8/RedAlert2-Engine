@@ -78,7 +78,13 @@ export class Game {
     public _onEnd = new EventDispatcher<Game, void>();
     public afterTickCallbacks: Array<() => void> = [];
     public events = new GameEventBus();
-    private readonly aresAnimationDamageRuntime = new AresAnimationDamageRuntime();
+    private readonly aresAnimationDamageRuntime = new AresAnimationDamageRuntime({
+        getPlayerIndex: (player: any) => {
+            const players = this.playerList?.getAll?.() ?? [];
+            const index = players.indexOf(player);
+            return index === -1 ? undefined : index;
+        },
+    });
     public traits = new Traits();
     public debugText = new BoxedVar("");
     public world: any;
@@ -898,14 +904,18 @@ export class Game {
         }
         const bountyAward = resolveAresBountyAward(this, killer, obj);
         if (bountyAward) {
-            applyAresBountyAward(bountyAward);
-            if (bountyAward.display) {
+            const bountyTransaction = applyAresBountyAward(bountyAward);
+            // Antares records the authored signed bounty for presentation,
+            // while the credit ledger applies the clamped transaction delta.
+            // Keep those two values distinct when a negative bounty exceeds
+            // the killer's available credits.
+            if (bountyTransaction.display && bountyTransaction.amount !== 0) {
                 const position = obj.position?.worldPosition?.clone?.() ?? obj.position?.worldPosition;
                 this.events.dispatch(new AresBountyAwardEvent(
-                    bountyAward.player,
-                    bountyAward.source,
-                    bountyAward.target,
-                    bountyAward.amount,
+                    bountyTransaction.player,
+                    bountyTransaction.source,
+                    bountyTransaction.target,
+                    bountyTransaction.amount,
                     position,
                 ));
             }
@@ -1153,12 +1163,22 @@ export class Game {
         return this.prng.generateRandom();
     }
     getHash(): number {
+        const prngHash = this.prng.getHash();
+        const objects = this.world.getAllObjects().slice().sort((a: any, b: any) => a.id - b.id);
         return fnv32a([
-            ...new Uint8Array(new Float64Array([this.prng.getLastRandom()]).buffer),
+            prngHash & 0xff,
+            (prngHash >>> 8) & 0xff,
+            (prngHash >>> 16) & 0xff,
+            (prngHash >>> 24) & 0xff,
+            this.currentTick,
             this.nextObjectId.value,
-            ...this.world.getAllObjects().map((obj: any) => obj.getHash()),
+            this.countdownTimer.getHash(),
+            ...objects.map((obj: any) => obj.getHash()),
             ...this.playerList.getAll().map((player: any) => player.getHash()),
             this.alliances.getHash(),
+            // Standalone Ares animation damage keeps its own frame clock and
+            // pending-damage accumulators outside the object graph.
+            this.aresAnimationDamageRuntime.getHash(),
             ...this.traits.getAll().map((trait: any) => trait.getHash?.() ?? 0),
         ]);
     }

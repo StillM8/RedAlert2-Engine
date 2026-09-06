@@ -64,7 +64,7 @@
     "js-logger": "^1.6.1",
     "jsqr": "^1.4.0",
     "liang-barsky": "^1.0.12",
-    "mersenne-twister": "^1.1.0",
+    "mersenne-twister": "1.1.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",

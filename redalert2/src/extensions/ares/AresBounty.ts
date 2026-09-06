@@ -112,6 +112,15 @@ export interface AresBountyAward {
     display: boolean;
 }
 
+export interface AresBountyTransaction extends AresBountyAward {
+    /** Credits held before the deterministic transaction. */
+    creditsBefore: number;
+    /** Credits held after the deterministic transaction. */
+    creditsAfter: number;
+    /** The signed amount actually applied after the zero-credit floor. */
+    appliedAmount: number;
+}
+
 function hasBountyEnabler(player: AresBountyPlayer, game: BountyGame): boolean {
     const enablers = game.rules?.general?.bountyEnablers ?? [];
     if (enablers.length === 0) {
@@ -166,10 +175,17 @@ export function resolveAresBountyAward(game: BountyGame, killer: any, target: Ar
     };
 }
 
-export function applyAresBountyAward(award: AresBountyAward): number {
+export function applyAresBountyAward(award: AresBountyAward): AresBountyTransaction {
     const { player, amount } = award;
-    player.credits = Math.max(0, player.credits + amount);
-    return amount;
+    const creditsBefore = player.credits;
+    const creditsAfter = Math.max(0, creditsBefore + amount);
+    player.credits = creditsAfter;
+    return {
+        ...award,
+        creditsBefore,
+        creditsAfter,
+        appliedAmount: creditsAfter - creditsBefore,
+    };
 }
 
 /**
@@ -178,5 +194,5 @@ export function applyAresBountyAward(award: AresBountyAward): number {
  */
 export function awardAresBounty(game: BountyGame, killer: any, target: AresBountyObject): number {
     const award = resolveAresBountyAward(game, killer, target);
-    return award ? applyAresBountyAward(award) : 0;
+    return award ? applyAresBountyAward(award).appliedAmount : 0;
 }
