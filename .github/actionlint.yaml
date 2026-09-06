@@ -1,0 +1,5 @@
+# actionlint 1.7.7 predates GitHub's macOS 15 Intel hosted-runner label.
+# Keep the current hosted label explicit so the pinned CI linter accepts it.
+self-hosted-runner:
+  labels:
+    - macos-15-intel

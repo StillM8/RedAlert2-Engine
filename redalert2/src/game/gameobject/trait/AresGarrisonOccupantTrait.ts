@@ -16,11 +16,13 @@ export interface AresGarrisonOccupantState {
 
 export interface AresGarrisonOccupantRestoreContext {
     /**
-     * Resolve a snapshot object id back to the live building. Returns
-     * undefined for unknown ids so a stale snapshot degrades to hostless
-     * instead of failing the whole restore.
+     * Resolve a snapshot object id back to the live building. Legacy
+     * permissive restores may return undefined to degrade a stale snapshot
+     * to hostless; strict canonical restores reject that unresolved state.
      */
     resolveBuildingById?(id: number): unknown;
+    /** Reject unresolved or mismatched host references during canonical restore. */
+    strict?: boolean;
 }
 
 /**
@@ -92,6 +94,9 @@ export class AresGarrisonOccupantTrait implements NotifyDestroy {
                 throw new Error("Invalid Ares GarrisonOccupant state: buildingId requires resolveBuildingById");
             }
             resolved = context.resolveBuildingById(candidate.buildingId as number);
+            if (context.strict && (!resolved || (resolved as any).id !== candidate.buildingId)) {
+                throw new Error(`Cannot restore Ares GarrisonOccupant host ${String(candidate.buildingId)}: unresolved or mismatched`);
+            }
         }
         this.building = resolved;
     }

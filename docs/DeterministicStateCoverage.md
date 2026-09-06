@@ -40,15 +40,20 @@ versioned production snapshot and hash. `factoryCounts` is world-derived and
 factory objects. `primaryFactories` is canonical selection state because the
 player can explicitly change the primary factory through the deploy order; its
 stable object IDs are included in the production snapshot and hash, then
-rebound after the count rebuild. A future full-world restore must call that
-entry point before resuming production. The queue codec does not claim to
-close that integration. `FactoryTrait` delivery/status/retry state has the
-same outstanding full-GameObject closure obligation.
+rebound after the count rebuild. Strict restore additionally requires each
+resolved primary factory to be the exact live object in the restoring player's
+owned-building set; matching an ID and factory type is not sufficient. A future
+full-world restore must call that entry point before resuming production. The
+queue codec does not claim to close that integration. `FactoryTrait`
+delivery/status/retry state has the same outstanding full-GameObject closure
+obligation.
 
 `GarrisonTrait` now has a small trait-level codec for occupant object IDs,
 temporary occupation, and retained owner PlayerList identity. It does not claim
 to restore the owning GameObject, player ownership, or the complete world
-membership graph; those remain full-world restore responsibilities.
+membership graph; those remain full-world restore responsibilities. Its
+`AresGarrisonOccupantTrait` bridge keeps the legacy permissive hostless fallback,
+but strict canonical restore rejects an unresolved or ID-mismatched host.
 
 The AttachEffect identity audit also reproduced a shared source-name key when
 an automatic TechnoType effect and a Warhead effect use the same identifier.

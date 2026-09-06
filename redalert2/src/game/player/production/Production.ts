@@ -492,6 +492,9 @@ export class Production {
             if (factory.rules?.factory !== entry.factoryType) {
                 throw new Error(`Invalid production state: object ${entry.objectId} is not a ${FactoryType[entry.factoryType]} factory`);
             }
+            if (context.strict && !isOwnedByPlayer(this.player, factory)) {
+                throw new Error(`Cannot restore primary factory ${entry.objectId}: object is not owned by the restoring player`);
+            }
             primaryFactories.set(entry.factoryType, factory);
         }
 
@@ -717,4 +720,13 @@ function compareFactoryBuildings(
     // always have an ID. Retaining their supplied order keeps the adapter
     // usable without pretending that object identity is canonical.
     return left.order - right.order;
+}
+
+function isOwnedByPlayer(player: any, object: any): boolean {
+    const buildings = player?.buildings;
+    if (!buildings || typeof buildings[Symbol.iterator] !== "function") return false;
+    for (const building of buildings) {
+        if (building === object) return true;
+    }
+    return false;
 }

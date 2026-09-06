@@ -183,6 +183,13 @@ describe("production queue deterministic state", () => {
             resolveObjectById: () => undefined,
         })).toThrow(/primary factory/);
         expect(destination.captureState()).toEqual(before);
+
+        const foreignFactory = { id: 20, name: "EnemyWarFactory", rules: { factory: FactoryType.UnitType } };
+        expect(() => destination.restoreDeterministicState(snapshot, {
+            strict: true,
+            resolveObjectById: () => foreignFactory,
+        })).toThrow(/not owned by the restoring player/);
+        expect(destination.captureState()).toEqual(before);
     });
 
     test("rejects impossible queue status and per-type quantity combinations transactionally", () => {

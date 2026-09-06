@@ -195,6 +195,21 @@ describe("AresGarrisonOccupantTrait lockstep state", () => {
         expect(traint_getBuildingId(trait)).toBeUndefined();
     });
 
+    test("strict restore rejects unresolved or mismatched hosts transactionally", () => {
+        const trait = new AresGarrisonOccupantTrait({ id: 3 });
+        expect(() => trait.restoreState(
+            { version: 1, buildingId: 999 },
+            { strict: true, resolveBuildingById: () => undefined },
+        )).toThrow(/unresolved/i);
+        expect(traint_getBuildingId(trait)).toBe(3);
+
+        expect(() => trait.restoreState(
+            { version: 1, buildingId: 999 },
+            { strict: true, resolveBuildingById: () => ({ id: 1000 }) },
+        )).toThrow(/mismatched/i);
+        expect(traint_getBuildingId(trait)).toBe(3);
+    });
+
     test("hostless snapshots stay hostless and invalid payloads throw without mutation", () => {
         const trait = new AresGarrisonOccupantTrait({ id: 3 });
         trait.restoreState({ version: 1 }, {});
