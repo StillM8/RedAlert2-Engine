@@ -93,14 +93,40 @@ bun install
 bun run dev
 ```
 
-The development server runs at `http://127.0.0.1:4000`.
+The development server runs at `https://127.0.0.1:4000` by default. To use
+plain HTTP for local tooling, set `RA2_HTTP=1` before starting Vite.
 
 Build and type-check the engine:
 
 ```sh
+bun run typecheck:e2e
 bun run typecheck:entry
 bun run build
 ```
+
+Run the browser qualification smoke test (it does not need game files and
+only verifies that the legal user-content import prompt appears):
+
+```sh
+bun run test:e2e
+```
+
+The playable qualification and AI soak tests use a directory containing your
+own installed Red Alert 2 or Yuri's Revenge files. The directory is exposed
+read-only by the test server for the duration of the run; it is not copied
+into this repository, included in a bundle, or committed:
+
+```sh
+RA2_E2E_ASSETS="/path/to/your/game" RA2_E2E_PROFILE=ra2 bun run test:e2e:assets
+RA2_E2E_ASSETS="/path/to/your/game" RA2_E2E_PROFILE=ra2 bun run test:soak
+```
+
+Use `RA2_E2E_PROFILE=yr` for a Yuri's Revenge installation. The qualification
+suite drives the real import, Mods/menu, skirmish lobby, map, economy,
+production, combat, victory, and score-screen paths. The soak suite advances
+an accelerated three-AI match and emits tick, seed, map, object, player,
+hash, and recent-action diagnostics on failure. Install the Playwright browser
+once with `bunx playwright install chromium` when setting up a new machine.
 
 For a local asset-backed setup, run the importer from the repository root:
 
@@ -187,6 +213,7 @@ redalert2/       Shared TypeScript/React/Vite/Three.js engine and Tauri shell
 android/         Kotlin/WebView Android shell
 ios/             Swift/WKWebView iOS and iPadOS shell
 scripts/         Import, build, and regression tooling
+redalert2/e2e/   Playwright browser qualification and AI soak harness
 docs/            Compatibility and engineering notes
 gameres-export/  Local imported resources; gitignored and not distributed
 ```
@@ -202,7 +229,7 @@ Important commands and locations:
 | `scripts/setup.sh` | Local dependency setup and user-owned resource import |
 | `scripts/build-android.sh` | Web build, Android staging, Gradle APK, optional device install |
 | `scripts/build-ios.sh` | Web build, iOS staging, XcodeGen, and Xcode build |
-| `bun run debug:*` | Focused browser regression flows under `redalert2/` |
+| `redalert2/e2e/` | Asset-free smoke, asset-backed playable qualification, and AI soak tests |
 
 ## Verification
 
@@ -210,6 +237,7 @@ Before submitting engine changes:
 
 ```sh
 cd redalert2
+bun run typecheck:e2e
 bun run typecheck:entry
 bun run build
 ```
@@ -218,10 +246,9 @@ When changing a specific system, run its focused regression flow as well. For
 example:
 
 ```sh
-bun run debug:options
-bun run debug:skirmish
-bun run debug:game-res-init
-bun run debug:superweapon
+bun run test:e2e
+RA2_E2E_ASSETS="/path/to/your/game" RA2_E2E_PROFILE=ra2 bun run test:e2e:assets
+RA2_E2E_ASSETS="/path/to/your/game" RA2_E2E_PROFILE=ra2 bun run test:soak
 ```
 
 A successful compile does not imply complete retail, Ares, or Mental Omega

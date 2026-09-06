@@ -24,11 +24,13 @@ bun install
 bun run dev
 ```
 
-The browser development server uses `http://127.0.0.1:4000`.
+The browser development server uses `https://127.0.0.1:4000` by default. Set
+`RA2_HTTP=1` before starting Vite when plain HTTP is required for local tooling.
 
 Type-check and build the web engine:
 
 ```sh
+bun run typecheck:e2e
 bun run typecheck:entry
 bun run build
 ```
@@ -67,10 +69,25 @@ src/extensions/ares/    Generic Ares compatibility parsers and adapters
 src/gui/                Main menu, Mods menu, lobby, HUD, and game UI
 src/network/            Multiplayer and lockstep infrastructure
 src/tools/              Asset, mechanics, and scene tester entry points
-scripts/                Browser regression and development tooling
+e2e/                    Playwright browser qualification and AI soak harness
 src-tauri/              Tauri desktop shell
 ```
 
-Focused regression scripts are available through `bun run debug:*`. Run the
-script that covers the system being changed in addition to the type-check and
-production build.
+Run the asset-free browser smoke test with:
+
+```sh
+bun run test:e2e
+```
+
+For the playable qualification and accelerated AI soak, point the test server
+at a user-owned RA2 or YR installation. The importer path is the same folder
+import path used by the application; the test server serves the fixture
+read-only and never packages it:
+
+```sh
+RA2_E2E_ASSETS="/path/to/your/game" RA2_E2E_PROFILE=ra2 bun run test:e2e:assets
+RA2_E2E_ASSETS="/path/to/your/game" RA2_E2E_PROFILE=ra2 bun run test:soak
+```
+
+Use `RA2_E2E_PROFILE=yr` for Yuri's Revenge. See [`e2e/README.md`](e2e/README.md)
+for the test phases, diagnostics, and local browser setup.
