@@ -110,10 +110,12 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('redalert2/bun.lock') }}
 
       - run: bun install --frozen-lockfile
-      - name: Full test suite
-        run: bun test
+      - name: Full engine test suite
+        run: bun test ./src/test
       - name: Entry typecheck
         run: bun run typecheck:entry
+      - name: Browser harness typecheck
+        run: bun run typecheck:e2e
       - name: Production web build
         run: bun run build
 

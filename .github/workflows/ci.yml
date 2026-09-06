@@ -54,6 +54,47 @@ jobs:
             echo "- Result: ${{ job.status }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  browser-smoke:
+    name: browser / smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: redalert2
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser and Linux dependencies
+        run: bunx playwright install --with-deps chromium
+      - name: Type-check browser harness
+        run: bun run typecheck:e2e
+      - name: Run asset-free browser smoke test
+        run: bun run test:e2e
+      - name: Upload browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-browser-smoke
+          path: |
+            redalert2/e2e-results
+            redalert2/e2e-report
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### browser / smoke"
+            echo "- SHA: \`${{ github.sha }}\`"
+            echo "- Result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   web-tests:
     name: web / tests
     runs-on: ubuntu-22.04
@@ -71,7 +112,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Run unit and compatibility tests
-        run: bun test
+        run: bun test ./src/test
       - name: Job summary
         if: always()
         run: |

@@ -308,6 +308,11 @@ export class SkirmishScreen extends MainMenuScreen {
         debugRoot.skirmishLobby = {
             gameOpts: snapshot?.gameOpts,
             slotsInfo: snapshot?.slotsInfo,
+            maps: this.mapList.getAll().map((map) => ({
+                mapName: map.fileName,
+                mapTitle: map.getFullMapTitle(this.strings),
+                maxSlots: map.maxSlots,
+            })),
             formModel: formProps
                 ? {
                     playerSlots: JSON.parse(JSON.stringify(formProps.playerSlots ?? [])),
@@ -321,6 +326,10 @@ export class SkirmishScreen extends MainMenuScreen {
                     unitCount: formProps.unitCount,
                 }
                 : undefined,
+            configureAiCount: (count: number) => {
+                this.requirePregameController().configureDebugAiCount(count);
+                this.syncDebugState();
+            },
             startGame: () => this.handleStartGame(),
         };
     }

@@ -220,6 +220,44 @@ export class PregameController {
         return this.currentMapFile;
     }
 
+    /**
+     * Configure a deterministic AI count for browser qualification. This is
+     * intentionally a narrow lobby seam: it reuses the same slot mutation
+     * path as the UI and does not alter the game once the lobby has started.
+     */
+    configureDebugAiCount(count: number): void {
+        if (!Number.isSafeInteger(count) || count < 1 || count > 5) {
+            throw new Error(`Debug AI count must be an integer from 1 to 5, got ${count}`);
+        }
+        const gameOpts = this.requireGameOpts();
+        const slotsInfo = this.requireSlotsInfo();
+        const maxAi = Math.max(0, gameOpts.maxSlots - 1);
+        if (count > maxAi) {
+            throw new Error(`The selected map supports ${maxAi} AI slot(s), but qualification requested ${count}`);
+        }
+
+        for (let slotIndex = 1; slotIndex < slotsInfo.length; slotIndex += 1) {
+            const slot = slotsInfo[slotIndex];
+            if (!slot) {
+                continue;
+            }
+            const shouldBeAi = slotIndex <= count;
+            if (shouldBeAi) {
+                if (slot.type !== NetSlotType.Ai) {
+                    this.changeSlotType(SlotOccupation.Occupied, slotIndex, AiDifficulty.Medium);
+                }
+                const ai = gameOpts.aiPlayers[slotIndex];
+                if (ai) {
+                    ai.difficulty = AiDifficulty.Medium;
+                }
+                slotsInfo[slotIndex].difficulty = AiDifficulty.Medium;
+            }
+            else if (slot.type === NetSlotType.Ai) {
+                this.changeSlotType(SlotOccupation.Open, slotIndex);
+            }
+        }
+    }
+
     getUsedSlots(): number {
         return 1 + findIndexReverse(this.requireSlotsInfo(), (slot) => slot.type === NetSlotType.Ai || slot.type === NetSlotType.Player);
     }

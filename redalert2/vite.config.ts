@@ -26,6 +26,104 @@ const serveGameResDev = (): Plugin => ({
         });
     },
 });
+interface E2eAssetManifestEntry {
+    kind: 'file' | 'directory';
+    entries?: Record<string, E2eAssetManifestEntry>;
+}
+
+function buildE2eAssetManifest(directory: string): Record<string, E2eAssetManifestEntry> {
+    const entries: Record<string, E2eAssetManifestEntry> = {};
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+        // Do not follow links from an asset fixture. Apart from making the
+        // manifest deterministic, this prevents an accidental symlink from
+        // exposing files outside the explicitly configured fixture root.
+        if (entry.isSymbolicLink()) {
+            continue;
+        }
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+            entries[entry.name] = {
+                kind: 'directory',
+                entries: buildE2eAssetManifest(entryPath),
+            };
+        }
+        else if (entry.isFile()) {
+            entries[entry.name] = { kind: 'file' };
+        }
+    }
+    return entries;
+}
+
+function contentTypeForE2eAsset(filePath: string): string {
+    const extension = path.extname(filePath).toLowerCase();
+    switch (extension) {
+        case '.json':
+            return 'application/json';
+        case '.mix':
+        case '.bag':
+        case '.idx':
+        case '.aud':
+        case '.wav':
+        case '.shp':
+        case '.vxl':
+        case '.hva':
+            return 'application/octet-stream';
+        default:
+            return 'application/octet-stream';
+    }
+}
+
+// Playwright asset-backed tests use this route only when the caller supplies
+// RA2_E2E_ASSETS. It is deliberately a development-server feature: it is not
+// included in a production bundle and it never copies the fixture into the
+// repository or release artifacts.
+const serveE2eAssets = (): Plugin => ({
+    name: 'serve-e2e-assets',
+    configureServer(server) {
+        const configuredRoot = process.env.RA2_E2E_ASSETS?.trim();
+        if (!configuredRoot) {
+            return;
+        }
+        const assetRoot = path.resolve(configuredRoot);
+        if (!fs.existsSync(assetRoot) || !fs.statSync(assetRoot).isDirectory()) {
+            throw new Error(`RA2_E2E_ASSETS must point to a directory: ${assetRoot}`);
+        }
+        const manifest = {
+            version: 1,
+            rootName: path.basename(assetRoot),
+            entries: buildE2eAssetManifest(assetRoot),
+        };
+        server.middlewares.use('/__e2e_assets__', (req, res, next) => {
+            let relativePath: string;
+            try {
+                relativePath = decodeURIComponent((req.url ?? '/').split('?')[0]).replace(/^\/+/, '');
+            }
+            catch {
+                res.statusCode = 400;
+                res.end('Invalid asset path');
+                return;
+            }
+            if (relativePath === '__manifest.json') {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(manifest));
+                return;
+            }
+            const filePath = path.resolve(assetRoot, relativePath);
+            if (filePath !== assetRoot && !filePath.startsWith(`${assetRoot}${path.sep}`)) {
+                res.statusCode = 403;
+                res.end('Asset path is outside the configured fixture');
+                return;
+            }
+            if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+                next();
+                return;
+            }
+            res.setHeader('Content-Type', contentTypeForE2eAsset(filePath));
+            res.setHeader('Content-Length', fs.statSync(filePath).size);
+            fs.createReadStream(filePath).on('error', next).pipe(res);
+        });
+    },
+});
 // Keep the root WASM file used by the Android/iOS shells in lockstep with the
 // 7z JavaScript wrapper. A stale manually-copied binary fails in WebView with
 // an opaque WebAssembly import/link error.
@@ -79,7 +177,7 @@ export default defineConfig({
     define: {
         __RA2_TAURI_BUILD__: JSON.stringify(isTauriBuild),
     },
-    plugins: [react(), serveGameResDev(), syncSevenZipWasm(), syncFfmpegCore(), ...(manualHttpsConfig || useHttp ? [] : [basicSsl()])],
+    plugins: [react(), serveGameResDev(), serveE2eAssets(), syncSevenZipWasm(), syncFfmpegCore(), ...(manualHttpsConfig || useHttp ? [] : [basicSsl()])],
     server: {
         host: tauriDevHost || '0.0.0.0',
         port: devPort,

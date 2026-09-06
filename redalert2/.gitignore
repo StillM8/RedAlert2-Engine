@@ -137,4 +137,8 @@ __test_strip.mjs
 __stripped_output.js
 _temp_builtIn/
 
-#शंकर 
+# Playwright integration and soak artifacts
+e2e-results/
+e2e-report/
+
+#शंकर

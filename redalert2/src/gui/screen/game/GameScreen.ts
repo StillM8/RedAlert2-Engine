@@ -478,6 +478,7 @@ export class GameScreen extends RootScreen {
             'actionFactory',
             'actionsApi',
             'unitSelection',
+            'advanceTicks',
             'helpers',
         ];
         for (const key of keysToClear) {
@@ -778,6 +779,29 @@ export class GameScreen extends RootScreen {
         debugRoot.actionFactory = actionFactory;
         debugRoot.actionsApi = actionsApi;
         debugRoot.unitSelection = game.getUnitSelection();
+        // Deterministic browser qualification needs to run many authoritative
+        // turns without waiting for wall-clock animation frames. This stays on
+        // the existing debug bridge, uses the real turn manager (so queued
+        // actions and replay recording keep their normal semantics), and is
+        // cleared with the rest of the game bridge on leave.
+        debugRoot.advanceTicks = (count: number = 1) => {
+            if (!Number.isSafeInteger(count) || count < 1 || count > 1_000_000) {
+                throw new Error(`advanceTicks count must be a positive safe integer <= 1000000, got ${count}`);
+            }
+            let advanced = 0;
+            while (advanced < count && game.status === GameStatus.Started) {
+                if (!this.gameTurnMgr?.doGameTurn(performance.now())) {
+                    break;
+                }
+                advanced++;
+            }
+            return {
+                requested: count,
+                advanced,
+                currentTick: game.currentTick,
+                status: game.status,
+            };
+        };
         if (this.lanMatchSession) {
             const updateLanMatchDebugState = (snapshot: any) => {
                 debugRoot.lanMatch = snapshot;
