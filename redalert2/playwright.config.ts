@@ -27,12 +27,12 @@ export default defineConfig({
         navigationTimeout: 180_000,
     },
     webServer: {
-        // Let Playwright supervise Vite directly. Spawning a second Bun
-        // process from a TypeScript wrapper can leave the child alive without
-        // a listening socket on CI, so the webServer readiness probe waits
-        // until it times out. This command works with Bun on Windows, Linux,
-        // and macOS and keeps the E2E-only HTTP mode explicit below.
-        command: 'bun --bun vite --host 127.0.0.1 --port 4173',
+        // Let Playwright supervise the installed Vite entrypoint directly.
+        // Bun 1.3.x can leave a Vite child alive without a listening socket on
+        // CI, so the readiness probe waits until it times out. Node is already
+        // required by Playwright and keeps this launcher stable on Windows,
+        // Linux, and macOS while the E2E-only HTTP mode remains explicit below.
+        command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4173',
         env: {
             RA2_HTTP: '1',
         },
