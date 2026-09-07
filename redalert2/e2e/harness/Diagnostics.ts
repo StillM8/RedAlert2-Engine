@@ -165,7 +165,7 @@ export class Diagnostics {
                                     return `hash-error: ${String(error)}`;
                                 }
                             })(),
-                            nextObjectId: game.nextObjectId,
+                            nextObjectId: game.nextObjectId?.value,
                             objectCount: rawObjects.length,
                             objectIds,
                             players: rawPlayers.slice(0, 32).map((player: any) => ({

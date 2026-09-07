@@ -43,7 +43,10 @@ bunx playwright install chromium
 - `combat.spec.ts`: a produced combat unit moves through the real attack order
   path and causes authoritative damage;
 - `victory.spec.ts`: damage, destruction, game end, and score-screen routing;
-- `soak.spec.ts`: 30,000 accelerated ticks with three AI players.
+- `soak.spec.ts`: 30,000 cumulative accelerated ticks with three AI players;
+  if a match ends early, the harness starts another match and continues the
+  cumulative budget. The result reports completed matches, total ticks, peak
+  object count, longest single match, and final simulation hashes.
 
 The harness keeps the browser-facing seams narrow. Folder import still goes
 through `GameResBoxApi` and `GameResImporter`; accelerated ticks still go

@@ -39,7 +39,7 @@ export async function readEngineState(page: Page): Promise<EngineState | undefin
                     return undefined;
                 }
             })(),
-            nextObjectId: game.nextObjectId,
+            nextObjectId: game.nextObjectId?.value,
             objectCount: Array.isArray(state?.objects) ? state.objects.length : undefined,
             objectIds: Array.isArray(state?.objects)
                 ? state.objects.map((object: any) => object?.id).filter((id: unknown) => Number.isSafeInteger(id))

@@ -4,21 +4,73 @@ import { startAssetBackedSkirmish } from './qualificationFlow';
 
 test('@soak advances an accelerated AI skirmish and checks lifecycle invariants', async ({ engine, diagnostics }) => {
     await startAssetBackedSkirmish(engine, { aiCount: 3 });
-    const initial = await engine.readState();
-    const targetTick = (initial?.currentTick ?? 0) + 30_000;
-    let currentTick = initial?.currentTick ?? 0;
-    while (currentTick < targetTick) {
-        const state = await engine.advanceTicks(Math.min(1_000, targetTick - currentTick));
-        expect(state.currentTick).toBeGreaterThanOrEqual(0);
+    const targetTicks = 30_000;
+    const chunkSize = 1_000;
+    const maxMatches = 100;
+    let totalTicks = 0;
+    let matchTicks = 0;
+    let maxSingleMatchTicks = 0;
+    let maxObjects = 0;
+    let matchesCompleted = 0;
+    let matchesStarted = 1;
+    const finalHashes: Array<number | string> = [];
+    let previousTick = (await engine.readState())?.currentTick ?? 0;
+
+    while (totalTicks < targetTicks) {
+        const requestedTicks = Math.min(chunkSize, targetTicks - totalTicks);
+        const state = await engine.advanceTicks(requestedTicks);
+        const currentTick = state.currentTick ?? previousTick;
+        const advancedTicks = currentTick - previousTick;
+        expect(advancedTicks).toBeGreaterThanOrEqual(0);
+        expect(advancedTicks).toBeLessThanOrEqual(requestedTicks);
+        if (advancedTicks === 0 && state.status !== 2) {
+            throw new Error(`AI soak stopped advancing at tick ${currentTick} before the match ended`);
+        }
+        totalTicks += advancedTicks;
+        matchTicks += advancedTicks;
+        previousTick = currentTick;
+        maxObjects = Math.max(maxObjects, state.objectCount ?? 0);
         await expectUniqueObjectIds(engine.page);
         await expectFiniteObjectPositions(engine.page);
-        currentTick = state.currentTick ?? currentTick;
+
         if (state.status === 2) {
-            break;
+            matchesCompleted++;
+            maxSingleMatchTicks = Math.max(maxSingleMatchTicks, matchTicks);
+            if (state.hash !== undefined) {
+                finalHashes.push(state.hash);
+            }
+            if (totalTicks >= targetTicks) {
+                break;
+            }
+            if (matchesStarted >= maxMatches) {
+                throw new Error(`AI soak exceeded ${maxMatches} matches before reaching ${targetTicks} cumulative ticks`);
+            }
+            await startAssetBackedSkirmish(engine, { aiCount: 3 });
+            matchesStarted++;
+            matchTicks = 0;
+            previousTick = (await engine.readState())?.currentTick ?? 0;
         }
     }
+
     const finalState = await engine.readState();
-    expect(finalState?.currentTick).toBeGreaterThanOrEqual(initial?.currentTick ?? 0);
+    maxSingleMatchTicks = Math.max(maxSingleMatchTicks, matchTicks);
+    if (finalState?.hash !== undefined && finalHashes.at(-1) !== finalState.hash) {
+        finalHashes.push(finalState.hash);
+    }
+    const summary = {
+        matchesCompleted,
+        totalTicks,
+        maxObjects,
+        maxSingleMatchTicks,
+        finalHashes,
+    };
+    console.info(`[E2E soak summary] ${JSON.stringify(summary)}`);
+    await test.info().attach('soak-summary.json', {
+        body: JSON.stringify(summary, null, 2),
+        contentType: 'application/json',
+    });
+    expect(totalTicks).toBeGreaterThanOrEqual(targetTicks);
+    expect(maxSingleMatchTicks).toBeGreaterThan(0);
     diagnostics.assertNoPageErrors();
     diagnostics.assertNoRepeatedRuntimeErrors();
 });
