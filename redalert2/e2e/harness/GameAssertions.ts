@@ -98,7 +98,13 @@ export async function expectFiniteObjectPositions(page: Page): Promise<void> {
         const objects = Array.isArray(state?.objects) ? state.objects : [];
         return objects
             .filter((object: any) => object?.position)
-            .filter((object: any) => ![object.position.x, object.position.y, object.position.z].every(Number.isFinite))
+            .filter((object: any) => {
+                const position = object.position;
+                const coordinates = Array.isArray(position)
+                    ? position.slice(0, 3)
+                    : [position.x, position.y, position.z];
+                return coordinates.length !== 3 || !coordinates.every(Number.isFinite);
+            })
             .map((object: any) => ({ id: object.id, name: object.name, position: object.position }))
             .slice(0, 20);
     });

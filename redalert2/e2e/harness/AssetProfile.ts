@@ -91,8 +91,18 @@ export class AssetProfile {
         if (!response.ok) {
             throw new DOMException('Unable to read E2E asset "' + name + '"', 'NotFoundError');
         }
-        const blob = await response.blob();
-        return new File([blob], name, { type: blob.type || 'application/octet-stream' });
+        // Do not materialize a Blob and then copy it into a File. Large MIX
+        // archives can exceed Chromium's renderer buffer when the response is
+        // duplicated. The importer only needs File.name and arrayBuffer(), so
+        // keep the read-once response behind that small File-compatible shape.
+        const contentLength = Number(response.headers.get('content-length'));
+        return {
+            name,
+            size: Number.isSafeInteger(contentLength) ? contentLength : 0,
+            type: response.headers.get('content-type') || 'application/octet-stream',
+            lastModified: 0,
+            arrayBuffer: () => response.arrayBuffer(),
+        };
     };
 
     const makeHandle = (name, relativePath, entry) => {

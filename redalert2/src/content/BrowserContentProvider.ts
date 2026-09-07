@@ -1,4 +1,5 @@
 import { gamePathKey, normalizeGamePath } from "@/engine/GamePath";
+import { browserFileSystemAccess } from "@/engine/gameRes/browserFileSystemAccess";
 import type {
     ContentImportFile,
     ContentImportKind,
@@ -8,7 +9,7 @@ import type {
 } from "@/content/PlatformContentProvider";
 
 interface DirectoryPickerWindow {
-    showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
+    showDirectoryPicker?: (options?: any) => Promise<FileSystemDirectoryHandle>;
     showOpenFilePicker?: (options?: {
         multiple?: boolean;
     }) => Promise<FileSystemFileHandle[]>;
@@ -118,16 +119,16 @@ export class BrowserContentProvider implements PlatformContentProvider {
         return typeof document !== "undefined";
     }
 
-    async pickGameDirectory(): Promise<ContentImportSource | undefined> {
-        return this.pickDirectory();
-    }
-
     async pickModDirectory(_onProgress?: ContentImportProgress): Promise<ContentImportSource | undefined> {
         return this.pickDirectory();
     }
 
     async pickModArchives(options: { multiple?: boolean; onProgress?: ContentImportProgress } = {}): Promise<ContentImportSource | undefined> {
-        const pickerWindow = globalThis as DirectoryPickerWindow;
+        // Use the same file-system-access boundary as GameResBoxApi. Besides
+        // keeping browser fallbacks consistent, this lets the qualification
+        // harness exercise the real provider/importer flow without opening a
+        // native picker that cannot be driven in headless Chromium.
+        const pickerWindow = browserFileSystemAccess as DirectoryPickerWindow;
         if (pickerWindow.showOpenFilePicker) {
             try {
                 const handles = await pickerWindow.showOpenFilePicker({ multiple: options.multiple !== false });
@@ -153,7 +154,7 @@ export class BrowserContentProvider implements PlatformContentProvider {
     }
 
     private async pickDirectory(): Promise<ContentImportSource | undefined> {
-        const pickerWindow = globalThis as DirectoryPickerWindow;
+        const pickerWindow = browserFileSystemAccess as DirectoryPickerWindow;
         if (pickerWindow.showDirectoryPicker) {
             try {
                 return await sourceFromDirectory(await pickerWindow.showDirectoryPicker());

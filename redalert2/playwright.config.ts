@@ -20,6 +20,12 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         baseURL: 'http://127.0.0.1:4173',
         headless: true,
+        // Asset-backed qualification imports real retail MIX archives into
+        // the browser filesystem. Do not let Chromium's normal per-origin
+        // quota turn a valid game installation into a false import failure.
+        launchOptions: {
+            args: ['--unlimited-storage'],
+        },
         trace: 'retain-on-failure',
         video: 'retain-on-failure',
         screenshot: 'only-on-failure',

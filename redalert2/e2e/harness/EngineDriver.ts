@@ -104,7 +104,14 @@ export class EngineDriver {
                 .sort((left: any, right: any) => Number(right.maxSlots) - Number(left.maxSlots));
             return candidates[0]?.mapTitle as string | undefined;
         }, options);
-        await this.clickSidebarButton('Choose Map');
+        // The retail string table renders GUI:ChooseMap as "Customize
+        // Battle" in the current menu skin; older/localized tables may keep
+        // the literal "Choose Map" label.
+        const mapButton = this.page.locator('.menu-button').filter({
+            hasText: /^\s*(?:Customize Battle|Choose Map)\s*$/,
+        }).first();
+        await expect(mapButton, 'choose-map sidebar button').toBeVisible({ timeout: 30_000 });
+        await mapButton.click();
         await expect(this.page.locator('.map-sel-form')).toBeVisible({ timeout: 60_000 });
         const maps = this.page.locator('.map-list .list-item');
         const map = mapTitle
@@ -435,11 +442,14 @@ export class EngineDriver {
 
     async callActionsApi(method: string, args: unknown[] = []): Promise<void> {
         await this.page.evaluate(({ method, args }) => {
-            const action = (window as any).__ra2debug?.actionsApi?.[method];
+            const actionsApi = (window as any).__ra2debug?.actionsApi;
+            const action = actionsApi?.[method];
             if (typeof action !== 'function') {
                 throw new Error(`Actions API method "${method}" is not available`);
             }
-            action(...args);
+            // Keep the call bound to ActionsApi. Several methods use `this`
+            // to reach the action factory, game and queue.
+            action.apply(actionsApi, args);
         }, { method, args });
     }
 
