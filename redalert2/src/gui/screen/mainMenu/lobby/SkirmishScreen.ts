@@ -30,6 +30,7 @@ interface GameModes {
 interface MapListEntry {
     fileName: string;
     maxSlots: number;
+    official?: boolean;
     getFullMapTitle(strings: any): string;
 }
 
@@ -312,6 +313,7 @@ export class SkirmishScreen extends MainMenuScreen {
                 mapName: map.fileName,
                 mapTitle: map.getFullMapTitle(this.strings),
                 maxSlots: map.maxSlots,
+                official: Boolean(map.official),
             })),
             formModel: formProps
                 ? {

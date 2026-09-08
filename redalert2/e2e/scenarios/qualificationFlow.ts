@@ -1,12 +1,15 @@
 import { EngineDriver, type BuildingRole, type ProductionPlan } from '../harness/EngineDriver';
 
-export async function startAssetBackedSkirmish(engine: EngineDriver, options: { aiCount?: number } = {}): Promise<void> {
+export async function startAssetBackedSkirmish(engine: EngineDriver, options: { aiCount?: number; allowCustomMapFallback?: boolean } = {}): Promise<void> {
     await engine.boot({ importAssets: true });
     await engine.openSkirmish();
-    // Selecting the first real map exercises the lobby -> map-selection ->
-    // lobby round trip and avoids relying on a persisted map preference. The
-    // soak path requests a map large enough for its AI population.
-    await engine.chooseMap({ minSlots: options.aiCount ? options.aiCount + 1 : undefined });
+    // Gameplay qualification prefers official maps. The soak may explicitly
+    // fall back to a deterministic custom map because its purpose is long-run
+    // lifecycle stability rather than retail-map placement qualification.
+    await engine.chooseMap({
+        minSlots: options.aiCount ? options.aiCount + 1 : undefined,
+        allowCustomFallback: options.allowCustomMapFallback ?? Boolean(options.aiCount),
+    });
     if (options.aiCount) {
         await engine.configureAiCount(options.aiCount);
     }
@@ -14,10 +17,7 @@ export async function startAssetBackedSkirmish(engine: EngineDriver, options: { 
 }
 
 export async function deployMcv(engine: EngineDriver): Promise<void> {
-    await engine.selectFirstDeployableUnit();
-    // Deployment is an authoritative action; do not inspect the world until
-    // it has passed through the real turn manager.
-    await engine.advanceTicks(300);
+    await engine.deployMcvAndWaitForConstructionYard();
 }
 
 export async function buildRole(engine: EngineDriver, role: BuildingRole): Promise<{ plan: ProductionPlan; object: Record<string, unknown> }> {

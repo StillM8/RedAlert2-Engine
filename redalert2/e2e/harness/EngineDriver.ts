@@ -28,6 +28,15 @@ export interface ProductionPlan {
     placement: { rx: number; ry: number };
 }
 
+export interface MapSelectionOptions {
+    mapName?: string;
+    minSlots?: number;
+    /** Require an official map when no explicit map was requested. */
+    requireOfficial?: boolean;
+    /** Permit a deterministic custom-map fallback when no official map fits. */
+    allowCustomFallback?: boolean;
+}
+
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -96,14 +105,83 @@ export class EngineDriver {
         await expectSkirmishLobby(this.page);
     }
 
-    async chooseMap(options: { mapName?: string; minSlots?: number } = {}): Promise<void> {
-        const mapTitle = await this.page.evaluate(({ mapName, minSlots }) => {
-            const candidates = ((window as any).__ra2debug?.skirmishLobby?.maps ?? [])
-                .filter((map: any) => !minSlots || Number(map.maxSlots) >= minSlots)
-                .filter((map: any) => !mapName || map.mapName === mapName)
-                .sort((left: any, right: any) => Number(right.maxSlots) - Number(left.maxSlots));
-            return candidates[0]?.mapTitle as string | undefined;
-        }, options);
+    async chooseMap(options: MapSelectionOptions = {}): Promise<void> {
+        const requestedMapName = options.mapName?.trim() || process.env.RA2_E2E_MAP?.trim() || undefined;
+        const requireOfficial = options.requireOfficial ?? !requestedMapName;
+        const allowCustomFallback = options.allowCustomFallback ?? false;
+        const selection = await this.page.evaluate(({ mapName, minSlots, requireOfficial, allowCustomFallback }) => {
+            const maps = ((window as any).__ra2debug?.skirmishLobby?.maps ?? [])
+                .map((map: any) => ({
+                    mapName: String(map.mapName ?? ''),
+                    mapTitle: String(map.mapTitle ?? map.mapName ?? ''),
+                    maxSlots: Number(map.maxSlots),
+                    official: Boolean(map.official),
+                }))
+                .filter((map: any) => map.mapName)
+                .filter((map: any) => !minSlots || map.maxSlots >= minSlots);
+
+            if (mapName) {
+                const requested = maps.find((map: any) => map.mapName === mapName);
+                if (!requested) {
+                    return {
+                        error: `Requested qualification map "${mapName}" was not found` +
+                            (minSlots ? ` with at least ${minSlots} slots` : '') +
+                            `. Available maps: ${maps.map((map: any) => map.mapName).sort().join(', ')}`,
+                    };
+                }
+                if (requireOfficial && !requested.official) {
+                    return {
+                        error: `Requested qualification map "${mapName}" is custom; an official map is required`,
+                    };
+                }
+                return requested;
+            }
+
+            const officialMaps = maps.filter((map: any) => map.official);
+            const candidates = requireOfficial
+                ? officialMaps.length > 0
+                    ? officialMaps
+                    : allowCustomFallback
+                        ? maps
+                        : []
+                : maps;
+            if (!candidates.length) {
+                if (maps.length === 0) {
+                    return {
+                        error: minSlots
+                            ? `No qualification map with at least ${minSlots} slots is available in the supplied asset set`
+                            : 'No qualification map is available in the supplied asset set',
+                    };
+                }
+                return {
+                    error: 'No official qualification map available in supplied asset set' +
+                        (minSlots ? ` with at least ${minSlots} slots` : '') +
+                        '. Set RA2_E2E_MAP to an intentional map or enable custom-map fallback for soak.',
+                };
+            }
+
+            // Keep selection independent of archive enumeration and locale
+            // collation. Official maps win; among maps with the same policy,
+            // the filename is the stable qualification key.
+            candidates.sort((left: any, right: any) => {
+                if (left.official !== right.official) {
+                    return left.official ? -1 : 1;
+                }
+                const leftName = left.mapName.toLowerCase();
+                const rightName = right.mapName.toLowerCase();
+                return leftName < rightName ? -1 : leftName > rightName ? 1 : left.mapName < right.mapName ? -1 : left.mapName > right.mapName ? 1 : 0;
+            });
+            return candidates[0];
+        }, {
+            mapName: requestedMapName,
+            minSlots: options.minSlots,
+            requireOfficial,
+            allowCustomFallback,
+        });
+        if (!selection || selection.error) {
+            throw new Error(selection?.error ?? 'Unable to select a qualification map');
+        }
+        const mapTitle = selection.mapTitle as string | undefined;
         // The retail string table renders GUI:ChooseMap as "Customize
         // Battle" in the current menu skin; older/localized tables may keep
         // the literal "Choose Map" label.
@@ -116,10 +194,10 @@ export class EngineDriver {
         const maps = this.page.locator('.map-list .list-item');
         const map = mapTitle
             ? maps.filter({ hasText: mapTitle }).first()
-            : options.mapName
-                ? maps.filter({ hasText: options.mapName }).first()
+            : requestedMapName
+                ? maps.filter({ hasText: requestedMapName }).first()
                 : maps.first();
-        await expect(map, options.mapName ? `map "${options.mapName}"` : 'at least one map').toBeVisible({ timeout: 60_000 });
+        await expect(map, requestedMapName ? `map "${requestedMapName}"` : 'at least one map').toBeVisible({ timeout: 60_000 });
         await map.click();
         await this.clickSidebarButton('Use Map');
         await expectSkirmishLobby(this.page);
@@ -228,7 +306,39 @@ export class EngineDriver {
                 .sort((left: any, right: any) => distanceToAnchor(left) - distanceToAnchor(right))
                 .find((tile: any) => worker.canPlaceAt(building.name, tile, { normalizedTile: true }));
             if (!placement) {
-                throw new Error(`No legal placement tile found for ${building.name}`);
+                const buildingArt = game.art?.getObject?.(building.name, buildingObjectType);
+                const foundation = buildingArt?.foundation;
+                const ownedBuildings = player.getOwnedObjects(true)
+                    .filter((object: any) => object?.isBuilding?.() && object?.isSpawned !== false);
+                const constructionYards = ownedBuildings
+                    .filter((object: any) => object?.rules?.constructionYard)
+                    .map((object: any) => ({
+                        id: object.id,
+                        name: object.name,
+                        tile: object.tile ? { rx: object.tile.rx, ry: object.tile.ry, z: object.tile.z } : undefined,
+                    }));
+                const map = game.gameOpts ?? {};
+                const theater = game.map?.getTheaterType?.() ?? game.map?.theaterType ?? debugRoot?.theater?.type;
+                throw new Error(`No legal placement tile found for ${building.name}: ${JSON.stringify({
+                    building: building.name,
+                    foundation: foundation
+                        ? {
+                            width: foundation.width,
+                            height: foundation.height,
+                            cells: foundation.cells,
+                            outline: foundation.outline,
+                        }
+                        : undefined,
+                    'Adjacent=': building.adjacent,
+                    constructionYards,
+                    map: {
+                        name: map.mapName,
+                        title: map.mapTitle,
+                        official: Boolean(map.mapOfficial),
+                    },
+                    theater,
+                    mapTilesScanned: tiles.length,
+                })}`);
             }
             const queueType = production.getQueueTypeForObject(building);
             actionsApi.queueForProduction(queueType, buildingObjectType, building.name, 1);
@@ -423,6 +533,138 @@ export class EngineDriver {
             actionsApi.orderUnits([unit.id], 10);
             return { id: unit.id, name: unit.name };
         });
+    }
+
+    async deployMcvAndWaitForConstructionYard(maxTicks = 600): Promise<void> {
+        this.recordAction('deploy-mcv', { maxTicks });
+        const deployment = await this.page.evaluate((deployOrderType) => {
+            const debugRoot = (window as any).__ra2debug;
+            const localPlayer = debugRoot?.localPlayer;
+            const unitSelection = debugRoot?.unitSelection;
+            const actionsApi = debugRoot?.actionsApi;
+            const game = debugRoot?.game;
+            const mcv = localPlayer?.getOwnedObjects?.(true)
+                .find((object: any) => object?.isUnit?.() && object?.rules?.deploysInto);
+            if (!mcv || !unitSelection || !actionsApi) {
+                throw new Error('No deployable owned MCV or game action bridge is available');
+            }
+            const ownedBuildings = localPlayer.getOwnedObjects(true)
+                .filter((object: any) => object?.isBuilding?.())
+                .map((object: any) => object.id);
+            unitSelection.deselectAll();
+            unitSelection.addToSelection(mcv);
+            actionsApi.orderUnits([mcv.id], deployOrderType);
+            return {
+                mcvId: mcv.id,
+                mcvName: mcv.name,
+                deploysInto: mcv.rules.deploysInto,
+                initialTile: mcv.tile ? { rx: mcv.tile.rx, ry: mcv.tile.ry, z: mcv.tile.z } : undefined,
+                initialBuildingIds: ownedBuildings,
+            };
+        }, OrderType.DeploySelected);
+
+        const pollTicks = 30;
+        let probe: any;
+        for (let elapsed = 0; elapsed <= maxTicks; elapsed += pollTicks) {
+            probe = await this.page.evaluate(({ deployment }) => {
+                const debugRoot = (window as any).__ra2debug;
+                const game = debugRoot?.game;
+                const localPlayer = debugRoot?.localPlayer;
+                const ownedObjects = localPlayer?.getOwnedObjects?.(true) ?? [];
+                const mcv = ownedObjects.find((object: any) => object?.id === deployment.mcvId);
+                const initialBuildingIds = new Set(deployment.initialBuildingIds);
+                const constructionYard = ownedObjects.find((object: any) => {
+                    if (!object?.isBuilding?.() || object?.isSpawned === false || initialBuildingIds.has(object.id)) {
+                        return false;
+                    }
+                    return deployment.deploysInto
+                        ? object.name === deployment.deploysInto
+                        : Boolean(object.rules?.constructionYard);
+                });
+                const unitOrderTrait = mcv?.unitOrderTrait;
+                const currentTask = unitOrderTrait?.getCurrentTask?.();
+                const currentOrder = Array.isArray(unitOrderTrait?.orders)
+                    ? unitOrderTrait.orders[0]
+                    : undefined;
+                const summarizeTile = (tile: any) => tile
+                    ? { rx: tile.rx, ry: tile.ry, z: tile.z }
+                    : undefined;
+                const summarizeTask = (task: any) => task
+                    ? {
+                        type: task.constructor?.name,
+                        deterministicType: task.deterministicType,
+                        status: task.status,
+                    }
+                    : undefined;
+                const summarizeOrder = (order: any) => order
+                    ? {
+                        type: order.constructor?.name,
+                        orderType: order.orderType,
+                    }
+                    : undefined;
+                let canDeployAtStartingTile: boolean | string | undefined;
+                if (mcv?.tile && deployment.deploysInto) {
+                    try {
+                        const worker = game?.getConstructionWorker?.(localPlayer);
+                        canDeployAtStartingTile = Boolean(worker?.canPlaceAt?.(deployment.deploysInto, mcv.tile, {
+                            ignoreObjects: [mcv],
+                            ignoreAdjacent: true,
+                        }));
+                    }
+                    catch (error) {
+                        canDeployAtStartingTile = `error: ${String(error)}`;
+                    }
+                }
+                const gameOpts = game?.gameOpts ?? {};
+                let hash: number | string | undefined;
+                try {
+                    hash = game?.getHash?.();
+                }
+                catch (error) {
+                    hash = `hash-error: ${String(error)}`;
+                }
+                return {
+                    mcv: {
+                        id: deployment.mcvId,
+                        name: deployment.mcvName,
+                        deploysInto: deployment.deploysInto,
+                        tile: summarizeTile(mcv?.tile) ?? deployment.initialTile,
+                        isSpawned: mcv?.isSpawned,
+                        present: Boolean(mcv),
+                    },
+                    constructionYard: constructionYard
+                        ? {
+                            id: constructionYard.id,
+                            name: constructionYard.name,
+                            constructionYard: Boolean(constructionYard.rules?.constructionYard),
+                            tile: summarizeTile(constructionYard.tile),
+                        }
+                        : undefined,
+                    currentTask: summarizeTask(currentTask),
+                    currentOrder: summarizeOrder(currentOrder),
+                    canDeployAtStartingTile,
+                    map: {
+                        name: gameOpts.mapName,
+                        title: gameOpts.mapTitle,
+                        official: Boolean(gameOpts.mapOfficial),
+                        theater: game?.map?.getTheaterType?.() ?? game?.map?.theaterType ?? debugRoot?.theater?.type,
+                    },
+                    tick: game?.currentTick,
+                    hash,
+                };
+            }, { deployment });
+            if (probe.constructionYard) {
+                this.recordAction('mcv-deployed', probe.constructionYard);
+                return;
+            }
+            if (elapsed < maxTicks) {
+                await this.advanceTicks(Math.min(pollTicks, maxTicks - elapsed));
+            }
+        }
+
+        throw new Error(`MCV failed to deploy on map ${probe?.map?.name ?? '<unknown>'} at ` +
+            `${probe?.mcv?.tile ? `(${probe.mcv.tile.rx}, ${probe.mcv.tile.ry})` : '<unknown tile>'}: ` +
+            `${JSON.stringify(probe, null, 2)}`);
     }
 
     async getOwnedObjects(): Promise<Array<Record<string, unknown>>> {
