@@ -9,6 +9,8 @@ import { ProductionTrait } from "@/game/trait/ProductionTrait";
 import { FactoryType } from "@/game/rules/TechnoRules";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { Player } from "@/game/Player";
+import { ProductionApi } from "@/game/api/ProductionApi";
+import { Rules } from "@/game/rules/Rules";
 
 const infantry = { name: "InfantryA", type: 1, cost: 100, buildTimeMultiplier: 1 };
 const vehicle = { name: "VehicleB", type: 2, cost: 200, buildTimeMultiplier: 1 };
@@ -262,5 +264,55 @@ describe("production queue deterministic state", () => {
             }
         }
         expect(readyTick).toBe(54);
+    });
+
+    test("production and built-in AI consume runtime tech overrides without changing spawned rules", () => {
+        const infantry: any = {
+            name: "E1",
+            type: ObjectType.Infantry,
+            techLevel: 5,
+            buildLimit: 1,
+            owner: [],
+            factoryOwners: [],
+            factoryOwnersForbidden: [],
+            prerequisiteLists: [[]],
+            negativePrerequisite: [],
+            requiredTheaters: [],
+            stolenTechs: [],
+            isAvailableTo: () => true,
+        };
+        const rules = Object.create(Rules.prototype) as any;
+        rules.buildingRules = new Map();
+        rules.infantryRules = new Map([[infantry.name, infantry]]);
+        rules.vehicleRules = new Map();
+        rules.aircraftRules = new Map();
+        rules.objectTechLevelOverrides = new Map();
+        rules.general = {
+            genericPrerequisites: new Map(),
+            genericPrerequisiteAlternates: new Map(),
+        };
+        const player: any = {
+            country: { name: "Alpha" },
+            isAi: false,
+            buildings: new Set(),
+            getOwnedObjects: () => [],
+        };
+        const production = new Production(player, 1, { superWeapons: true }, rules, [infantry]);
+        const productionApi = new ProductionApi(production);
+        const spawned = { rules: infantry };
+
+        expect(production.isAvailableForProduction(infantry)).toBe(false);
+        expect(productionApi.getAvailableObjects(QueueType.Infantry)).toEqual([]);
+
+        rules.setObjectTechLevelOverride("E1", 0);
+        expect(production.isAvailableForProduction(infantry)).toBe(true);
+        expect(productionApi.getAvailableObjects(QueueType.Infantry)).toEqual([infantry]);
+        expect(infantry.techLevel).toBe(5);
+        expect(spawned.rules.techLevel).toBe(5);
+
+        rules.setObjectTechLevelOverride("E1", -1);
+        expect(production.isAvailableForProduction(infantry)).toBe(false);
+        expect(productionApi.getAvailableObjects(QueueType.Infantry)).toEqual([]);
+        expect(spawned.rules.techLevel).toBe(5);
     });
 });

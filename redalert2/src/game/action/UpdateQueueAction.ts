@@ -89,8 +89,9 @@ export class UpdateQueueAction extends Action {
                 const queuedQuantity = existingItems.reduce((sum, item) => sum + item.quantity, 0);
                 if (Number.isFinite(item.buildLimit)) {
                     const builtCount = item.buildLimit >= 0
-                        ? player.getOwnedObjectsByType(item.type, true)
-                            .filter(obj => obj.name === item.name).length
+                        ? player.getBuildLimitCount?.(item) ??
+                            player.getOwnedObjectsByType(item.type, true)
+                                .filter(obj => obj.name === item.name).length
                         : player.getLimitedUnitsBuilt(item.name);
                     buildLimit = Math.max(0, Math.abs(item.buildLimit) - (builtCount + queuedQuantity));
                 }

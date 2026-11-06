@@ -1,5 +1,6 @@
 import { ConstructionWorker } from "./ConstructionWorker";
-import { GameOpts, isHumanPlayerInfo } from "./gameopts/GameOpts";
+import { GameOpts, getCampaignSession, isCampaignGameOpts, isHumanPlayerInfo } from "./gameopts/GameOpts";
+import type { CampaignSession } from "./gameopts/GameOpts";
 import { ObjectType } from "../engine/type/ObjectType";
 import { EventDispatcher } from "../util/event";
 import { OreSpread } from "./map/OreSpread";
@@ -23,6 +24,8 @@ import { NotifySpawn } from "./trait/interface/NotifySpawn";
 import { NotifyUnspawn } from "./trait/interface/NotifyUnspawn";
 import { NotifyOwnerChange } from "./trait/interface/NotifyOwnerChange";
 import { ObjectOwnerChangeEvent } from "./event/ObjectOwnerChangeEvent";
+import { ObjectDiscoveredEvent } from "./event/ObjectDiscoveredEvent";
+import { ObjectSelectedEvent } from "./event/ObjectSelectedEvent";
 import { ObjectUnspawnEvent } from "./event/ObjectUnspawnEvent";
 import { NotifyTargetDestroy } from "./trait/interface/NotifyTargetDestroy";
 import { createAresKillAttribution, resolveAresVeterancyRecipients } from "@/extensions/ares/AresVeterancy";
@@ -43,6 +46,9 @@ import { OBS_COUNTRY_ID } from "./gameopts/constants";
 import { getZoneType } from "./gameobject/unit/ZoneType";
 import { Prng } from "./Prng";
 import { TriggerManager } from "./trigger/TriggerManager";
+import { TeamRuntime } from "./trigger/TeamRuntime";
+import { AresSecretLabService } from "@/extensions/ares/AresSecretLabRuntime";
+import { BuildingCaptureEvent } from "@/game/event/BuildingCaptureEvent";
 import { CountdownTimer } from "./CountdownTimer";
 import { WeaponType } from "./WeaponType";
 import { Warhead } from "./Warhead";
@@ -57,11 +63,29 @@ import {
     AresAnimationDamageRuntime,
     type AresAnimationDamageDelivery,
 } from "@/extensions/ares/AresAnimationDamageRuntime";
+import { AresLaserFenceRuntime } from "@/extensions/ares/AresLaserFences";
+import { AresMakeInfantryService } from "@/extensions/ares/AresMakeInfantry";
 export enum GameStatus {
     NotStarted = 0,
     Started = 1,
     Ended = 2
 }
+export type CampaignOutcomeKind = "win" | "lose" | "force-end";
+export interface CampaignGameResult {
+    outcome: CampaignOutcomeKind;
+    victory: boolean;
+    scripted: boolean;
+    house?: any;
+    houseName?: string;
+    nextScenario?: string;
+    altNextScenario?: string;
+    endOfGame: boolean;
+    skipScore: boolean;
+}
+type PendingCampaignOutcome = {
+    kind: CampaignOutcomeKind;
+    house?: any;
+};
 export class Game {
     public updatableObjects = new Set<any>();
     /**
@@ -78,6 +102,7 @@ export class Game {
     public _onEnd = new EventDispatcher<Game, void>();
     public afterTickCallbacks: Array<() => void> = [];
     public events = new GameEventBus();
+    public readonly aresMakeInfantryService: AresMakeInfantryService;
     private readonly aresAnimationDamageRuntime = new AresAnimationDamageRuntime({
         getPlayerIndex: (player: any) => {
             const players = this.playerList?.getAll?.() ?? [];
@@ -85,6 +110,7 @@ export class Game {
             return index === -1 ? undefined : index;
         },
     });
+    public readonly aresLaserFenceRuntime: AresLaserFenceRuntime;
     public traits = new Traits();
     public debugText = new BoxedVar("");
     public world: any;
@@ -106,11 +132,28 @@ export class Game {
     public objectFactory: any;
     public botManager: any;
     public triggers = new TriggerManager();
+    public readonly teamRuntime = new TeamRuntime();
+    /** Ares SecretLab payout runtime; rolls from the shared PRNG. */
+    public aresSecretLabService = new AresSecretLabService(this);
     public localPlayer: any;
     public mapShroudTrait: any;
     public crateGeneratorTrait: any;
     public status: GameStatus;
     public lastGameEndCheck: number | undefined;
+    public campaignMode: boolean = false;
+    public campaignSession?: CampaignSession;
+    public campaignOutcome?: CampaignGameResult;
+    public campaignResult?: CampaignGameResult;
+    public pendingCampaignOutcome?: PendingCampaignOutcome;
+    public triggerOutcome: any;
+    public nextScenario: string = "";
+    public altNextScenario: string = "";
+    public endOfGame: boolean = false;
+    public skipScore: boolean = false;
+    public oneTimeOnly: boolean = false;
+    public ignoreGlobalAITriggers: boolean = false;
+    public fixedAlliance: boolean = false;
+    private triggersInitialized: boolean = false;
     public sellTrait: any;
     public stalemateDetectTrait: any;
     get onEnd() {
@@ -135,7 +178,27 @@ export class Game {
         this.nextObjectId = nextObjectId;
         this.objectFactory = objectFactory;
         this.botManager = botManager;
+        this.campaignMode = isCampaignGameOpts(gameOpts);
+        this.campaignSession = getCampaignSession(gameOpts);
+        this.aresLaserFenceRuntime = new AresLaserFenceRuntime();
+        this.aresLaserFenceRuntime.attach(this);
+        this.aresMakeInfantryService = new AresMakeInfantryService(this);
+        this.events.subscribe(EventType.BuildingCapture, (event: any) => {
+            this.handleAresSecretLabCapture(event?.building);
+        });
+        this.unitSelection?.setEventSink?.((unit) => {
+            if (this.localPlayer &&
+                unit.owner === this.localPlayer &&
+                unit.isDestroyed !== true &&
+                unit.isDisposed !== true &&
+                unit.isSpawned !== false &&
+                !unit.limboData &&
+                unit.rules?.selectable !== false) {
+                this.events.dispatch(new ObjectSelectedEvent(unit, this.localPlayer));
+            }
+        });
         this.events.subscribe(EventType.TriggerAnim, (event: any) => {
+            this.aresMakeInfantryService.handleTriggerAnimation(event);
             this.registerAresAnimationDamage(event);
         });
         this.events.subscribe(EventType.WarheadDetonate, (event: any) => {
@@ -153,6 +216,105 @@ export class Game {
     addPlayer(player: any) {
         this.playerList.addPlayer(player);
         this.constructionWorkers.set(player, this.createConstructionWorker(player));
+    }
+    configureCampaign(mapFile: any, session?: CampaignSession, campaignMode: boolean = this.campaignMode): void {
+        this.campaignMode = Boolean(campaignMode || mapFile?.isCampaign || isCampaignGameOpts(this.gameOpts));
+        this.campaignSession = {
+            ...(this.campaignSession ?? {}),
+            ...(session ?? {}),
+        };
+        const mapNextScenario = String(mapFile?.nextScenario ?? "").trim();
+        const mapAltNextScenario = String(mapFile?.altNextScenario ?? "").trim();
+        this.nextScenario = mapNextScenario || String(this.campaignSession?.nextScenario ?? "");
+        this.altNextScenario = mapAltNextScenario || String(this.campaignSession?.altNextScenario ?? "");
+        this.endOfGame = Boolean(mapFile?.endOfGame || this.campaignSession?.endOfGame);
+        this.skipScore = Boolean(mapFile?.skipScore || this.campaignSession?.skipScore);
+        this.oneTimeOnly = Boolean(mapFile?.oneTimeOnly || this.campaignSession?.oneTimeOnly);
+        this.ignoreGlobalAITriggers = Boolean(mapFile?.ignoreGlobalAITriggers || this.campaignSession?.ignoreGlobalAITriggers);
+        this.fixedAlliance = Boolean(mapFile?.specialFlags?.fixedAlliance || this.campaignSession?.fixedAlliance);
+        this.alliances?.setFixedAlliance(this.fixedAlliance);
+    }
+    /**
+     * Ares pays a secret lab on capture. The payout rolls from the shared PRNG,
+     * so it is canonical state and must be hashed; a lab whose authoring does
+     * not enable `GenerateOnCapture` is left as an ordinary capturable building.
+     */
+    handleAresSecretLabCapture(building: any): void {
+        const rules = this.rules?.general?.secretLabRules;
+        if (!rules || !building || building.isDestroyed) {
+            return;
+        }
+        if (building.rules?.secretLab !== true) {
+            return;
+        }
+        if (!rules.generateOnCapture) {
+            return;
+        }
+        if (!this.aresSecretLabService.isEligible(rules, building, building.owner)) {
+            return;
+        }
+        this.aresSecretLabService.grant(rules, building, building.owner);
+    }
+    getPlayerByHouseName(name: string): any {        const normalized = this.normalizeOwnerIdentity(name);
+        return this.playerList.getAll().find((player: any) =>
+            this.normalizeOwnerIdentity(player.houseName) === normalized ||
+            this.normalizeOwnerIdentity(player.mapHouse?.name) === normalized ||
+            this.normalizeOwnerIdentity(player.mapHouse?.sectionName) === normalized ||
+            this.normalizeOwnerIdentity(player.name) === normalized);
+    }
+    resolveMapOwner(owner: any): any {
+        if (owner && typeof owner === "object") {
+            return owner.playerListIndex !== undefined || owner.isCombatant || owner.isNeutral || owner.isObserver
+                ? owner
+                : undefined;
+        }
+        const raw = String(owner ?? "").trim();
+        const normalized = this.normalizeOwnerIdentity(raw);
+        if (!normalized) {
+            return this.getCivilianPlayer();
+        }
+        const byHouse = this.getPlayerByHouseName(raw);
+        if (byHouse) {
+            return byHouse;
+        }
+        for (const player of this.playerList.getAll()) {
+            const country = player.country;
+            if (country && (this.normalizeOwnerIdentity(country.id) === normalized ||
+                this.normalizeOwnerIdentity(country.name) === normalized)) {
+                return player;
+            }
+            if (this.normalizeOwnerIdentity(player.houseIndex) === normalized ||
+                (player.mapHouse && (this.normalizeOwnerIdentity(player.mapHouse.country) === normalized ||
+                    this.normalizeOwnerIdentity(player.mapHouse.index) === normalized))) {
+                return player;
+            }
+            const rules = country as any;
+            if ((rules && (this.normalizeOwnerIdentity(rules.networkIndex) === normalized ||
+                this.normalizeOwnerIdentity(rules.listIndex) === normalized))) {
+                return player;
+            }
+        }
+        const neutralAliases = new Set(["neutral", "special", "civilian", "none", "@@neutral@@", "<none>", "-1", "-2"]);
+        if (neutralAliases.has(normalized)) {
+            return this.getCivilianPlayer();
+        }
+        return undefined;
+    }
+    setObjectTechLevel(typeIdentifier: unknown, techLevel: unknown): void {
+        const setter = this.rules?.setObjectTechLevelOverride;
+        if (typeof setter !== "function") {
+            throw new Error("Object tech level overrides are unavailable");
+        }
+        setter.call(this.rules, typeIdentifier, techLevel);
+    }
+
+    enableProductionForHouse(house: any): boolean {
+        const player = this.resolveMapOwner(house);
+        if (!player?.production?.setProductionEnabled) {
+            return false;
+        }
+        player.production.setProductionEnabled(true);
+        return true;
     }
     getPlayer(index: number) {
         return this.playerList.getPlayerAt(index);
@@ -202,12 +364,21 @@ export class Game {
     init(localPlayer: any) {
         this.localPlayer = localPlayer;
         this.createMapObjects();
-        this.createPlayerInitialUnits();
+        if (!this.campaignMode) {
+            this.createPlayerInitialUnits();
+        }
         this.map.terrain.computeAllPassabilityGraphs();
         this.mapShroudTrait.init(this);
         this.crateGeneratorTrait.init(this);
-        this.playerList.getAll().forEach((player: any) => (player.credits = this.gameOpts.credits));
-        if (this.rules.mpDialogSettings.alliesAllowed) {
+        this.playerList.getAll().forEach((player: any) => {
+            if (!player.startLocationPoint) {
+                player.startLocationPoint = this.map.getStartingLocation?.(player.startLocation);
+            }
+            if (!this.campaignMode || player.mapHouse?.credits === undefined) {
+                player.credits = this.gameOpts.credits;
+            }
+        });
+        if (this.rules.mpDialogSettings.alliesAllowed && !this.campaignMode) {
             this.createInitialTeams();
         }
     }
@@ -217,6 +388,13 @@ export class Game {
         this.currentTime = 0;
         this.botManager.init(this);
         this.triggers.init(this);
+        this.triggersInitialized = true;
+        for (const [id, value] of Object.entries(this.campaignSession?.globalVariables ?? {})) {
+            this.triggers.toggleGlobalVariable(id, Boolean(value));
+        }
+        if (this.campaignSession?.alternateNextScenario !== undefined) {
+            this.triggers.toggleGlobalVariable("1", Boolean(this.campaignSession.alternateNextScenario));
+        }
     }
     createInitialTeams() {
         for (let teamId = 0; teamId < this.gameOpts.maxSlots; teamId++) {
@@ -242,6 +420,7 @@ export class Game {
         this.createInitialMapOverlays(mapObjects.overlays, noHarvesters);
         this.createInitialMapSmudges(mapObjects.smudges);
         this.createInitialMapTechnos(mapObjects.technos);
+        this.aresLaserFenceRuntime.reconcile(this);
     }
     createInitialMapTerrains(terrains: any[], noHarvesters: boolean) {
         for (const terrain of terrains) {
@@ -372,10 +551,6 @@ export class Game {
         }
     }
     createInitialMapTechnos(technos: any[]) {
-        const playersByCountry = new Map(this.playerList
-            .getAll()
-            .filter((player: any) => !!player.country)
-            .map((player: any) => [player.country.name, player]));
         const tags = this.map.getTags();
         for (const techno of technos) {
             const name = techno.name;
@@ -387,12 +562,9 @@ export class Game {
                 console.warn(`Invalid map object location (${techno.rx},${techno.ry})`, techno);
                 continue;
             }
-            const owner = playersByCountry.get(techno.owner);
+            const owner = this.resolveMapOwner(techno.owner);
             if (!owner) {
                 console.warn(`Invalid owner "${techno.owner}" for map object`, techno);
-                continue;
-            }
-            if (!(owner as any).isNeutral) {
                 continue;
             }
             const obj = this.createObject(techno.type, name);
@@ -460,6 +632,9 @@ export class Game {
         return true;
     }
     createPlayerInitialUnits() {
+        if (this.campaignMode) {
+            return;
+        }
         const countries = this.playerList.getCombatants().map((player: any) => player.country);
         const availableUnits = [...this.rules.infantryRules.values(), ...this.rules.vehicleRules.values()].filter((unit: any) => unit.allowedToStartInMultiplayer &&
             !unit.naval &&
@@ -468,7 +643,10 @@ export class Game {
             !this.rules.general.baseUnit.includes(unit.name) &&
             countries.some((country: any) => unit.isAvailableTo(country) && unit.hasOwner(country)));
         for (const player of this.playerList.getCombatants()) {
-            const startLoc = this.map.startingLocations[player.startLocation];
+            const startLoc = this.map.getStartingLocation?.(player.startLocation) ?? player.startLocationPoint;
+            if (!startLoc) {
+                throw new Error(`No starting location found for player ${player.name}`);
+            }
             const startTile = this.map.tiles.getByMapCoords(startLoc.x, startLoc.y);
             const mcvName = this.rules.general.baseUnit.find((unitName: string) => {
                 const unit = this.rules.getObject(unitName, ObjectType.Vehicle);
@@ -562,6 +740,26 @@ export class Game {
             }
         }
     }
+    startAresMakeInfantryFromInfDeathAnim(victim: any, animationName: string, killer?: any): any {
+        return this.aresMakeInfantryService.startInfDeathAnimation(
+            victim,
+            animationName,
+            killer?.obj ?? killer,
+            killer?.player,
+            killer?.obj,
+        );
+    }
+
+    startAresMakeInfantryFromDeathAnims(victim: any, animationName: string, killer?: any): any {
+        return this.aresMakeInfantryService.startDeathAnims(
+            victim,
+            animationName,
+            killer?.obj ?? killer,
+            killer?.player,
+            killer?.obj,
+        );
+    }
+
     createObject(type: ObjectType, name: string) {
         return this.objectFactory.create(type, name, this.rules, this.art);
     }
@@ -819,6 +1017,51 @@ export class Game {
         obj.limboData = limboData;
         this.doUnspawnObject(obj);
     }
+    restoreSpawnedObject(obj: any, tile: any): void {
+        if (obj.isSpawned) {
+            return;
+        }
+        obj.position.tile = tile;
+        if (obj.isBuilding()) {
+            const center = obj.art.foundationCenter;
+            const centerX = tile.rx + center.x;
+            const centerY = tile.ry + center.y;
+            obj.centerTile = this.map.tiles.getByMapCoords(centerX, centerY) ?? this.map.tiles.getPlaceholderTile(centerX, centerY);
+        }
+        this.world.spawnObject(obj);
+        if (obj.cachedTraits.tick.length || obj.isProjectile() || obj.isDebris() || obj.isTechno()) {
+            this.updatableObjects.add(obj);
+        }
+        if (obj.isTechno()) {
+            this.map.technosByTile.add(obj);
+        }
+        if (!obj.isProjectile() && !obj.isDebris()) {
+            this.map.tileOccupation.occupyTileRange(tile, obj);
+        }
+        if (obj.art.canHideThings) {
+            this.map.tileOcclusion.addOccluder(obj);
+        }
+        obj.isSpawned = true;
+    }
+    restoreUnspawnedObject(obj: any): void {
+        if (!obj.isSpawned) {
+            return;
+        }
+        const tile = obj.tile;
+        if (!obj.isProjectile() && !obj.isDebris()) {
+            this.map.tileOccupation.unoccupyTileRange(tile, obj);
+        }
+        if (obj.art.canHideThings) {
+            this.map.tileOcclusion.removeOccluder(obj);
+        }
+        if (obj.isTechno()) {
+            this.unitSelection.cleanupUnit(obj);
+            this.map.technosByTile.remove(obj);
+        }
+        this.world.removeObject(obj);
+        this.updatableObjects.delete(obj);
+        obj.isSpawned = false;
+    }
     unlimboObject(obj: any, tile: any, skipSelection: boolean = false) {
         const limboData = obj.limboData;
         if (!limboData) {
@@ -882,6 +1125,12 @@ export class Game {
         this.events.dispatch(new ObjectUnspawnEvent(obj));
     }
     destroyObject(obj: any, killer?: any, silent: boolean = false, skipEvents: boolean = false) {
+        if (!obj.aresInfDeathAnimationHandled && !obj.aresMakeInfantryServiceHandling && this.aresMakeInfantryService) {
+            const pending = this.aresMakeInfantryService.startFromObjectDeath(obj, killer);
+            if (pending && (obj.isDestroyed || obj.isDisposed)) {
+                return;
+            }
+        }
         // Multiple effects can legitimately converge on the same target
         // before the next object-update pass.  Destruction is a terminal
         // operation, so a stale second request must be idempotent instead of
@@ -939,6 +1188,9 @@ export class Game {
             });
         }
         this.events.dispatch(new ObjectDestroyEvent(obj, killer, skipEvents));
+        if (killer?.player && killer.player.isAi !== true && killer.player.isObserver !== true) {
+            this.events.dispatch(new ObjectDiscoveredEvent(obj, killer.player));
+        }
         if (obj.isBuilding() && obj.rules.leaveRubble && obj.deathType !== DeathType.Temporal) {
             obj.owner.removeOwnedObject(obj);
             this.unitSelection.cleanupUnit(obj);
@@ -1024,6 +1276,7 @@ export class Game {
         finally {
             this.updatableObjectsSnapshot.length = 0;
         }
+        this.aresMakeInfantryService.update();
         this.updateAresAnimationDamage();
         this.playerList.getCombatants().forEach((player: any) => {
             player.cheerCooldownTicks = Math.max(0, player.cheerCooldownTicks - 1);
@@ -1051,6 +1304,7 @@ export class Game {
         }
         this.afterTickCallbacks.length = 0;
         this.triggers.update(this);
+        this.completePendingCampaignOutcome();
         this.countdownTimer.update(this);
         this.currentTick++;
         this.currentTime += 1000 / GameSpeed.BASE_TICKS_PER_SECOND;
@@ -1058,22 +1312,202 @@ export class Game {
     afterTick(callback: () => void) {
         this.afterTickCallbacks.push(callback);
     }
+    isCampaignGlobalVariableEnabled(index: string | number): boolean {
+        const id = String(index);
+        if (this.triggersInitialized && typeof this.triggers?.getGlobalVariable === "function") {
+            return this.triggers.getGlobalVariable(id);
+        }
+        const variables = this.campaignSession?.globalVariables;
+        if (id === "1" && this.campaignSession?.alternateNextScenario !== undefined) {
+            return Boolean(this.campaignSession.alternateNextScenario);
+        }
+        return Boolean(variables?.[id] ?? variables?.[Number(id)]);
+    }
+    hasScriptedCampaignOutcome(): boolean {
+        if (!this.campaignMode) {
+            return false;
+        }
+        const triggers = this.map?.getTriggers?.() ?? [];
+        return triggers.some((trigger: any) => trigger.actions?.some((action: any) => {
+            const type = typeof action.type === "string" ? action.type.toLocaleLowerCase("en-US") : action.type;
+            return type === 1 || type === 2 || type === 69 ||
+                type === "win" || type === "lose" || type === "forceend" || type === "force-end";
+        }));
+    }
     checkGameEndConditions() {
+        if (this.campaignMode && this.pendingCampaignOutcome) {
+            this.completePendingCampaignOutcome();
+            if (this.pendingCampaignOutcome || this.campaignOutcome) {
+                return;
+            }
+        }
+        if (this.campaignOutcome || (this.campaignMode && this.hasScriptedCampaignOutcome())) {
+            return;
+        }
         this.updateDefeatedPlayers(this.playerList.getCombatants());
         const shouldEnd = (this.localPlayer?.defeated && !this.localPlayer.isObserver) ||
             (!this.alliances.getHostilePlayers().length &&
                 this.gameOpts.humanPlayers.length + this.gameOpts.aiPlayers.filter((p: any) => !!p).length > 1);
         if (shouldEnd) {
+            const noHostilePlayers = !this.alliances.getHostilePlayers().length;
+            if (this.campaignMode && !this.localPlayer?.defeated && noHostilePlayers &&
+                this.triggers.hasAllowWinHold?.(this.localPlayer, this)) {
+                this.win();
+            }
+            else {
+                this.end();
+            }
+        }
+    }
+    private getSelectedNextScenario(): string {
+        return this.isCampaignGlobalVariableEnabled("1") && this.altNextScenario
+            ? this.altNextScenario
+            : this.nextScenario;
+    }
+    setCampaignOutcome(kind: CampaignOutcomeKind, house?: any): CampaignGameResult | undefined {
+        if (this.campaignResult) {
+            return this.campaignResult;
+        }
+        const target = house === undefined ? this.localPlayer : this.resolveMapOwner(house);
+        const local = this.localPlayer;
+        const localIsTarget = !target || target === local;
+        const localHasAlliedTarget = Boolean(target && local && this.alliances.areAllied(local, target));
+        let victory: boolean;
+        if (kind === "force-end") {
+            victory = !local?.defeated;
+        }
+        else if (localIsTarget || localHasAlliedTarget) {
+            victory = kind === "win";
+        }
+        else {
+            victory = kind === "lose";
+        }
+        let victoryHouse: any;
+        if (kind === "win" && (localIsTarget || localHasAlliedTarget)) {
+            victoryHouse = target;
+        }
+        else if (kind === "lose" && !localIsTarget && !localHasAlliedTarget) {
+            victoryHouse = local;
+        }
+        if (this.campaignMode && victoryHouse && this.triggers.hasAllowWinHold?.(victoryHouse, this)) {
+            this.pendingCampaignOutcome = { kind, house: target };
+            return undefined;
+        }
+        const result: CampaignGameResult = {
+            outcome: kind,
+            victory,
+            scripted: true,
+            house: target,
+            houseName: target?.houseName ?? target?.name,
+            nextScenario: this.getSelectedNextScenario(),
+            altNextScenario: this.altNextScenario,
+            endOfGame: this.endOfGame,
+            skipScore: this.skipScore,
+        };
+        this.pendingCampaignOutcome = undefined;
+        this.triggerOutcome = undefined;
+        this.campaignOutcome = result;
+        this.campaignResult = result;
+        return result;
+    }
+    completePendingCampaignOutcome(): void {
+        if (!this.campaignMode || !this.pendingCampaignOutcome || this.campaignResult ||
+            this.status === GameStatus.Ended) {
+            return;
+        }
+        const pending = this.pendingCampaignOutcome;
+        if (this.setCampaignOutcome(pending.kind, pending.house)) {
             this.end();
         }
     }
-    end() {
+    win(house?: any): void {
+        if (!this.campaignMode) {
+            this.end();
+            return;
+        }
+        if (this.setCampaignOutcome("win", house)) {
+            this.end();
+        }
+    }
+    lose(house?: any): void {
+        if (!this.campaignMode) {
+            this.end();
+            return;
+        }
+        if (this.setCampaignOutcome("lose", house)) {
+            this.end();
+        }
+    }
+    forceEnd(house?: any): void {
+        if (!this.campaignMode) {
+            this.end();
+            return;
+        }
+        if (this.setCampaignOutcome("force-end", house)) {
+            this.end();
+        }
+    }
+    getCampaignResult(): CampaignGameResult | undefined {
+        return this.campaignResult;
+    }
+    getCampaignState(): any {
+        return {
+            session: this.campaignSession,
+            nextScenario: this.nextScenario,
+            altNextScenario: this.altNextScenario,
+            endOfGame: this.endOfGame,
+            skipScore: this.skipScore,
+            oneTimeOnly: this.oneTimeOnly,
+            ignoreGlobalAITriggers: this.ignoreGlobalAITriggers,
+            fixedAlliance: this.fixedAlliance,
+            result: this.campaignResult,
+        };
+    }
+    end(result?: CampaignOutcomeKind | { outcome?: CampaignOutcomeKind; house?: any }) {
+        if (this.campaignMode && !this.campaignResult) {
+            const authoredOutcome = this.triggerOutcome;
+            if (authoredOutcome && !result) {
+                const kind: CampaignOutcomeKind = authoredOutcome.outcome === "won" ? "win" : "lose";
+                const target = authoredOutcome.player ?? authoredOutcome.playerIndex;
+                if (!this.setCampaignOutcome(kind, target)) {
+                    return;
+                }
+            }
+            else if (!result && this.pendingCampaignOutcome) {
+                const pending = this.pendingCampaignOutcome;
+                if (!this.setCampaignOutcome(pending.kind, pending.house)) {
+                    return;
+                }
+            }
+            if (result) {
+                const kind = typeof result === "string" ? result : result.outcome;
+                if (kind && !this.setCampaignOutcome(kind, typeof result === "string" ? undefined : result.house)) {
+                    return;
+                }
+            }
+            else if (this.status !== GameStatus.Ended && !this.campaignResult) {
+                this.campaignResult = {
+                    outcome: "force-end",
+                    victory: !this.localPlayer?.defeated,
+                    scripted: this.hasScriptedCampaignOutcome(),
+                    nextScenario: this.getSelectedNextScenario(),
+                    altNextScenario: this.altNextScenario,
+                    endOfGame: this.endOfGame,
+                    skipScore: this.skipScore,
+                };
+                this.campaignOutcome = this.campaignResult;
+            }
+        }
         if (this.status !== GameStatus.Ended) {
             this.status = GameStatus.Ended;
             this._onEnd.dispatch(this, undefined);
         }
     }
     updateDefeatedPlayers(players: any[]) {
+        if (this.campaignOutcome || (this.campaignMode && this.pendingCampaignOutcome) ||
+            (this.campaignMode && this.hasScriptedCampaignOutcome())) {
+            return;
+        }
         const isStalemate = this.stalemateDetectTrait?.isStale() && this.stalemateDetectTrait.getCountdownTicks() === 0;
         const shortGame = this.gameOpts.shortGame;
         players.forEach((player: any) => {
@@ -1162,6 +1596,9 @@ export class Game {
     generateRandom(): number {
         return this.prng.generateRandom();
     }
+    normalizeOwnerIdentity(value: any): string {
+        return String(value ?? "").trim().toLocaleLowerCase("en-US");
+    }
     getHash(): number {
         const prngHash = this.prng.getHash();
         const objects = this.world.getAllObjects().slice().sort((a: any, b: any) => a.id - b.id);
@@ -1176,9 +1613,17 @@ export class Game {
             ...objects.map((obj: any) => obj.getHash()),
             ...this.playerList.getAll().map((player: any) => player.getHash()),
             this.alliances.getHash(),
+            this.alliances.isFixedAlliance?.() === true ? 1 : 0,
+            this.unitSelection?.getHash?.() ?? 0,
             // Standalone Ares animation damage keeps its own frame clock and
             // pending-damage accumulators outside the object graph.
             this.aresAnimationDamageRuntime.getHash(),
+            this.aresLaserFenceRuntime.getHash(),
+            this.aresMakeInfantryService.getHash(),
+            this.aresSecretLabService?.getHash?.() ?? 0,
+            this.triggers?.getHash?.() ?? 0,
+            this.teamRuntime?.getHash?.() ?? 0,
+            this.rules?.getObjectTechLevelOverrideHash?.() ?? 0,
             ...this.traits.getAll().map((trait: any) => trait.getHash?.() ?? 0),
         ]);
     }
@@ -1190,6 +1635,8 @@ export class Game {
             objects: this.world.getAllObjects().map((obj: any) => obj.debugGetState()),
             players: this.playerList.getAll().map((player: any) => player.debugGetState()),
             alliances: this.alliances.debugGetState(),
+            laserFences: this.aresLaserFenceRuntime.captureState(),
+            objectTechLevels: this.rules?.captureObjectTechLevelOverrideState?.(),
             traits: this.traits.getAll().reduce((acc: any, trait: any) => {
                 const state = trait.debugGetState?.();
                 if (state !== undefined) {
@@ -1204,6 +1651,9 @@ export class Game {
         this.playerList.getAll().forEach((player: any) => player.dispose());
         this.constructionWorkers.forEach((worker: any) => worker.dispose());
         this.botManager.dispose();
+        this.aresMakeInfantryService.dispose();
+        this.aresSecretLabService?.dispose?.();
+        this.aresLaserFenceRuntime.dispose();
         this.triggers.dispose();
         this.map.dispose();
         this.traits.dispose();

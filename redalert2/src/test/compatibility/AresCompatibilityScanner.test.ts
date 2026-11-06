@@ -100,6 +100,35 @@ Proximity=yes
         expect(usage?.support?.runtimeImplemented).toBe(true);
     });
 
+    test("classifies per-projectile ballistic scatter without misclassifying vanilla gates", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[MOProjectile]
+BallisticScatter.Min=0.25
+BallisticScatter.Max=1.5
+Arcing=yes
+Inaccurate=yes
+Inviso=yes
+FlakScatter=yes
+
+[CombatDamage]
+BallisticScatter=3
+`,
+            },
+        ]);
+
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.projectile-extensions");
+        expect(usage?.occurrences).toBe(2);
+        expect(usage?.definitionCount).toBe(1);
+        expect(usage?.support?.parserImplemented).toBe(true);
+        expect(usage?.support?.runtimeImplemented).toBe(true);
+        expect(report.references.find((item) => item.key === "BallisticScatter")?.classification).toBe("vanilla");
+        expect(report.references.find((item) => item.key === "Arcing")?.classification).toBe("vanilla");
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
     test("classifies documented Chronoshift eligibility fields as Ares requirements", () => {
         const report = scanMentalOmegaIniSources([
             {
@@ -240,6 +269,24 @@ ImmuneToAbduction=no
         expect(report.unclassifiedKeys).toBe(0);
     });
 
+    test("classifies authored wave damage and laser thickness keys", () => {
+        const report = scanMentalOmegaIniSources([{
+            name: "rulesmo.ini",
+            contents: `
+[WeaponTypes]
+0=MOBeam
+
+[MOBeam]
+AmbientDamage=25
+LaserThickness=7
+`,
+        }]);
+        const usage = report.featureUsage.find((item) => item.featureId === "ares.weapon-visuals");
+        expect(usage?.occurrences).toBe(2);
+        expect(usage?.definitionCount).toBe(1);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
     test("keeps common YR object and projectile fields vanilla without inferring Ares", () => {
         const report = scanMentalOmegaIniSources([
             {
@@ -276,6 +323,46 @@ Conventional=yes
 
         expect(report.vanillaKeys).toBe(18);
         expect(report.aresKnownKeys).toBe(0);
+        expect(report.unclassifiedKeys).toBe(0);
+    });
+
+    test("classifies alternate art, cameo palettes, parachutes, and hard-coded infantry properties", () => {
+        const report = scanMentalOmegaIniSources([
+            {
+                name: "rulesmo.ini",
+                contents: `
+[InfantryTypes]
+0=MOUnit
+
+[MOUnit]
+AlternateTheaterArt=yes
+Parachute.Anim=MOPARACH
+FallRate.NoParachuteMax=-50
+IsCow=yes
+IsDesolator=no
+
+[UnitArt]
+CameoPalette=mounit.pal
+
+[SuperWeaponTypes]
+0=MOShell
+
+[MOShell]
+SidebarPalette=shell.pal
+
+[General]
+ParachuteMaxFallRate=-2
+NoParachuteMaxFallRate=-20
+Medians=71
+`,
+            },
+        ]);
+
+        expect(report.featureUsage.find((item) => item.featureId === "ares.alternate-theater-art")?.occurrences).toBe(1);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.custom-cameo-palettes")?.occurrences).toBe(2);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.customizable-parachute-animations")?.occurrences).toBe(4);
+        expect(report.featureUsage.find((item) => item.featureId === "ares.hardcoded-unit-properties")?.occurrences).toBe(2);
+        expect(report.references.find((item) => item.section === "General" && item.key === "Medians")?.classification).toBe("vanilla");
         expect(report.unclassifiedKeys).toBe(0);
     });
 

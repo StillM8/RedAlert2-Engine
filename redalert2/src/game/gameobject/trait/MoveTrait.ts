@@ -1,3 +1,122 @@
+import { fnv32aStrings } from "@/util/math";
+import { scalarStateHash, STATE_HASH_HOST_KEYS } from "@/util/stateHash";
+
+/** A path cell, serialized by map coordinates rather than by tile identity. */
+export interface MoveTraitPathCellState {
+    rx: number;
+    ry: number;
+    onBridge: boolean;
+}
+
+export interface MoveTraitState {
+    version: 1;
+    disabled: boolean;
+    chronoAftereffectLocked?: boolean;
+    speedPenalty: number;
+    moveState: number;
+    collisionState: number;
+    velocity: unknown;
+    lastVelocity: unknown;
+    lastTeleportTick?: number;
+    lastMoveResult?: number;
+    lastTargetOffset?: unknown;
+    /** Private locomotor phase/cursor/velocity-turn state; patched onto the live locomotor. */
+    locomotorState?: unknown;
+    /**
+     * Legacy presence markers. Version-1 snapshots written before in-flight
+     * path restore existed carry only these two counts; strict restore still
+     * refuses them, because a count cannot reconstruct the reserved cells.
+     */
+    reservedPathNodeCount?: number;
+    hasWaypoint?: boolean;
+    /**
+     * The actual reserved cells and the active waypoint. These are restored
+     * by re-resolving each map cell and re-registering the reservation, so a
+     * checkpoint taken while a unit is moving no longer has to be refused.
+     */
+    reservedPathNodes?: MoveTraitPathCellState[];
+    currentWaypoint?: MoveTraitPathCellState | null;
+}
+
+function capturePathCell(cell: any): MoveTraitPathCellState | null {
+    if (!cell?.tile || !Number.isSafeInteger(cell.tile.rx) || !Number.isSafeInteger(cell.tile.ry)) {
+        return null;
+    }
+    return { rx: cell.tile.rx, ry: cell.tile.ry, onBridge: !!cell.onBridge };
+}
+
+function validatePathCell(value: unknown, label: string): MoveTraitPathCellState {
+    const cell = value as MoveTraitPathCellState;
+    if (!cell || !Number.isSafeInteger(cell.rx) || cell.rx < 0 ||
+        !Number.isSafeInteger(cell.ry) || cell.ry < 0 ||
+        typeof cell.onBridge !== "boolean") {
+        throw new Error(`Invalid move state: ${label}`);
+    }
+    return { rx: cell.rx, ry: cell.ry, onBridge: cell.onBridge };
+}
+
+/** Canonical identities cross worlds as markers, never as walked internals. */
+function serializeScalarTree(value: unknown): unknown {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") {
+        return value;
+    }
+    if (typeof value !== "object") return undefined;
+    const object = value as any;
+    if (Array.isArray(object)) {
+        return object.map((item) => serializeScalarTree(item)).filter((item) => item !== undefined);
+    }
+    const out: Record<string, unknown> = {};
+    if (typeof object.playerListIndex === "number") {
+        out.$player = object.playerListIndex;
+    }
+    else if (typeof object.id === "number") {
+        out.$id = object.id;
+    }
+    for (const key of Object.keys(object).sort()) {
+        if (STATE_HASH_HOST_KEYS.has(key)) continue;
+        const serialized = serializeScalarTree(object[key]);
+        if (serialized !== undefined) out[key] = serialized;
+    }
+    return out;
+}
+
+function restoreScalarTree(live: any, tree: unknown): any {
+    if (tree === undefined || tree === null) return live;
+    if (typeof tree !== "object") return tree;
+    if (Array.isArray(tree)) {
+        return tree.map((item, index) => restoreScalarTree(live?.[index], item));
+    }
+    const target = live && typeof live === "object" ? live : {};
+    for (const key of Object.keys(tree as object)) {
+        if (key === "$id" || key === "$player") continue;
+        target[key] = restoreScalarTree(target[key], (tree as any)[key]);
+    }
+    return target;
+}
+
+/**
+ * Non-mutating resolve pass: canonical identity markers must match the live
+ * references before anything is applied (strict restore contract).
+ */
+function validateScalarTree(live: any, tree: unknown, label: string): void {
+    if (tree === undefined || tree === null || typeof tree !== "object") return;
+    if (Array.isArray(tree)) {
+        tree.forEach((item, index) => validateScalarTree(live?.[index], item, `${label}[${index}]`));
+        return;
+    }
+    const record = tree as any;
+    if (typeof record.$id === "number" && live?.id !== record.$id) {
+        throw new Error(`Cannot restore move state: ${label} identity ${record.$id} is unresolved`);
+    }
+    if (typeof record.$player === "number" && live?.playerListIndex !== record.$player) {
+        throw new Error(`Cannot restore move state: ${label} player identity ${record.$player} is unresolved`);
+    }
+    for (const key of Object.keys(record)) {
+        if (key === "$id" || key === "$player") continue;
+        validateScalarTree(live?.[key], record[key], `${label}.${key}`);
+    }
+}
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
 import { ZoneType, getZoneType } from "@/game/gameobject/unit/ZoneType";
@@ -57,9 +176,11 @@ interface GameObject {
 interface TileOccupation {
     unoccupyTileRange(tile: any, obj: GameObject): void;
     occupyTileRange(tile: any, obj: GameObject): void;
+    occupySingleTile(tile: any, obj: GameObject): void;
     getBridgeOnTile(tile: any): any;
     getGroundObjectsOnTile(tile: any): GameObject[];
     unoccupySingleTile(tile: any, obj: GameObject): void;
+    tiles?: { getByMapCoords(rx: number, ry: number): any };
 }
 interface GameState {
     currentTick: number;
@@ -76,6 +197,7 @@ interface Task {
 }
 interface PathNode {
     tile: any;
+    onBridge?: any;
 }
 interface Waypoint {
 }
@@ -108,6 +230,7 @@ export class MoveTrait {
     private gameObject: GameObject;
     private tileOccupation: TileOccupation;
     private disabled: boolean = false;
+    private chronoAftereffectLocked: boolean = false;
     private speedPenalty: number = 0;
     private velocity: Vector3 = new Vector3();
     private reservedPathNodes: PathNode[] = [];
@@ -138,11 +261,202 @@ export class MoveTrait {
         this.gameObject = gameObject;
         this.tileOccupation = tileOccupation;
     }
+    /**
+     * Canonical movement state for the lockstep hash. Velocity, movement and
+     * collision phases, path reservations, and the active locomotor's private
+     * state all change future simulation results; previously this trait
+     * contributed nothing to `GameObject.getHash()` (see
+     * docs/DeterministicStateCoverage.md, Locomotors row).
+     */
+    getHash(): number {
+        return fnv32aStrings([
+            "MoveTrait",
+            this.disabled ? 1 : 0,
+            this.chronoAftereffectLocked ? 1 : 0,
+            this.speedPenalty,
+            this.moveState,
+            this.collisionState,
+            this.lastTeleportTick ?? -1,
+            this.lastMoveResult ?? -1,
+            scalarStateHash("velocity", this.velocity),
+            scalarStateHash("lastVelocity", this.lastVelocity),
+            scalarStateHash("waypoint", this.currentWaypoint),
+            scalarStateHash("pathNodes", this.reservedPathNodes),
+            scalarStateHash("locomotor", this.locomotor),
+            scalarStateHash("targetOffset", this.lastTargetOffset),
+        ]);
+    }
+
+    /**
+     * Versioned movement slice (the Locomotors row of
+     * docs/DeterministicStateCoverage.md). Path reservations and waypoints are
+     * live pathfinding references: they are counted, never fabricated, and
+     * strict restore refuses snapshots holding them (restore only at rest).
+     */
+    captureState(): MoveTraitState {
+        return {
+            version: 1,
+            disabled: this.disabled,
+            chronoAftereffectLocked: this.chronoAftereffectLocked,
+            speedPenalty: this.speedPenalty,
+            moveState: this.moveState,
+            collisionState: this.collisionState,
+            velocity: serializeScalarTree(this.velocity),
+            lastVelocity: serializeScalarTree(this.lastVelocity),
+            lastTeleportTick: this.lastTeleportTick,
+            lastMoveResult: this.lastMoveResult,
+            lastTargetOffset: serializeScalarTree(this.lastTargetOffset),
+            locomotorState: this.locomotor ? serializeScalarTree(this.locomotor) : undefined,
+            reservedPathNodes: this.reservedPathNodes
+                .map(capturePathCell)
+                .filter((cell): cell is MoveTraitPathCellState => cell !== null),
+            currentWaypoint: capturePathCell(this.currentWaypoint),
+        };
+    }
+
+    /**
+     * Transactional restore: identity markers and locomotor presence resolve
+     * before any mutation. Strict mode additionally refuses in-flight path
+     * state on either side of the restore.
+     */
+    validateState(state: unknown, options: { strict?: boolean } = {}): MoveTraitState {
+        if (!state || typeof state !== "object") {
+            throw new Error("Invalid move state: expected an object");
+        }
+        const parsed = state as MoveTraitState;
+        if (parsed.version !== 1) {
+            throw new Error(`Unsupported move state version: ${String((state as any).version)}`);
+        }
+        if (typeof parsed.disabled !== "boolean" ||
+            (parsed.chronoAftereffectLocked !== undefined && typeof parsed.chronoAftereffectLocked !== "boolean") ||
+            typeof parsed.speedPenalty !== "number" || !Number.isFinite(parsed.speedPenalty) ||
+            !Number.isSafeInteger(parsed.moveState) || parsed.moveState < MoveState.Idle || parsed.moveState > MoveState.Moving ||
+            !Number.isSafeInteger(parsed.collisionState) || parsed.collisionState < CollisionState.Waiting || parsed.collisionState > CollisionState.Resolved) {
+            throw new Error("Invalid move state: scalar fields");
+        }
+        if (parsed.reservedPathNodes !== undefined) {
+            if (!Array.isArray(parsed.reservedPathNodes)) {
+                throw new Error("Invalid move state: reservedPathNodes");
+            }
+            parsed.reservedPathNodes = parsed.reservedPathNodes
+                .map((cell, index) => validatePathCell(cell, `reservedPathNodes[${index}]`));
+        }
+        if (parsed.currentWaypoint !== undefined && parsed.currentWaypoint !== null) {
+            parsed.currentWaypoint = validatePathCell(parsed.currentWaypoint, "currentWaypoint");
+        }
+        for (const value of [parsed.lastTeleportTick, parsed.lastMoveResult]) {
+            if (value !== undefined && !Number.isSafeInteger(value)) {
+                throw new Error("Invalid move state: optional tick");
+            }
+        }
+        const strict = options.strict === true;
+        // A legacy snapshot carries only counts, which cannot reconstruct the
+        // reserved cells, so an in-flight legacy checkpoint is still refused.
+        // Current snapshots carry the cells and are restored below.
+        if (parsed.reservedPathNodes === undefined && parsed.currentWaypoint === undefined && strict &&
+            ((parsed.reservedPathNodeCount ?? 0) > 0 || parsed.hasWaypoint === true ||
+                this.reservedPathNodes.length > 0 || this.currentWaypoint !== undefined)) {
+            throw new Error("Cannot restore move state: in-flight path state is not restorable");
+        }
+        // Every referenced cell must resolve before anything is mutated, so a
+        // bad checkpoint cannot leave a half-applied reservation set behind.
+        if (strict) {
+            for (const [index, cell] of (parsed.reservedPathNodes ?? []).entries()) {
+                this.resolvePathCell(cell, `reservedPathNodes[${index}]`);
+            }
+            if (parsed.currentWaypoint) {
+                this.resolvePathCell(parsed.currentWaypoint, "currentWaypoint");
+            }
+        }
+        if (parsed.locomotorState !== undefined && !this.locomotor && strict) {
+            throw new Error("Cannot restore move state: locomotor is unresolved");
+        }
+        if (strict) {
+            validateScalarTree(this.velocity, parsed.velocity, "velocity");
+            validateScalarTree(this.lastVelocity, parsed.lastVelocity, "lastVelocity");
+            validateScalarTree(this.lastTargetOffset, parsed.lastTargetOffset, "lastTargetOffset");
+            if (parsed.locomotorState !== undefined && this.locomotor) {
+                validateScalarTree(this.locomotor, parsed.locomotorState, "locomotor");
+            }
+        }
+        return parsed;
+    }
+
+    restoreState(state: unknown, options: { strict?: boolean } = {}): void {
+        const parsed = this.validateState(state, options);
+        const strict = options.strict === true;
+        this.disabled = parsed.disabled;
+        this.chronoAftereffectLocked = parsed.chronoAftereffectLocked ?? false;
+        this.speedPenalty = parsed.speedPenalty;
+        this.moveState = parsed.moveState;
+        this.collisionState = parsed.collisionState;
+        this.lastTeleportTick = parsed.lastTeleportTick;
+        this.lastMoveResult = parsed.lastMoveResult;
+        restoreScalarTree(this.velocity, parsed.velocity);
+        if (parsed.lastVelocity === undefined) {
+            this.lastVelocity = undefined;
+        }
+        else {
+            this.lastVelocity = restoreScalarTree(this.lastVelocity, parsed.lastVelocity);
+        }
+        this.lastTargetOffset = parsed.lastTargetOffset === undefined
+            ? undefined
+            : restoreScalarTree(this.lastTargetOffset, parsed.lastTargetOffset);
+        if (parsed.locomotorState !== undefined && this.locomotor) {
+            restoreScalarTree(this.locomotor, parsed.locomotorState);
+        }
+        if (parsed.reservedPathNodes !== undefined) {
+            // The live reservations belong to the pre-restore world and must be
+            // released before new ones are registered, or the tile occupation
+            // grid would keep both sets.
+            this.unreservePathNodes();
+            for (const cell of parsed.reservedPathNodes) {
+                const tile = this.resolvePathCell(cell, "reservedPathNode");
+                if (!tile) continue;
+                const node: PathNode = { tile, ...(cell.onBridge ? { onBridge: true } : {}) };
+                this.reservedPathNodes.push(node);
+                this.tileOccupation.occupySingleTile(tile, this.gameObject);
+            }
+        }
+        else {
+            this.unreservePathNodes();
+        }
+        if (parsed.currentWaypoint === undefined || parsed.currentWaypoint === null) {
+            this.currentWaypoint = undefined;
+        }
+        else {
+            const tile = this.resolvePathCell(parsed.currentWaypoint, "currentWaypoint");
+            this.currentWaypoint = tile === undefined
+                ? undefined
+                : {
+                    tile,
+                    ...(parsed.currentWaypoint.onBridge ? { onBridge: true } : {}),
+                };
+        }
+    }
+
+    private resolvePathCell(cell: MoveTraitPathCellState, label: string): any {
+        const tile = this.gameObject?.position?.tiles?.getByMapCoords?.(cell.rx, cell.ry) ??
+            this.tileOccupation?.tiles?.getByMapCoords?.(cell.rx, cell.ry);
+        if (!tile) {
+            throw new Error(
+                `Cannot restore move state: ${label} ${cell.rx},${cell.ry} is unresolved`,
+            );
+        }
+        return tile;
+    }
+
     isDisabled(): boolean {
         return this.disabled;
     }
     setDisabled(disabled: boolean): void {
         this.disabled = disabled;
+    }
+    isChronoAftereffectLocked(): boolean {
+        return this.chronoAftereffectLocked;
+    }
+    setChronoAftereffectLocked(locked: boolean): void {
+        this.chronoAftereffectLocked = locked;
     }
     isMoving(): boolean {
         return this.moveState === MoveState.Moving;

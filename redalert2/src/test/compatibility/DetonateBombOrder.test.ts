@@ -65,6 +65,34 @@ describe("DetonateBombOrder", () => {
         expect(order.isAllowed()).toBe(false);
     });
 
+    test("uses the trait detonation seam when available", () => {
+        const owner = { id: 1 };
+        const game = { currentTick: 12 };
+        let detonated = false;
+        let receivedTarget: any;
+        let receivedWorld: any;
+        const target = {
+            tntChargeTrait: {
+                hasCharge: () => true,
+                getChargeOwner: () => owner,
+                canBeManuallyDetonated: () => true,
+                tryManualDetonate: (object: any, world: any) => {
+                    detonated = true;
+                    receivedTarget = object;
+                    receivedWorld = world;
+                    return true;
+                },
+            },
+        };
+        const order = new DetonateBombOrder(game);
+        (order as any).target = { obj: target };
+        (order as any).sourceObject = { owner };
+        order.process();
+        expect(detonated).toBe(true);
+        expect(receivedTarget).toBe(target);
+        expect(receivedWorld).toBe(game);
+    });
+
     test("removes the charge when processed", () => {
         const owner = { id: 1 };
         let removed = false;

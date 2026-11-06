@@ -16,6 +16,7 @@ export class MoveSoundFxPlugin {
             return;
         }
         const isMovingOrRotating = !this.gameObject.warpedOutTrait.isActive() &&
+            this.gameObject.magnetizedTrait?.isActive?.() !== true &&
             !!((!this.gameObject.rules.balloonHover &&
                 this.gameObject.rules.hoverAttack &&
                 this.gameObject.zone === ZoneType.Air) ||

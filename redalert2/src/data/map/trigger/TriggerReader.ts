@@ -18,7 +18,10 @@ export class TriggerReader {
                 trigger.actions.push(...triggerActions);
             }
             if (trigger.attachedTriggerId) {
-                const attachedTrigger = triggerList.find(t => t.id === trigger.attachedTriggerId);
+                const attachedReference = String(trigger.attachedTriggerId).toLocaleLowerCase("en-US");
+                const attachedTrigger = triggerList.find(t =>
+                    String(t.id).toLocaleLowerCase("en-US") === attachedReference ||
+                    String(t.name).toLocaleLowerCase("en-US") === attachedReference);
                 if (attachedTrigger) {
                     trigger.attachedTrigger = attachedTrigger;
                     rootTriggers.delete(attachedTrigger);
@@ -26,17 +29,26 @@ export class TriggerReader {
             }
         }
         for (const rootTrigger of rootTriggers) {
-            const tag = tagList.find(t => t.triggerId === rootTrigger.id);
+            const rootId = String(rootTrigger.id).toLocaleLowerCase("en-US");
+            const rootName = String(rootTrigger.name).toLocaleLowerCase("en-US");
+            const tag = tagList.find(t => {
+                const reference = String(t.triggerId).toLocaleLowerCase("en-US");
+                return reference === rootId || reference === rootName;
+            });
             if (tag) {
                 let currentTrigger = rootTrigger;
-                while (currentTrigger) {
+                const seen = new Set<any>();
+                while (currentTrigger && !seen.has(currentTrigger)) {
+                    seen.add(currentTrigger);
                     currentTrigger.tag = tag;
                     currentTrigger = currentTrigger.attachedTrigger;
                 }
             }
             else {
                 let currentTrigger = rootTrigger;
-                while (currentTrigger) {
+                const seen = new Set<any>();
+                while (currentTrigger && !seen.has(currentTrigger)) {
+                    seen.add(currentTrigger);
                     console.warn(`Trigger ${currentTrigger.id} has no associated tag or valid root trigger. Skipping.`);
                     const index = triggerList.indexOf(currentTrigger);
                     if (index !== -1) {
@@ -65,7 +77,9 @@ export class TriggerReader {
                 const trigger = {
                     id,
                     houseName: parts[0],
-                    attachedTriggerId: parts[1] !== '<none>' ? parts[1] : undefined,
+                    attachedTriggerId: parts[1].trim().toLocaleLowerCase("en-US") !== '<none>'
+                        ? parts[1].trim()
+                        : undefined,
                     attachedTrigger: undefined,
                     name: parts[2],
                     disabled: Boolean(Number(parts[3])),
@@ -74,6 +88,7 @@ export class TriggerReader {
                         medium: Boolean(Number(parts[5])),
                         hard: Boolean(Number(parts[6])),
                     },
+                    mustTransfer: Boolean(Number(parts[7])),
                     events: [],
                     actions: [],
                     tag: undefined,
@@ -151,7 +166,9 @@ export class TriggerReader {
                                     params[3] || '0',
                                     params[4] || '0',
                                     params[5] || '0',
-                                    params[6] ? this.readAZActionParam(params[6]) : 0,
+                                    params[6] || type === TriggerActionType.SetObjectTechLevel
+                                        ? this.readActionP7(params[6], type)
+                                        : 0,
                                 ],
                             };
                             actionList.push(action);
@@ -167,12 +184,36 @@ export class TriggerReader {
         }
         return { actions: actionMap, unknownActionTypes: unknownTypes };
     }
-    private readAZActionParam(param: string): number {
-        const zCode = 'Z'.charCodeAt(0);
-        const aCode = 'A'.charCodeAt(0);
-        const base = zCode - aCode + 1;
-        return param.length > 1
-            ? param.charCodeAt(1) - aCode + (param.charCodeAt(0) - aCode + 1) * base
-            : param.charCodeAt(0) - aCode;
+    private readActionP7(param: string | undefined, actionType: number): number {
+        const strict = actionType === TriggerActionType.SetObjectTechLevel;
+        const value = param?.trim() ?? "";
+        if (/^[+-]?\d+$/.test(value)) {
+            const numeric = Number(value);
+            if (Number.isSafeInteger(numeric) && (!strict || numeric >= -1)) {
+                return numeric;
+            }
+            if (strict) {
+                throw new Error(`Invalid P7 tech level: ${param}`);
+            }
+            return 0;
+        }
+        if (!/^[A-Z]+$/i.test(value)) {
+            if (strict) {
+                throw new Error(`Invalid P7 tech level: ${param}`);
+            }
+            return 0;
+        }
+        let column = 0;
+        for (const character of value.toUpperCase()) {
+            column = column * 26 + character.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+        }
+        const decoded = column - 1;
+        if (!Number.isSafeInteger(decoded)) {
+            if (strict) {
+                throw new Error(`Invalid P7 tech level: ${param}`);
+            }
+            return 0;
+        }
+        return decoded;
     }
 }

@@ -14,7 +14,21 @@ export class EnterBuildingTask extends Task {
         this.game = game;
         this.target = target;
     }
+    protected isTargetUnavailable(): boolean {
+        return !this.target ||
+            this.target.isDestroyed === true ||
+            this.target.isDisposed === true ||
+            this.target.warpedOutTrait?.isActive?.() === true;
+    }
+    private cancelForUnavailableTarget(): boolean {
+        this.children.forEach(child => child.cancel());
+        this.cancel();
+        return true;
+    }
     onTick(gameObject: any): boolean {
+        if (this.isTargetUnavailable()) {
+            return this.cancelForUnavailableTarget();
+        }
         if ((this.isCancelling() && (!this.movePerformed || this.children.length === 0)) ||
             this.aborted ||
             gameObject.moveTrait.isDisabled()) {

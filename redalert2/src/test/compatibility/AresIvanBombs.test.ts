@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { IniFile, IniSection } from "@/data/IniFile";
 import {
     parseAresIvanBombRules,
+    resolveAresIvanBombFrame,
     resolveAresIvanBombRules,
 } from "@/extensions/ares/AresIvanBombs";
 import { scanMentalOmegaIniSources } from "@/extensions/ares/AresCompatibilityScanner";
 import { WeaponRules } from "@/game/rules/WeaponRules";
 import { TntChargeTrait } from "@/game/gameobject/trait/TntChargeTrait";
 import { NotifySell } from "@/game/gameobject/trait/interface/NotifySell";
+import { TntFxPlugin } from "@/engine/renderable/entity/plugin/TntFxPlugin";
 
 describe("Ares customizable Ivan Bombs", () => {
     test("parses weapon-local overrides while retaining documented defaults", () => {
@@ -85,6 +87,111 @@ describe("Ares customizable Ivan Bombs", () => {
             detachable: true,
             detonateOnSell: true,
         });
+    });
+
+    test("resolves the complete image frame and flicker schedule", () => {
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 0,
+            plantingFrame: 0,
+            delay: 90,
+            imageFrames: 10,
+            flickerRate: 0,
+        })).toBe(0);
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 45,
+            plantingFrame: 0,
+            delay: 90,
+            imageFrames: 10,
+            flickerRate: 0,
+        })).toBe(4);
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 55,
+            plantingFrame: 10,
+            delay: 90,
+            imageFrames: 10,
+            flickerRate: 5,
+        })).toBe(5);
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 12,
+            plantingFrame: 0,
+            delay: 90,
+            imageFrames: 10,
+            flickerRate: 5,
+            deathBomb: true,
+        })).toBe(9);
+    });
+
+    test("handles zero delay, invalid images, and zero flicker safely", () => {
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 100,
+            plantingFrame: 100,
+            delay: 0,
+            imageFrames: 6,
+            flickerRate: 3,
+        })).toBe(0);
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 100,
+            plantingFrame: 0,
+            delay: 10,
+            imageFrames: 0,
+            flickerRate: 3,
+        })).toBe(0);
+        expect(resolveAresIvanBombFrame({
+            currentFrame: 100,
+            plantingFrame: 0,
+            delay: 10,
+            imageFrames: 6,
+            flickerRate: 0,
+        })).toBe(5);
+    });
+
+    test("drives the bomb animation from the complete image frame set", () => {
+        let active = true;
+        let frame = 0;
+        const requestedFrames: number[] = [];
+        let requestedImageFrames = 0;
+        const animObject = {};
+        const anim = {
+            setRenderOrder: () => undefined,
+            create3DObject: () => undefined,
+            get3DObject: () => animObject,
+            setFrame: (value: number) => requestedFrames.push(value),
+            dispose: () => undefined,
+        };
+        const renderableObject = {
+            add: () => undefined,
+            remove: () => undefined,
+        };
+        const trait = {
+            hasCharge: () => active,
+            getBombImageName: () => "CUSTOM",
+            getBombFrame: (imageFrames: number) => {
+                requestedImageFrames = imageFrames;
+                return frame;
+            },
+            getChargeOwner: () => ({}),
+            getTickingSound: () => "Tick",
+        };
+        const plugin = new TntFxPlugin(
+            { isDestroyed: false, isCrashing: false, rules: { leaveRubble: false }, owner: {} },
+            trait,
+            4,
+            { get3DObject: () => renderableObject },
+            { findByObjectArt: () => ({ numImages: 6 }) },
+            { hasObject: () => true, getObject: () => ({}) },
+            { haveSharedIntel: () => true },
+            { value: null },
+            { playEffect: () => ({ stop: () => undefined }) },
+            () => anim,
+        );
+        plugin.onCreate();
+        plugin.update(0);
+        frame = 5;
+        plugin.update(16);
+        active = false;
+        plugin.update(32);
+        expect(requestedImageFrames).toBe(6);
+        expect(requestedFrames).toEqual([0, 5]);
     });
 
     test("routes weapon-local bomb fields through WeaponRules", () => {

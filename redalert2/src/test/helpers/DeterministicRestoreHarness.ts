@@ -69,17 +69,33 @@ export interface WorldSeedOptions {
     attachAutomaticEffectId?: string;
 }
 
-const stubTiles = () => ({
-    getByMapCoords: () => undefined,
-    getPlaceholderTile: () => ({ rx: 0, ry: 0, z: 0, rampType: 0 }),
-});
-
 const stubTileOccupation = () => ({ getBridgeOnTile: () => undefined });
 
-function makeObject(index: number): GameObject {
+/** Deterministic on-grid tile set so world checkpoints have real cells. */
+const stubTileGrid = (width: number, height: number) => {
+    const tiles: any[] = [];
+    for (let rx = 0; rx < width; rx++) {
+        for (let ry = 0; ry < height; ry++) {
+            tiles.push({ rx, ry, z: 0, rampType: 0 });
+        }
+    }
+    return {
+        tiles,
+        getByMapCoords: (rx: number, ry: number) =>
+            tiles.find(tile => tile.rx === rx && tile.ry === ry),
+        getPlaceholderTile: (rx: number, ry: number) => ({ rx, ry, z: 0, rampType: 0 }),
+        getAll: () => tiles,
+    };
+};
+
+const HARNESS_MAP_WIDTH = 8;
+const HARNESS_MAP_HEIGHT = 8;
+
+function makeObject(index: number, owner: Player, tiles: any): GameObject {
     const object = new GameObject(0 as any, `q-${index}`, {} as any, {} as any);
     object.id = index + 1;
-    object.position = new ObjectPosition(stubTiles(), stubTileOccupation());
+    object.owner = owner;
+    object.position = new ObjectPosition(tiles, stubTileOccupation());
     return object;
 }
 
@@ -97,13 +113,27 @@ export function createQualifiedWorld(options: WorldSeedOptions): QualifiedWorld 
     const alliances = new Alliances(playerList);
 
     const objectCount = options.objectCount ?? 24;
+    const tiles = stubTileGrid(HARNESS_MAP_WIDTH, HARNESS_MAP_HEIGHT);
     for (let index = 0; index < objectCount; index++) {
-        world.spawnObject(makeObject(index));
+        const owner = players[index % players.length];
+        const object = makeObject(index, owner, tiles);
+        const tile = tiles.getByMapCoords(
+            index % HARNESS_MAP_WIDTH,
+            Math.floor(index / HARNESS_MAP_WIDTH) % HARNESS_MAP_HEIGHT,
+        );
+        // Match the production spawn path: the tile and sub-cell inputs are
+        // what derive the world position, so a fixture that skips the sub-cell
+        // would not be position-faithful.
+        object.position.tile = tile;
+        object.position.subCell = 0;
+        object.isSpawned = true;
+        owner.addOwnedObject(object);
+        world.spawnObject(object);
     }
 
     const game = new Game(
         world,
-        {},
+        { tiles, tileOccupation: stubTileOccupation() },
         {},
         {},
         {},

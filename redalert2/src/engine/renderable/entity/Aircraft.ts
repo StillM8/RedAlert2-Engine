@@ -12,6 +12,7 @@ import { BoxIntersectObject3D } from "@/engine/renderable/entity/BoxIntersectObj
 import { RotorHelper } from "@/engine/renderable/entity/unit/RotorHelper";
 import { ExtraLightHelper } from "@/engine/renderable/entity/unit/ExtraLightHelper";
 import { DebugRenderable } from "@/engine/renderable/DebugRenderable";
+import { AlphaRenderable } from "@/engine/renderable/AlphaRenderable";
 import * as THREE from 'three';
 interface GameObject {
     id: string;
@@ -22,6 +23,7 @@ interface GameObject {
         color: any;
     };
     tile: any;
+    tileElevation?: number;
     veteranLevel: VeteranLevel;
     invulnerableTrait: {
         isActive(): boolean;
@@ -40,6 +42,7 @@ interface GameObject {
     yaw: number;
     roll: number;
     isDestroyed: boolean;
+    deactivated?: boolean;
     deathType: DeathType;
     moveTrait: {
         velocity: THREE.Vector3;
@@ -147,7 +150,10 @@ export class Aircraft {
     private rotors?: THREE.Object3D[];
     private placeholder?: DebugRenderable;
     private renderableManager?: RenderableManager;
-    constructor(gameObject: GameObject, rules: Rules, voxels: Voxels, voxelAnims: VoxelAnims, palette: Palette, lighting: Lighting, debugFrame: DebugFrame, gameSpeed: GameSpeed, selectionModel: SelectionModel, vxlBuilderFactory: VxlBuilderFactory, useSpriteBatching: boolean, pipOverlay?: PipOverlay) {
+    private imageFinder?: any;
+    private camera?: any;
+    private alphaRenderable?: AlphaRenderable;
+    constructor(gameObject: GameObject, rules: Rules, voxels: Voxels, voxelAnims: VoxelAnims, palette: Palette, lighting: Lighting, debugFrame: DebugFrame, gameSpeed: GameSpeed, selectionModel: SelectionModel, vxlBuilderFactory: VxlBuilderFactory, useSpriteBatching: boolean, pipOverlay?: PipOverlay, imageFinder?: any, camera?: any) {
         this.gameObject = gameObject;
         this.rules = rules;
         this.voxels = voxels;
@@ -165,6 +171,8 @@ export class Aircraft {
         this.objectRules = gameObject.rules;
         this.objectArt = gameObject.art;
         this.label = "aircraft_" + this.objectRules.name;
+        this.imageFinder = imageFinder;
+        this.camera = camera;
         this.init();
     }
     private init(): void {
@@ -201,6 +209,30 @@ export class Aircraft {
         const override = this.plugins.reduce((result, plugin) => plugin.getUiNameOverride?.() ?? result, undefined as string | undefined);
         return override !== undefined ? override : this.gameObject.getUiName();
     }
+    private createAlphaImage(parent: THREE.Object3D): void {
+        const imageName = this.gameObject.rules.alphaImage;
+        if (!imageName) return;
+        const image = this.imageFinder?.tryFind?.(imageName, false);
+        if (!image) {
+            console.warn(`<${this.gameObject.name}>: Alpha image "${imageName}" not found`);
+            return;
+        }
+        this.alphaRenderable = new AlphaRenderable(image, this.camera, new THREE.Vector2(0, (Coords.ISO_TILE_SIZE + 1) / 2));
+        this.alphaRenderable.create3DObject();
+        const object = this.alphaRenderable.get3DObject();
+        if (object) parent.add(object);
+        this.updateAlphaImage();
+    }
+    private updateAlphaImage(): void {
+        this.alphaRenderable?.setFacing(this.gameObject.yaw);
+        this.alphaRenderable?.setVisible(
+            !this.gameObject.isDestroyed &&
+            !this.gameObject.deactivated &&
+            !this.gameObject.warpedOutTrait?.isActive?.() &&
+            !this.gameObject.cloakableTrait?.isCloaked?.() &&
+            (this.gameObject.zone === ZoneType.Air || (this.gameObject.tileElevation ?? 0) >= 0),
+        );
+    }
     create3DObject(): void {
         let obj = this.get3DObject();
         if (!obj) {
@@ -213,6 +245,7 @@ export class Aircraft {
             this.withPosition.matrixUpdate = true;
             this.withPosition.applyTo(this);
             this.createObjects(obj);
+            this.createAlphaImage(obj);
             this.vxlBuilders.forEach((builder) => builder.setExtraLight(this.extraLight));
             if (this.pipOverlay) {
                 this.pipOverlay.create3DObject();
@@ -242,6 +275,7 @@ export class Aircraft {
     }
     update(deltaTime: number): void {
         this.plugins.forEach((plugin) => plugin.update(deltaTime));
+        this.updateAlphaImage();
         this.pipOverlay?.update(deltaTime);
         if (this.gameObject.veteranLevel !== this.lastVeteranLevel) {
             if (this.gameObject.veteranLevel === VeteranLevel.Elite &&
@@ -401,6 +435,7 @@ export class Aircraft {
     }
     dispose(): void {
         this.plugins.forEach((plugin) => plugin.dispose());
+        this.alphaRenderable?.dispose();
         this.pipOverlay?.dispose();
         this.vxlBuilders.forEach((builder) => builder.dispose());
         this.placeholder?.dispose();

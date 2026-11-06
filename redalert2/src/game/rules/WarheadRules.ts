@@ -37,11 +37,19 @@ export class WarheadRules {
     public empDuration!: number;
     /** Ares EMP counter cap; -1 is the legacy set-unless-longer mode. */
     public empCap!: number;
+    public ironCurtainDuration!: number;
+    public ironCurtainCap!: number;
     public isLocomotor!: boolean;
     public infDeath!: InfDeathType;
+    public infDeathAnim?: string;
     public ivanBomb!: boolean;
     public makesDisguise!: boolean;
     public mindControl!: boolean;
+    public mindControlPermanent!: boolean;
+    public temporalWarpAway?: string;
+    public rippleRadius!: number;
+    public deployedDamage!: number;
+    public preImpactAnim?: string;
     public nukeMaker!: boolean;
     public paralyzes!: number;
     public parasite!: boolean;
@@ -106,11 +114,32 @@ export class WarheadRules {
         this.emEffect = this.rules.getBool("EMEffect");
         this.empDuration = Math.trunc(this.rules.getNumber("EMP.Duration"));
         this.empCap = Math.trunc(this.rules.getNumber("EMP.Cap", -1));
+        this.ironCurtainDuration = Math.trunc(this.rules.getNumber("IronCurtain.Duration"));
+        this.ironCurtainCap = Math.trunc(this.rules.getNumber("IronCurtain.Cap", -1));
         this.isLocomotor = this.rules.getBool("IsLocomotor");
         this.infDeath = this.rules.getEnumNumeric("InfDeath", InfDeathType, InfDeathType.None);
+        const infDeathAnim = (this.rules.getString("InfDeathAnim") ?? "").trim();
+        this.infDeathAnim = infDeathAnim && !/^(?:none|<none>)$/i.test(infDeathAnim)
+            ? infDeathAnim
+            : undefined;
         this.ivanBomb = this.rules.getBool("IvanBomb");
         this.makesDisguise = this.rules.getBool("MakesDisguise");
         this.mindControl = this.rules.getBool("MindControl");
+        this.mindControlPermanent = this.mindControl && this.rules.getBool("MindControl.Permanent");
+        const temporalWarpAway = (this.rules.getString("Temporal.WarpAway") ?? "").trim();
+        this.temporalWarpAway = temporalWarpAway && !/^(?:none|<none>)$/i.test(temporalWarpAway)
+            ? temporalWarpAway
+            : undefined;
+        this.rippleRadius = Math.trunc(this.rules.getNumber("Ripple.Radius"));
+        this.deployedDamage = this.rules.has("Deployed.Damage")
+            ? this.rules.getFixed("Deployed.Damage", 1)
+            : this.rules.getFixed("Damage.Deployed", 1);
+        const preImpactAnim = (this.rules.getString("PreImpactAnim") ?? "").trim();
+        this.preImpactAnim = preImpactAnim && !/^(?:none|<none>)$/i.test(preImpactAnim)
+            ? preImpactAnim
+            : !this.rules.has("PreImpactAnim") && this.name.toLocaleLowerCase("en-US") === "nuke"
+                ? "NUKEBALL"
+                : undefined;
         this.nukeMaker = this.rules.getBool("NukeMaker");
         this.paralyzes = this.rules.getNumber("Paralyzes");
         this.parasite = this.rules.getBool("Parasite");

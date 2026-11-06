@@ -12,7 +12,6 @@ import { LosHelper } from "@/game/gameobject/unit/LosHelper";
 import { MoveResult } from "@/game/gameobject/trait/MoveTrait";
 import { GameSpeed } from "@/game/GameSpeed";
 import { Coords } from "@/game/Coords";
-import { ObjectType } from "@/engine/type/ObjectType";
 import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { MovePositionHelper } from "@/game/gameobject/unit/MovePositionHelper";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
@@ -21,6 +20,7 @@ import { TaskStatus } from "@/game/gameobject/task/system/TaskStatus";
 import { MoveTask } from "@/game/gameobject/task/move/MoveTask";
 import { Vector3 } from "@/game/math/Vector3";
 import { Vector2 } from "@/game/math/Vector2";
+import { PrismSupportTrait } from "@/game/gameobject/trait/PrismSupportTrait";
 const MAX_MOVE_ATTEMPTS = 3;
 const FACING_TOLERANCE = 11.25;
 const FACING_TOLERANCE_PROJECTILE = 4 * FACING_TOLERANCE;
@@ -212,11 +212,8 @@ export class AttackTask extends Task {
         }
         obj.attackTrait.attackState = AttackState.Idle;
         obj.attackTrait.currentTarget = undefined;
-        const prismType = this.game.rules.general.prism.type;
-        if (obj.isBuilding() &&
-            obj.name === prismType &&
-            this.weapon.type !== WeaponType.Secondary) {
-            this.countSupportBeamsAndFireDownTowers(obj, prismType);
+        if (PrismSupportTrait.isPrismAttackWeapon(obj, this.weapon)) {
+            obj.prismSupportTrait?.cancelAttack();
         }
         if (this.weapon.rules.limboLaunch) {
             obj.attackTrait.expirePassiveScanCooldown();
@@ -319,12 +316,17 @@ export class AttackTask extends Task {
                 }
             }
             let damageMultiplier = 1;
-            const prismType = this.game.rules.general.prism.type;
-            if (obj.isBuilding() &&
-                obj.name === prismType &&
-                this.weapon.type !== WeaponType.Secondary) {
-                const supportCount = this.countSupportBeamsAndFireDownTowers(obj, prismType);
-                damageMultiplier = 1 + supportCount * this.game.rules.general.prism.supportModifier;
+            let damageBonus = 0;
+            let beamThicknessOffset = 0;
+            if (PrismSupportTrait.isPrismAttackWeapon(obj, this.weapon)) {
+                const composition = obj.prismSupportTrait?.completeAttack(this.game, this.target) ?? {
+                    damageMultiplier: 1,
+                    damageBonus: 0,
+                    beamThicknessOffset: 0,
+                };
+                damageMultiplier = composition.damageMultiplier;
+                damageBonus = composition.damageBonus;
+                beamThicknessOffset = composition.beamThicknessOffset;
             }
             if (this.weapon.rules.spawner &&
                 (obj.isVehicle() || obj.isAircraft()) &&
@@ -345,7 +347,9 @@ export class AttackTask extends Task {
                 obj.moveTrait.lastVelocity = undefined;
                 forcedMove = true;
             }
-            this.weapon.fire(this.target, this.game, damageMultiplier);
+            this.weapon.fire(this.target, this.game, damageMultiplier, damageBonus, {
+                beamThicknessOffset,
+            });
             if (forcedMove) {
                 return true;
             }
@@ -624,16 +628,16 @@ export class AttackTask extends Task {
             });
             return true;
         }
-        const prismType = this.game.rules.general.prism.type;
-        if (obj.isBuilding() &&
-            obj.name === prismType &&
-            this.weapon.type !== WeaponType.Secondary) {
-            this.fireUpPrismSupportTowers(obj, prismType);
+        const prismPlan = PrismSupportTrait.isPrismAttackWeapon(obj, this.weapon)
+            ? obj.prismSupportTrait?.prepareAttack(this.game, this.target)
+            : undefined;
+        if (prismPlan && !prismPlan.ready) {
+            return false;
         }
         if (obj.isInfantry() || obj.isVehicle()) {
             obj.isFiring = true;
         }
-        if (obj.art.fireUp) {
+        if (obj.art.fireUp && !prismPlan?.handlesFireUp) {
             this.children.push(new WaitTicksTask(obj.art.fireUp).setCancellable(false));
             attackTrait.attackState = AttackState.FireUp;
             return false;
@@ -651,30 +655,6 @@ export class AttackTask extends Task {
                     (target.warpedOutTrait.isInvulnerable() &&
                         !this.weapon.warhead.rules.temporal) ||
                     this.initialTargetOwner !== target.owner)));
-    }
-    private fireUpPrismSupportTowers(obj: any, prismType: string): void {
-        const supportTowers = obj.owner
-            .getOwnedObjectsByType(ObjectType.Building)
-            .filter((building: any) => building.name === prismType &&
-            building.secondaryWeapon &&
-            !building.unitOrderTrait.hasTasks() &&
-            building.attackTrait &&
-            !building.attackTrait.isDisabled() &&
-            !building.attackTrait.isOnCooldown(building))
-            .filter((building: any) => this.rangeHelper.isInWeaponRange(building, obj, building.secondaryWeapon, this.game.rules))
-            .slice(0, this.game.rules.general.prism.supportMax);
-        for (const tower of supportTowers) {
-            tower.unitOrderTrait.addTask(tower.attackTrait.createAttackTask(this.game, obj, obj.centerTile, tower.secondaryWeapon, { passive: true }));
-        }
-    }
-    private countSupportBeamsAndFireDownTowers(obj: any, prismType: string): number {
-        const supportingTowers = obj.owner
-            .getOwnedObjectsByType(ObjectType.Building)
-            .filter((building: any) => building.name === prismType && building.attackTrait?.currentTarget?.obj === obj);
-        for (const tower of supportingTowers) {
-            tower.unitOrderTrait.getCurrentTask()?.cancel();
-        }
-        return Math.min(this.game.rules.general.prism.supportMax, supportingTowers.length);
     }
     getTargetLinesConfig(): TargetLinesConfig {
         return this.targetLinesConfig;

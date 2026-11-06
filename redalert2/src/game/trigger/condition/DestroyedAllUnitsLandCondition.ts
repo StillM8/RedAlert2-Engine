@@ -1,40 +1,35 @@
 import { ObjectType } from "@/engine/type/ObjectType";
 import { EventType } from "@/game/event/EventType";
+import { resolveHousePlayer } from "@/game/trigger/HouseReference";
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class DestroyedAllUnitsLandCondition extends TriggerCondition {
-    private allDestroyed: boolean;
-    private houseId: number;
-    constructor(params: any, context: any) {
-        super(params, context);
-        this.allDestroyed = false;
-        this.houseId = Number(params[1]);
+    private allDestroyed = false;
+    private readonly houseReference: unknown;
+
+    constructor(event: any, trigger: any) {
+        super(event, trigger);
+        this.houseReference = event.params[1];
     }
-    check(events: any, eventList: any[]): boolean {
+
+    check(context: any, events: any[]): boolean {
         if (this.allDestroyed) {
             return true;
         }
-        const hasDestroyedAll = eventList.some((event) => {
-            if (event.type !== EventType.ObjectDestroy) {
+        const owner = resolveHousePlayer(context, this.houseReference);
+        if (!owner) {
+            return false;
+        }
+        this.allDestroyed = events.some((event) => {
+            if (event.type !== EventType.ObjectDestroy ||
+                !event.target.isUnit() ||
+                event.target.owner !== owner) {
                 return false;
             }
-            const target = event.target;
-            if (!target.isUnit() || target.owner.country?.id !== this.houseId) {
-                return false;
-            }
-            return !this.hasLandUnitsLeft(target.owner);
+            return [ObjectType.Vehicle, ObjectType.Infantry].every((type) =>
+                owner.getOwnedObjectsByType(type, true)
+                    .every((unit: any) => unit.rules.naval));
         });
-        if (hasDestroyedAll) {
-            this.allDestroyed = true;
-        }
-        return hasDestroyedAll;
-    }
-    private hasLandUnitsLeft(owner: any): boolean {
-        for (const type of [ObjectType.Vehicle, ObjectType.Infantry]) {
-            const units = owner.getOwnedObjectsByType(type, true).filter((unit: any) => !unit.rules.naval);
-            if (units.length > 0) {
-                return true;
-            }
-        }
-        return false;
+        return this.allDestroyed;
     }
 }

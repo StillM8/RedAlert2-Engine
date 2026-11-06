@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { FlhCoords } from "@/game/art/FlhCoords";
 import { IniSection } from "@/data/IniSection";
 import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
-import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
+import {
+    AresAttachEffectTrait,
+    isAresTechnoDeactivated,
+} from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { NotifySpawn } from "@/game/gameobject/trait/interface/NotifySpawn";
 import { NotifyUnspawn } from "@/game/gameobject/trait/interface/NotifyUnspawn";
 import { Vector3 } from "@/game/math/Vector3";
@@ -16,6 +19,111 @@ function definition(values: Record<string, string> = {}) {
 }
 
 describe("Ares AttachEffect lifecycle seams", () => {
+    test("derives deactivation from EMP, operator, and powered shutdown traits", () => {
+        const shutdownObjects = [
+            { empTrait: { isUnderEMP: () => true } },
+            { operatorTrait: { isOffline: () => true } },
+            { aresPoweredByTrait: { isOffline: () => true } },
+            { robotControlTrait: { isOffline: () => true } },
+        ];
+        for (const gameObject of shutdownObjects) {
+            expect(isAresTechnoDeactivated(gameObject)).toBe(true);
+        }
+        expect(isAresTechnoDeactivated({
+            empTrait: { isUnderEMP: () => true, isDeactivated: () => false },
+        })).toBe(false);
+        expect(isAresTechnoDeactivated({ moveTrait: { isDisabled: () => true } })).toBe(false);
+    });
+
+    test("does not initially attach an automatic effect while deactivated", () => {
+        let offline = true;
+        const gameObject: any = { operatorTrait: { isOffline: () => offline } };
+        const trait = new AresAttachEffectTrait({
+            gameObject,
+            automaticEffect: {
+                effectId: "owned-effect",
+                definition: definition({ "AttachEffect.Duration": "10" }),
+            },
+        });
+
+        expect(trait.spawn()).toBeUndefined();
+        expect(trait.getState()).toEqual([]);
+        expect(trait.getAutomaticSchedule()).toEqual({
+            phase: "waiting-initial",
+            remainingDelay: 0,
+        });
+
+        offline = false;
+        expect(trait.advance().automaticApply?.decision).toBe("applied");
+    });
+
+    test("expires only the automatic effect while EMP-deactivated and withholds renewal", () => {
+        let underEMP = false;
+        const gameObject: any = { empTrait: { isUnderEMP: () => underEMP } };
+        const trait = new AresAttachEffectTrait({
+            gameObject,
+            automaticEffect: {
+                effectId: "owned-effect",
+                definition: definition({
+                    "AttachEffect.Duration": "10",
+                    "AttachEffect.Delay": "2",
+                }),
+            },
+        });
+        trait.spawn();
+        trait.apply("warhead-effect", definition({ "AttachEffect.Duration": "10" }), {
+            origin: { kind: "warhead", ownerName: "Burn" },
+        });
+
+        underEMP = true;
+        expect(trait.advance()).toMatchObject({
+            expiredEffectIds: ["owned-effect"],
+            automaticApply: undefined,
+            instances: [{ effectId: "warhead-effect", remainingFrames: 9, discardOnEntry: false }],
+        });
+        expect(trait.getAutomaticSchedule()).toEqual({
+            phase: "waiting-renewal",
+            remainingDelay: 1,
+        });
+        expect(trait.advance().automaticApply).toBeUndefined();
+        expect(trait.getAutomaticSchedule().remainingDelay).toBe(0);
+        expect(trait.advance().automaticApply).toBeUndefined();
+
+        underEMP = false;
+        expect(trait.advance().automaticApply?.decision).toBe("applied");
+        expect(trait.getState()).toEqual([
+            { effectId: "warhead-effect", remainingFrames: 6, discardOnEntry: false },
+            { effectId: "owned-effect", remainingFrames: 10, discardOnEntry: false },
+        ]);
+    });
+
+    test("withholds automatic renewal for operator and powered shutdown", () => {
+        const shutdownObjects = [
+            { trait: "operatorTrait" },
+            { trait: "aresPoweredByTrait" },
+            { trait: "robotControlTrait" },
+        ];
+        for (const shutdown of shutdownObjects) {
+            let offline = false;
+            const gameObject: any = { [shutdown.trait]: { isOffline: () => offline } };
+            const trait = new AresAttachEffectTrait({
+                gameObject,
+                automaticEffect: {
+                    effectId: "owned-effect",
+                    definition: definition({ "AttachEffect.Duration": "10" }),
+                },
+            });
+            trait.spawn();
+            offline = true;
+            expect(trait.advance()).toMatchObject({
+                expiredEffectIds: ["owned-effect"],
+                automaticApply: undefined,
+                instances: [],
+            });
+            expect(trait.advance().automaticApply).toBeUndefined();
+        }
+    });
+
     test("preserves InitialDelay across transport limbo and re-entry", () => {
         const trait = new AresAttachEffectTrait({
             automaticEffect: {

@@ -129,6 +129,9 @@ export class SoundHandler {
             case EventType.AresIvanBombAttach:
                 this.handleAresIvanBombAttachSound(event);
                 break;
+            case EventType.PrismSupportBeam:
+                this.handlePrismSupportBeamSound(event);
+                break;
             case EventType.AresBountyAward:
                 this.handleAresBountyAwardEvent(event);
                 break;
@@ -138,6 +141,14 @@ export class SoundHandler {
                 // through the side-appropriate EVA voice table.
                 if (event.soundId) {
                     this.eva.play(event.soundId);
+                }
+                break;
+            case EventType.TriggerSoundFx:
+                if (event.soundId && event.tile) {
+                    this.worldSound.playEffect(
+                        event.soundId,
+                        Coords.tile3dToWorld(event.tile.rx, event.tile.ry, event.tile.z ?? 0),
+                    );
                 }
                 break;
             case EventType.InflictDamage:
@@ -297,6 +308,11 @@ export class SoundHandler {
             event.target.position.worldPosition,
             event.player,
         );
+    }
+    private handlePrismSupportBeamSound(event: any): void {
+        const soundName = event.profile?.report?.[0];
+        if (!soundName || !event.source?.position?.worldPosition) return;
+        this.worldSound.playEffect(soundName, event.source, event.source.owner);
     }
     /** Stop looping weapon reports whose shooter is gone or disengaged. */
     private updateWeaponLoops(): void {

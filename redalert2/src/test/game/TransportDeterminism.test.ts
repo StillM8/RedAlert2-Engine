@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { TransportTrait } from "@/game/gameobject/trait/TransportTrait";
 import { NotifyDestroy } from "@/game/gameobject/trait/interface/NotifyDestroy";
+import { ParadropTask } from "@/game/gameobject/task/ParadropTask";
+import { StanceType } from "@/game/gameobject/infantry/StanceType";
 
 function makeTransport() {
     return new TransportTrait({ id: 1, rules: { passengers: 8 } } as any);
@@ -92,6 +94,58 @@ describe("transport canonical lifecycle state", () => {
         } as any);
         expect(destructionPasses).toBe(0);
         expect(trait.units).toEqual([]);
+    });
+
+    test("drops passengers with type-appropriate landing cells when an aircraft fires", () => {
+        const transport = {
+            id: 50,
+            rules: { passengers: 4 },
+            tile: { rx: 2, ry: 3, onBridgeLandType: false },
+            tileElevation: 6,
+            position: { tileElevation: 6 },
+            isAircraft: () => true,
+        } as any;
+        const tasks: any[] = [];
+        const events: any[] = [];
+        const makePassenger = (id: number, infantry: boolean) => ({
+            id,
+            name: infantry ? "Rifle" : "Tank",
+            isDestroyed: false,
+            isDisposed: false,
+            isSpawned: false,
+            limboData: {},
+            isInfantry: () => infantry,
+            position: { tile: undefined, tileElevation: 0, subCell: 0 },
+            unitOrderTrait: {
+                cancelAllTasks: () => undefined,
+                addTask: (task: any) => tasks.push(task),
+            },
+        });
+        const rifle = makePassenger(51, true);
+        const tank = makePassenger(52, false);
+        const trait = new TransportTrait(transport);
+        trait.units = [rifle, tank];
+        const world = {
+            map: {
+                getGroundObjectsOnTile: () => [{ isInfantry: () => true, position: { subCell: 2 } }],
+            },
+            unlimboObject: (object: any, tile: any) => {
+                object.isSpawned = true;
+                object.limboData = undefined;
+                object.position.tile = tile;
+            },
+            events: { dispatch: (event: any) => events.push(event) },
+        } as any;
+
+        trait.dropPassengersForWeaponFire(transport, world);
+
+        expect(trait.units).toEqual([]);
+        expect(rifle.position.subCell).toBe(4);
+        expect(rifle.stance).toBe(StanceType.Paradrop);
+        expect(tank.position.subCell).toBe(0);
+        expect(tasks).toHaveLength(2);
+        expect(tasks.every(task => task instanceof ParadropTask)).toBe(true);
+        expect(events).toHaveLength(1);
     });
 
     test("rejects resolver identity mismatches transactionally", () => {

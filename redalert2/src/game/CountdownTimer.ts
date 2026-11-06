@@ -22,10 +22,14 @@ export class CountdownTimer {
         this.ticks = Math.max(0, this.ticks + Math.floor(GameSpeed.BASE_TICKS_PER_SECOND * seconds));
     }
     start(): void {
-        this.running = true;
+        if (!this.running) {
+            this.running = true;
+        }
     }
     stop(): void {
-        this.running = false;
+        if (this.running) {
+            this.running = false;
+        }
     }
     isRunning(): boolean {
         return this.running;

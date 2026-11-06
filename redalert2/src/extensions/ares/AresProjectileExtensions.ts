@@ -21,6 +21,57 @@ export interface AresCellOffset {
     y: number;
 }
 
+export function traceAresWaveCells(
+    start: { x: number; z: number },
+    end: { x: number; z: number },
+    tileSize: number = 256,
+): AresCellOffset[] {
+    if (![start.x, start.z, end.x, end.z].every(Number.isFinite)) return [];
+    const size = Number.isFinite(tileSize) && tileSize > 0 ? tileSize : 256;
+    let x = Math.floor(start.x / size);
+    let y = Math.floor(start.z / size);
+    const endX = Math.floor(end.x / size);
+    const endY = Math.floor(end.z / size);
+    const dx = end.x - start.x;
+    const dz = end.z - start.z;
+    const stepX = dx > 0 ? 1 : -1;
+    const stepY = dz > 0 ? 1 : -1;
+    const nextBoundaryX = (dx > 0 ? x + 1 : x) * size;
+    const nextBoundaryY = (dz > 0 ? y + 1 : y) * size;
+    let tMaxX = dx === 0 ? Number.POSITIVE_INFINITY : (nextBoundaryX - start.x) / dx;
+    let tMaxY = dz === 0 ? Number.POSITIVE_INFINITY : (nextBoundaryY - start.z) / dz;
+    const tDeltaX = dx === 0 ? Number.POSITIVE_INFINITY : size / Math.abs(dx);
+    const tDeltaY = dz === 0 ? Number.POSITIVE_INFINITY : size / Math.abs(dz);
+    const cells: AresCellOffset[] = [{ x, y }];
+    const epsilon = 1e-12;
+    while (x !== endX || y !== endY) {
+        if (x === endX) {
+            y += stepY;
+            tMaxY += tDeltaY;
+        }
+        else if (y === endY) {
+            x += stepX;
+            tMaxX += tDeltaX;
+        }
+        else if (tMaxX < tMaxY - epsilon) {
+            x += stepX;
+            tMaxX += tDeltaX;
+        }
+        else if (tMaxY < tMaxX - epsilon) {
+            y += stepY;
+            tMaxY += tDeltaY;
+        }
+        else {
+            x += stepX;
+            y += stepY;
+            tMaxX += tDeltaX;
+            tMaxY += tDeltaY;
+        }
+        cells.push({ x, y });
+    }
+    return cells;
+}
+
 export interface AresProjectileAnimationFrameInput {
     direction: number;
     rotates: boolean;

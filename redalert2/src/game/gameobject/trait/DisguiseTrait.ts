@@ -17,6 +17,34 @@ export class DisguiseTrait {
         this.isActive = false;
         this.cooldownTicks = 0;
     }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            active: this.isActive,
+            cooldownTicks: this.cooldownTicks,
+            disguiseName: this.disguisedAs?.rules?.name ?? null,
+            disguiseType: this.disguisedAs?.rules?.type ?? null,
+            ownerIndex: this.disguisedAs?.owner?.playerListIndex ?? null,
+        };
+    }
+    restoreState(state: any, context: { resolveRules?: (name: string, type: ObjectType) => any; resolvePlayerByIndex?: (index: number) => any; strict?: boolean } = {}): void {
+        if (!state || state.version !== 1 || typeof state.active !== "boolean" ||
+            !Number.isSafeInteger(state.cooldownTicks) || state.cooldownTicks < 0) {
+            throw new Error("Invalid disguise state");
+        }
+        this.isActive = state.active;
+        this.cooldownTicks = state.cooldownTicks;
+        if (state.disguiseName === null) {
+            this.disguisedAs = undefined;
+            return;
+        }
+        const rules = context.resolveRules?.(state.disguiseName, state.disguiseType);
+        const owner = state.ownerIndex === null ? undefined : context.resolvePlayerByIndex?.(state.ownerIndex);
+        if ((!rules || (state.ownerIndex !== null && !owner)) && context.strict) {
+            throw new Error("Cannot restore disguise: unresolved");
+        }
+        this.disguisedAs = rules ? { rules, owner } : undefined;
+    }
     isDisguised(): boolean {
         return this.isActive;
     }

@@ -31,6 +31,7 @@ import * as AlphaRenderable from "@/engine/renderable/AlphaRenderable";
 import * as DebugRenderable from "@/engine/renderable/DebugRenderable";
 import * as MathUtils from "@/engine/gfx/MathUtils";
 import * as THREE from "three";
+import { getLaserFenceArtFrame } from "@/extensions/ares/AresLaserFences";
 const d = ShpBuilder;
 const p = DamageType;
 const A = AnimationType;
@@ -150,6 +151,7 @@ export class Building {
     plugins: any[];
     objectArt: any;
     objectRules: any;
+    alphaRenderable?: any;
     type: any;
     paletteRemaps: any;
     lastOwnerColor: any;
@@ -193,6 +195,7 @@ export class Building {
     lastOccupiedState: any;
     lastHealth: any;
     lastWallType: any;
+    lastLaserFenceFrame: any;
     lastOverpowered: any;
     renderableManager: any;
     ambientSound: any;
@@ -319,8 +322,11 @@ export class Building {
             if (e) {
                 var i = this.imageFinder.tryFind(e, false);
                 if (i) {
-                    let e = new o.AlphaRenderable(i, this.camera, new THREE.Vector2(0, (g.Coords.ISO_TILE_SIZE + 1) / 2));
-                    e.create3DObject(), t.add(e.get3DObject());
+                    const alphaRenderable = this.alphaRenderable = new o.AlphaRenderable(i, this.camera, new THREE.Vector2(0, (g.Coords.ISO_TILE_SIZE + 1) / 2));
+                    alphaRenderable.create3DObject();
+                    const alphaObject = alphaRenderable.get3DObject();
+                    if (alphaObject) t.add(alphaObject);
+                    this.updateAlphaImageVisibility();
                 }
                 else
                     console.warn(`<${this.objectRules.name}>: Alpha image "${e}" not found`);
@@ -417,7 +423,18 @@ export class Building {
         this.plugins.some((e) => e.shouldDisableHighlight?.()) ||
             this.highlightAnimRunner.animate(2);
     }
+    private updateAlphaImageVisibility(): void {
+        this.alphaRenderable?.setVisible(
+            !this.gameObject.isDestroyed &&
+            !this.gameObject.deactivated &&
+            !this.gameObject.warpedOutTrait?.isActive?.() &&
+            !this.gameObject.cloakableTrait?.isCloaked?.() &&
+            this.gameObject.poweredTrait?.isPoweredOn?.() !== false &&
+            (this.gameObject.position?.tileElevation ?? 0) >= 0,
+        );
+    }
     update(i) {
+        this.updateAlphaImageVisibility();
         if (!this.objectRules.isLightpost) {
             this.gameObject.isDestroyed ||
                 void 0 !== this.currentAnimType ||
@@ -608,7 +625,8 @@ export class Building {
                         -1 !== this.gameObject.rules.techLevel)) &&
                     !n);
             var h, u, c = (this.gameObject.wallTrait?.wallType !==
-                this.lastWallType) as any, d = void 0 === this.lastOccupiedState ||
+                this.lastWallType || (this.objectRules.laserFence &&
+                this.gameObject.laserFenceFrame !== this.lastLaserFenceFrame)) as any, d = void 0 === this.lastOccupiedState ||
                 this.lastOccupiedState !==
                     !!this.gameObject.garrisonTrait?.isOccupied(), g = void 0 === this.lastHealth ||
                 this.lastHealth !== this.gameObject.healthTrait.health;
@@ -619,6 +637,7 @@ export class Building {
                         !!this.gameObject.garrisonTrait?.isOccupied()),
                     (this.lastHealth = this.gameObject.healthTrait.health),
                     (this.lastWallType = this.gameObject.wallTrait?.wallType),
+                    (this.lastLaserFenceFrame = this.gameObject.laserFenceFrame),
                     (c || d || g) && this.updateImage(h),
                     g &&
                         h === p.DamageType.DESTROYED &&
@@ -716,9 +735,11 @@ export class Building {
                 this.rubbleObj &&
                 (this.rubbleObj.get3DObject().visible = true),
                 this.mainObj && (this.mainObj.get3DObject().visible = false))
-            : this.gameObject.wallTrait
-                ? this.updateWallImage(this.gameObject.wallTrait.wallType, o)
-                : this.updateMainObjFrame(!!this.gameObject.garrisonTrait?.isOccupied(), o),
+            : this.objectRules.laserFence
+                ? this.updateLaserFenceImage()
+                : this.gameObject.wallTrait
+                    ? this.updateWallImage(this.gameObject.wallTrait.wallType, o)
+                    : this.updateMainObjFrame(!!this.gameObject.garrisonTrait?.isOccupied(), o),
             this.bib &&
                 (l && (this.bib.get3DObject().visible = false),
                     this.bib.setFrame(o !== p.DamageType.NORMAL ? 1 : 0)),
@@ -770,6 +791,13 @@ export class Building {
                     ? 1
                     : r.wallTypes.length),
                 this.mainObj.setFrame(e + t * i));
+    }
+    updateLaserFenceImage() {
+        this.mainObj && this.mainShpFile && this.mainObj.setFrame(getLaserFenceArtFrame(
+            this.gameObject.laserFenceConnectionMask ?? 0,
+            this.gameObject.laserFenceActive === true,
+            this.shpFrameInfos.get(this.mainShpFile).frameCount,
+        ));
     }
     createObjects(t) {
         var e = this.objectArt.foundation;
@@ -1346,7 +1374,9 @@ export class Building {
     }
     dispose() {
         this.plugins.forEach((e) => e.dispose()),
-            this.pipOverlay?.dispose(),
+        this.alphaRenderable?.dispose(),
+        this.pipOverlay?.dispose(),
+
             this.placeholderObj?.dispose(),
             this.mainObj?.dispose(),
             this.rubbleObj?.dispose(),

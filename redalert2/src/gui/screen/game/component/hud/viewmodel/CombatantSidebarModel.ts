@@ -4,7 +4,7 @@ import { ObjectType } from "@/engine/type/ObjectType";
 import { DockTrait } from "@/game/gameobject/trait/DockTrait";
 import { SidebarModel, SidebarItemTargetType, SidebarItemStatus, SidebarCategory } from "./SidebarModel";
 import { SuperWeapon, SuperWeaponStatus } from "@/game/SuperWeapon";
-import { normalizeAresPcxCameos, resolveAresSidebarCameo, resolveAresTechnoCameo } from "@/extensions/ares/AresPcxCameos";
+import { ARES_DEFAULT_CAMEO_PALETTE, normalizeAresPcxCameos, resolveAresSidebarCameo, resolveAresTechnoCameo } from "@/extensions/ares/AresPcxCameos";
 import {
     isAresSuperWeaponCameoVisible,
     resolveAresSuperWeaponOverlayText,
@@ -16,6 +16,7 @@ type SidebarTechnoItem = {
     };
     cameo: any;
     cameoPcx?: string;
+    cameoPalette: string;
     disabled: boolean;
     progress: number;
     quantity: number;
@@ -28,6 +29,7 @@ type SidebarSpecialItem = {
     };
     cameo: any;
     cameoPcx?: string;
+    cameoPalette: string;
     disabled: boolean;
     progress: number;
     quantity: number;
@@ -84,6 +86,7 @@ export class CombatantSidebarModel extends SidebarModel {
                 },
                 cameo: promoted ? objRules.altCameo : objRules.cameo,
                 cameoPcx: cameoResolution.source === "pcx" ? cameoResolution.assetName : undefined,
+                cameoPalette: objRules.cameoPalette ?? ARES_DEFAULT_CAMEO_PALETTE,
                 disabled: false,
                 progress: 0,
                 quantity: 0,
@@ -154,6 +157,9 @@ export class CombatantSidebarModel extends SidebarModel {
                         rules: sw.rules,
                     },
                     cameo: sw.rules.sidebarImage,
+                    cameoPalette: sw.rules.sidebarPalette ??
+                        sw.rules.ares?.sidebarPalette ??
+                        ARES_DEFAULT_CAMEO_PALETTE,
                     cameoPcx: (() => {
                         const resolution = resolveAresSidebarCameo(normalizeAresPcxCameos({
                             sidebarPcx: sw.rules.sidebarPcx ?? sw.rules.ares?.sidebarPcx,
@@ -194,15 +200,12 @@ export class CombatantSidebarModel extends SidebarModel {
         const buildings = [...this.player.buildings];
         let buildLimitReached = false;
         if (Number.isFinite(rules.buildLimit)) {
-            let builtCount: number;
-            if (rules.buildLimit >= 0) {
-                builtCount = (rules.type === ObjectType.Building
-                    ? buildings
-                    : this.player.getOwnedObjectsByType(rules.type, true)).filter((o: any) => o.name === rules.name).length;
-            }
-            else {
-                builtCount = this.player.getLimitedUnitsBuilt(rules.name);
-            }
+            const builtCount = rules.buildLimit >= 0
+                ? this.player.getBuildLimitCount?.(rules) ??
+                    (rules.type === ObjectType.Building
+                        ? buildings
+                        : this.player.getOwnedObjectsByType(rules.type, true)).filter((o: any) => o.name === rules.name).length
+                : this.player.getLimitedUnitsBuilt(rules.name);
             buildLimitReached = builtCount >= Math.abs(rules.buildLimit);
         }
         if (this.rules.general.padAircraft.includes(rules.name)) {

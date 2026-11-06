@@ -20,6 +20,17 @@ export class DeployOrder extends Order {
         this.targetOptional = !targeted;
         this.singleSelectionRequired = targeted;
     }
+    captureState(): Record<string, unknown> {
+        return { targeted: this.targeted };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || typeof (state as any).targeted !== "boolean") {
+            throw new Error("Invalid deploy order state");
+        }
+        this.targeted = (state as any).targeted;
+        this.targetOptional = !this.targeted;
+        this.singleSelectionRequired = this.targeted;
+    }
     getPointerType = (): PointerType => {
         return this.isAllowed() ? PointerType.Deploy : PointerType.NoDeploy;
     };

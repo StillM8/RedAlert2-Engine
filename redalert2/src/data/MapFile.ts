@@ -25,6 +25,30 @@ type Waypoint = {
     rx: number;
     ry: number;
 };
+export interface MapFileHouse {
+    index: number;
+    name: string;
+    sectionName: string;
+    country?: string;
+    actsLike?: number;
+    credits?: number;
+    techLevel?: number;
+    iq?: number;
+    edge?: string;
+    playerControl: boolean;
+    color?: string;
+    allies: string[];
+    percentBuilt?: number;
+    nodeCount?: number;
+    homeCell?: number;
+    altHomeCell?: number;
+    startCell?: number;
+    startPos?: number;
+    fixedAlliance?: boolean;
+    section?: any;
+}
+export interface MapFileWaypoint extends Waypoint {
+}
 export class MapFile extends IniFile {
     static artSectionPrefix = "ART";
     declare fullSize: {
@@ -41,6 +65,20 @@ export class MapFile extends IniFile {
     };
     declare theaterType: TheaterType;
     declare iniFormat: number;
+    declare player: string;
+    declare homeCell: number | undefined;
+    declare altHomeCell: number | undefined;
+    declare theme: string;
+    declare nextScenario: string;
+    declare altNextScenario: string;
+    declare endOfGame: boolean;
+    declare skipScore: boolean;
+    declare oneTimeOnly: boolean;
+    declare ignoreGlobalAITriggers: boolean;
+    declare isCampaign: boolean;
+    declare houses: MapFileHouse[];
+    declare houseSections: Map<string, MapFileHouse>;
+    declare startingLocationsByWaypoint: Map<number, { x: number; y: number }>;
     declare tiles: MapTile[];
     declare maxTileNum: number;
     declare waypoints: Waypoint[];
@@ -66,8 +104,40 @@ export class MapFile extends IniFile {
     }[];
     declare specialFlags: SpecialFlags;
     declare artOverrides?: IniFile;
+    get newINIFormat(): number {
+        return this.iniFormat;
+    }
+    get newIniFormat(): number {
+        return this.iniFormat;
+    }
+    getHomeLocation(useAlternate: boolean = false): { x: number; y: number } | undefined {
+        const waypoint = useAlternate ? this.altHomeCell : this.homeCell;
+        if (waypoint === undefined || waypoint < 0) {
+            return undefined;
+        }
+        return this.startingLocationsByWaypoint?.get(waypoint) ??
+            this.startingLocations?.[waypoint] ??
+            (() => {
+                const entry = this.waypoints?.find((candidate) => candidate.number === waypoint);
+                return entry ? { x: entry.rx, y: entry.ry } : undefined;
+            })();
+    }
+    getWaypointLocation(waypointNumber: number): { x: number; y: number } | undefined {
+        return this.startingLocationsByWaypoint?.get(waypointNumber) ??
+            (() => {
+                const entry = this.waypoints?.find((candidate) => candidate.number === waypointNumber);
+                return entry ? { x: entry.rx, y: entry.ry } : undefined;
+            })();
+    }
+    getHouse(name: string): MapFileHouse | undefined {
+        const normalized = this.normalizeIniEntryValue(name).trim().toLocaleLowerCase("en-US");
+        return (this.houses ?? []).find((house) =>
+            house.name.toLocaleLowerCase("en-US") === normalized ||
+            house.sectionName.toLocaleLowerCase("en-US") === normalized);
+    }
     fromString(iniString: string) {
         super.fromString(iniString);
+        this.readCampaignMetadata();
         const mapSection = this.getSection("Map");
         if (!mapSection) {
             throw new Error("[Map] section not found");
@@ -90,10 +160,12 @@ export class MapFile extends IniFile {
         if (this.theaterType === TheaterType.None) {
             throw new Error(`Unsupported theater type "${mapSection.getString("Theater")}"`);
         }
-        const basicSection = this.getSection("Basic");
-        this.iniFormat = basicSection?.getNumber("NewINIFormat") ?? 0;
         this.readTiles();
         this.readWaypoints(this.getOrCreateSection("Waypoints"));
+        this.startingLocationsByWaypoint = new Map(this.waypoints.map((waypoint) => [
+            waypoint.number,
+            { x: waypoint.rx, y: waypoint.ry },
+        ]));
         this.readStructures(this.getOrCreateSection("Structures"));
         this.readVehicles();
         this.readInfantries();
@@ -107,6 +179,7 @@ export class MapFile extends IniFile {
         this.readVariableNames();
         this.startingLocations = this.readStartingLocations(this.waypoints);
         this.specialFlags = new SpecialFlags().read(this.getOrCreateSection("SpecialFlags"));
+        this.readCampaignMetadata();
         return this;
     }
     fromJson(i: any) {
@@ -114,13 +187,109 @@ export class MapFile extends IniFile {
             let { [MapFile.artSectionPrefix]: e, ...t } = i;
             (this.artOverrides = new IniFile(e)), (i = t);
         }
-        return super.fromJson(i);
+        super.fromJson(i);
+        this.readCampaignMetadata();
+        return this;
+    }
+    private readCampaignMetadata(): void {
+        if (!this.waypoints) {
+            const waypointSection = this.getSection("Waypoints");
+            if (waypointSection) {
+                this.readWaypoints(waypointSection);
+            }
+        }
+        const basic = this.getSection("Basic");
+        this.iniFormat = basic?.getNumber("NewINIFormat", 0) ?? 0;
+        this.player = basic?.getString("Player", "").trim() ?? "";
+        this.homeCell = this.readOptionalNumber(basic, "HomeCell");
+        this.altHomeCell = this.readOptionalNumber(basic, "AltHomeCell");
+        this.theme = basic?.getString("Theme", "").trim() ?? "";
+        this.nextScenario = basic?.getString("NextScenario", "").trim() ?? "";
+        this.altNextScenario = basic?.getString("AltNextScenario", "").trim() ?? "";
+        this.endOfGame = basic?.getBool("EndOfGame", false) ?? false;
+        this.skipScore = basic?.getBool("SkipScore", false) ?? false;
+        this.oneTimeOnly = basic?.getBool("OneTimeOnly", false) ?? false;
+        this.ignoreGlobalAITriggers = basic?.getBool("IgnoreGlobalAITriggers", false) ?? false;
+        this.specialFlags = new SpecialFlags().read(this.getOrCreateSection("SpecialFlags"));
+        this.houses = this.readHouses();
+        this.houseSections = new Map(this.houses.map((house) => [house.sectionName, house]));
+        this.isCampaign = Boolean(
+            this.player ||
+            this.nextScenario ||
+            this.altNextScenario ||
+            this.endOfGame ||
+            this.oneTimeOnly ||
+            this.houses.some((house) => house.playerControl),
+        );
+        this.startingLocationsByWaypoint = new Map((this.waypoints ?? []).map((waypoint) => [
+            waypoint.number,
+            { x: waypoint.rx, y: waypoint.ry },
+        ]));
+    }
+    private readOptionalNumber(section: any, key: string): number | undefined {
+        if (!section?.has(key)) {
+            return undefined;
+        }
+        const value = section.getNumber(key, Number.NaN);
+        return Number.isFinite(value) ? value : undefined;
+    }
+    private readHouses(): MapFileHouse[] {
+        const section = this.getSection("Houses");
+        if (!section) {
+            return [];
+        }
+        const entries = [...section.entries.entries()]
+            .map(([key, value]) => ({
+                index: Number.parseInt(key, 10),
+                name: this.normalizeIniEntryValue(value).split(",")[0].trim(),
+            }))
+            .filter((entry) => Number.isSafeInteger(entry.index) && entry.name)
+            .sort((left, right) => left.index - right.index);
+        return entries.map(({ index, name }) => {
+            const houseSection = this.getSection(name);
+            const playerControl = houseSection?.getBool("PlayerControl", false) ?? false;
+            const credits = this.readOptionalNumber(houseSection, "Credits");
+            const techLevel = this.readOptionalNumber(houseSection, "TechLevel");
+            const percentBuilt = this.readOptionalNumber(houseSection, "PercentBuilt");
+            const nodeCount = this.readOptionalNumber(houseSection, "NodeCount");
+            const homeCell = this.readOptionalNumber(houseSection, "HomeCell");
+            const altHomeCell = this.readOptionalNumber(houseSection, "AltHomeCell");
+            const startCell = this.readOptionalNumber(houseSection, "StartCell");
+            const startPos = this.readOptionalNumber(houseSection, "StartPos");
+            const allies = houseSection?.getArray("Allies", /,\s*/) ?? [];
+            return {
+                index,
+                name,
+                sectionName: name,
+                country: houseSection?.getString("Country", "").trim() || undefined,
+                actsLike: this.readOptionalNumber(houseSection, "ActsLike"),
+                credits,
+                techLevel,
+                iq: this.readOptionalNumber(houseSection, "IQ"),
+                edge: houseSection?.getString("Edge", "").trim() || undefined,
+                playerControl,
+                color: houseSection?.getString("Color", "").trim() || undefined,
+                allies: allies.map((ally) => ally.trim()).filter((ally) => ally && ally.toLocaleLowerCase("en-US") !== "none"),
+                percentBuilt,
+                nodeCount,
+                homeCell,
+                altHomeCell,
+                startCell,
+                startPos,
+                fixedAlliance: this.specialFlags?.fixedAlliance,
+                section: houseSection,
+            };
+        });
     }
     readStartingLocations(waypoints: Waypoint[]) {
         const startingLocations: {
             x: number;
             y: number;
         }[] = [];
+        this.startingLocationsByWaypoint = new Map(waypoints.map((waypoint) => [
+            waypoint.number,
+            { x: waypoint.rx, y: waypoint.ry },
+        ]));
         for (const waypoint of waypoints
             .filter((entry) => entry.number < 8)
             .sort((left, right) => left.number - right.number)) {
@@ -158,8 +327,8 @@ export class MapFile extends IniFile {
                 continue;
             }
             const value = this.normalizeIniEntryValue(rawValue);
-            const [name = "", isGlobal = "0"] = value.split(",");
-            variables.set(index, new Variable(name, Boolean(Number(isGlobal))));
+            const [name = "", scope = "0"] = value.split(",");
+            variables.set(index, new Variable(name, false, Boolean(Number(scope))));
         }
         this.variables = variables;
     }
@@ -237,6 +406,7 @@ export class MapFile extends IniFile {
             const values = this.normalizeIniEntryValue(rawValue).split(",");
             if (values.length > 15) {
                 const structure = new mapObjects.Structure();
+                structure.rawValues = values;
                 structure.owner = values[0];
                 structure.name = values[1];
                 structure.health = Number(values[2]);
@@ -244,6 +414,9 @@ export class MapFile extends IniFile {
                 structure.ry = Number(values[4]);
                 structure.tag = this.readTagId(values[6]);
                 structure.poweredOn = Boolean(Number(values[9]));
+                structure.mission = values[10];
+                structure.group = values[11];
+                structure.autocreate = values[12];
                 this.structures.push(structure);
             }
         }
@@ -264,6 +437,7 @@ export class MapFile extends IniFile {
                 continue;
             }
             const vehicle = new mapObjects.Vehicle();
+            vehicle.rawValues = values;
             vehicle.owner = values[0];
             vehicle.name = values[1];
             vehicle.health = Number(values[2]);
@@ -273,6 +447,9 @@ export class MapFile extends IniFile {
             vehicle.tag = this.readTagId(values[7]);
             vehicle.veterancy = Number(values[8]);
             vehicle.onBridge = values[10] === "1";
+            vehicle.mission = values[11];
+            vehicle.group = values[12];
+            vehicle.autocreate = values[13];
             this.vehicles.push(vehicle);
         }
     }
@@ -289,6 +466,7 @@ export class MapFile extends IniFile {
                 continue;
             }
             const infantry = new mapObjects.Infantry();
+            infantry.rawValues = values;
             infantry.owner = values[0];
             infantry.name = values[1];
             infantry.health = Number(values[2]);
@@ -299,6 +477,9 @@ export class MapFile extends IniFile {
             infantry.tag = this.readTagId(values[8]);
             infantry.veterancy = Number(values[9]);
             infantry.onBridge = values[11] === "1";
+            infantry.mission = values[12];
+            infantry.group = values[13];
+            infantry.autocreate = values[14];
             this.infantries.push(infantry);
         }
     }
@@ -311,6 +492,7 @@ export class MapFile extends IniFile {
         for (const rawValue of section.entries.values()) {
             const values = this.normalizeIniEntryValue(rawValue).split(",");
             const aircraft = new mapObjects.Aircraft();
+            aircraft.rawValues = values;
             aircraft.owner = values[0];
             aircraft.name = values[1];
             aircraft.health = Number(values[2]);
@@ -320,6 +502,9 @@ export class MapFile extends IniFile {
             aircraft.tag = this.readTagId(values[7]);
             aircraft.veterancy = Number(values[8]);
             aircraft.onBridge = values[values.length - 4] === "1";
+            aircraft.mission = values[values.length - 3];
+            aircraft.group = values[values.length - 2];
+            aircraft.autocreate = values[values.length - 1];
             this.aircrafts.push(aircraft);
         }
     }

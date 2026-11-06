@@ -5,12 +5,14 @@ import {
 } from '@/extensions/ares/AresChronoPrisons';
 import {
     parseAresWeaponVisualRules,
+    resolveAresLaserThickness,
     type AresWeaponVisualRules,
 } from '@/extensions/ares/AresWeaponVisuals';
 import {
     parseAresIvanBombRules,
     type AresIvanBombRules,
 } from '@/extensions/ares/AresIvanBombs';
+import { parseAresRgb, type AresRgb } from '@/extensions/ares/AresWeaponVisuals';
 export class WeaponRules {
     private rules: any;
     public ambientDamage!: number;
@@ -29,6 +31,10 @@ export class WeaponRules {
     public isRadBeam!: boolean;
     public isSonic!: boolean;
     public laserDuration!: number;
+    public laserInnerColor?: AresRgb;
+    public laserOuterColor?: AresRgb;
+    public laserOuterSpread!: number;
+    public laserThickness!: number;
     public limboLaunch!: boolean;
     public minimumRange!: number;
     public name!: string;
@@ -76,6 +82,10 @@ export class WeaponRules {
         this.isRadBeam = this.rules.getBool("IsRadBeam");
         this.isSonic = this.rules.getBool("IsSonic");
         this.laserDuration = this.rules.getNumber("LaserDuration");
+        this.laserInnerColor = parseAresRgb(this.rules.getString("LaserInnerColor"));
+        this.laserOuterColor = parseAresRgb(this.rules.getString("LaserOuterColor"));
+        this.laserOuterSpread = this.rules.getNumber("LaserOuterSpread");
+        this.laserThickness = resolveAresLaserThickness(this.rules.getNumber("LaserThickness", -1));
         this.limboLaunch = this.rules.getBool("LimboLaunch");
         this.minimumRange = this.rules.getNumber("MinimumRange");
         this.name = this.rules.name;

@@ -1,7 +1,7 @@
 import { EventType } from "@/game/event/EventType";
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
 export class AttackedByAnyCondition extends TriggerCondition {
-    check(gameState: any, events: any[]) {
+    check(context: any, events: any[]) {
         return events
             .filter((event) => {
             if (event.type !== EventType.ObjectAttacked)
@@ -11,7 +11,7 @@ export class AttackedByAnyCondition extends TriggerCondition {
                 return false;
             const attackerPlayer = event.attacker?.player;
             return ((!attackerPlayer ||
-                (!gameState.alliances.areAllied(attackerPlayer, target.owner) &&
+                (!context.alliances.areAllied(attackerPlayer, target.owner) &&
                     attackerPlayer !== target.owner)) &&
                 !event.incidental);
         })

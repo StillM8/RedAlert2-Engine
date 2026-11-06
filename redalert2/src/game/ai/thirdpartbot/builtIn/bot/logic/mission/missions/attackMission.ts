@@ -599,9 +599,12 @@ export class AttackMissionFactory {
     ): { composition: SideComposition; triggerEntry: AiTriggerEntry | null } | null {
         const { game } = context;
         const playerData = game.getPlayerData(context.player.name);
+        if (playerData.aiTriggersEnabled === false) {
+            return null;
+        }
         const armySizeMultiplier = this.config?.armySizeMultiplier ?? 1;
 
-        if (this.triggerDb && playerData.country) {
+        if (this.triggerDb && playerData.country && !game.shouldIgnoreGlobalAITriggers?.()) {
             const difficulty =
                 this.config?.difficultyId === "easy"
                     ? "easy"
@@ -659,6 +662,9 @@ export class AttackMissionFactory {
     ): void {
         const { game, matchAwareness } = context;
         const playerData = game.getPlayerData(context.player.name);
+        if (playerData.aiTriggersEnabled === false) {
+            return;
+        }
         const counterattacking = game.getCurrentTick() < this.counterattackUntilTick;
 
         if (game.getCurrentTick() < this.firstAttackAllowedTick) {

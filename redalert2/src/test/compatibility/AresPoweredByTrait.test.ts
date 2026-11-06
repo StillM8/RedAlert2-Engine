@@ -17,6 +17,13 @@ function makeUnit(providerOnline: boolean) {
     };
     unit.owner.buildings.add({
         rules: { name: "PowerCore" },
+        isBuilding: () => true,
+        isSpawned: true,
+        isDestroyed: false,
+        isCrashing: false,
+        isDisposed: false,
+        healthTrait: { health: 100 },
+        buildStatus: 1,
         warpedOutTrait: { isActive: () => false },
         empTrait: { isUnderEMP: () => false },
         poweredTrait: { isPoweredOn: () => providerOnline },

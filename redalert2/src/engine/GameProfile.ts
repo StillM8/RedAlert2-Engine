@@ -29,6 +29,10 @@ export interface GameProfileDescriptor {
     multiplayerMapListFiles?: readonly string[];
     /** Content roots that contain scenarios which must not enter multiplayer map discovery. */
     nonMultiplayerMapRoots?: readonly string[];
+    campaignIniFiles?: readonly string[];
+    campaignFileNameOverrides?: Readonly<Record<string, string>>;
+    campaignArchiveNames?: readonly string[];
+    campaignRoots?: readonly string[];
     /**
      * Resolve one of the engine's canonical filenames for this content
      * profile.  The availability callback is optional so scanners can inspect
@@ -48,7 +52,14 @@ function engineVariantFileName(profile: Pick<GameProfileDescriptor, "engine">, b
         return baseFileName;
     }
     if (profile.engine === EngineType.YurisRevenge) {
-        return baseFileName.replace(/\.([^.]+)$/, `md.$1`);
+        if (/(?:^|\/)battleclient[^/]*\.ini$/i.test(baseFileName)) {
+            return baseFileName;
+        }
+        const lastDot = baseFileName.lastIndexOf(".");
+        const stem = lastDot < 0 ? "" : baseFileName.slice(0, lastDot);
+        return stem.toLocaleLowerCase("en-US").endsWith("md")
+            ? baseFileName
+            : baseFileName.replace(/\.([^.]+)$/, `md.$1`);
     }
     throw new Error(`Unsupported engine type ${EngineType[profile.engine]}`);
 }
@@ -69,6 +80,11 @@ function createProfile(
             return optionalOverride;
         }
 
+        const campaignOverride = profile.campaignFileNameOverrides?.[normalizedBaseFileName];
+        if (campaignOverride && (!isAvailable || isAvailable(campaignOverride))) {
+            return campaignOverride;
+        }
+
         return engineVariantFileName(profile, baseFileName);
     };
     return profile;
@@ -80,12 +96,21 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
         engine: EngineType.RedAlert2,
         displayName: "Red Alert 2",
         requiredFiles: ["language.mix", "multi.mix", "ra2.mix"],
+        campaignIniFiles: ["battle.ini", "mission.ini", "mapsel01.ini"],
+        campaignRoots: ["Campaign", "Campaigns", "Missions"],
     }),
     yr: createProfile({
         id: "yr",
         engine: EngineType.YurisRevenge,
         displayName: "Yuri's Revenge",
         requiredFiles: ["language.mix", "multi.mix", "ra2.mix", "langmd.mix", "multimd.mix", "ra2md.mix"],
+        campaignIniFiles: ["battlemd.ini", "missionmd.ini", "mapselmd.ini"],
+        campaignFileNameOverrides: {
+            "battle.ini": "battlemd.ini",
+            "mission.ini": "missionmd.ini",
+            "mapsel01.ini": "mapselmd.ini",
+        },
+        campaignRoots: ["Campaign", "Campaigns", "Missions"],
     }),
     "mental-omega": createProfile({
         id: "mental-omega",
@@ -130,7 +155,18 @@ export const GAME_PROFILES: Record<GameProfileId, GameProfileDescriptor> = {
         // Keeping the path at the profile boundary lets the shared engine use
         // the same catalog machinery for any content package.
         multiplayerMapListFiles: ["INI/MentalOmegaMaps.ini"],
-        nonMultiplayerMapRoots: ["MissionsMO"],
+        nonMultiplayerMapRoots: ["MissionsMO", "Campaign", "Campaigns", "Missions"],
+        campaignIniFiles: ["missionmo.ini", "mapselmo.ini"],
+        campaignFileNameOverrides: {
+            "battle.ini": "battlemo.ini",
+            "battlemd.ini": "battlemo.ini",
+            "mission.ini": "missionmo.ini",
+            "missionmd.ini": "missionmo.ini",
+            "mapsel01.ini": "mapselmo.ini",
+            "mapselmd.ini": "mapselmo.ini",
+        },
+        campaignArchiveNames: ["campaign.mix", "missionsmo.mix", "missionmo.mix", "battlemo.mix", "expandmo42.mix"],
+        campaignRoots: ["MissionsMO", "Campaign", "Campaigns", "Missions"],
     }),
 };
 
@@ -140,6 +176,59 @@ export function getGameProfile(id: GameProfileId | undefined): GameProfileDescri
 
 export function isGameProfileId(value: string | null | undefined): value is GameProfileId {
     return value === "ra2" || value === "yr" || value === "mental-omega";
+}
+
+const mentalOmegaCampaignLeafPattern = /^(?:missionmo|mapselmo|battlemo|battleclient[^/]*)\.ini$/i;
+const campaignDirectoryPattern = /^(?:campaign|campaigns|missions?|missionsmd|missionsmo|mapsmo|mapsmo\d+)$/i;
+const battleClientPathPattern = /(?:^|\/)ini\/battleclient[^/]*\.ini$/i;
+
+function isCampaignDirectoryPath(path: string): boolean {
+    const segments = path.toLocaleLowerCase("en-US").split("/");
+    return segments.some((segment) => campaignDirectoryPattern.test(segment));
+}
+
+function isBattleClientIniPath(path: string): boolean {
+    const lower = path.toLocaleLowerCase("en-US");
+    return battleClientPathPattern.test(lower) || /(?:^|\/)battleclient[^/]*\.ini$/i.test(lower);
+}
+
+export function isMentalOmegaCampaignPath(path: string): boolean {
+    const normalized = tryNormalizeGamePath(path);
+    if (!normalized) {
+        return false;
+    }
+    const lower = normalized.toLocaleLowerCase("en-US");
+    const leaf = gamePathKey(gamePathLeaf(normalized));
+    return /^expandmo\d{2}\.mix$/.test(leaf) ||
+        /^(?:missions?mo|battlemo|campaignmo|movmo|mapsmo\d*|multimo)\d*\.mix$/.test(leaf) ||
+        mentalOmegaCampaignLeafPattern.test(leaf) ||
+        isBattleClientIniPath(lower) ||
+        isCampaignDirectoryPath(lower);
+}
+
+export function hasMentalOmegaCampaignSignature(paths: Iterable<string>): boolean {
+    for (const path of paths) {
+        if (isMentalOmegaCampaignPath(path)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function hasYuriCampaignSignature(paths: readonly string[]): boolean {
+    return paths.some((path) => {
+        const lower = path.toLocaleLowerCase("en-US");
+        const leaf = gamePathKey(gamePathLeaf(lower));
+        return /^(?:battlemd|missionmd|mapselmd)\.ini$/.test(leaf) ||
+            lower.endsWith(".yro");
+    });
+}
+
+function hasRedAlertCampaignSignature(paths: readonly string[]): boolean {
+    return paths.some((path) => {
+        const leaf = gamePathKey(gamePathLeaf(path));
+        return /^(?:battle|mission)\.ini$/.test(leaf) || /^mapsel01\.ini$/.test(leaf);
+    });
 }
 
 export interface MentalOmegaValidation {
@@ -174,7 +263,10 @@ function normalizedPathKeys(paths: Iterable<string>): Set<string> {
  * resources and recognizable MO content.
  */
 export function validateMentalOmegaInstallation(paths: Iterable<string>): MentalOmegaValidation {
-    const keys = normalizedPathKeys(paths);
+    const normalizedPaths = [...paths]
+        .map((path) => tryNormalizeGamePath(path))
+        .filter((path): path is string => !!path);
+    const keys = normalizedPathKeys(normalizedPaths);
     const missing: string[] = [];
     const warnings: string[] = [];
     const baseGameValid = GAME_PROFILES.yr.requiredFiles.every((file) => keys.has(gamePathKey(file)));
@@ -198,7 +290,9 @@ export function validateMentalOmegaInstallation(paths: Iterable<string>): Mental
 
     const hasMoArchive = [...keys].some((key) => /^expandmo\d{2}\.mix$/i.test(key));
     const hasMoLooseContent = [...keys].some((key) =>
-        key === "uimd.ini" || key === "uimo.ini" || /(?:^|\/)mapsmo\//i.test(key) || /(?:^|\/)missionsmo\//i.test(key));
+        key === "uimd.ini" || key === "uimo.ini" || key === "rulesmo.ini" || key === "artmo.ini" ||
+        /(?:^|\/)mapsmo\//i.test(key) || /(?:^|\/)missionsmo\//i.test(key)) ||
+        hasMentalOmegaCampaignSignature(normalizedPaths);
     const modFilesValid = hasMoArchive || hasMoLooseContent;
     if (!modFilesValid) {
         missing.push("Mental Omega content archive or MapsMO/MissionsMO files");
@@ -226,20 +320,18 @@ export function validateMentalOmegaInstallation(paths: Iterable<string>): Mental
  * otherwise valid installation appear broken.
  */
 export function detectGameProfile(paths: Iterable<string>): GameProfileId {
-    const filenames = new Set<string>();
-
-    for (const path of paths) {
-        const normalized = tryNormalizeGamePath(path);
-        if (!normalized) {
-            continue;
-        }
-        filenames.add(gamePathKey(gamePathLeaf(normalized)));
-    }
+    const normalizedPaths = [...paths]
+        .map((path) => tryNormalizeGamePath(path))
+        .filter((path): path is string => !!path);
+    const filenames = new Set(normalizedPaths.map((path) => gamePathKey(gamePathLeaf(path))));
+    const lowerPaths = normalizedPaths.map((path) => path.toLocaleLowerCase("en-US"));
 
     const hasAll = (requiredFiles: readonly string[]) =>
         requiredFiles.every((file) => filenames.has(gamePathKey(file)));
 
-    if (hasAll(GAME_PROFILES.yr.requiredFiles)) {
+    if (hasAll(GAME_PROFILES.yr.requiredFiles) ||
+        hasYuriCampaignSignature(lowerPaths) ||
+        hasMentalOmegaCampaignSignature(normalizedPaths)) {
         return "yr";
     }
     return "ra2";
@@ -257,24 +349,20 @@ export function detectContentProfile(paths: Iterable<string>): GameProfileId {
         .map((path) => tryNormalizeGamePath(path))
         .filter((path): path is string => !!path);
     const lowerPaths = normalizedPaths.map((path) => path.toLocaleLowerCase("en-US"));
-    const leaves = normalizedPaths.map((path) => gamePathKey(gamePathLeaf(path)));
-    const hasMentalOmega = lowerPaths.some((path, index) =>
-        /^expandmo\d{2}\.mix$/.test(leaves[index]) ||
-        /(?:^|\/)rulesmo\.ini$/.test(path) ||
-        /(?:^|\/)artmo\.ini$/.test(path) ||
-        /(?:^|\/)mapsmo\//.test(path) ||
-        /(?:^|\/)missionsmo\//.test(path),
-    );
+    const hasMentalOmega = hasMentalOmegaCampaignSignature(normalizedPaths) ||
+        lowerPaths.some((path, index) =>
+            /(?:^|\/)rulesmo\.ini$/.test(path) || /(?:^|\/)artmo\.ini$/.test(path));
     if (hasMentalOmega) {
         return "mental-omega";
     }
-    const hasYuriOverlay = lowerPaths.some((path) =>
+    const hasYuriOverlay = hasYuriCampaignSignature(lowerPaths) || lowerPaths.some((path) =>
         /(?:^|\/)(?:rulesmd|artmd|aimd|uimd|evamd|soundmd)\.ini$/.test(path) ||
-        /(?:^|\/)(?:langmd|multimd|ra2md|expandmd\d{2})\.mix$/.test(path) ||
-        path.endsWith(".yro"),
-    );
+        /(?:^|\/)(?:langmd|multimd|ra2md|expandmd\d{2})\.mix$/.test(path));
     if (hasYuriOverlay) {
         return "yr";
+    }
+    if (hasRedAlertCampaignSignature(normalizedPaths)) {
+        return "ra2";
     }
     return detectGameProfile(normalizedPaths);
 }

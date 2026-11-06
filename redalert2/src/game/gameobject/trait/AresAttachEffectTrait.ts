@@ -49,6 +49,17 @@ export interface AresAttachEffectTraitOptions {
     getPlayerIndex?(player: any): number | undefined;
 }
 
+export function isAresTechnoDeactivated(gameObject: any): boolean {
+    const empTrait = gameObject?.empTrait;
+    const empDeactivated = typeof empTrait?.isDeactivated === "function"
+        ? empTrait.isDeactivated() === true
+        : empTrait?.isUnderEMP?.() === true;
+    return empDeactivated ||
+        gameObject?.operatorTrait?.isOffline?.() === true ||
+        gameObject?.aresPoweredByTrait?.isOffline?.() === true ||
+        gameObject?.robotControlTrait?.isOffline?.() === true;
+}
+
 /**
  * Stable authored origin of an applied definition. Snapshots record this so
  * restore can rebind the definition from rules instead of serializing the
@@ -296,6 +307,19 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
      * stays empty and restored effects are present but inert — the same
      * observable behavior as a live trait that never received the effect.
      */
+    validateState(state: unknown, context: AresAttachEffectRestoreContext = {}): void {
+        restoreAresAttachEffectExtensionState({
+            instances: this.instances,
+            automaticPhase: this.automaticPhase,
+            automaticRemainingDelay: this.automaticRemainingDelay,
+            animationDamage: new Map(),
+            definitions: new Map(),
+        }, state, {
+            ...context,
+            automaticEffectId: context.automaticEffectId ?? this.automaticEffect?.effectId,
+        });
+    }
+
     restoreState(state: unknown, context: AresAttachEffectRestoreContext = {}): void {
         const restored: AresAttachEffectStateTarget = {
             instances: this.instances,
@@ -416,6 +440,9 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
         const previousInstances = this.instances.map(instance => ({ ...instance }));
         this.applyAnimationDamage(options.context);
         const expiredEffectIds = advanceAresAttachEffectsInPlace(this.instances);
+        if (this.automaticEffect && isAresTechnoDeactivated(this.gameObject)) {
+            expiredEffectIds.push(...this.expireAutomaticEffect());
+        }
         this.reconcileAnimationDamageState(previousInstances, this.instances);
         if (expiredEffectIds.length) this.presentationRevision++;
         let automaticApply: AresAttachEffectApplyResult | undefined;
@@ -594,6 +621,12 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             !["waiting-initial", "waiting-renewal"].includes(this.automaticPhase)) {
             return undefined;
         }
+        if (isAresTechnoDeactivated(this.gameObject)) {
+            if (this.automaticRemainingDelay > 0) {
+                this.automaticRemainingDelay--;
+            }
+            return undefined;
+        }
         if (this.automaticRemainingDelay > 0) {
             this.automaticRemainingDelay--;
             return undefined;
@@ -609,6 +642,23 @@ export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUns
             this.automaticRemainingDelay = 0;
         }
         return result;
+    }
+
+    private expireAutomaticEffect(): AresAttachEffectId[] {
+        if (!this.automaticEffect) return [];
+        const effectId = this.automaticEffect.effectId;
+        const expired: AresAttachEffectId[] = [];
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < this.instances.length; readIndex++) {
+            const instance = this.instances[readIndex];
+            if (instance.effectId === effectId) {
+                expired.push(instance.effectId);
+                continue;
+            }
+            this.instances[writeIndex++] = instance;
+        }
+        this.instances.length = writeIndex;
+        return expired;
     }
 
     private hasAutomaticInstance(): boolean {

@@ -8,6 +8,7 @@ import { CompositeDisposable } from '@/util/disposable/CompositeDisposable';
 import { EventType } from '@/game/event/EventType';
 import { NotifyTick } from '@/game/gameobject/trait/interface/NotifyTick';
 import { getFoundationCells, getFoundationBounds, type Foundation } from '@/game/art/Foundation';
+import { isLaserFenceActive, isLaserFenceArt } from '@/extensions/ares/AresLaserFences';
 interface PlacementOptions {
     normalizedTile?: boolean;
     ignoreObjects?: any[];
@@ -184,6 +185,7 @@ export class ConstructionWorker {
     getPlacementPreview(buildingName: string, targetTile: Tile, options: PlacementOptions = {}): PlacementPreviewTile[] {
         const { normalizedTile = false, ignoreObjects, ignoreAdjacent = false, } = options;
         const buildingRules = this.rules.getBuilding(buildingName);
+        if (buildingRules.laserFence) return [];
         const buildingArt = this.art.getObject(buildingName, ObjectType.Building);
         const previewTiles: PlacementPreviewTile[] = [];
         const foundation = buildingArt.foundation;
@@ -225,6 +227,7 @@ export class ConstructionWorker {
     canPlaceAt(buildingName: string, targetTile: Tile, options: PlacementOptions = {}): boolean {
         const { normalizedTile = false, ignoreObjects, ignoreAdjacent = false, } = options;
         const buildingRules = this.rules.getBuilding(buildingName);
+        if (buildingRules.laserFence) return false;
         const buildingArt = this.art.getObject(buildingName, ObjectType.Building);
         const foundation = buildingArt.foundation;
         const placementTile = normalizedTile
@@ -254,6 +257,7 @@ export class ConstructionWorker {
     placeAt(buildingName: string, targetTile: Tile, isNormalized: boolean = false): Building[] {
         const placedBuildings: Building[] = [];
         const buildingRules = this.rules.getBuilding(buildingName);
+        if (buildingRules.laserFence) return placedBuildings;
         const placementTile = isNormalized
             ? targetTile
             : this.normalizePlacementTile(buildingName, targetTile);
@@ -367,6 +371,8 @@ export class ConstructionWorker {
                 return false;
             if (obj.isBuilding() && obj.rules.invisibleInGame)
                 return false;
+            if (isLaserFenceArt(obj) && isLaserFenceActive(obj))
+                return true;
             if (obj.isSmudge())
                 return false;
             return true;

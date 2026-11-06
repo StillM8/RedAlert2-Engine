@@ -34,6 +34,24 @@ export class AttackOrder extends Order {
         this.rangeHelper = new RangeHelper(this.game.map.tileOccupation);
         this.losHelper = new LosHelper(this.game.map.tiles, game.map.tileOccupation);
     }
+    captureState(): Record<string, unknown> {
+        return {
+            forceAttack: this.forceAttack,
+            ivanBombAllowed: this.ivanBombAllowed,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object") {
+            throw new Error("Invalid attack order state");
+        }
+        const candidate = state as Record<string, unknown>;
+        if (typeof candidate.forceAttack !== "boolean" ||
+            typeof candidate.ivanBombAllowed !== "boolean") {
+            throw new Error("Invalid attack order state");
+        }
+        this.forceAttack = candidate.forceAttack;
+        this.ivanBombAllowed = candidate.ivanBombAllowed;
+    }
     getPointerType(isMini: boolean, units: any[]): PointerType {
         if (!this.isAllowed()) {
             return isMini ? PointerType.NoActionMini : PointerType.NoAction;

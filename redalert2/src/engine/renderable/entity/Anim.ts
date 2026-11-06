@@ -8,6 +8,7 @@ import { MapSpriteTranslation } from "@/engine/renderable/MapSpriteTranslation";
 import { SimpleRunner } from "@/engine/animation/SimpleRunner";
 import { MathUtils } from "@/engine/gfx/MathUtils";
 import { Coords } from "@/game/Coords";
+import { PaletteType } from "@/engine/type/PaletteType";
 import * as THREE from 'three';
 interface ObjectArt {
     paletteType: string;
@@ -106,6 +107,14 @@ export class Anim {
         z: number;
     }): void {
         this.withPosition.setPosition(position.x, position.y, position.z);
+    }
+    setFrame(frame: number): void {
+        if (!Number.isFinite(frame)) return;
+        this.animationRunner?.stop();
+        if (!this.mainObj) return;
+        const frameCount = this.mainObj.frameCount;
+        const maxFrame = Number.isSafeInteger(frameCount) && frameCount > 0 ? frameCount - 1 : undefined;
+        this.mainObj.setFrame(Math.max(0, maxFrame === undefined ? Math.trunc(frame) : Math.min(maxFrame, Math.trunc(frame))));
     }
     getPosition(): THREE.Vector3 {
         return this.withPosition.getPosition();
@@ -242,6 +251,15 @@ export class Anim {
             throw new Error("Palette can only be remapped before creating 3DObject");
         }
         const clonedPalette = this.palette.clone();
+        clonedPalette.remap(colorMap);
+        this.palette = clonedPalette;
+    }
+    remapUnitColor(colorMap: any): void {
+        if (this.mainObj) {
+            throw new Error("Palette can only be remapped before creating 3DObject");
+        }
+        const unitPalette = this.theater.getPalette(PaletteType.Unit as any);
+        const clonedPalette = unitPalette.clone();
         clonedPalette.remap(colorMap);
         this.palette = clonedPalette;
     }

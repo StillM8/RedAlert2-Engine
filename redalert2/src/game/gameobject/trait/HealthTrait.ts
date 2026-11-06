@@ -7,6 +7,7 @@ import { HealthLevel } from '@/game/gameobject/unit/HealthLevel';
 import { NotifyTick } from './interface/NotifyTick';
 import { HealthChangeEvent } from '@/game/event/HealthChangeEvent';
 import { GameObject } from '@/game/gameobject/GameObject';
+import { isLaserFenceDamageInvariant } from '@/extensions/ares/AresLaserFences';
 import { World } from '@/game/World';
 export class HealthTrait {
     private maxHitPoints: number;
@@ -52,6 +53,7 @@ export class HealthTrait {
         return this.projectedHitPoints;
     }
     inflictDamage(amount: number, source: GameObject, world: World): void {
+        if (amount > 0 && isLaserFenceDamageInvariant(this.gameObject)) return;
         const oldHitPoints = this.hitPoints;
         const oldHealth = this.health;
         this.applyHitPoints(oldHitPoints - amount, world);
@@ -120,6 +122,21 @@ export class HealthTrait {
         if (world.currentTick % 4 === 0) {
             this.projectedHitPoints = Math.min(this.projectedHitPoints + 1, this.hitPoints);
         }
+    }
+    captureState(): { version: 1; hitPoints: number; projectedHitPoints: number } {
+        return {
+            version: 1,
+            hitPoints: this.hitPoints,
+            projectedHitPoints: this.projectedHitPoints,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isSafeInteger((state as any).hitPoints) || !Number.isSafeInteger((state as any).projectedHitPoints)) {
+            throw new Error("Invalid health state");
+        }
+        this.setHitPoints((state as any).hitPoints);
+        this.projectedHitPoints = (state as any).projectedHitPoints;
     }
     getHash(): number {
         return this.hitPoints;

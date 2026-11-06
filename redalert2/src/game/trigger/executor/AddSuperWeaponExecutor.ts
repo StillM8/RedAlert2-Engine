@@ -1,3 +1,4 @@
+import { resolveTriggerHousePlayer } from '@/game/trigger/HouseReference';
 import { TriggerExecutor } from '@/game/trigger/TriggerExecutor';
 export class AddSuperWeaponExecutor extends TriggerExecutor {
     private oneTimeOnly: boolean;
@@ -10,9 +11,7 @@ export class AddSuperWeaponExecutor extends TriggerExecutor {
     execute(context: any): void {
         const superWeaponRule = [...context.rules.superWeaponRules.values()].find((rule) => rule.index === this.superWeaponIdx);
         if (superWeaponRule) {
-            const player = context
-                .getAllPlayers()
-                .find((p) => p.country?.name === this.trigger.houseName);
+            const player = resolveTriggerHousePlayer(context, this.trigger);
             if (player &&
                 player.superWeaponsTrait &&
                 !player.superWeaponsTrait.has(superWeaponRule.name)) {

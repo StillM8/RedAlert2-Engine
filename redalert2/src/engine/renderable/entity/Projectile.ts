@@ -16,6 +16,12 @@ import { ObjectRules } from "@/game/rules/ObjectRules";
 import { quaternionFromVec3 } from "@/game/math/geometry";
 import { PaletteType } from "@/engine/type/PaletteType";
 import { resolveAresProjectileAnimationFrame } from "@/extensions/ares/AresProjectileExtensions";
+import {
+    DEFAULT_ARES_LASER_THICKNESS,
+    MAX_ARES_LASER_THICKNESS,
+    resolveAresLaserThickness,
+} from "@/extensions/ares/AresWeaponVisuals";
+import { AlphaRenderable } from "@/engine/renderable/AlphaRenderable";
 import * as THREE from "three";
 export class Projectile {
     private static waveGeometries = new Map<number, THREE.PlaneGeometry>();
@@ -50,6 +56,7 @@ export class Projectile {
     public lastState?: any;
     public renderableManager?: any;
     public vxlBuilder?: any;
+    public alphaRenderable?: AlphaRenderable;
     public lineTrailFx?: LineTrailFx;
     private waveReversed = false;
     constructor(gameObject: any, rules: any, imageFinder: any, voxels: any, voxelAnims: any, theater: any, palette: any, specialPalette: any, camera: any, gameSpeed: any, lighting: any, lightingDirector: any, vxlBuilderFactory: any, useSpriteBatching: boolean, useMeshInstancing: boolean) {
@@ -109,6 +116,28 @@ export class Projectile {
     get3DObject(): THREE.Object3D | undefined {
         return this.target;
     }
+    private createAlphaImage(parent: THREE.Object3D): void {
+        const imageName = this.gameObject.rules.alphaImage;
+        if (!imageName) return;
+        const image = this.imageFinder.tryFind?.(imageName, false);
+        if (!image) {
+            console.warn(`<${this.gameObject.name}>: Alpha image "${imageName}" not found`);
+            return;
+        }
+        this.alphaRenderable = new AlphaRenderable(image, this.camera, new THREE.Vector2(0, (Coords.ISO_TILE_SIZE + 1) / 2));
+        this.alphaRenderable.create3DObject();
+        const object = this.alphaRenderable.get3DObject();
+        if (object) parent.add(object);
+        this.updateAlphaImage();
+    }
+    private updateAlphaImage(): void {
+        this.alphaRenderable?.setFacing(this.gameObject.direction);
+        this.alphaRenderable?.setVisible(
+            !this.gameObject.isDestroyed &&
+            !this.gameObject.deactivated &&
+            (this.gameObject.tileElevation ?? 0) >= 0,
+        );
+    }
     create3DObject(): void {
         let obj = this.get3DObject();
         if (!obj) {
@@ -119,6 +148,7 @@ export class Projectile {
             this.withPosition.matrixUpdate = true;
             this.withPosition.applyTo(this);
             this.createObjects(obj);
+            this.createAlphaImage(obj);
         }
     }
     setPosition(position: {
@@ -133,6 +163,7 @@ export class Projectile {
     }
     update(time: number, deltaTime: number): void {
         this.plugins.forEach((plugin) => plugin.update(time));
+        this.updateAlphaImage();
         if (deltaTime > 0 && !this.gameObject.isDestroyed) {
             const velocity = this.gameObject.velocity.clone();
             const movement = velocity.multiplyScalar(deltaTime);
@@ -180,6 +211,9 @@ export class Projectile {
                 this.target!.visible = false;
                 this.renderableManager.createTransientAnim(this.gameObject.impactAnim, (anim: any) => {
                     anim.setPosition(this.withPosition.getPosition());
+                    if (this.gameObject.preImpactAnimName) {
+                        anim.forceOneShot = true;
+                    }
                 });
                 if (this.gameObject.isNuke) {
                     this.lightingDirector.addEffect(new NukeLightingFx());
@@ -209,11 +243,15 @@ export class Projectile {
             // Ares deliberately preserves the old engine's counter-intuitive
             // naming: Wave.IsLaser is the wider mesh, while Wave.IsBigLaser is
             // the narrower one (see Antares' WaveType mapping).
-            const widthScale = weaponVisuals?.waveIsLaser
+            const isWaveLaser = weaponVisuals?.waveIsLaser || weaponVisuals?.waveIsBigLaser;
+            const laserTypeScale = weaponVisuals?.waveIsLaser
                 ? 1.35
                 : weaponVisuals?.waveIsBigLaser
                     ? 0.72
                     : 1;
+            const widthScale = laserTypeScale * (isWaveLaser
+                ? resolveAresLaserThickness(weaponRules.laserThickness) / DEFAULT_ARES_LASER_THICKNESS
+                : 1);
             const geometryKey = Math.round(widthScale * 100);
             this.waveReversed = this.shouldReverseWave(weaponRules);
             let geometry = Projectile.waveGeometries.get(geometryKey);
@@ -391,7 +429,8 @@ export class Projectile {
             const duration = weaponRules.laserDuration /
                 GameSpeed.BASE_TICKS_PER_SECOND /
                 this.gameSpeed.value;
-            const thickness = 2 * (this.gameObject.baseDamageMultiplier > 1 ? 2 : 1);
+            const baseThickness = resolveAresLaserThickness(weaponRules.laserThickness);
+            const thickness = Math.min(MAX_ARES_LASER_THICKNESS, Math.max(0, baseThickness + (this.gameObject.prismBeamThicknessOffset ?? 0)));
             const laserFx = new LaserFx(this.camera, startPos, endPos, color, duration, thickness);
             renderableManager.addEffect(laserFx);
         }
@@ -466,6 +505,7 @@ export class Projectile {
     }
     dispose(): void {
         this.plugins.forEach((plugin) => plugin.dispose());
+        this.alphaRenderable?.dispose();
         this.shpRenderable?.dispose();
         this.vxlBuilder?.dispose();
         this.blobShadow?.dispose();

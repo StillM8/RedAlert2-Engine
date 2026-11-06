@@ -16,6 +16,18 @@ export class BerserkTrait implements NotifyTick {
     constructor(gameObject: any) {
         this.gameObject = gameObject;
     }
+    captureState(): Record<string, unknown> {
+        return { version: 1, remainingTicks: this.remainingTicks, retargetCooldown: this.retargetCooldown };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isSafeInteger((state as any).remainingTicks) || (state as any).remainingTicks < 0 ||
+            !Number.isSafeInteger((state as any).retargetCooldown) || (state as any).retargetCooldown < 0) {
+            throw new Error("Invalid berserk state");
+        }
+        this.remainingTicks = (state as any).remainingTicks;
+        this.retargetCooldown = (state as any).retargetCooldown;
+    }
     isActive(): boolean {
         return this.remainingTicks > 0;
     }

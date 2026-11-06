@@ -1,4 +1,5 @@
 import { PowerLevel } from "@/game/player/trait/PowerTrait";
+import { getAresPreferredTargetingCell } from "@/extensions/ares/AresSuperWeaponTargetingCell";
 import { MapApi } from "@/game/api/MapApi";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { GameSpeed } from "@/game/GameSpeed";
@@ -91,11 +92,13 @@ export class GameApi {
         return {
             name: player.name,
             country: player.country,
-            startLocation: this.mapApi.getStartingLocations()[player.startLocation ?? 0],
+            startLocation: this.mapApi.getStartingLocation?.(player.startLocation ?? 0) ??
+                this.mapApi.getStartingLocations()[player.startLocation ?? 0],
             isObserver: player.isObserver,
             isAi: player.isAi,
             isCombatant: player.isCombatant(),
             credits: player.credits,
+            aiTriggersEnabled: player.aiTriggersEnabled ?? true,
             power: {
                 total: player.powerTrait?.power ?? 0,
                 drain: player.powerTrait?.drain ?? 0,
@@ -103,6 +106,12 @@ export class GameApi {
             },
             radarDisabled: !!player.radarTrait?.isDisabled(),
         };
+    }
+    shouldIgnoreGlobalAITriggers(): boolean {
+        return Boolean(
+            this.game.ignoreGlobalAITriggers ||
+            this.game.map?.ignoreGlobalAITriggers,
+        );
     }
     getAllTerrainObjects(): any[] {
         return this.game
@@ -289,6 +298,19 @@ export class GameApi {
             chargeProgress: weapon.getChargeProgress?.() ?? 0,
         })))
             .flat();
+    }
+    /**
+     * Ares preferred AI targeting cell established by map trigger actions
+     * 135/140. Consumed by the built-in bot for the documented
+     * Offensive_Cell_Set/Defensive_Cell_Set constraints and preference
+     * overrides; undefined while no preferred cell is known.
+     */
+    getAresSuperWeaponTargetingCell(
+        playerName: string,
+        kind: "offensive" | "defensive",
+    ): { x: number; y: number } | undefined {
+        const player = this.game.getPlayerByName(playerName);
+        return player ? getAresPreferredTargetingCell(player, kind) : undefined;
     }
     /** Whether any combatant currently has a running effect of this SW type. */
     isSuperWeaponEffectActive(type: any): boolean {

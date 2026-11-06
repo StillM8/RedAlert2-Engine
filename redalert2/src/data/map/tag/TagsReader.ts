@@ -1,37 +1,42 @@
 import { TagRepeatType } from './TagRepeatType';
 import { IniSection } from '@/data/IniSection';
+export interface ParsedTag {
+    id: string;
+    lifetime: TagRepeatType;
+    repeatType: TagRepeatType;
+    name: string;
+    triggerId: string;
+}
 export class TagsReader {
-    read(section: IniSection): Array<{
-        id: string;
-        repeatType: number;
-        name: string;
-        triggerId: string;
-    }> {
-        const result: Array<{
-            id: string;
-            repeatType: number;
-            name: string;
-            triggerId: string;
-        }> = [];
+    read(section: IniSection): ParsedTag[] {
+        const result: ParsedTag[] = [];
         for (const [id, rawValue] of section.entries) {
             if (typeof rawValue !== 'string') {
                 continue;
             }
             const parts = rawValue.split(',');
-            if (parts.length < 3) {
+            if (parts.length < 2) {
                 console.warn(`Invalid tag ${id}=${rawValue}. Skipping.`);
                 continue;
             }
-            const repeatType = Number(parts[0]);
-            if (TagRepeatType[repeatType] === undefined) {
-                console.warn(`Invalid repeat value ${repeatType} for tag id ${id}. Skipping.`);
+            const hasLifetime = parts.length >= 3;
+            const lifetime = (hasLifetime ? Number(parts[0]) : TagRepeatType.Volatile) as TagRepeatType;
+            if (![TagRepeatType.Volatile, TagRepeatType.SemiPersistent, TagRepeatType.Persistent].includes(lifetime)) {
+                console.warn(`Invalid lifetime value ${parts[0]} for tag id ${id}. Skipping.`);
+                continue;
+            }
+            const name = (hasLifetime ? parts[1] : parts[0]).trim();
+            const triggerId = hasLifetime ? parts.slice(2).join(',').trim() : parts[1].trim();
+            if (!hasLifetime && triggerId.toLocaleLowerCase("en-US") !== '<none>') {
+                console.warn(`Invalid tag ${id}=${rawValue}. Skipping.`);
                 continue;
             }
             result.push({
                 id,
-                repeatType,
-                name: parts[1],
-                triggerId: parts[2]
+                lifetime,
+                repeatType: lifetime,
+                name,
+                triggerId,
             });
         }
         return result;

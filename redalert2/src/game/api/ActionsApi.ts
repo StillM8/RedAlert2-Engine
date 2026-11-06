@@ -78,6 +78,11 @@ export class ActionsApi {
     sellBuilding(buildingId: number): void {
         this.sellObject(buildingId);
     }
+    detonateIvanBombs(objectId: number): void {
+        this.createAndPushAction(ActionType.DetonateIvanBombs, action => {
+            action.setObjectId(objectId);
+        });
+    }
     toggleRepairWrench(buildingId: any): void {
         this.createAndPushAction(ActionType.ToggleRepair, (action) => {
             action.buildingId = buildingId;
@@ -177,6 +182,17 @@ export class ActionsApi {
             action.tile2 = secondaryTile ? { x: secondaryTile.rx, y: secondaryTile.ry } : undefined;
         });
     }
+    deactivateSuperWeapon(superWeaponType: any): void {
+        const activationId = this.game.rules.getSuperWeaponActivationId(superWeaponType);
+        if (activationId === undefined) {
+            console.warn(`[ActionsApi] Unknown superweapon selector "${String(superWeaponType)}"; ignored`);
+            return;
+        }
+        this.createAndPushAction(ActionType.DeactivateSuperWeapon, (action) => {
+            action.superWeaponType = activationId;
+        });
+    }
+
     orderUnits(unitIds: any[], orderType: any, targetX?: any, targetY?: any, useBridge?: boolean): void {
         this.createAndPushAction(ActionType.SelectUnits, (action) => {
             action.unitIds = unitIds;

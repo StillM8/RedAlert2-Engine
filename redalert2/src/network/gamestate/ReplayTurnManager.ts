@@ -3,6 +3,10 @@ import { ChatMessageReplayEvent } from './replay/ChatMessageReplayEvent';
 import { TauntReplayEvent } from './replay/TauntReplayEvent';
 import { GameSpeed } from '@/game/GameSpeed';
 import { EventDispatcher } from '@/util/event';
+import { restoreExtensionState } from '@/game/state/ExtensionStateSnapshot';
+import { restoreWorldState } from '@/game/state/WorldStateSnapshot';
+
+export type ReplayExtensionStateRestorer = (state: unknown) => void;
 
 export class ReplayTurnManager {
     private gameTurnMillis = 1000 / GameSpeed.BASE_TICKS_PER_SECOND;
@@ -13,6 +17,8 @@ export class ReplayTurnManager {
     private actionsByTick: Map<number, ActionRecord[]>;
     private eventsByTick: Map<number, ReplayEventRecord[]>;
     private hashByTick: Map<number, number>;
+    private readonly extensionStateRestorer: ReplayExtensionStateRestorer;
+    private readonly worldStateRestorer: (state: unknown) => void;
 
     public readonly onReplayEvent = new EventDispatcher<this, any>();
     public readonly onActionsSent = new EventDispatcher<this, void>();
@@ -27,7 +33,21 @@ export class ReplayTurnManager {
         private readonly replay: any,
         private readonly actionFactory: any,
         private readonly actionLogger?: { debug(message: string): void },
+        extensionStateRestorer?: ReplayExtensionStateRestorer,
+        worldStateRestorer?: (state: unknown) => void,
     ) {
+        this.extensionStateRestorer = extensionStateRestorer ??
+            (state => restoreExtensionState(this.game, state, {
+                strict: true,
+                superWeaponWorld: this.game,
+            }));
+        this.worldStateRestorer = worldStateRestorer ??
+            (state => restoreWorldState(this.game, state, {
+                strict: true,
+                createObject: (type, name) => this.game.createObject?.(type, name),
+                spawnObject: (object, tile) => this.game.restoreSpawnedObject?.(object, tile),
+                unspawnObject: object => this.game.restoreUnspawnedObject?.(object),
+            }));
         this.actionsByTick = this.buildTickMap<ActionRecord>(replay.actionRecords ?? [], r => r.tick);
         this.eventsByTick = this.buildTickMap<ReplayEventRecord>(replay.eventRecords ?? [], r => r.tick);
         this.hashByTick = new Map<number, number>();
@@ -67,6 +87,36 @@ export class ReplayTurnManager {
         }
 
         const tick = this.game.currentTick;
+        const finishedTick = this.replay.finishedTick;
+        if (Number.isSafeInteger(finishedTick) && finishedTick >= 0 && tick >= finishedTick) {
+            if (this.replay.worldState !== undefined) {
+                try {
+                    this.worldStateRestorer(this.replay.worldState);
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    throw new Error(
+                        `[ReplayTurnManager] Cannot restore world state at tick ${tick}: ${message}`,
+                    );
+                }
+            }
+            if (this.replay.extensionState !== undefined) {
+                try {
+                    this.extensionStateRestorer(this.replay.extensionState);
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    throw new Error(
+                        `[ReplayTurnManager] Cannot restore extension state at tick ${tick}: ${message}`,
+                    );
+                }
+            }
+            this.verifyHash(tick);
+            this.finished = true;
+            this.onFinished.dispatch(this, undefined);
+            return false;
+        }
+        this.verifyHash(tick);
 
         // Inject actions for this tick
         const records = this.actionsByTick.get(tick);
@@ -110,15 +160,6 @@ export class ReplayTurnManager {
             }
         }
 
-        // Verify hash checkpoint
-        const expectedHash = this.hashByTick.get(tick);
-        if (expectedHash !== undefined) {
-            const actualHash = this.game.getHash();
-            if (actualHash !== expectedHash) {
-                console.warn(`[ReplayTurnManager] Desync detected at tick ${tick}: expected=${expectedHash}, actual=${actualHash}`);
-            }
-        }
-
         // Handle game speed changes
         if (this.gameSpeedChanged) {
             this.game.speed.value = this.game.desiredSpeed.value;
@@ -126,14 +167,18 @@ export class ReplayTurnManager {
             this.gameSpeedChanged = false;
         }
 
-        // Check if replay has ended
-        if (this.replay.finishedTick && tick >= this.replay.finishedTick) {
-            this.finished = true;
-            this.onFinished.dispatch(this, undefined);
-            return false;
-        }
-
         return true;
+    }
+
+    private verifyHash(tick: number): void {
+        const expectedHash = this.hashByTick.get(tick);
+        if (expectedHash === undefined) return;
+        const actualHash = this.game.getHash();
+        if (actualHash !== expectedHash) {
+            throw new Error(
+                `[ReplayTurnManager] Desync detected at tick ${tick}: expected=${expectedHash}, actual=${actualHash}`,
+            );
+        }
     }
 
     dispose(): void {

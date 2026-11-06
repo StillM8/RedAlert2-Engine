@@ -49,6 +49,41 @@ export interface AresIvanBombChargeRules {
     detonateOnSell: boolean;
 }
 
+export interface AresIvanBombFrameInput {
+    currentFrame: number;
+    plantingFrame: number;
+    delay: number;
+    imageFrames: number;
+    flickerRate: number;
+    deathBomb?: boolean;
+}
+
+export function resolveAresIvanBombFrame(input: AresIvanBombFrameInput): number {
+    if (!input || typeof input !== "object") return 0;
+    const frameCount = Number.isFinite(input.imageFrames) ? Math.max(0, Math.trunc(input.imageFrames)) : 0;
+    if (frameCount === 0) return 0;
+    if (input.deathBomb === true) return frameCount - 1;
+    if (frameCount === 1) return 0;
+    const currentFrame = Number.isFinite(input.currentFrame) ? Math.max(0, Math.trunc(input.currentFrame)) : 0;
+    const plantingFrame = Number.isFinite(input.plantingFrame) ? Math.max(0, Math.trunc(input.plantingFrame)) : 0;
+    const delay = Number.isFinite(input.delay) ? Math.max(0, Math.trunc(input.delay)) : 0;
+    if (delay === 0) return 0;
+    const lifetime = Math.max(0, currentFrame - plantingFrame);
+    const frameDivisor = Math.floor(delay / (frameCount - 1));
+    let frame = frameDivisor > 0 ? Math.floor(lifetime / frameDivisor) : 0;
+    const flickerRate = Number.isFinite(input.flickerRate) ? Math.max(0, Math.trunc(input.flickerRate)) : 0;
+    if (flickerRate > 0 && currentFrame % (flickerRate * 2) >= flickerRate) {
+        frame++;
+    }
+    if (frame >= frameCount) {
+        frame = frameCount - 1;
+    }
+    else if (frame === frameCount - 1) {
+        frame--;
+    }
+    return Math.max(0, Math.min(frameCount - 1, frame));
+}
+
 function optionalString(section: AresIvanBombSection, key: string): string | undefined {
     if (!section.has(key)) return undefined;
     const value = section.getString(key).trim();

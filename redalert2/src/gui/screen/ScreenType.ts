@@ -26,5 +26,6 @@ export enum MainMenuScreenType {
     OptionsStorage = 19,
     TestEntry = 20,
     LanSetup = 21,
-    LoadGame = 22
+    LoadGame = 22,
+    CampaignSelection = 23
 }

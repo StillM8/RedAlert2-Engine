@@ -1,12 +1,10 @@
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class NoFactoriesLeftCondition extends TriggerCondition {
-    check(): boolean {
-        if (!this.player)
+    check(context: any, events: any[]): boolean {
+        if (!this.player) {
             return false;
-        for (const building of this.player.buildings) {
-            if (building.factoryTrait)
-                return false;
         }
-        return true;
+        return ![...this.player.buildings].some((building: any) => building.factoryTrait);
     }
 }

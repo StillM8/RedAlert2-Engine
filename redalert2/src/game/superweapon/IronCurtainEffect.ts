@@ -20,7 +20,7 @@ export class IronCurtainEffect extends SuperWeaponEffect {
                     }
                 }
                 else {
-                    object.invulnerableTrait.setActiveFor(duration, game.currentTick);
+                    object.invulnerableTrait.setActiveFor(duration, game.currentTick, 'iron-curtain');
                     if ((object.isVehicle() || object.isAircraft()) &&
                         object.parasiteableTrait?.isInfested()) {
                         object.parasiteableTrait.destroyParasite(source, game);

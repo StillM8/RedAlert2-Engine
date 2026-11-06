@@ -141,6 +141,17 @@ export class SuperWeapon {
         });
     }
 
+    validateAresState(state: unknown): void {
+        restoreAresSuperWeaponExtensionState({
+            status: this.status,
+            chargeTicks: this.chargeTicks,
+            shotsFired: this.shotsFired,
+            chargeDrainRatio: this.chargeDrainRatio,
+            virtualChargeSinceTick: this.virtualChargeSinceTick,
+            aresBatteryActive: this.aresBatteryActive,
+        }, state);
+    }
+
     /**
      * Restores only extension-owned state.  Battery/Firestorm house hooks are
      * reconciled after validation so a rejected payload cannot half-apply a
@@ -228,8 +239,8 @@ export class SuperWeapon {
         }
         if (this.chargeTicks <= 0) {
             // Automatic expiry shuts the effect down and starts a normal
-            // recharge cycle. The type-specific effect can attach its own
-            // deactivation hook when that handler is implemented.
+            // recharge cycle; the shared helper tears down handler-owned
+            // effects (Firestorm wall / Battery) exactly like a manual stop.
             this.chargeTicks = this.rechargeTicks;
             this.status = SuperWeaponStatus.Charging;
             setAresSuperWeaponActiveForWeapon(this, false, world);

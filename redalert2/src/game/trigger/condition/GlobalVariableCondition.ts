@@ -1,14 +1,15 @@
-import { TriggerCondition } from '../TriggerCondition';
+import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class GlobalVariableCondition extends TriggerCondition {
-    private value: any;
-    private variableIdx: number;
-    constructor(trigger: any, type: any, value: any) {
-        super(trigger, type);
-        this.value = value;
+    private readonly variableIndex: number;
+
+    constructor(event: any, trigger: any, private readonly expected: boolean) {
+        super(event, trigger);
         this.blocking = true;
-        this.variableIdx = Number(trigger.params[1]);
+        this.variableIndex = Number(event.params[1]);
     }
-    check(context: any): boolean {
-        return context.triggers.getGlobalVariable(this.variableIdx) === this.value;
+
+    check(context: any, events: any[]): boolean {
+        return context.triggers.getGlobalVariable(this.variableIndex) === this.expected;
     }
 }

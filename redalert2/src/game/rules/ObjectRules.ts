@@ -9,6 +9,7 @@ export class ObjectRules {
     protected armorRegistry: ArmorRegistry;
     private alphaImage?: string;
     private alternateArcticArt: boolean = false;
+    public alternateTheaterArt: boolean = false;
     private crushable: boolean = false;
     private crushSound?: string;
     private dontScore: boolean = false;
@@ -33,6 +34,7 @@ export class ObjectRules {
     protected parse(): void {
         this.alphaImage = this.ini.getString("AlphaImage") || undefined;
         this.alternateArcticArt = this.ini.getBool("AlternateArcticArt");
+        this.alternateTheaterArt = this.ini.getBool("AlternateTheaterArt", false);
         this.crushable = this.ini.getBool("Crushable", this.type === ObjectType.Infantry);
         this.crushSound = this.ini.getString("CrushSound") || undefined;
         this.dontScore = this.ini.getBool("DontScore");

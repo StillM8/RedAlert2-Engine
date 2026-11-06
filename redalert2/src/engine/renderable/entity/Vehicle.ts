@@ -27,6 +27,7 @@ import * as RotorHelper from "@/engine/renderable/entity/unit/RotorHelper";
 import * as ExtraLightHelper from "@/engine/renderable/entity/unit/ExtraLightHelper";
 import * as DebugRenderable from "@/engine/renderable/DebugRenderable";
 import * as GfxMathUtils from "@/engine/gfx/MathUtils";
+import { AlphaRenderable } from "@/engine/renderable/AlphaRenderable";
 import * as THREE from "three";
 const o = LiangBarsky;
 const a = GameVehicle;
@@ -82,6 +83,7 @@ interface GameObjectInterface {
     isMoving: boolean;
     isFiring: boolean;
     isDestroyed: boolean;
+    deactivated?: boolean;
     position: {
         worldPosition: any;
     };
@@ -110,6 +112,9 @@ interface GameObjectInterface {
     };
     cloakableTrait?: {
         isCloaked(): boolean;
+    };
+    disguiseTrait?: {
+        isDisguised(): boolean;
     };
     submergibleTrait?: {
         isSubmerged(): boolean;
@@ -232,6 +237,7 @@ export class Vehicle {
     rockingPoint?: any;
     rockingAxis?: any;
     renderableManager?: any;
+    alphaRenderable?: AlphaRenderable;
     ambientSound?: any;
     resolveObjectRemove?: () => void;
     constructor(e, t, i, r, s, a, n, o, l, c, h, u, d, g, p, m, f) {
@@ -303,6 +309,32 @@ export class Vehicle {
     get3DObject() {
         return this.target;
     }
+    private createAlphaImage(parent: THREE.Object3D): void {
+        const imageName = this.gameObject.rules.alphaImage;
+        if (!imageName) return;
+        const image = this.imageFinder.tryFind?.(imageName, false);
+        if (!image) {
+            console.warn(`<${this.gameObject.name}>: Alpha image "${imageName}" not found`);
+            return;
+        }
+        this.alphaRenderable = new AlphaRenderable(image, this.camera, new THREE.Vector2(0, (S.Coords.ISO_TILE_SIZE + 1) / 2));
+        this.alphaRenderable.create3DObject();
+        const object = this.alphaRenderable.get3DObject();
+        if (object) parent.add(object);
+        this.updateAlphaImage();
+    }
+    private updateAlphaImage(): void {
+        this.alphaRenderable?.setFacing(this.gameObject.direction);
+        this.alphaRenderable?.setVisible(
+            !this.gameObject.isDestroyed &&
+            !this.gameObject.deactivated &&
+            !this.gameObject.warpedOutTrait?.isActive?.() &&
+            !this.gameObject.cloakableTrait?.isCloaked?.() &&
+            !this.gameObject.disguiseTrait?.isDisguised?.() &&
+            !this.gameObject.submergibleTrait?.isSubmerged?.() &&
+            (this.gameObject.tileElevation ?? 0) >= 0,
+        );
+    }
     create3DObject() {
         let e = this.get3DObject();
         e ||
@@ -314,6 +346,7 @@ export class Vehicle {
                 (this.withPosition.matrixUpdate = !0),
                 this.withPosition.applyTo(this),
                 this.createObjects(e),
+                this.createAlphaImage(e),
                 this.updateBridgeRenderOrder(),
                 this.vxlBuilders.forEach((e) => e.setExtraLight(this.vxlExtraLight)),
                 this.shpRenderable?.setExtraLight(this.shpExtraLight),
@@ -349,7 +382,8 @@ export class Vehicle {
                 this.highlightAnimRunner.animate(2));
     }
     update(i, r = 0) {
-        this.plugins.forEach((e) => e.update(i)),
+        this.updateAlphaImage(),
+            this.plugins.forEach((e) => e.update(i)),
             this.pipOverlay?.update(i),
             this.updateBridgeRenderOrder(),
             this.gameObject.veteranLevel !== this.lastVeteranLevel &&
@@ -976,7 +1010,9 @@ export class Vehicle {
     }
     dispose() {
         this.plugins.forEach((e) => e.dispose()),
-            this.pipOverlay?.dispose(),
+        this.alphaRenderable?.dispose(),
+        this.pipOverlay?.dispose(),
+
             this.shpRenderable?.dispose(),
             this.vxlBuilders.forEach((e) => e.dispose()),
             this.sinkWakeAnims?.forEach((e) => e.dispose()),

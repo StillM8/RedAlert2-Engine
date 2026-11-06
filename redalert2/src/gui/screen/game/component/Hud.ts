@@ -361,6 +361,7 @@ export class Hud extends UiObject {
             slotSize: sidebarSlotSize,
             cameoImages: cameoImages,
             cameoPalette: cameoPalette,
+            cameoPalettes: this.palettes,
             cameoNameToIdMap: cameoNameToIdMap,
             cameoPcxImages: this.pcxCameoImages,
             cameoPcxNameToIdMap: this.pcxCameoNameToIdMap,

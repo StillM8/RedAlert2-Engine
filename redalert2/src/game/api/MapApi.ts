@@ -24,6 +24,7 @@ interface Map {
         x: number;
         y: number;
     }[];
+    getStartingLocation?(index: number): { x: number; y: number } | undefined;
     getTheaterType(): any;
     mapBounds: {
         isWithinBounds(tile: any): boolean;
@@ -79,13 +80,17 @@ export class MapApi {
     getRealMapSize() {
         return this.map.tiles.getMapSize();
     }
-    getStartingLocations() {
+     getStartingLocations() {
         // Starting locations are immutable for the match; getPlayerData calls
         // this on every invocation, so allocate the vectors once.
         if (!this.cachedStartingLocations) {
             this.cachedStartingLocations = this.map.startingLocations.map(loc => new Vector2(loc.x, loc.y));
         }
         return this.cachedStartingLocations;
+    }
+    getStartingLocation(index: number): Vector2 | undefined {
+        const location = this.map.getStartingLocation?.(index);
+        return location ? new Vector2(location.x, location.y) : undefined;
     }
     getTheaterType() {
         return this.map.getTheaterType();

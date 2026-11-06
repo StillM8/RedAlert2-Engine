@@ -17,6 +17,8 @@ import { HealthLevel } from '../../../game/gameobject/unit/HealthLevel';
 import { DebugLabel } from './unit/DebugLabel';
 import { ShpBuilder } from '../builder/ShpBuilder';
 import { selectAresInsignia } from '../../../extensions/ares/AresInsignia';
+import { resolveAresRevealedProductionRules } from '../../../extensions/ares/AresSpyBehavior';
+import { Engine } from '../../Engine';
 import * as THREE from 'three';
 const HEALTH_BAR_OFFSET = -1;
 const CONTROL_GROUP_SIZE = { width: 8, height: 11 };
@@ -204,6 +206,9 @@ export class PipOverlay {
     private pipsSprite?: THREE.Mesh;
     private controlGroupSprite?: THREE.Mesh;
     private primaryFactorySprite?: THREE.Mesh;
+    private productionCameoBuilder?: ShpBuilder;
+    private productionCameoSprite?: THREE.Mesh;
+    private lastProductionCameoKey?: string;
     private veteranIndicator?: THREE.Mesh;
     private veteranIndicatorBuilder?: ShpBuilder;
     private veteranIndicatorWidth?: number;
@@ -747,8 +752,8 @@ export class PipOverlay {
             const customFile = this.imageFinder.tryFind(customSelection.fileName, false);
             if (customFile?.numImages > 0) {
                 this.veteranIndicatorBuilder = new ShpBuilder(customFile, this.palette, this.camera, Coords.ISO_WORLD_SCALE);
-                this.veteranIndicatorBuilder.setFrame(customSelection.frame);
                 const frame = Math.max(0, Math.min(customSelection.frame, customFile.numImages - 1));
+                this.veteranIndicatorBuilder.setFrame(frame);
                 this.veteranIndicatorWidth = customFile.getImage(frame).width;
                 const mesh = this.veteranIndicatorBuilder.build();
                 mesh.matrixAutoUpdate = false;
@@ -758,7 +763,7 @@ export class PipOverlay {
             }
         }
         if (veteranLevel > 0) {
-            const image = PipOverlay.pipsFile.getImage(13 + veteranLevel - 1);
+            const image = PipOverlay.pipsFile.getImage(14 + veteranLevel - 1);
             this.veteranIndicatorWidth = image.width;
             const geometry = PipOverlay.geometries.get(image)!;
             const mesh = this.useSpriteBatching
@@ -807,6 +812,9 @@ export class PipOverlay {
             this.invalidatedElements[0] = true;
         }
         const selectionLevel = this.selectionModel.getSelectionLevel();
+        if (gameObject.isBuilding()) {
+            this.updateProductionCameoSprite(selectionLevel);
+        }
         if (this.invalidatedElements[0] &&
             (selectionLevel >= SELECTION_LEVEL_MAP[0] || selectionLevel >= SELECTION_LEVEL_MAP[3])) {
             this.invalidatedElements[0] = undefined;
@@ -1000,6 +1008,55 @@ export class PipOverlay {
             rallyLine.visible = true;
         }
     }
+    private updateProductionCameoSprite(selectionLevel: SelectionLevel): void {
+        const productionRules = resolveAresRevealedProductionRules(this.gameObject, this.viewer?.value);
+        const key = productionRules
+            ? `${productionRules.type}:${String(productionRules.name).toLocaleLowerCase("en-US")}`
+            : "";
+        if (key === this.lastProductionCameoKey) {
+            if (this.productionCameoSprite) {
+                this.productionCameoSprite.visible = selectionLevel >= SelectionLevel.Selected;
+            }
+            return;
+        }
+        this.lastProductionCameoKey = key;
+        if (this.productionCameoSprite) {
+            this.rootObj?.remove(this.productionCameoSprite);
+            this.productionCameoSprite = undefined;
+        }
+        this.productionCameoBuilder?.dispose();
+        this.productionCameoBuilder = undefined;
+        if (!productionRules) return;
+        let cameo = typeof productionRules.cameo === "string" ? productionRules.cameo : undefined;
+        if (!cameo) {
+            try {
+                const artName = productionRules.imageName ?? productionRules.name;
+                cameo = Engine.getArt().getSection(artName)?.getString("Cameo") ?? "xxicon";
+            }
+            catch {
+                cameo = "xxicon";
+            }
+        }
+        const image = this.imageFinder.tryFind?.(cameo, false) ?? this.imageFinder.tryFind?.("xxicon", false);
+        if (!image || image.numImages < 1) return;
+        let palette = this.palette;
+        try {
+            palette = Engine.getPalettes().get("cameo.pal") ?? palette;
+        }
+        catch {
+            palette = this.palette;
+        }
+        this.productionCameoBuilder = new ShpBuilder(image, palette, this.camera, Coords.ISO_WORLD_SCALE);
+        const sprite = this.productionCameoBuilder.build();
+        sprite.matrixAutoUpdate = false;
+        sprite.renderOrder = 999999;
+        sprite.position.y = Coords.tileHeightToWorld((this.gameObject.art.height || 2) + 0.5);
+        sprite.updateMatrix();
+        sprite.visible = selectionLevel >= SelectionLevel.Selected;
+        this.productionCameoSprite = sprite;
+        this.rootObj?.add(sprite);
+    }
+
     private updatePrimaryFactorySprite(enabled: boolean): void {
         if (this.primaryFactorySprite) {
             this.rootObj!.remove(this.primaryFactorySprite);
@@ -1136,6 +1193,7 @@ export class PipOverlay {
         this.repairWrench?.dispose();
         this.flyHelper?.dispose();
         this.behindAnim?.dispose();
+        this.productionCameoBuilder?.dispose();
         this.debugLabel?.dispose();
         this.animFactory = undefined as any;
     }

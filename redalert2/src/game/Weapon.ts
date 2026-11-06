@@ -72,6 +72,8 @@ interface GameObject {
     isTechno(): boolean;
     dispose(): void;
     overpoweredTrait?: any;
+    baseDamageBonus?: number;
+    prismBeamThicknessOffset?: number;
     primaryWeapon?: Weapon;
     garrisonTrait?: {
         isOccupied(): boolean;
@@ -156,6 +158,9 @@ interface RulesEngine {
         v3Warhead: string;
         dMislWarhead: string;
     };
+}
+export interface WeaponFireOptions {
+    beamThicknessOffset?: number;
 }
 const ARCING_PROJECTILE_SPEED = 50;
 const AIRCRAFT_BURST_COUNT_HIGH_ROT = 5;
@@ -257,6 +262,33 @@ export class Weapon {
             this.rangeBonus,
         ]);
     }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            cooldownTicks: this.cooldownTicks,
+            burstsLeft: this.burstsLeft,
+            burstIndex: this.burstIndex,
+            useBurstDelay: this.useBurstDelay,
+            lateralMuzzleMult: this.lateralMuzzleMult,
+            rangeBonus: this.rangeBonus,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isSafeInteger((state as any).cooldownTicks) || (state as any).cooldownTicks < 0 ||
+            !Number.isSafeInteger((state as any).burstsLeft) || (state as any).burstsLeft < 0 ||
+            !Number.isSafeInteger((state as any).burstIndex) || (state as any).burstIndex < 0 ||
+            typeof (state as any).useBurstDelay !== "boolean" || !Number.isFinite((state as any).lateralMuzzleMult) ||
+            !Number.isFinite((state as any).rangeBonus)) {
+            throw new Error("Invalid weapon state");
+        }
+        this.cooldownTicks = (state as any).cooldownTicks;
+        this.burstsLeft = (state as any).burstsLeft;
+        this.burstIndex = (state as any).burstIndex;
+        this.useBurstDelay = (state as any).useBurstDelay;
+        this.lateralMuzzleMult = (state as any).lateralMuzzleMult;
+        this.rangeBonus = (state as any).rangeBonus;
+    }
     get minRange(): number {
         return this.rules.minimumRange;
     }
@@ -320,7 +352,13 @@ export class Weapon {
     getBurstsFired(): number {
         return this.burstIndex;
     }
-    fire(target: Target, engine: GameEngine, damageMultiplier: number = 1): void {
+    fire(
+        target: Target,
+        engine: GameEngine,
+        damageMultiplier: number = 1,
+        damageBonus: number = 0,
+        options: WeaponFireOptions = {},
+    ): void {
         const gameObject = this.gameObject;
         const firepowerMultiplier = resolveAresAttachEffectCombat(
             { firepower: 1 },
@@ -398,6 +436,8 @@ export class Weapon {
         }
         const projectile = spawnedProjectile ??
             engine.createProjectile(this.projectileRules.name, gameObject, this, target, false);
+        projectile.baseDamageBonus = damageBonus;
+        projectile.prismBeamThicknessOffset = options.beamThicknessOffset ?? 0;
         if (!projectile.isAircraft()) {
             projectile.baseDamageMultiplier =
                 effectiveDamageMultiplier *
@@ -456,6 +496,9 @@ export class Weapon {
             gameObject.cloakableTrait?.uncloak(engine);
         }
         engine.events.dispatch(new WeaponFireEvent(this, gameObject));
+        if (gameObject.isAircraft()) {
+            (gameObject as any).transportTrait?.dropPassengersForWeaponFire?.(gameObject, engine);
+        }
     }
     getMuzzleFacing(): number {
         const gameObject = this.gameObject;

@@ -84,18 +84,14 @@ interface AllianceSystem {
 type TargetCheckFunction = (target?: GameObject, context?: GameContext, alliances?: AllianceSystem, forcefire?: boolean, shift?: boolean) => boolean;
 export class WeaponTargeting {
     private targetChecks: TargetCheckFunction[] = [];
-    constructor(private weaponType: WeaponType, private projectileRules: ProjectileRules, private weaponRules: WeaponRules, private warheadRules: WarheadRules, private gameObject: GameObject, private generalRules: GeneralRules) {
+    constructor(private weaponType: WeaponType, private projectileRules: ProjectileRules, private weaponRules: WeaponRules, private warheadRules: WarheadRules, private gameObject: GameObject, _generalRules: GeneralRules) {
         this.initConditions();
     }
     private initConditions(): void {
         if (!this.projectileRules.isAntiGround) {
             this.targetChecks.push((target) => !!target);
         }
-        const prismType = this.generalRules.prism.type;
-        if (this.gameObject.name === prismType && this.weaponType === WeaponType.Secondary) {
-            this.targetChecks.push((target, context, alliances, forcefire, shift) => !(!shift || !target?.isBuilding() || target.name !== prismType || target.owner !== this.gameObject.owner));
-        }
-        else if (this.warheadRules.electricAssault) {
+        if (this.warheadRules.electricAssault) {
             this.targetChecks.push((target, context, alliances, forcefire, shift) => !((!forcefire && !shift) || !target?.isBuilding() || !target.overpoweredTrait || target.owner !== this.gameObject.owner));
         }
         else if (this.weaponRules.damage < 0) {

@@ -15,6 +15,8 @@ import { HudFactory } from '@/gui/screen/game/HudFactory';
 import { Minimap } from '@/gui/screen/game/component/Minimap';
 import { SideType } from '@/game/SideType';
 import { ReplayTurnManager } from '@/network/gamestate/ReplayTurnManager';
+import { restoreExtensionState } from '@/game/state/ExtensionStateSnapshot';
+import { restoreWorldState } from '@/game/state/WorldStateSnapshot';
 import { ActionFactory } from '@/game/action/ActionFactory';
 import { ActionFactoryReg } from '@/game/action/ActionFactoryReg';
 import { MessageList } from '@/gui/screen/game/component/hud/viewmodel/MessageList';
@@ -326,7 +328,22 @@ export class ReplayScreen extends RootScreen {
         worldScene.create3DObject();
         const actionFactory = new ActionFactory();
         new ActionFactoryReg().register(actionFactory, game, undefined);
-        const gameTurnMgr = this.gameTurnMgr = new ReplayTurnManager(game, params.replay, actionFactory, this.actionLogger as any);
+        const gameTurnMgr = this.gameTurnMgr = new ReplayTurnManager(
+            game,
+            params.replay,
+            actionFactory,
+            this.actionLogger as any,
+            state => restoreExtensionState(game, state, {
+                strict: true,
+                superWeaponWorld: game,
+            }),
+            state => restoreWorldState(game, state, {
+                strict: true,
+                createObject: (type, name) => (game as any).createObject(type, name),
+                spawnObject: (object, tile) => (game as any).restoreSpawnedObject(object, tile),
+                unspawnObject: object => (game as any).restoreUnspawnedObject(object),
+            }),
+        );
         this.gameTurnMgr.init();
         const tauntPlayback = new TauntPlayback(this.sound.audioSystem, Engine.getTaunts());
         const handleReplayEvent = (event: any) => {

@@ -27,11 +27,15 @@ import {
     type AresAttachEffectAggregateInput,
 } from "@/extensions/ares/AresAttachEffectCombat";
 import type { AresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import { isLaserFenceDamageInvariant } from "@/extensions/ares/AresLaserFences";
 import type { AresAttachEffectApplyResult } from "@/extensions/ares/AresAttachEffectRuntime";
 import { resolveAresLightningRodDamage } from "@/extensions/ares/AresLightningRods";
 import { AresAttachEffectTrait } from "@/game/gameobject/trait/AresAttachEffectTrait";
 import { CloakableTrait } from "@/game/gameobject/trait/CloakableTrait";
 import { applyAresChronoPrison } from "@/extensions/ares/AresChronoPrisonIntegration";
+import { canAffectAresWarheadTarget } from "@/extensions/ares/AresWarheadEffects";
+import { resolveMakeInfantryAnimationChain } from "@/extensions/ares/AresMakeInfantry";
+import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
 interface GameObject {
     isSpawned: boolean;
     isDisposed: boolean;
@@ -40,6 +44,7 @@ interface GameObject {
     healthTrait?: HealthTrait;
     rules: GameObjectRules;
     position: Position;
+    tile: any;
     direction: number;
     owner: Player;
     name: string;
@@ -124,6 +129,9 @@ interface GameObjectRules {
     immuneToEMP?: boolean;
     empModifier?: number;
     empThreshold?: number;
+    ironCurtainModifier?: number;
+    isHuman?: boolean;
+    organic?: boolean;
     wall: boolean;
     lightningRod?: boolean;
     lightningRodModifier?: number;
@@ -144,6 +152,7 @@ interface WarheadRules {
     wall: boolean;
     wood: boolean;
     infDeath: DeathType;
+    infDeathAnim?: string;
     affectsAllies: boolean;
     affectsEnemies?: boolean;
     affectsOwner?: boolean;
@@ -160,6 +169,13 @@ interface WarheadRules {
     emEffect: boolean;
     empDuration: number;
     empCap: number;
+    ironCurtainDuration: number;
+    ironCurtainCap: number;
+    rippleRadius: number;
+    deployedDamage: number;
+    temporalWarpAway?: string;
+    preImpactAnim?: string;
+    mindControlPermanent?: boolean;
     animList: string[];
     name: string;
     cellSpread: number;
@@ -181,12 +197,20 @@ interface WeaponInfo {
 interface GameWorld {
     map: GameMap;
     alliances: AllianceManager;
+    areAllied?(player1: Player, player2: Player): boolean;
     traits: TraitContainer;
     events: EventDispatcher;
+    art?: { getAnimation?(name: string): any };
+    currentTick?: number;
     rules: GameRules;
     gameOpts: GameOptions;
     mapRadiationTrait: MapRadiationTrait;
     destroyObject(obj: GameObject, source?: WeaponInfo, cause?: any, isDirectHit?: boolean): void;
+    startAresMakeInfantryFromInfDeathAnim?(
+        victim: GameObject,
+        animationName: string,
+        killer?: WeaponInfo,
+    ): unknown;
     generateRandomInt(min: number, max: number): number;
     generateRandom?(): number;
     changeObjectOwner?(obj: GameObject, newOwner: Player): void;
@@ -212,6 +236,7 @@ interface Player {
 }
 interface Position {
     getMapPosition(): Vector3;
+    worldPosition: Vector3;
     clone(): Position;
     sub(other: Vector3): Position;
 }
@@ -219,6 +244,7 @@ interface Vector3 {
     x: number;
     y: number;
     z: number;
+    clone?(): Vector3;
 }
 interface Rectangle {
     width: number;
@@ -229,6 +255,7 @@ interface WarpedOutTrait {
 }
 interface InvulnerableTrait {
     isActive(): boolean;
+    applyIronCurtain?(duration: number, cap: number, modifier: number, timestamp?: number): unknown;
 }
 interface VeteranTrait {
     getVeteranArmorMultiplier(): number;
@@ -340,7 +367,12 @@ export class Warhead {
         }
         return true;
     }
+    canAffectTarget(target: GameObject, sourcePlayer: Player | undefined, gameWorld: GameWorld): boolean {
+        return canAffectAresWarheadTarget(target, sourcePlayer, gameWorld, this.rules as any);
+    }
+
     computeDamage(baseDamage: number, target: GameObject, gameWorld: GameWorld, isWeatherStorm = false, ignoreLightningRod = false): number {
+        if (isLaserFenceDamageInvariant(target)) return 0;
         let damage = baseDamage;
         if (damage > 0 && target.isTechno() && (target as TechnoObject).invulnerableTrait.isActive()) {
             return 0;
@@ -354,10 +386,13 @@ export class Warhead {
         if (!gameWorld.gameOpts.destroyableBridges && target.isOverlay() && target.isBridge()) {
             return 0;
         }
-        if (!this.rules.radiation && !this.rules.temporal && target.isInfantry()) {
+        if (target.isInfantry()) {
             const infantry = target as InfantryObject;
-            if (infantry.stance === StanceType.Prone) {
+            if (!this.rules.radiation && !this.rules.temporal && infantry.stance === StanceType.Prone) {
                 damage *= this.rules.proneDamage;
+            }
+            if (infantry.stance === StanceType.Deployed) {
+                damage *= this.rules.deployedDamage;
             }
         }
         if (target.isTechno() || target.isOverlay() || target.isTerrain()) {
@@ -428,8 +463,15 @@ export class Warhead {
             if (target.isInfantry()) {
                 (target as InfantryObject).infDeathType = this.rules.infDeath;
             }
+            const infDeathAnimation = target.isInfantry()
+                ? this.handleInfDeathAnimation(target, weaponInfo, gameWorld)
+                : "none";
+            if (infDeathAnimation === "mutation") {
+                return true;
+            }
             if (this.rules.temporal) {
                 (target as any).deathType = DeathType.Temporal;
+                (target as any).temporalWarpAwayOverride = this.rules.temporalWarpAway;
             }
             if (target.isUnit() && (target as TechnoObject).crashableTrait && target.zone === ZoneType.Air && !this.rules.temporal) {
                 (target as TechnoObject).crashableTrait!.crash(weaponInfo);
@@ -440,6 +482,46 @@ export class Warhead {
             return true;
         }
         return false;
+    }
+
+    private handleInfDeathAnimation(
+        target: GameObject,
+        weaponInfo: WeaponInfo | undefined,
+        gameWorld: GameWorld,
+    ): "none" | "mutation" | "nonmutation" {
+        const animationName = this.rules.infDeathAnim;
+        if (!animationName || !target.isInfantry() || target.rules.isHuman === false ||
+            target.zone === ZoneType.Air || (target.tileElevation ?? 0) >= 10) {
+            return "none";
+        }
+        let chain;
+        try {
+            chain = resolveMakeInfantryAnimationChain(
+                animationName,
+                (name) => gameWorld.art?.getAnimation?.(name),
+            );
+        }
+        catch {
+            return "none";
+        }
+        if (!chain?.valid) return "none";
+        if (chain.makeInfantry >= 0) {
+            return gameWorld.startAresMakeInfantryFromInfDeathAnim?.(
+                target,
+                animationName,
+                weaponInfo,
+            ) ? "mutation" : "none";
+        }
+        (target as any).aresInfDeathAnimationHandled = true;
+        const sourcePlayer = weaponInfo?.player ?? weaponInfo?.obj?.owner;
+        gameWorld.events.dispatch(new TriggerAnimEvent(
+            animationName,
+            target.tile,
+            target.position?.worldPosition?.clone?.() ?? target.position?.worldPosition,
+            sourcePlayer,
+            weaponInfo?.obj,
+        ));
+        return "nonmutation";
     }
     private suppressOrScatterTarget(target: TechnoObject, gameWorld: GameWorld): void {
         if (target.rules.fraidycat || (target.isVehicle() && !target.owner.isCombatant() && target.rules.insignificant)) {
@@ -477,11 +559,12 @@ export class Warhead {
     }, weaponInfo: WeaponInfo | undefined, friendly: boolean, areaEffectSmudge: string | undefined, customSpread?: number, isWeatherStorm = false, targetFilter?: (object: GameObject, tile: Position) => boolean, areaDetonation = false): void {
         const weapon = weaponInfo?.weapon ?? this.createDummyWeaponInfo() as any;
         const sourceObj = weaponInfo?.obj;
-        const sourcePlayer = weaponInfo?.player;
+        const sourcePlayer = weaponInfo?.player ?? weaponInfo?.obj?.owner;
         const cellSpread = customSpread ? customSpread / Coords.LEPTONS_PER_TILE : this.rules.cellSpread;
         const percentAtMax = this.rules.percentAtMax;
         const processedObjects = new Set<GameObject>();
         const objectDistances = new Map<GameObject, number[]>();
+        const friendlyInfantry = new Set<GameObject>();
         const rangeHelper = new RangeHelper(gameWorld.map.tileOccupation as any);
         const tileFinder = new RadialTileFinder(gameWorld.map.tiles as any, gameWorld.map.mapBounds as any, centerTile as any, { width: 1, height: 1 }, 0, Math.ceil(cellSpread), () => true);
         let currentTile: any;
@@ -515,10 +598,11 @@ export class Warhead {
                 }
                 if (distance < 0.001)
                     distance = 0;
-                if (friendly && obj.isInfantry() && sourcePlayer) {
-                    if (obj.owner === sourcePlayer || gameWorld.alliances.areAllied(obj.owner, sourcePlayer)) {
-                        continue;
-                    }
+                if (friendly && obj.isInfantry() && sourcePlayer &&
+                    (obj.owner === sourcePlayer ||
+                        gameWorld.alliances?.areAllied?.(obj.owner, sourcePlayer) === true ||
+                        gameWorld.areAllied?.(obj.owner, sourcePlayer) === true)) {
+                    friendlyInfantry.add(obj);
                 }
                 if (!cellSpread) {
                     if (obj.isTerrain()) {
@@ -545,14 +629,12 @@ export class Warhead {
                 baseDamage, obj, gameWorld, isWeatherStorm,
                 (weaponInfo as any)?.aresIgnoreLightningRod === true,
             );
-            if (baseDamage > 0 && obj.isTechno() && sourcePlayer) {
-                const isOwner = obj.owner === sourcePlayer;
-                const isFriendly = gameWorld.alliances.areAllied(obj.owner, sourcePlayer) || isOwner;
-                if ((isFriendly && !this.rules.affectsAllies) ||
-                    (isOwner && !this.rules.affectsOwner) ||
-                    (!isFriendly && this.rules.affectsEnemies === false)) {
-                    damage = 0;
-                }
+            if (baseDamage > 0 && obj.isTechno() && sourcePlayer &&
+                !this.canAffectTarget(obj, sourcePlayer, gameWorld)) {
+                damage = 0;
+            }
+            if (friendlyInfantry.has(obj)) {
+                damage = 0;
             }
             const verses = obj.isTechno() ? (this.rules.verses.get(obj.rules.armor) ?? 1) : 1;
             const aresEffectsAllowed = (!this.rules.effectsRequireVerses || verses !== 0) &&
@@ -606,17 +688,20 @@ export class Warhead {
                     affectsAllies: this.rules.affectsAllies,
                     affectsEnemies: this.rules.affectsEnemies,
                 });
-            if (killDriverApplied) {
-                if (obj === target.obj) {
-                    directHitTarget = obj;
-                }
-                continue;
-            }
+             if (killDriverApplied) {
+                 if (obj === target.obj) {
+                     directHitTarget = obj;
+                 }
+                  this.applyIronCurtain(obj, weaponInfo, gameWorld, baseDamage);
+                 continue;
+             }
+
             // AllowZeroDamage lets a zero-damage warhead still pass through the
             // remaining damage/notification path (e.g. so Malicious=no or
             // attack notifications still apply). Without it, zero-damage hits
             // are skipped after effects have been attempted.
-            if (!damage && !empApplied && !attachEffectApplied && !this.rules.allowZeroDamage)
+            if (!damage && !empApplied && !attachEffectApplied && !this.rules.allowZeroDamage &&
+                !this.rules.ironCurtainDuration)
                 continue;
             for (const distance of damage ? objectDistances.get(obj)! : []) {
                 let finalDamage = damage;
@@ -667,9 +752,11 @@ export class Warhead {
                             obj.applyRocking(rockDirection, rockIntensity);
                         }
                     }
-                }
-            }
-            if (obj.isTechno() && (obj as TechnoObject).invulnerableTrait.isActive()) {
+                 }
+             }
+             this.applyIronCurtain(obj, weaponInfo, gameWorld, baseDamage);
+             if (obj.isTechno() && (obj as TechnoObject).invulnerableTrait.isActive()) {
+
                 hasInvulnerableHit = true;
             }
         }
@@ -697,12 +784,45 @@ export class Warhead {
             centerTile,
             elevation,
             zone,
-            sourcePlayer,
-            sourceObj,
-        ));
+             sourcePlayer,
+             sourceObj,
+             this.rules.rippleRadius,
+         ));
+
     }
 
-    /** Apply a Warhead-owned AttachEffect through the target's live trait. */
+    private applyIronCurtain(
+        target: GameObject,
+        weaponInfo: WeaponInfo | undefined,
+        gameWorld: GameWorld,
+        damage: number,
+    ): void {
+        if (!this.rules.ironCurtainDuration || !target.isTechno() ||
+            target.isDestroyed || target.isDisposed || target.isCrashing || !target.healthTrait) {
+            return;
+        }
+        const sourcePlayer = weaponInfo?.player ?? weaponInfo?.obj?.owner;
+        if (!this.canAffectTarget(target, sourcePlayer, gameWorld)) return;
+        const verses = this.rules.verses.get(target.rules.armor) ?? 1;
+        if (verses === 0) return;
+        const modifier = target.rules.ironCurtainModifier ?? 1;
+        const duration = this.rules.ironCurtainDuration > 0
+            ? Math.trunc(this.rules.ironCurtainDuration * modifier)
+            : this.rules.ironCurtainDuration;
+        const protection = (target as TechnoObject).invulnerableTrait;
+        const wasProtected = protection?.isActive?.() === true;
+        if (damage !== 0 && duration > 0 && !wasProtected && (target.isInfantry() || target.rules.organic === true)) {
+            this.inflictDamage(Number.POSITIVE_INFINITY, target, weaponInfo, gameWorld, false);
+            return;
+        }
+        protection?.applyIronCurtain?.(
+            this.rules.ironCurtainDuration,
+            this.rules.ironCurtainCap,
+            modifier,
+            gameWorld.currentTick,
+        );
+    }
+
     private applyAresAttachEffect(
         target: GameObject,
         gameWorld: GameWorld,
@@ -710,6 +830,9 @@ export class Warhead {
     ): AresAttachEffectApplyResult | undefined {
         const definition = this.rules.aresAttachEffect;
         if (!definition || !target.isTechno() || target.isDestroyed || target.isCrashing) {
+            return undefined;
+        }
+        if (sourcePlayer && !this.canAffectTarget(target, sourcePlayer, gameWorld)) {
             return undefined;
         }
 
@@ -807,12 +930,8 @@ export class Warhead {
             return false;
         }
 
-        if (sourcePlayer) {
-            const isFriendly = target.owner === sourcePlayer || gameWorld.alliances.areAllied(target.owner, sourcePlayer);
-            if ((isFriendly && !this.rules.affectsAllies) ||
-                (!isFriendly && this.rules.affectsEnemies === false)) {
-                return false;
-            }
+        if (!this.canAffectTarget(target, sourcePlayer, gameWorld)) {
+            return false;
         }
 
         return techno.empTrait.apply(
@@ -822,7 +941,11 @@ export class Warhead {
         );
     }
     private pickExplodeAnim(damage: number, directHitTarget: GameObject | undefined, zone: ZoneType, gameWorld: GameWorld, isWeatherStorm: boolean): string | undefined {
-        if (!damage)
+        // A negative Damage is a repair/heal warhead. It must not play an
+        // explosion, and because the same animation drives AnimTerrainEffect,
+        // it must not destroy ore either. The old truthiness guard let a
+        // negative value through, so repair beams blew up the tile they healed.
+        if (!(damage > 0))
             return undefined;
         if (isWeatherStorm) {
             return gameWorld.rules.audioVisual.weatherConBoltExplosion;

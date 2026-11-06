@@ -3,6 +3,7 @@ import { CollisionType } from "@/game/gameobject/unit/CollisionType";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { selectAresHunterSeekerTarget } from "@/extensions/ares/AresHunterSeeker";
+import { registerObjectTraitFactory } from "@/game/state/ObjectTraitFactoryRegistry";
 import { fnv32aStrings } from "@/util/math";
 
 export interface AresHunterSeekerLaunchContext {
@@ -34,7 +35,18 @@ function tileDistanceInLeptons(first: any, second: any): number {
  * then owns target reacquisition, deterministic pursuit, and weapon/warhead
  * detonation.  No object ID or Windows hook is involved.
  */
+export const ARES_HUNTER_SEEKER_TRAIT_ATTACH_KEY = "ares.hunter-seeker";
+
+export interface AresHunterSeekerTraitState extends AresHunterSeekerLaunchContext {
+    version: 1;
+    targetId: number | null;
+    lastTargetTile: { rx: number; ry: number } | null;
+}
+
 export class AresHunterSeekerTrait implements NotifyTick {
+    /** Lets a world checkpoint rebuild this runtime-attached trait. */
+    static readonly runtimeAttachKey = ARES_HUNTER_SEEKER_TRAIT_ATTACH_KEY;
+
     private target?: any;
     private lastTargetTile?: any;
 
@@ -200,6 +212,54 @@ export class AresHunterSeekerTrait implements NotifyTick {
         ]);
     }
 
+    /** The authored launch context is immutable config, so it is restorable verbatim. */
+    captureContext(): AresHunterSeekerLaunchContext {
+        return { ...this.context };
+    }
+
+    captureState(): AresHunterSeekerTraitState {
+        return {
+            version: 1,
+            ...this.context,
+            targetId: this.target?.id ?? null,
+            lastTargetTile: this.lastTargetTile
+                ? { rx: this.lastTargetTile.rx, ry: this.lastTargetTile.ry }
+                : null,
+        };
+    }
+
+    restoreState(
+        state: unknown,
+        context: { resolveObjectById?: (id: number) => any; resolveTile?: (rx: number, ry: number) => any; strict?: boolean } = {},
+    ): void {
+        const candidate = state as AresHunterSeekerTraitState;
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            typeof (state as any).randomOnly !== "boolean" ||
+            !Number.isFinite((state as any).detonateProximity) ||
+            !Number.isFinite((state as any).descendProximity) ||
+            !Number.isFinite((state as any).ascentSpeed) ||
+            !Number.isFinite((state as any).descentSpeed) ||
+            !Number.isFinite((state as any).emergeSpeed) ||
+            !("targetId" in (state as any)) ||
+            !("lastTargetTile" in (state as any))) {
+            throw new Error("Invalid Ares Hunter Seeker state");
+        }
+        if (candidate.lastTargetTile !== null &&
+            (!Number.isSafeInteger(candidate.lastTargetTile?.rx) || !Number.isSafeInteger(candidate.lastTargetTile?.ry))) {
+            throw new Error("Invalid Ares Hunter Seeker last target tile");
+        }
+        this.target = candidate.targetId === null
+            ? undefined
+            : context.resolveObjectById?.(candidate.targetId);
+        if (candidate.targetId !== null && !this.target && context.strict) {
+            throw new Error("Cannot restore Ares Hunter Seeker target: unresolved");
+        }
+        this.lastTargetTile = candidate.lastTargetTile === null
+            ? undefined
+            : context.resolveTile?.(candidate.lastTargetTile.rx, candidate.lastTargetTile.ry) ??
+              { rx: candidate.lastTargetTile.rx, ry: candidate.lastTargetTile.ry };
+    }
+
     debugGetState(): Record<string, unknown> {
         return {
             targetId: this.target?.id,
@@ -211,3 +271,8 @@ export class AresHunterSeekerTrait implements NotifyTick {
         };
     }
 }
+
+registerObjectTraitFactory(
+    ARES_HUNTER_SEEKER_TRAIT_ATTACH_KEY,
+    (context) => new AresHunterSeekerTrait(context),
+);

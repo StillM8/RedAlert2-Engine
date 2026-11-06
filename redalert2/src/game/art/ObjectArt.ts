@@ -13,6 +13,8 @@ import { Vector2 } from "@/game/math/Vector2";
 import { Vector3 } from "@/game/math/Vector3";
 import { SequenceType } from "@/game/art/SequenceType";
 import { Foundation, parseFoundation } from "@/game/art/Foundation";
+import { MakeInfantryOwner, parseMakeInfantryAnimation } from "@/extensions/ares/AresMakeInfantry";
+import { ARES_DEFAULT_CAMEO_PALETTE, normalizeAresCameoPalette } from "@/extensions/ares/AresPcxCameos";
 interface ArtSection {
     getString(key: string, defaultValue?: string): string | undefined;
     getBool(key: string, defaultValue?: boolean): boolean;
@@ -24,6 +26,7 @@ interface ArtSection {
 interface RulesBase {
     imageName: string;
     alternateArcticArt?: boolean;
+    alternateTheaterArt?: boolean;
     noShadow?: boolean;
 }
 interface BuildingRules extends RulesBase {
@@ -41,6 +44,15 @@ interface MuzzleFlash {
     x: number;
     y: number;
 }
+function resolveSolidHeight(authoredHeight: number, buildingHeight: number): number {
+    if (!Number.isFinite(authoredHeight)) return 0;
+    if (authoredHeight === -1) {
+        return Number.isFinite(buildingHeight) && buildingHeight > 0 ? buildingHeight : 0;
+    }
+    if (authoredHeight < 0) return 0;
+    const integerHeight = Math.floor(authoredHeight);
+    return Number.isSafeInteger(integerHeight) ? integerHeight : 0;
+}
 export class ObjectArt {
     public static readonly DEFAULT_LINE_TRAIL_DEC = 16;
     private static readonly MISSING_CAMEO = "xxicon";
@@ -50,6 +62,8 @@ export class ObjectArt {
     public rules: RulesBase;
     public art: ArtSection;
     public image: string = "";
+    public alternateTheaterImageName?: string;
+    public cameoPalette: string = ARES_DEFAULT_CAMEO_PALETTE;
     public report?: string;
     public rotors?: Rotor[];
     public noHva: boolean = false;
@@ -69,6 +83,7 @@ export class ObjectArt {
     public forceBigCraters: boolean = false;
     public scorch: boolean = false;
     public height: number = 0;
+    public solidHeight: number = 0;
     public isVoxel: boolean = false;
     public occupyHeight: number = 0;
     public canHideThings: boolean = false;
@@ -76,6 +91,9 @@ export class ObjectArt {
     public addOccupy: Vector2[] = [];
     public removeOccupy: Vector2[] = [];
     public rotates: boolean = false;
+    public makeInfantry: number = -1;
+    public makeInfantryOwner: MakeInfantryOwner = MakeInfantryOwner.Invoker;
+    public nextAnimation?: string;
     static getDefaultPalette(objectType: ObjectType): PaletteType {
         switch (objectType) {
             case ObjectType.Building:
@@ -180,9 +198,23 @@ export class ObjectArt {
         }
     }
     static factory(objectType: ObjectType, rules: RulesBase, iniData: any, art: ArtSection): ObjectArt {
-        const result = new this(objectType, rules, art);
+        let selectedArt = art;
+        let alternateTheaterImageName: string | undefined;
+        if (rules.alternateTheaterArt &&
+            [ObjectType.Aircraft, ObjectType.Building, ObjectType.Infantry, ObjectType.Vehicle].includes(objectType) &&
+            !art.getBool("Voxel", false) &&
+            ObjectArt.alternateTheaterSuffix) {
+            const candidateName = `${rules.imageName}${ObjectArt.alternateTheaterSuffix}`;
+            const candidate = iniData?.getSection?.(candidateName);
+            if (candidate && !candidate.getBool("Voxel", false)) {
+                selectedArt = candidate;
+                alternateTheaterImageName = candidateName;
+            }
+        }
+        const result = new this(objectType, rules, selectedArt);
+        result.alternateTheaterImageName = alternateTheaterImageName;
         if (objectType === ObjectType.Infantry) {
-            const sequenceName = art.getString("Sequence");
+            const sequenceName = selectedArt.getString("Sequence");
             if (sequenceName) {
                 const sequenceSection = iniData.getSection(sequenceName);
                 if (sequenceSection) {
@@ -203,6 +235,7 @@ export class ObjectArt {
             ? ""
             : this.art.getString("Image") || "";
         this.report = this.art.getString("Report");
+        this.cameoPalette = normalizeAresCameoPalette(this.art.getString("CameoPalette"));
         this.readRotors();
         this.noHva = this.art.getBool("NoHVA", false);
         this.startSound = this.art.getString("StartSound");
@@ -231,6 +264,9 @@ export class ObjectArt {
         this.forceBigCraters = this.art.getBool("ForceBigCraters", false);
         this.scorch = this.art.getBool("Scorch", false);
         this.height = this.art.getNumber("Height", ObjectArt.getDefaultHeight(this.type));
+        this.solidHeight = this.type === ObjectType.Building
+            ? resolveSolidHeight(this.art.getNumber("SolidHeight", 0), this.height)
+            : 0;
         this.isVoxel = this.art.getBool("Voxel", false);
         this.occupyHeight = this.art.getNumber("OccupyHeight", this.height);
         if (this.type === ObjectType.Building) {
@@ -243,10 +279,20 @@ export class ObjectArt {
         this.addOccupy = this.readAddRemoveOccupy("AddOccupy");
         this.removeOccupy = this.readAddRemoveOccupy("RemoveOccupy");
         this.rotates = this.art.getBool("Rotates", false);
+        if (this.type === ObjectType.Animation) {
+            const parsed = parseMakeInfantryAnimation(
+                String((this.art as any).name ?? ""),
+                this.art,
+            );
+            this.makeInfantry = parsed.makeInfantry;
+            this.makeInfantryOwner = parsed.makeInfantryOwner;
+            this.nextAnimation = parsed.next;
+        }
     }
     // Set once per game from the loaded map's theater (see GameLoader);
     // AlternateArcticArt only swaps in the "A" art on Snow maps in retail.
     static inSnowTheater: boolean = false;
+    static alternateTheaterSuffix: string = "";
     // Voxel rotor sections for rotorcraft whose art has no Rotors= key.
     // RA2/YR animate helicopter rotors in the exe, so retail art has NO
     // Rotor* keys at all — these are the section names read out of the
@@ -257,11 +303,9 @@ export class ObjectArt {
         ["SHAD", ["Main Rotor", "Rear Rotor"]],
     ]);
     get imageName(): string {
-        return (this.image || this.rules.imageName) +
-            // AlternateArcticArt is an SHP-only retail/Ares feature. Applying
-            // the suffix to voxel vehicles or aircraft makes the renderer look
-            // for nonexistent imageA.vxl files on snow maps.
-            (this.type === ObjectType.Infantry && this.rules.alternateArcticArt && ObjectArt.inSnowTheater ? "A" : "");
+        return this.alternateTheaterImageName ??
+            ((this.image || this.rules.imageName) +
+                (this.type === ObjectType.Infantry && this.rules.alternateArcticArt && ObjectArt.inSnowTheater ? "A" : ""));
     }
     get cameo(): string {
         const cameo = this.art.getString("Cameo") || ObjectArt.MISSING_CAMEO;
@@ -312,7 +356,8 @@ export class ObjectArt {
         if (this.art.getBool("AltPalette", false)) {
             this.paletteType = PaletteType.Unit;
         }
-        if ((this.rules instanceof OverlayRules || this.rules instanceof TechnoRules) && (this.rules as any).wall) {
+        if ((this.rules instanceof OverlayRules || this.rules instanceof TechnoRules) &&
+            ((this.rules as any).wall || (this.rules as any).laserFence || (this.rules as any).laserFencePost)) {
             this.paletteType = PaletteType.Unit;
             this.lightingType = LightingType.Ambient;
         }
@@ -499,6 +544,12 @@ export class ObjectArt {
     get elitePrimaryFireFlh(): FlhCoords {
         const eliteArray = this.art.getNumberArray("ElitePrimaryFireFLH");
         return eliteArray.length ? new FlhCoords(eliteArray) : this.primaryFireFlh;
+    }
+    get alternateFireFlh(): FlhCoords {
+        return new FlhCoords(this.art.getNumberArray("AlternateFLH0"));
+    }
+    get eliteAlternateFireFlh(): FlhCoords {
+        return new FlhCoords(this.art.getNumberArray("AlternateFLH1"));
     }
     get primaryFirePixelOffset(): number[] {
         return this.art.getNumberArray("PrimaryFirePixelOffset");

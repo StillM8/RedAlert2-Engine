@@ -30,6 +30,15 @@ import type { Unit } from "@/game/gameobject/Unit";
 import type { Locomotor } from "@/game/gameobject/locomotor/Locomotor";
 import type { Weapon } from "@/game/gameobject/Weapon";
 import { Target } from "@/game/Target";
+import {
+    captureTaskCell,
+    captureTaskCells,
+    registerTaskStateFactory,
+    restoreTaskCells,
+    validateTaskCell,
+    validateTaskCells,
+    type TaskStateContext,
+} from "@/game/gameobject/task/TaskStateRegistry";
 const VELOCITY_FACTOR = 1.5;
 const MAX_PLANNING_TICKS = 200;
 const WAIT_TICKS = 40;
@@ -104,6 +113,200 @@ export class MoveTask extends Task {
     }
     duplicate(): MoveTask {
         return new MoveTask(this.game, this.targetTile, this.toBridge, this.options);
+    }
+    /**
+     * Stable type id used by the task-state registry. A moving unit's live path,
+     * planning latches, and cell targets all change what it does next, so this
+     * task participates in the checkpoint rather than staying unclassified.
+     */
+    public readonly deterministicType = "move";
+
+    /**
+     * Path, planning latches, and cell targets are all map-coordinate data, so
+     * they cross worlds without reference identity. Object references in the
+     * options (ignored blockers, a stop-on blocker) are stored by stable id.
+     */
+    getDeterministicState(): Record<string, unknown> {
+        return {
+            ...super.getDeterministicState(),
+            targetTile: captureTaskCell(this.targetTile),
+            toBridge: this.toBridge,
+            options: this.options
+                ? {
+                    targetOffset: this.options.targetOffset
+                        ? { x: this.options.targetOffset.x, y: this.options.targetOffset.y }
+                        : undefined,
+                    allowOutOfBoundsTarget: this.options.allowOutOfBoundsTarget === true,
+                    forceMove: this.options.forceMove === true,
+                    strictCloseEnough: this.options.strictCloseEnough === true,
+                    closeEnoughTiles: this.options.closeEnoughTiles ?? null,
+                    ignoredBlockerIds: (this.options.ignoredBlockers ?? [])
+                        .map(blocker => blocker?.id)
+                        .filter((id: any) => Number.isSafeInteger(id)),
+                    pathFinderIgnoredBlockerIds: (this.options.pathFinderIgnoredBlockers ?? [])
+                        .map(blocker => blocker?.id)
+                        .filter((id: any) => Number.isSafeInteger(id)),
+                    maxExpandedPathNodes: this.options.maxExpandedPathNodes ?? null,
+                    stopOnBlockerId: Number.isSafeInteger(this.options.stopOnBlocker?.id)
+                        ? this.options.stopOnBlocker.id
+                        : null,
+                    forceWaitOnPathBlocked: this.options.forceWaitOnPathBlocked === true,
+                }
+                : null,
+            destinationLeptons: { x: this.destinationLeptons.x, y: this.destinationLeptons.y },
+            currentWaypointLeptons: { x: this.currentWaypointLeptons.x, y: this.currentWaypointLeptons.y },
+            needsPathUpdate: this.needsPathUpdate,
+            targetChangeRequested: this.targetChangeRequested,
+            allObstaclesAreBlockers: this.allObstaclesAreBlockers,
+            blockedPathNodes: this.blockedPathNodes
+                .map(entry => ({
+                    cell: captureTaskCell(entry.node?.tile),
+                    onBridge: !!entry.node?.onBridge,
+                    objectId: Number.isSafeInteger(entry.obj?.id) ? entry.obj.id : null,
+                }))
+                .filter(entry => entry.cell !== null),
+            unreachableTargets: this.unreachableTargets.map(entry => ({
+                cell: captureTaskCell(entry.tile),
+                toBridge: entry.toBridge,
+            })),
+            pushTried: this.pushTried,
+            cancelProcessed: this.cancelProcessed,
+            cancelRepositionPending: this.cancelRepositionPending,
+            path: captureTaskCells(this.path?.map(node => node.tile)),
+            pathOnBridge: (this.path ?? []).map(node => !!node.onBridge),
+            targetOffset: this.targetOffset ? { x: this.targetOffset.x, y: this.targetOffset.y } : null,
+            inPlanningForTicks: this.inPlanningForTicks ?? null,
+            targetLinesConfig: this.targetLinesConfig
+                ? {
+                    pathNodes: captureTaskCells(this.targetLinesConfig.pathNodes.map(node => node.tile)),
+                    isRecalc: this.targetLinesConfig.isRecalc === true,
+                }
+                : null,
+        };
+    }
+
+    restoreDeterministicState(payload: any, context: TaskStateContext): void {
+        if (!payload || typeof payload !== "object" || payload.type !== "move") {
+            throw new Error("Invalid move task state");
+        }
+        const strict = context.strict !== false;
+        const targetTileCell = validateTaskCell(payload.targetTile, "move.targetTile");
+        const targetTile = context.resolveTile?.(targetTileCell.rx, targetTileCell.ry);
+        if (!targetTile) {
+            throw new Error(
+                `Cannot restore move task: target cell ${targetTileCell.rx},${targetTileCell.ry} is unresolved`,
+            );
+        }
+        if (typeof payload.toBridge !== "boolean") {
+            throw new Error("Invalid move task state: toBridge");
+        }
+        // Every referenced cell and object is resolved before any assignment, so
+        // a rejected checkpoint cannot leave a half-restored task behind.
+        const pathCells = validateTaskCells(payload.path, "move.path");
+        const pathTiles = restoreTaskCells(pathCells, context, "move.path");
+        const blockedPathNodes = (payload.blockedPathNodes ?? []).map((entry: any, index: number) => {
+            const cell = validateTaskCell(entry?.cell, `move.blockedPathNodes[${index}].cell`);
+            const tile = context.resolveTile?.(cell.rx, cell.ry);
+            if (!tile && strict) {
+                throw new Error(`Cannot restore move task: blocked cell ${cell.rx},${cell.ry} is unresolved`);
+            }
+            const object = entry.objectId === null
+                ? undefined
+                : context.resolveObjectById?.(entry.objectId);
+            if (entry.objectId !== null && !object && strict) {
+                throw new Error(`Cannot restore move task: blocker ${entry.objectId} is unresolved`);
+            }
+            return {
+                node: entry.onBridge
+                    ? { tile, onBridge: (tile as any).onBridgeLandType ? context.game?.map?.tileOccupation?.getBridgeOnTile?.(tile) : undefined }
+                    : { tile },
+                obj: object,
+            };
+        });
+        const unreachableTargets = (payload.unreachableTargets ?? []).map((entry: any, index: number) => {
+            const cell = validateTaskCell(entry?.cell, `move.unreachableTargets[${index}].cell`);
+            const tile = context.resolveTile?.(cell.rx, cell.ry);
+            if (!tile && strict) {
+                throw new Error(`Cannot restore move task: unreachable cell ${cell.rx},${cell.ry} is unresolved`);
+            }
+            return { tile, toBridge: entry.toBridge === true };
+        });
+        const options = payload.options
+            ? this.restoreOptions(payload.options, context, strict)
+            : undefined;
+
+        this.targetTile = targetTile;
+        this.toBridge = payload.toBridge;
+        this.options = options;
+        this.destinationLeptons.set(payload.destinationLeptons?.x ?? 0, payload.destinationLeptons?.y ?? 0);
+        this.currentWaypointLeptons.set(
+            payload.currentWaypointLeptons?.x ?? 0,
+            payload.currentWaypointLeptons?.y ?? 0,
+        );
+        this.needsPathUpdate = payload.needsPathUpdate === true;
+        this.targetChangeRequested = payload.targetChangeRequested === true;
+        this.allObstaclesAreBlockers = payload.allObstaclesAreBlockers === true;
+        this.blockedPathNodes = blockedPathNodes;
+        this.unreachableTargets = unreachableTargets;
+        this.pushTried = payload.pushTried === true;
+        this.cancelProcessed = payload.cancelProcessed === true;
+        this.cancelRepositionPending = payload.cancelRepositionPending === true;
+        this.path = pathTiles.map((tile, index) => (payload.pathOnBridge?.[index]
+            ? { tile, onBridge: tile.onBridgeLandType ? this.game.map.tileOccupation.getBridgeOnTile(tile) : undefined }
+            : { tile }));
+        this.groundPathPlan = undefined;
+        this.targetOffset = payload.targetOffset
+            ? new Vector2(payload.targetOffset.x, payload.targetOffset.y)
+            : undefined;
+        this.inPlanningForTicks = payload.inPlanningForTicks ?? undefined;
+        this.targetLinesConfig = payload.targetLinesConfig
+            ? {
+                pathNodes: restoreTaskCells(
+                    validateTaskCells(payload.targetLinesConfig.pathNodes, "move.targetLinesConfig"),
+                    context,
+                    "move.targetLinesConfig",
+                ).map((tile: any) => ({
+                    tile,
+                    onBridge: (tile as any).onBridgeLandType
+                        ? context.game?.map?.tileOccupation?.getBridgeOnTile?.(tile)
+                        : undefined,
+                })),
+                isRecalc: payload.targetLinesConfig.isRecalc === true,
+            }
+            : { pathNodes: [] };
+    }
+
+    private restoreOptions(payload: any, context: TaskStateContext, strict: boolean): MoveOptions {
+        const resolveBlockers = (ids: any, label: string): GameObject[] => (ids ?? []).map((id: number) => {
+            if (!Number.isSafeInteger(id)) {
+                throw new Error(`Invalid move task state: ${label}`);
+            }
+            const blocker = context.resolveObjectById?.(id);
+            if (!blocker && strict) {
+                throw new Error(`Cannot restore move task: ${label} ${id} is unresolved`);
+            }
+            return blocker;
+        }).filter((blocker: any) => !!blocker);
+        const stopOnBlocker = payload.stopOnBlockerId === null
+            ? undefined
+            : context.resolveObjectById?.(payload.stopOnBlockerId);
+        if (payload.stopOnBlockerId !== null && !stopOnBlocker && strict) {
+            throw new Error(`Cannot restore move task: stopOnBlocker ${payload.stopOnBlockerId} is unresolved`);
+        }
+        return {
+            targetOffset: payload.targetOffset
+                ? new Vector2(payload.targetOffset.x, payload.targetOffset.y)
+                : undefined,
+            allowOutOfBoundsTarget: payload.allowOutOfBoundsTarget === true,
+            forceMove: payload.forceMove === true,
+            strictCloseEnough: payload.strictCloseEnough === true,
+            closeEnoughTiles: payload.closeEnoughTiles ?? undefined,
+            ignoredBlockers: resolveBlockers(payload.ignoredBlockerIds, "ignoredBlocker"),
+            pathFinderIgnoredBlockers: resolveBlockers(payload.pathFinderIgnoredBlockerIds, "pathFinderIgnoredBlocker"),
+            maxExpandedPathNodes: payload.maxExpandedPathNodes ?? undefined,
+            stopOnBlocker,
+            forceWaitOnPathBlocked: payload.forceWaitOnPathBlocked === true,
+        };
     }
     setForceMove(force: boolean): void {
         if (force) {
@@ -1044,3 +1247,16 @@ export class MoveTask extends Task {
         return !!locomotor?.ignoresTerrain || !!locomotor?.usesDirectPath?.(unit, this.targetTile);
     }
 }
+
+registerTaskStateFactory("move", (payload, context) => {
+    const targetCell = validateTaskCell(payload?.targetTile, "move.targetTile");
+    const targetTile = context.resolveTile?.(targetCell.rx, targetCell.ry);
+    if (!targetTile) {
+        throw new Error(
+            `Cannot restore move task: target cell ${targetCell.rx},${targetCell.ry} is unresolved`,
+        );
+    }
+    const task = new MoveTask(context.game, targetTile, payload?.toBridge === true);
+    task.restoreDeterministicState(payload, context);
+    return task;
+});

@@ -143,7 +143,10 @@ export class ProductionTrait implements NotifyTick, NotifySpawn, NotifyUnspawn, 
             aircraftQueue.maxSize = Math.max(0, helipadCapacity - currentAircraft);
         });
     }
-    private tickQueue(queue: ProductionQueue, player: any, gameState: any): void {
+     private tickQueue(queue: ProductionQueue, player: any, gameState: any): void {
+        if (player.production?.productionEnabled === false || player.productionEnabled === false) {
+            return;
+        }
         if (queue.status !== QueueStatus.Active)
             return;
         let hasProgress = false;

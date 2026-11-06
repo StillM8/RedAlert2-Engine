@@ -54,7 +54,7 @@ export class OverpoweredTrait {
             }
         }
     }
-    private getWeapon(): any {
+    public getWeapon(): any {
         return this.isOverpowered()
             ? this.obj?.secondaryWeapon
             : this.obj?.primaryWeapon;

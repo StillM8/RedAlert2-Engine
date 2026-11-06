@@ -24,6 +24,7 @@ interface SpriteProps {
     tooltip?: string;
     onFrame?: () => void;
     static?: boolean;
+    batched?: boolean;
     [key: string]: any;
 }
 interface ContainerProps {
@@ -70,7 +71,7 @@ export class JsxRenderer {
                 else {
                     const image = typeof props.image === "string" ? this.getImage(props.image) : props.image;
                     const palette = typeof props.palette === "string" ? this.getPalette(props.palette) : props.palette;
-                    sprite = UiObjectSprite.fromShpFile(image, palette, this.camera);
+                    sprite = UiObjectSprite.fromShpFile(image, palette, this.camera, props.batched ?? true);
                     if ((sprite as any).builder && (props.alignX !== undefined || props.alignY !== undefined)) {
                         (sprite as any).builder.setAlign?.(props.alignX ?? 0, props.alignY ?? 0);
                     }

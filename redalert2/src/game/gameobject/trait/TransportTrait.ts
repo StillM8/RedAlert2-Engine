@@ -7,6 +7,8 @@ import { LeaveTransportEvent } from '@/game/event/LeaveTransportEvent';
 import { NotifyTick } from './interface/NotifyTick';
 import { ZoneType } from '../unit/ZoneType';
 import { GameObject } from '../GameObject';
+import { Infantry } from '../Infantry';
+import { StanceType } from '../infantry/StanceType';
 import { World } from '@/game/World';
 import {
     getAresPassengerCapacityCost,
@@ -102,6 +104,50 @@ export class TransportTrait implements NotifyDestroy, NotifyCrash {
         const index = this.loadQueue.indexOf(unit);
         if (index !== -1) {
             this.loadQueue.splice(index, 1);
+        }
+    }
+    dropPassengersForWeaponFire(transport: any, world: any): void {
+        if (transport?.isAircraft?.() !== true || !this.units.length) return;
+        const passengers = [...this.units];
+        const occupiedSubCells = new Set<number>();
+        for (const object of world.map?.getGroundObjectsOnTile?.(transport.tile) ?? []) {
+            if (object?.isInfantry?.() === true && Number.isFinite(object.position?.subCell)) {
+                occupiedSubCells.add(object.position.subCell);
+            }
+        }
+        let dropped = 0;
+        for (const passenger of passengers) {
+            const index = this.units.indexOf(passenger);
+            if (index === -1 || passenger.isDestroyed || passenger.isDisposed) continue;
+            this.units.splice(index, 1);
+            this.removeFromLoadQueue(passenger);
+            const isInfantry = passenger.isInfantry?.() === true;
+            passenger.position.tile = transport.tile;
+            passenger.position.tileElevation = transport.position?.tileElevation ?? transport.tileElevation;
+            passenger.onBridge = false;
+            passenger.zone = ZoneType.Air;
+            if (isInfantry) {
+                const subCell = Infantry.SUB_CELLS.find(candidate => !occupiedSubCells.has(candidate)) ??
+                    Infantry.SUB_CELLS[dropped % Infantry.SUB_CELLS.length];
+                passenger.position.subCell = subCell;
+                occupiedSubCells.add(subCell);
+                passenger.stance = StanceType.Paradrop;
+            }
+            else {
+                passenger.position.subCell = 0;
+            }
+            passenger.unitOrderTrait?.cancelAllTasks?.();
+            if (passenger.limboData && world.unlimboObject) {
+                world.unlimboObject(passenger, transport.tile);
+            }
+            else if (!passenger.isSpawned && world.spawnObject) {
+                world.spawnObject(passenger, transport.tile);
+            }
+            passenger.unitOrderTrait?.addTask?.(new ParadropTask(world).setCancellable(false));
+            dropped++;
+        }
+        if (dropped) {
+            world.events?.dispatch?.(new LeaveTransportEvent(transport));
         }
     }
     [NotifyTick.onTick](gameObject: GameObject, world: World): void {

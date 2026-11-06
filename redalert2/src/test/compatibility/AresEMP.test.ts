@@ -202,6 +202,7 @@ describe("Ares EMP rules", () => {
 
         expect(emp.apply(3, -1)).toBe(true);
         expect(emp.isUnderEMP()).toBe(true);
+        expect(emp.isDeactivated()).toBe(true);
         expect(emp.getRemainingFrames()).toBe(3);
         expect(moveTrait.isDisabled()).toBe(true);
         expect(attackTrait.isDisabled()).toBe(true);
@@ -212,6 +213,7 @@ describe("Ares EMP rules", () => {
         emp[NotifyTick.onTick](obj, undefined);
 
         expect(emp.isUnderEMP()).toBe(false);
+        expect(emp.isDeactivated()).toBe(false);
         expect(moveTrait.isDisabled()).toBe(true);
         expect(attackTrait.isDisabled()).toBe(false);
         expect(emp.debugGetState()).toEqual({ remainingFrames: 0, underEMP: false });
@@ -255,6 +257,7 @@ describe("Ares EMP rules", () => {
         expect(emp.apply(3, -1)).toBe(true);
         expect(emp.getRemainingFrames()).toBe(3);
         expect(emp.isUnderEMP()).toBe(true);
+        expect(emp.isDeactivated()).toBe(false);
         expect(moveTrait.isDisabled()).toBe(false);
 
         emp[NotifyTick.onTick](obj, undefined);
@@ -264,9 +267,11 @@ describe("Ares EMP rules", () => {
         harvesterTrait.status = HarvesterStatus.Idle;
         emp[NotifyTick.onTick](obj, undefined);
         expect(moveTrait.isDisabled()).toBe(true);
+        expect(emp.isDeactivated()).toBe(true);
         expect(emp.getRemainingFrames()).toBe(1);
         emp[NotifyTick.onTick](obj, undefined);
         expect(moveTrait.isDisabled()).toBe(false);
+        expect(emp.isDeactivated()).toBe(false);
     });
 
     test("uses one operational predicate for manager consumers", () => {

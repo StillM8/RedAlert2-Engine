@@ -476,6 +476,7 @@ describe("VirtualFileSystem resource precedence", () => {
 
         expect(isCampaignOnlyMixFilename("movies01.mix")).toBe(true);
         expect(isCampaignOnlyMixFilename("movmd03.mix")).toBe(true);
+        expect(isCampaignOnlyMixFilename("campaign.mix")).toBe(true);
         expect(isCampaignOnlyMixFilename("missionsmo.mix")).toBe(true);
         expect(isCampaignOnlyMixFilename("maps01.mix")).toBe(false);
 
@@ -485,6 +486,186 @@ describe("VirtualFileSystem resource precedence", () => {
         expect(vfs.hasArchive("movies01.mix")).toBe(false);
         expect(vfs.hasArchive("movmd03.mix")).toBe(false);
         expect(vfs.hasArchive("missionsmo.mix")).toBe(false);
+    });
+
+    test("mounts campaign-only archives explicitly with deterministic provenance", async () => {
+        const files = new Map<string, Uint8Array>([
+            ["mods/user/missionsmo.mix", createMixBytes([
+                ["missionmo.ini", new TextEncoder().encode("[MissionMO]")],
+            ])],
+            ["mods/user/campaign.mix", createMixBytes([
+                ["mapselmo.ini", new TextEncoder().encode("[MapSelMO]")],
+                ["INI/BattleClient07.ini", new TextEncoder().encode("[BattleClient]")],
+            ])],
+            ["mods/user/mapsmo01.mix", createMixBytes([
+                ["arena.map", new TextEncoder().encode("skirmish")],
+            ])],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) {
+                    throw new FileNotFoundError(filename);
+                }
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("campaign.mix")).toBe(false);
+        expect(vfs.hasArchive("missionsmo.mix")).toBe(false);
+        expect(vfs.hasArchive("mapsmo01.mix")).toBe(true);
+
+        const result = await vfs.loadCampaignArchives(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(result.loaded.map((entry) => entry.filename)).toEqual(["campaign.mix", "missionsmo.mix"]);
+        expect(vfs.hasArchive("campaign.mix")).toBe(true);
+        expect(vfs.hasArchive("missionsmo.mix")).toBe(true);
+        expect(vfs.explain("mapselmo.ini").winner?.campaignOnly).toBe(true);
+        expect(vfs.listFiles()).toContain("INI/BattleClient07.ini");
+        expect(vfs.explain("mapselmo.ini").winner?.provenance).toEqual([
+            "mods/user/campaign.mix",
+            "campaign.mix",
+        ]);
+        expect(result.loaded.map((entry) => entry.filename)).not.toContain("mapsmo01.mix");
+    });
+
+    test("discovers nested campaign archives with parent provenance", async () => {
+        const nested = createMixBytes([
+            ["missionsmo.mix", createMixBytes([
+                ["missionmo.ini", new TextEncoder().encode("[MissionMO]")],
+            ])],
+        ]);
+        const files = new Map<string, Uint8Array>([
+            ["campaign.mix", nested],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) {
+                    throw new FileNotFoundError(filename);
+                }
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        const result = await vfs.loadCampaignArchives({
+            filenames: ["campaign.mix"],
+        });
+
+        expect(result.loaded.map((entry) => entry.filename)).toEqual([
+            "campaign.mix",
+            "missionsmo.mix",
+        ]);
+        expect(vfs.explain("missionmo.ini").winner?.provenance).toEqual([
+            "campaign.mix",
+            "missionsmo.mix",
+        ]);
+    });
+
+    test("keeps campaign archives below mod and loose language layers", async () => {
+        const vfs = createVfs();
+        vfs.addArchive(archiveWith("missionmo.ini", "mod"), "expandmo42.mix", {
+            layer: ResourceLayer.ModPatch,
+            source: "mod",
+            profile: "mental-omega",
+        });
+        vfs.addArchive(archiveWith("missionmo.ini", "campaign"), "campaign.mix", {
+            layer: ResourceLayer.ModPatch,
+            source: "mod",
+            profile: "mental-omega",
+            campaignOnly: true,
+        });
+        vfs.addArchive(archiveWith("missionmo.ini", "loose"), "mem.archive", {
+            layer: ResourceLayer.LooseOverride,
+            source: "mod",
+        });
+
+        const result = await vfs.loadCampaignArchives({
+            filenames: ["campaign.mix"],
+        });
+
+        expect(result.loaded.map((entry) => entry.filename)).toEqual(["campaign.mix"]);
+        expect(vfs.openFile("missionmo.ini").readAsString()).toBe("loose");
+        expect(vfs.explain("missionmo.ini").shadowed.map((candidate) => candidate.archive)).toEqual([
+            "expandmo42.mix",
+            "campaign.mix",
+        ]);
+    });
+
+    test("rejects unsafe campaign archive requests without throwing", async () => {
+        const vfs = createVfs();
+        const result = await vfs.loadCampaignArchives({
+            filenames: ["../campaign.mix", "not-a-mix"],
+        });
+        expect(result.loaded).toHaveLength(0);
+        expect(result.skipped).toEqual(["../campaign.mix", "not-a-mix"]);
+    });
+
+    test("keeps a deferred expandmo campaign override available before menu parsing", async () => {
+        const profileCore = createMixBytes([
+            ["rulesmo.ini", new TextEncoder().encode("[Rules]")],
+            ["artmo.ini", new TextEncoder().encode("[Art]")],
+            ["aimo.ini", new TextEncoder().encode("[AI]")],
+        ]);
+        const campaignOverride = createMixBytes([
+            ["missionmo.ini", new TextEncoder().encode("[MissionMO]\nValue=campaign")],
+        ]);
+        const deferredLayer = createMixBytes([
+            ["deferred-only.ini", new TextEncoder().encode("deferred")],
+        ]);
+        const files = new Map<string, Uint8Array>([
+            ["expandmo99.mix", profileCore],
+            ["expandmo42.mix", campaignOverride],
+            ["expandmo41.mix", deferredLayer],
+        ]);
+        const rfs = {
+            async *getEntriesRecursive() {
+                yield* files.keys();
+            },
+            async openFile(filename: string) {
+                const bytes = files.get(filename.toLocaleLowerCase("en-US"));
+                if (!bytes) {
+                    throw new FileNotFoundError(filename);
+                }
+                return VirtualFile.fromBytes(bytes, filename);
+            },
+        } as any;
+        const vfs = new VirtualFileSystem(rfs, {
+            info: () => undefined,
+            warn: () => undefined,
+            error: () => undefined,
+        });
+
+        await vfs.loadExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"], {
+            deferAfterProfileFiles: true,
+        });
+
+        expect(vfs.openFile("missionmo.ini").readAsString()).toContain("Value=campaign");
+        expect(vfs.explain("missionmo.ini").winner?.archive).toBe("expandmo42.mix");
+        expect(vfs.hasArchive("expandmo41.mix")).toBe(false);
+
+        await vfs.loadDeferredExtraMixFiles(EngineType.YurisRevenge, GAME_PROFILES["mental-omega"]);
+
+        expect(vfs.hasArchive("expandmo41.mix")).toBe(true);
+        expect(vfs.explain("missionmo.ini").winner?.archive).toBe("expandmo42.mix");
     });
 
     test("defers large profile MIX layers until a content consumer requests them", async () => {

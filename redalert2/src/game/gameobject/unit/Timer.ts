@@ -24,6 +24,14 @@ export class Timer {
     getInitialTicks(): number {
         return this.activeFor ?? 0;
     }
+    getActiveSince(): number | undefined {
+        return this.activeSince;
+    }
+    restoreState(activeTicks: number, activeFor: number, activeSince?: number): void {
+        this.activeTicks = activeTicks;
+        this.activeFor = activeFor;
+        this.activeSince = activeSince;
+    }
     tick(timestamp: number): boolean {
         if (this.activeTicks <= 0) {
             return false;

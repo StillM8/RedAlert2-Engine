@@ -59,10 +59,6 @@ export interface AresVehicleHijackTarget {
     [key: string]: any;
 }
 
-function normalized(value: unknown): string {
-    return String(value ?? "").trim().toLocaleLowerCase("en-US");
-}
-
 function isNeutral(owner: any): boolean {
     return owner?.isNeutral === true || owner?.multiplayPassive === true || owner?.rules?.multiplayPassive === true;
 }
@@ -75,10 +71,6 @@ function isMindControlled(target: AresVehicleHijackTarget): boolean {
 
 function isTargetOnFloor(target: AresVehicleHijackTarget): boolean {
     return target.zone === undefined || target.zone !== ZoneType.Air;
-}
-
-function isDriverless(target: AresVehicleHijackTarget): boolean {
-    return target.aresDriverTrait?.isDriverKilled?.() === true;
 }
 
 function isFriendly(game: AresVehicleHijackGame, driver: AresVehicleHijackTarget, target: AresVehicleHijackTarget): boolean {
@@ -163,6 +155,10 @@ export class AresVehicleHijackerTrait implements NotifyDestroy {
 
     hasHijacker(): boolean {
         return !!this.hijacker;
+    }
+
+    getHijacker(): any {
+        return this.hijacker;
     }
 
     getKillPilots(): number {

@@ -12,5 +12,7 @@ export enum ActionType {
     UpdateQueue = 10,
     ToggleAlliance = 11,
     ActivateSuperWeapon = 12,
-    PingLocation = 13
+    PingLocation = 13,
+    DetonateIvanBombs = 14,
+    DeactivateSuperWeapon = 15
 }

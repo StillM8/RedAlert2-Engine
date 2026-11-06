@@ -74,6 +74,26 @@ export class CloakableTrait {
             context.events.dispatch(new ObjectCloakChangeEvent(this.gameObject));
         }
     }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            active: this.isActive,
+            cooldownTicks: this.cooldownTicks,
+            cloakSkipTicks: this.cloakSkipTicks,
+            aresAttachEffectSource: this.aresAttachEffectSource,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            typeof (state as any).active !== "boolean" || !Number.isSafeInteger((state as any).cooldownTicks) ||
+            !Number.isSafeInteger((state as any).cloakSkipTicks) || typeof (state as any).aresAttachEffectSource !== "boolean") {
+            throw new Error("Invalid cloak state");
+        }
+        this.isActive = (state as any).active;
+        this.cooldownTicks = (state as any).cooldownTicks;
+        this.cloakSkipTicks = (state as any).cloakSkipTicks;
+        this.aresAttachEffectSource = (state as any).aresAttachEffectSource;
+    }
     getCloakSkipTimeLeft(): number {
         return this.cloakSkipTicks;
     }

@@ -12,6 +12,7 @@ import { BoxIntersectObject3D } from "@/engine/renderable/entity/BoxIntersectObj
 import { MathUtils as EngineMathUtils } from "@/engine/gfx/MathUtils";
 import { MapSurface, MAGIC_OFFSET } from "@/engine/renderable/entity/map/MapSurface";
 import { wallTypes } from "@/game/map/wallTypes";
+import { AlphaRenderable } from "@/engine/renderable/AlphaRenderable";
 import * as THREE from "three";
 interface GameObject {
     id: string;
@@ -58,6 +59,7 @@ interface ObjectArt {
 }
 interface ImageFinder {
     findByObjectArt(art: ObjectArt): any;
+    tryFind?(name: string, useTheaterExtension: boolean): any;
 }
 interface Palette {
 }
@@ -101,6 +103,7 @@ export class Overlay {
     private target?: THREE.Object3D;
     private lastOverlayHash?: number;
     private mainRenderable?: ShpRenderable;
+    private alphaRenderable?: AlphaRenderable;
     private intersectTarget?: THREE.Object3D;
     constructor(gameObject: GameObject, rules: Rules, art: Art, imageFinder: ImageFinder, palette: Palette, camera: Camera, lighting: Lighting, debugFrame: DebugFrame, bridgeImageCache: Map<OverlayBridgeType, ShpFile>, mapOverlayLayer: MapOverlayLayer, useSpriteBatching: boolean) {
         this.gameObject = gameObject;
@@ -197,6 +200,22 @@ export class Overlay {
     getUiName(): string {
         return this.gameObject.getUiName();
     }
+    private createAlphaImage(parent: THREE.Object3D): void {
+        const imageName = this.gameObject.rules.alphaImage;
+        if (!imageName) return;
+        const image = this.imageFinder.tryFind?.(imageName, false);
+        if (!image) {
+            console.warn(`<${this.gameObject.name}>: Alpha image "${imageName}" not found`);
+            return;
+        }
+        const foundation = this.gameObject.getFoundation();
+        const { spriteOffset } = new MapSpriteTranslation(foundation.width, foundation.height).compute();
+        const drawOffset = spriteOffset.clone().add(this.objectArt.getDrawOffset());
+        this.alphaRenderable = new AlphaRenderable(image, this.camera as any, drawOffset as any);
+        this.alphaRenderable.create3DObject();
+        const object = this.alphaRenderable.get3DObject();
+        if (object) parent.add(object);
+    }
     private createObjects(parent: THREE.Object3D): void {
         const foundation = this.gameObject.getFoundation();
         if (this.debugFrame.value) {
@@ -207,6 +226,7 @@ export class Overlay {
             this.isInvisible = true;
             return;
         }
+        this.createAlphaImage(parent);
         const needsIntersection = this.gameObject.isBridge() ||
             this.gameObject.isTiberium() ||
             this.gameObject.rules.wall;
@@ -366,6 +386,7 @@ export class Overlay {
         }
     }
     dispose(): void {
+        this.alphaRenderable?.dispose();
         this.mainRenderable?.dispose();
     }
 }

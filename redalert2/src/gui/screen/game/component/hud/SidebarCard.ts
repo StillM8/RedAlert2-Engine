@@ -27,7 +27,8 @@ interface SidebarCardProps extends UiComponentProps {
         height: number;
     };
     cameoImages: any;
-    cameoPalette: string;
+    cameoPalette: any;
+    cameoPalettes: { get(name: string): any };
     sidebarModel: any;
     cameoPcxImages?: any[];
     cameoPcxNameToIdMap?: Map<string, number>;
@@ -189,6 +190,7 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             }), jsx.jsx("sprite", {
                 image: cameoImages,
                 palette: cameoPalette,
+                batched: false,
                 alignX: sidebarShpAlignment.x,
                 alignY: sidebarShpAlignment.y,
                 ref: (element: any) => this.slotObjects.push(element),
@@ -302,9 +304,19 @@ export class SidebarCard extends UiComponent<SidebarCardProps> {
             throw new Error(`Missing cameo placeholder image "${(ObjectArt as any).MISSING_CAMEO}.shp"`);
         }
         slotObject.setFrame(frameId);
+        slotObject.setPalette(this.resolveCameoPalette(item.cameoPalette));
         slotObject.setVisible(true);
         slotObject.setLightMult(item.disabled ? 0.5 : 1);
         pcxSlotObject?.setVisible(false);
+    }
+    private resolveCameoPalette(cameoPalette: unknown): any {
+        const filename = typeof cameoPalette === "string" && cameoPalette.trim()
+            ? cameoPalette.trim()
+            : "cameo.pal";
+        return this.props.cameoPalettes.get(filename) ??
+            this.props.cameoPalettes.get(filename.toLocaleLowerCase("en-US")) ??
+            this.props.cameoPalettes.get("cameo.pal") ??
+            this.props.cameoPalette;
     }
     private getPcxFrameId(cameoName: unknown): number | undefined {
         if (typeof cameoName !== "string") {

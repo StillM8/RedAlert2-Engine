@@ -21,7 +21,14 @@ interface Alliance {
 }
 export class Alliances {
     private alliances: Alliance[] = [];
+    private fixedAlliance: boolean = false;
     constructor(private playerList: PlayerList) { }
+    setFixedAlliance(value: boolean): void {
+        this.fixedAlliance = Boolean(value);
+    }
+    isFixedAlliance(): boolean {
+        return this.fixedAlliance;
+    }
     findByPlayers(player1: Player, player2: Player): Alliance | undefined {
         const pair = new PlayerPair(player1, player2);
         return this.alliances.find(alliance => alliance.players.equals(pair));
@@ -30,6 +37,9 @@ export class Alliances {
         return this.alliances.filter(alliance => alliance.players.first === player || alliance.players.second === player);
     }
     request(player1: Player, player2: Player): Alliance | undefined {
+        if (this.fixedAlliance) {
+            return undefined;
+        }
         if (!this.canRequestAlliance(player2)) {
             throw new Error(`Player ${player2.name} is not a human combatant.`);
         }
@@ -62,6 +72,18 @@ export class Alliances {
             alliance.status = AllianceStatus.Formed;
         }
     }
+    forceAlliance(player1: Player, player2: Player): Alliance {
+        const existing = this.findByPlayers(player1, player2);
+        if (existing) {
+            return existing;
+        }
+        const alliance: Alliance = {
+            players: new PlayerPair(player1, player2),
+            status: AllianceStatus.Formed,
+        };
+        this.alliances.push(alliance);
+        return alliance;
+    }
     setAlliance(player1: Player, player2: Player, status: AllianceStatus): Alliance {
         if (!this.canFormAlliance(player1, player2)) {
             throw new Error(`Can't form alliance between players "${player1.name}" and "${player2.name}"`);
@@ -78,6 +100,9 @@ export class Alliances {
         return alliance;
     }
     breakAlliance(player1: Player, player2: Player): void {
+        if (this.fixedAlliance) {
+            throw new Error("Fixed alliances cannot be changed");
+        }
         const alliance = this.findByPlayers(player1, player2);
         if (!alliance || alliance.status !== AllianceStatus.Formed) {
             throw new Error(`There is no alliance between player ${player1.name} and player ${player2.name}`);
@@ -135,6 +160,50 @@ export class Alliances {
             alliance.status
         ])
             .flat());
+    }
+    captureState(): { version: 1; fixed: boolean; alliances: { first: number; second: number; status: number }[] } {
+        return {
+            version: 1,
+            fixed: this.fixedAlliance,
+            alliances: this.alliances.map(alliance => ({
+                first: this.playerList.getPlayerNumber(alliance.players.first),
+                second: this.playerList.getPlayerNumber(alliance.players.second),
+                status: alliance.status,
+            })),
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object") {
+            throw new Error("Invalid alliance state");
+        }
+        const candidate = state as { version?: unknown; fixed?: unknown; alliances?: unknown };
+        if (candidate.version !== 1 || typeof candidate.fixed !== "boolean" || !Array.isArray(candidate.alliances)) {
+            throw new Error("Invalid alliance state");
+        }
+        const players = this.playerList.getAll();
+        const resolved = candidate.alliances.map((entry: any) => {
+            if (!entry || !Number.isSafeInteger(entry.first) || !Number.isSafeInteger(entry.second) ||
+                !Number.isSafeInteger(entry.status) || entry.status < 0 || entry.status > 1 ||
+                entry.first === entry.second || !players[entry.first] || !players[entry.second]) {
+                throw new Error("Invalid alliance entry");
+            }
+            return {
+                players: new PlayerPair(players[entry.first], players[entry.second]),
+                status: entry.status as AllianceStatus,
+            };
+        });
+        const seen = new Set<string>();
+        for (const entry of resolved) {
+            const key = [this.playerList.getPlayerNumber(entry.players.first), this.playerList.getPlayerNumber(entry.players.second)]
+                .sort((a, b) => a - b)
+                .join(":");
+            if (seen.has(key)) {
+                throw new Error("Duplicate alliance entry");
+            }
+            seen.add(key);
+        }
+        this.fixedAlliance = candidate.fixed;
+        this.alliances = resolved;
     }
     debugGetState(): Array<{
         first: Player;

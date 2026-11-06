@@ -1,3 +1,7 @@
+import { captureExtensionState, restoreExtensionState } from "@/game/state/ExtensionStateSnapshot";
+import { captureWorldState, restoreWorldState } from "@/game/state/WorldStateSnapshot";
+import { applyCampaignLaunchToParams } from "@/campaign/CampaignLaunch";
+import type { CampaignLaunch } from "@/campaign/CampaignTypes";
 import { powerFrameCap } from '@/engine/PowerState';
 import { RootScreen } from '@/gui/screen/RootScreen';
 import { CompositeDisposable } from '@/util/disposable/CompositeDisposable';
@@ -49,6 +53,7 @@ import { base64StringToUint8Array, binaryStringToUint8Array } from '@/util/strin
 import { MapDigest } from '@/engine/MapDigest';
 import { MapSupport } from '@/engine/MapSupport';
 import { OBS_COUNTRY_ID } from '@/game/gameopts/constants';
+import { getCampaignSession, isCampaignGameOpts } from '@/game/gameopts/GameOpts';
 import { MainMenuRoute } from '@/gui/screen/mainMenu/MainMenuRoute';
 import { RootRoute } from '@/gui/screen/RootRoute';
 import { ChatHistory } from '@/gui/chat/ChatHistory';
@@ -81,6 +86,7 @@ export class GameScreen extends RootScreen {
     private preventUnload = true;
     protected controller?: any;
     private game?: any;
+    private campaignLaunch?: CampaignLaunch;
     private replay?: any;
     private replayRecorderInstance?: ReplayRecorder;
     private gameTurnMgr?: any;
@@ -103,6 +109,8 @@ export class GameScreen extends RootScreen {
     private isTournament = false;
     private playerName = '';
     private returnTo?: any;
+    private campaignSession?: any;
+    private campaignState?: any;
     private debugMapFile?: any;
     private pausedAtSpeed?: number;
     private backgroundResumeSpeed?: number;
@@ -133,10 +141,16 @@ export class GameScreen extends RootScreen {
     setController(controller: any): void {
         this.controller = controller;
     }
+    getCampaignLaunch(): CampaignLaunch | undefined {
+        return this.campaignLaunch;
+    }
     private usesServerConnection(): boolean {
         return !this.isSinglePlayer && !this.isLanGame;
     }
     async onEnter(params: any): Promise<void> {
+        params = applyCampaignLaunchToParams(params);
+        this.campaignLaunch = params?.campaignLaunch;
+        this.campaignSession = getCampaignSession(this.campaignLaunch) ?? getCampaignSession(params?.gameOpts);
         this.gameEndHandled = false;
         inGameViewportActive.value = true;
         this.pointer.lock();
@@ -163,8 +177,10 @@ export class GameScreen extends RootScreen {
         const timestamp = lanLaunch?.timestamp ?? params.timestamp;
         this.returnTo = params.returnTo ?? lanLaunch?.returnRoute;
         this.isTournament = params.tournament;
-        const playerName = this.playerName = lanLaunch?.localPlayerName ?? params.playerName;
-        const isSinglePlayer = this.isSinglePlayer = params.create && params.singlePlayer;
+        let playerName = this.playerName = lanLaunch?.localPlayerName ?? params.playerName ?? this.campaignSession?.playerName;
+        const isCampaignLaunch = Boolean(this.campaignLaunch);
+        const isCampaignOptions = isCampaignGameOpts(params.gameOpts);
+        const isSinglePlayer = this.isSinglePlayer = Boolean((params.create && params.singlePlayer) || isCampaignLaunch || isCampaignOptions);
         const isLanGame = this.isLanGame = Boolean(lanLaunch);
         this.resumingBackground = Boolean(isSinglePlayer && params.backgroundResume);
         this.backgroundResumeReplayId = this.resumingBackground && typeof params.backgroundResumeReplayId === 'string'
@@ -200,6 +216,14 @@ export class GameScreen extends RootScreen {
             const { returnTo, ...connectionParams } = params;
             this.localPrefs.setItem(StorageKey.LastConnection, JSON.stringify(connectionParams));
         }
+        if (this.campaignLaunch) {
+            gameOpts = {
+                ...gameOpts,
+                isCampaign: true,
+                campaign: this.campaignLaunch,
+                campaignSession: this.campaignSession,
+            };
+        }
         if (this.config.devMode) {
             this.runtimeVars.cheatsEnabled.value = this.isSinglePlayer;
         }
@@ -214,8 +238,12 @@ export class GameScreen extends RootScreen {
                 this.disposables.add(() => this.debugMapFile = undefined);
             }
             mapFile = new MapFile(mapFileData);
+            if (!playerName && mapFile.player) {
+                playerName = mapFile.player;
+                this.playerName = playerName;
+            }
             await Engine.prepareMatchContent();
-            const mapSupportError = MapSupport.check(mapFile, this.strings);
+            const mapSupportError = MapSupport.check(mapFile, this.strings, gameOpts);
             if (mapSupportError) {
                 this.handleError(mapSupportError, mapSupportError);
                 return;
@@ -258,8 +286,9 @@ export class GameScreen extends RootScreen {
         if (cancellationToken.isCancelled()) {
             return;
         }
-        const { game, theater, hudSide, sidePresentation, useYuriArt: loadedUseYuriArt, cameoFilenames } = gameLoadResult;
+        const { game, theater, hudSide, sidePresentation, useYuriArt: loadedUseYuriArt, cameoFilenames, campaign, campaignState } = gameLoadResult;
         this.sidePresentation = sidePresentation;
+        this.campaignState = campaignState ?? campaign ?? game.getCampaignState?.();
         // Ares makes the loading theme data-defined per side. The generic
         // Loading track was already started before the rules were available;
         // switch it here once the selected side is known.
@@ -304,6 +333,11 @@ export class GameScreen extends RootScreen {
         replay.engineVersion = this.engineVersion;
         replay.modHash = this.engineModHash;
         replay.timestamp = Date.now();
+        if (this.campaignState) {
+            (replay as any).campaignState = this.campaignState;
+            (replay as any).nextScenario = this.campaignState.nextScenario;
+            (replay as any).altNextScenario = this.campaignState.altNextScenario;
+        }
         const playerNames = (gameOpts.humanPlayers ?? []).map((p: any) => p.name).join(' vs ');
         const mapTitle = gameOpts.mapTitle ?? gameOpts.mapName ?? 'Unknown';
         replay.name = Replay.sanitizeFileName(`${playerNames} - ${mapTitle}`);
@@ -318,7 +352,23 @@ export class GameScreen extends RootScreen {
         this.disposables.add(() => this.replayRecorderInstance = undefined);
         if (this.isSinglePlayer) {
             this.gameTurnMgr = new SoloPlayTurnManager(game, localPlayer, actionQueue, this.actionLogger, replayRecorder, resumeReplay
-                ? { records: resumeReplay.actionRecords, untilTick: resumeReplay.finishedTick, actionFactory }
+                ? {
+                    records: resumeReplay.actionRecords,
+                    untilTick: resumeReplay.finishedTick,
+                    actionFactory,
+                    extensionState: resumeReplay.extensionState,
+                    worldState: resumeReplay.worldState,
+                    restoreExtensionState: state => restoreExtensionState(game, state, {
+                        strict: true,
+                        superWeaponWorld: game,
+                    }),
+                    restoreWorldState: state => restoreWorldState(game, state, {
+                        strict: true,
+                        createObject: (type, name) => game.createObject(type, name),
+                        spawnObject: (object, tile) => game.restoreSpawnedObject(object, tile),
+                        unspawnObject: object => game.restoreUnspawnedObject(object),
+                    }),
+                }
                 : undefined);
         }
         else if (this.isLanGame) {
@@ -1282,13 +1332,33 @@ export class GameScreen extends RootScreen {
         const checkpoint = new Replay();
         checkpoint.gameId = source.gameId;
         checkpoint.gameTimestamp = source.gameTimestamp;
-        checkpoint.gameOpts = source.gameOpts;
-        checkpoint.engineVersion = source.engineVersion;
+         checkpoint.gameOpts = source.gameOpts;
+         if (source.campaignState) {
+             (checkpoint as any).campaignState = source.campaignState;
+             (checkpoint as any).nextScenario = source.nextScenario;
+             (checkpoint as any).altNextScenario = source.altNextScenario;
+         }
+         checkpoint.engineVersion = source.engineVersion;
         checkpoint.modHash = source.modHash;
         checkpoint.timestamp = Date.now();
         checkpoint.actionRecords = (source.actionRecords ?? []).map((record: any) => ({ ...record }));
         checkpoint.eventRecords = (source.eventRecords ?? []).map((event: any) => ({ ...event }));
         checkpoint.hashCheckpoints = (source.hashCheckpoints ?? []).map((checkpoint: any) => ({ ...checkpoint }));
+        // Persist the extension-owned state alongside the action log so
+        // a snapshot host can restore without replaying from tick 0. A capture
+        // failure must never lose the checkpoint itself.
+        try {
+            checkpoint.extensionState = captureExtensionState(game);
+        }
+        catch (error) {
+            console.warn('[GameScreen.createReplayCheckpoint] extension state capture failed', error);
+        }
+        try {
+            checkpoint.worldState = captureWorldState(game);
+        }
+        catch (error) {
+            console.warn('[GameScreen.createReplayCheckpoint] world state capture failed', error);
+        }
         checkpoint.finish(game.currentTick);
         checkpoint.name = Replay.sanitizeFileName(name);
         return checkpoint;
@@ -1505,8 +1575,14 @@ export class GameScreen extends RootScreen {
 
         try {
             const isObserver = Boolean(localPlayer?.isObserver);
-            const isVictory = !localPlayer?.defeated ||
-                game?.alliances?.getAllies(localPlayer)?.some((ally: any) => !ally.defeated);
+            const campaignResult = game?.campaignResult ?? game?.getCampaignResult?.();
+            const isVictory = campaignResult?.victory ?? (!localPlayer?.defeated ||
+                game?.alliances?.getAllies(localPlayer)?.some((ally: any) => !ally.defeated));
+            this.campaignState = {
+                ...(this.campaignState ?? {}),
+                ...(game?.getCampaignState?.() ?? {}),
+                result: campaignResult,
+            };
 
             console.log('[GameScreen] onGameEnd', {
                 singlePlayer: this.isSinglePlayer,
@@ -1549,6 +1625,11 @@ export class GameScreen extends RootScreen {
 
             if (replay) {
                 replay.finish(game?.currentTick ?? 0);
+                if (this.campaignState) {
+                    (replay as any).campaignState = this.campaignState;
+                    (replay as any).nextScenario = this.campaignState.nextScenario;
+                    (replay as any).altNextScenario = this.campaignState.altNextScenario;
+                }
                 this.saveReplay(replay);
             }
 
@@ -1557,7 +1638,7 @@ export class GameScreen extends RootScreen {
                     disconnect: false,
                     desync: false,
                     quit: false,
-                    finished: !game.alliances.getHostilePlayers().length
+                    finished: Boolean(campaignResult) || !game.alliances.getHostilePlayers().length
                 });
             }
 
@@ -1578,6 +1659,13 @@ export class GameScreen extends RootScreen {
                     localPlayer,
                     singlePlayer: this.isSinglePlayer,
                     tournament: this.isTournament,
+                    campaign: this.campaignLaunch,
+                    campaignSession: this.campaignSession,
+                    campaignState: this.campaignState,
+                    nextScenario: campaignResult?.nextScenario ?? this.campaignState?.nextScenario,
+                    altNextScenario: campaignResult?.altNextScenario ?? this.campaignState?.altNextScenario,
+                    skipScore: campaignResult?.skipScore ?? this.campaignState?.skipScore,
+                    endOfGame: campaignResult?.endOfGame ?? this.campaignState?.endOfGame,
                     returnTo: this.returnTo ?? new MainMenuRoute(MainMenuScreenType.Home, undefined)
                 })
                 : new MainMenuRoute(MainMenuScreenType.Home, undefined);

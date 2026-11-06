@@ -3,8 +3,8 @@ import { RangeHelper } from "@/game/gameobject/unit/RangeHelper";
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
 export class ComesNearWaypointCondition extends TriggerCondition {
     private waypointTile: any;
-    constructor(event: any, player: any) {
-        super(event, player);
+    constructor(event: any, trigger: any) {
+        super(event, trigger);
     }
     init(game: any): void {
         super.init(game);
@@ -15,14 +15,14 @@ export class ComesNearWaypointCondition extends TriggerCondition {
                 `Skipping event ${this.getDebugName()}.`);
         }
     }
-    check(game: any, events: any[]): boolean {
+    check(context: any, events: any[]): boolean {
         if (!this.waypointTile || !this.player) {
             return false;
         }
         for (const event of events) {
             if (event.type === EventType.EnterTile &&
                 event.source.owner === this.player) {
-                const rangeHelper = new RangeHelper(game.map.tileOccupation);
+                const rangeHelper = new RangeHelper(context.map.tileOccupation);
                 if (rangeHelper.tileDistance(event.target, this.waypointTile) < 2) {
                     return true;
                 }

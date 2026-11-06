@@ -7,11 +7,15 @@ export class UnitSelection {
     private groups: Map<number, Set<GameObject>>;
     private hashNeedsUpdate: boolean;
     private hash: number;
+    private selectionEventSink?: (unit: GameObject) => void;
     constructor() {
         this.selectedUnits = new Set();
         this.selectionModelsByUnit = new Map();
         this.groups = new Map();
         this.hashNeedsUpdate = true;
+    }
+    setEventSink(sink: ((unit: GameObject) => void) | undefined): void {
+        this.selectionEventSink = sink;
     }
     getOrCreateSelectionModel(unit: GameObject): SelectionModel {
         let model = this.selectionModelsByUnit.get(unit);
@@ -27,9 +31,13 @@ export class UnitSelection {
         this.hashNeedsUpdate = true;
     }
     addToSelection(unit: GameObject): void {
+        const wasSelected = this.selectedUnits.has(unit);
         this.selectedUnits.add(unit);
         this.getOrCreateSelectionModel(unit).setSelected(true);
         this.hashNeedsUpdate = true;
+        if (!wasSelected) {
+            this.selectionEventSink?.(unit);
+        }
     }
     removeFromSelection(units: GameObject[]): void {
         units.forEach(unit => {
@@ -100,5 +108,62 @@ export class UnitSelection {
                 this.selectionModelsByUnit.get(unit)?.setControlGroupNumber(undefined);
             }
         }
+    }
+    captureState(): { selected: number[]; groups: [number, number[]][] } {
+        return {
+            selected: [...this.selectedUnits].map(unit => unit.id).sort((a, b) => a - b),
+            groups: [...this.groups.entries()]
+                .map(([group, units]) => [group, [...units].map(unit => unit.id).sort((a, b) => a - b)] as [number, number[]])
+                .sort((a, b) => a[0] - b[0]),
+        };
+    }
+    restoreState(state: unknown, context: { resolveObjectById: (id: number) => GameObject; strict?: boolean }): void {
+        if (!state || typeof state !== "object" || !Array.isArray((state as any).selected) ||
+            !Array.isArray((state as any).groups)) {
+            throw new Error("Invalid selection state");
+        }
+        const selected: GameObject[] = [];
+        const selectedIds = new Set<number>();
+        for (const id of (state as any).selected) {
+            if (!Number.isSafeInteger(id) || selectedIds.has(id)) {
+                throw new Error("Invalid selected unit id");
+            }
+            const unit = context.resolveObjectById(id);
+            if (!unit) {
+                if (context.strict) throw new Error(`Cannot restore selected unit ${id}: unresolved`);
+                continue;
+            }
+            selectedIds.add(id);
+            selected.push(unit);
+        }
+        const groups: [number, GameObject[]][] = [];
+        for (const entry of (state as any).groups) {
+            if (!Array.isArray(entry) || !Number.isSafeInteger(entry[0]) || !Array.isArray(entry[1])) {
+                throw new Error("Invalid selection group");
+            }
+            const units: GameObject[] = [];
+            for (const id of entry[1]) {
+                const unit = context.resolveObjectById(id);
+                if (!unit) {
+                    if (context.strict) throw new Error(`Cannot restore selection group unit ${id}: unresolved`);
+                    continue;
+                }
+                units.push(unit);
+            }
+            groups.push([entry[0], units]);
+        }
+        this.deselectAll();
+        this.groups.clear();
+        for (const unit of selected) {
+            this.selectedUnits.add(unit);
+            this.getOrCreateSelectionModel(unit).setSelected(true);
+        }
+        for (const [group, units] of groups) {
+            this.groups.set(group, new Set(units));
+            for (const unit of units) {
+                this.getOrCreateSelectionModel(unit).setControlGroupNumber(group);
+            }
+        }
+        this.hashNeedsUpdate = true;
     }
 }

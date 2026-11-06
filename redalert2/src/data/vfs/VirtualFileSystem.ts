@@ -16,6 +16,7 @@ import {
     parseFileProviderCopySuffix,
     tryNormalizeGamePath,
 } from "../../engine/GamePath";
+import { getGameProfile, isGameProfileId } from "../../engine/GameProfile";
 import type { GameProfileDescriptor, GameProfileId } from "../../engine/GameProfile";
 import { ResourceLayer, type ResourceSource } from "./ResourceLayer";
 interface VfsLogger {
@@ -35,6 +36,7 @@ export interface ArchiveMetadata {
     priority?: number;
     source?: ResourceSource;
     profile?: GameProfileId;
+    campaignOnly?: boolean;
     /** Resource path(s) used to reach this archive, including nested MIX parents. */
     provenance?: readonly string[];
 }
@@ -46,6 +48,7 @@ export interface ArchiveDescriptor {
     priority: number;
     source: ResourceSource;
     profile?: GameProfileId;
+    campaignOnly?: boolean;
     provenance: readonly string[];
 }
 
@@ -55,6 +58,7 @@ export interface VfsResolutionCandidate {
     priority: number;
     source: ResourceSource;
     profile?: GameProfileId;
+    campaignOnly?: boolean;
     provenance: readonly string[];
 }
 
@@ -104,6 +108,26 @@ export interface ExtraMixLoadOptions {
     deferAfterProfileFiles?: boolean;
 }
 
+export interface CampaignArchiveLoadOptions {
+    filenames?: readonly string[];
+    archiveNames?: readonly string[];
+}
+
+export interface CampaignArchiveDescriptor {
+    filename: string;
+    provenance: readonly string[];
+    layer: ResourceLayer;
+    priority: number;
+    source: ResourceSource;
+    profile?: GameProfileId;
+    campaignOnly: boolean;
+}
+
+export interface CampaignArchiveLoadResult {
+    loaded: readonly CampaignArchiveDescriptor[];
+    skipped: readonly string[];
+}
+
 function compareResourcePaths(a: string, b: string): number {
     if (a.length !== b.length) {
         return a.length - b.length;
@@ -132,9 +156,43 @@ function compareMountedEntryPrecedence(
  * but movie/mission MIX containers are only relevant to campaign flows.
  */
 export function isCampaignOnlyMixFilename(filename: string): boolean {
-    const leaf = gamePathKey(gamePathLeaf(filename));
-    return /^(?:movie|movies|mov(?:md|mo))\d*\.mix$/.test(leaf) ||
-        /^(?:campaign|mission|missions)(?:md|mo)?\d*\.mix$/.test(leaf);
+    try {
+        const leaf = gamePathKey(gamePathLeaf(canonicalizeFileProviderCopyPath(filename)));
+        return /^(?:movies?|mov(?:md|mo)?|campaign(?:s)?(?:md|mo)?|missions?(?:md|mo)?|battles?(?:md|mo)?|battledata|battleclient)\d*\.mix$/.test(leaf);
+    }
+    catch {
+        return false;
+    }
+}
+
+export function isSafeCampaignArchiveFilename(filename: string): boolean {
+    try {
+        const normalized = normalizeGamePath(filename);
+        return gamePathKey(normalized).endsWith(".mix");
+    }
+    catch {
+        return false;
+    }
+}
+
+function compareStableText(left: string, right: string): number {
+    const leftKey = (() => {
+        try {
+            return gamePathKey(left);
+        }
+        catch {
+            return left.toLocaleLowerCase("en-US");
+        }
+    })();
+    const rightKey = (() => {
+        try {
+            return gamePathKey(right);
+        }
+        catch {
+            return right.toLocaleLowerCase("en-US");
+        }
+    })();
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
 }
 
 export class VirtualFileSystem {
@@ -151,6 +209,8 @@ export class VirtualFileSystem {
         metadata?: ArchiveMetadata;
     }>();
     private deferredExtraMixFilesPromise?: Promise<void>;
+    private discoveredCampaignFiles = new Set<string>();
+    private rememberedCampaignProfiles = new Set<string>();
     constructor(rfs: RealFileSystem | undefined, logger: VfsLogger) {
         this.rfs = rfs;
         this.logger = logger;
@@ -194,10 +254,11 @@ export class VirtualFileSystem {
         const key = `${gamePathKey(normalizedName)}#${this.nextArchiveOrder}`;
         {
             const layer = metadata.layer ?? ResourceLayer.BaseGame;
-            const provenance = [
-                ...(metadata.provenance ?? []),
-                normalizedName,
-            ];
+            const inheritedProvenance = metadata.provenance ?? [];
+            const provenance = inheritedProvenance.length > 0 &&
+                gamePathKey(inheritedProvenance[inheritedProvenance.length - 1]) === gamePathKey(normalizedName)
+                ? [...inheritedProvenance]
+                : [...inheritedProvenance, normalizedName];
             const record: ArchiveRecord = {
                 archive,
                 order: this.nextArchiveOrder++,
@@ -210,6 +271,7 @@ export class VirtualFileSystem {
                     priority: metadata.priority ?? (metadata.layer === undefined ? 0 : layer),
                     source: metadata.source ?? "game",
                     profile: metadata.profile,
+                    campaignOnly: metadata.campaignOnly,
                     provenance,
                 },
             };
@@ -255,7 +317,10 @@ export class VirtualFileSystem {
                 files.add(filename);
             }
         }
-        return [...files];
+        for (const filename of this.discoveredCampaignFiles) {
+            files.add(filename);
+        }
+        return [...files].sort(compareStableText);
     }
     /**
      * Return the cached imported-storage inventory used by loose-resource
@@ -287,6 +352,7 @@ export class VirtualFileSystem {
                         priority: record.descriptor.priority,
                         source: record.descriptor.source,
                         profile: record.descriptor.profile,
+                        campaignOnly: record.descriptor.campaignOnly,
                         provenance: record.descriptor.provenance,
                     });
                 }
@@ -482,6 +548,7 @@ export class VirtualFileSystem {
                         priority: resolvedFile.resolution.winner.priority,
                         source: resolvedFile.resolution.winner.source,
                         profile: resolvedFile.resolution.winner.profile,
+                        campaignOnly: resolvedFile.resolution.winner.campaignOnly,
                     }
                     : {};
                 this.addArchive(archive, filename, {
@@ -525,6 +592,7 @@ export class VirtualFileSystem {
     private async addMixFilesFromMountedLayers(
         filename: string,
         profile?: GameProfileDescriptor,
+        metadataOverrides: ArchiveMetadata = {},
     ): Promise<number> {
         if (!this.rfs || typeof (this.rfs as any).openFilesFromLayers !== "function") {
             return 0;
@@ -548,6 +616,7 @@ export class VirtualFileSystem {
             .sort((a, b) => a.directoryIndex - b.directoryIndex)) {
             const metadata = {
                 ...this.metadataForExtraMix(filename, profile),
+                ...metadataOverrides,
                 // The root installation is the fallback layer; each
                 // explicitly mounted directory after it is an active overlay.
                 layer: directoryIndex === 0
@@ -615,17 +684,32 @@ export class VirtualFileSystem {
             id: filename,
         };
     }
-    private getProfileOverrideFiles(profile?: GameProfileDescriptor): string[] {
-        if (!profile) {
-            return [];
-        }
-        return [
-            ...Object.values(profile.fileNameOverrides ?? {}),
-        ].filter((filename, index, files) => filename && files.indexOf(filename) === index);
+    private profileCampaignContentPresent(index: RfsEntryIndex, profile?: GameProfileDescriptor): boolean {
+        const campaignIniFiles = new Set([
+            ...(profile?.campaignIniFiles ?? []),
+            ...Object.values(profile?.campaignFileNameOverrides ?? {}),
+        ].map((filename) => gamePathKey(filename)));
+        return index.entries.some((entry) => {
+            const leaf = gamePathKey(gamePathLeaf(entry.effectivePath));
+            const lowerPath = entry.effectivePath.toLocaleLowerCase("en-US");
+            return campaignIniFiles.has(leaf) ||
+                leaf === "expandmo42.mix" ||
+                isCampaignOnlyMixFilename(leaf) ||
+                /(?:^|\/)(?:campaigns?|missions?(?:mo|md)?)(?:[./]|$)/i.test(lowerPath) ||
+                /(?:^|\/)battleclient[^/]*\.ini$/i.test(lowerPath);
+        });
     }
-    private profileOverrideFilesMounted(profile?: GameProfileDescriptor): boolean {
-        const files = this.getProfileOverrideFiles(profile);
-        return files.length > 0 && files.every((filename) => this.fileExists(filename));
+    private profileOverrideFilesMounted(
+        profile?: GameProfileDescriptor,
+        requireCampaignFiles = false,
+    ): boolean {
+        const requiredFiles = Object.values(profile?.fileNameOverrides ?? {});
+        if (requiredFiles.length === 0 || !requiredFiles.every((filename) => this.fileExists(filename))) {
+            return false;
+        }
+        const campaignFiles = profile?.campaignIniFiles ?? [];
+        return !requireCampaignFiles || campaignFiles.length === 0 ||
+            campaignFiles.some((filename) => this.fileExists(filename));
     }
     private deferExtraMixFile(filename: string, rfsFile?: string, metadata?: ArchiveMetadata): void {
         const key = gamePathKey(filename);
@@ -633,6 +717,281 @@ export class VirtualFileSystem {
             return;
         }
         this.deferredExtraMixFiles.set(key, { filename, rfsFile, metadata });
+    }
+    private getCampaignArchiveCandidateNames(profile?: GameProfileDescriptor): string[] {
+        const names = new Set<string>();
+        const add = (filename: string): void => {
+            const normalized = tryNormalizeGamePath(filename);
+            if (normalized && /\.mix$/i.test(normalized)) {
+                names.add(gamePathLeaf(normalized));
+            }
+        };
+        for (const filename of profile?.campaignArchiveNames ?? []) {
+            add(filename);
+        }
+        const families = [
+            "campaign", "campaignmd", "campaignmo",
+            "mission", "missionmd", "missionmo",
+            "missions", "missionsmd", "missionsmo",
+            "movie", "movies", "mov", "movmd", "movmo",
+            "battle", "battlemd", "battlemo", "battledata", "battleclient",
+        ];
+        const indexes = [0, 1, 2, 3, 10, 15, 42, 98, 99];
+        for (const family of families) {
+            add(`${family}.mix`);
+            for (const index of indexes) {
+                add(`${family}${pad(index, "00")}.mix`);
+                add(`${family}${index}.mix`);
+            }
+        }
+        return [...names].sort(compareStableText);
+    }
+    private rememberCampaignIniFiles(profile?: GameProfileDescriptor): void {
+        const profileKey = profile?.id ?? "default";
+        if (this.rememberedCampaignProfiles.has(profileKey)) {
+            return;
+        }
+        this.rememberedCampaignProfiles.add(profileKey);
+        const names = new Set<string>([
+            "BattleClient.ini",
+            "INI/BattleClient.ini",
+            ...Object.values(profile?.campaignFileNameOverrides ?? {}),
+            ...(profile?.campaignIniFiles ?? []),
+        ]);
+        for (let index = 0; index < 1000; index++) {
+            const suffixes = [String(index), pad(index, "00"), pad(index, "000")];
+            for (const suffix of suffixes) {
+                names.add(`BattleClient${suffix}.ini`);
+                names.add(`INI/BattleClient${suffix}.ini`);
+            }
+        }
+        for (const filename of names) {
+            try {
+                if (this.fileExists(filename)) {
+                    this.discoveredCampaignFiles.add(normalizeGamePath(filename));
+                }
+            }
+            catch {
+            }
+        }
+    }
+    private getArchiveDescriptor(filename: string): ArchiveDescriptor | undefined {
+        const key = gamePathKey(filename);
+        return [...this.allArchives.values()]
+            .filter((record) => gamePathKey(record.descriptor.filename) === key)
+            .sort((left, right) => right.descriptor.priority - left.descriptor.priority || left.order - right.order)
+            .map((record) => record.descriptor)[0];
+    }
+    private async loadCampaignArchive(
+        filename: string,
+        profile?: GameProfileDescriptor,
+    ): Promise<boolean> {
+        if (this.hasArchive(filename)) {
+            return true;
+        }
+        const rfsEntry = await this.findRfsEntry(filename);
+        const metadata: ArchiveMetadata = {
+            ...this.metadataForExtraMix(filename, profile),
+            layer: ResourceLayer.ModPatch,
+            source: "mod",
+            profile: profile?.id,
+            campaignOnly: isCampaignOnlyMixFilename(filename),
+            id: `campaign:${filename}`,
+            ...(rfsEntry ? { provenance: [rfsEntry] } : {}),
+        };
+        const layeredArchives = await this.addMixFilesFromMountedLayers(filename, profile, metadata);
+        if (layeredArchives > 0) {
+            return true;
+        }
+        return this.addMixFile(filename, metadata);
+    }
+    async loadCampaignArchives(
+        engineTypeOrProfile?: EngineType | GameProfileId | GameProfileDescriptor | CampaignArchiveLoadOptions | readonly string[],
+        profileOrOptions?: GameProfileId | GameProfileDescriptor | CampaignArchiveLoadOptions | readonly string[],
+        maybeOptions?: CampaignArchiveLoadOptions | readonly string[],
+    ): Promise<CampaignArchiveLoadResult> {
+        let profile: GameProfileDescriptor | undefined;
+        let options: CampaignArchiveLoadOptions = {};
+        const normalizeOptions = (
+            value: CampaignArchiveLoadOptions | readonly string[] | undefined,
+        ): CampaignArchiveLoadOptions => Array.isArray(value)
+            ? { filenames: value as readonly string[] }
+            : (value as CampaignArchiveLoadOptions | undefined) ?? {};
+        const isProfile = (value: unknown): value is GameProfileDescriptor => {
+            return !!value && typeof value === "object" && "engine" in value;
+        };
+        const isOptions = (value: unknown): value is CampaignArchiveLoadOptions => {
+            return !!value && typeof value === "object" && !Array.isArray(value) &&
+                ("filenames" in value || "archiveNames" in value);
+        };
+        if (typeof engineTypeOrProfile === "string" && isGameProfileId(engineTypeOrProfile)) {
+            profile = getGameProfile(engineTypeOrProfile);
+            if (isProfile(profileOrOptions)) {
+                profile = profileOrOptions;
+                options = normalizeOptions(maybeOptions);
+            }
+            else {
+                options = Array.isArray(profileOrOptions)
+                    ? { filenames: profileOrOptions }
+                    : normalizeOptions(profileOrOptions as CampaignArchiveLoadOptions | undefined);
+            }
+        }
+        else if (typeof engineTypeOrProfile === "number") {
+            if (typeof profileOrOptions === "string" && isGameProfileId(profileOrOptions)) {
+                profile = getGameProfile(profileOrOptions);
+            }
+            else if (isProfile(profileOrOptions)) {
+                profile = profileOrOptions;
+            }
+            options = normalizeOptions(maybeOptions);
+        }
+        else if (Array.isArray(engineTypeOrProfile)) {
+            options = { filenames: engineTypeOrProfile };
+            if (typeof profileOrOptions === "string" && isGameProfileId(profileOrOptions)) {
+                profile = getGameProfile(profileOrOptions);
+            }
+            else if (isProfile(profileOrOptions)) {
+                profile = profileOrOptions;
+            }
+            else if (isOptions(profileOrOptions)) {
+                options = profileOrOptions;
+            }
+        }
+        else if (isProfile(engineTypeOrProfile)) {
+            profile = engineTypeOrProfile;
+            if (isOptions(profileOrOptions)) {
+                options = profileOrOptions;
+            }
+            else if (Array.isArray(profileOrOptions)) {
+                options = { filenames: profileOrOptions };
+            }
+            else {
+                options = normalizeOptions(maybeOptions);
+            }
+        }
+        else if (isOptions(engineTypeOrProfile)) {
+            options = engineTypeOrProfile;
+            if (isProfile(profileOrOptions)) {
+                profile = profileOrOptions;
+            }
+        }
+        else if (isProfile(profileOrOptions)) {
+            profile = profileOrOptions;
+            options = normalizeOptions(maybeOptions);
+        }
+        if (Array.isArray(profileOrOptions) && !options.filenames && !options.archiveNames) {
+            options = { filenames: profileOrOptions };
+        }
+        const requested = new Set<string>();
+        const skipped = new Set<string>();
+        for (const value of options.filenames ?? options.archiveNames ?? []) {
+            const normalized = tryNormalizeGamePath(value);
+            if (!normalized || !/\.mix$/i.test(normalized) || !isSafeCampaignArchiveFilename(gamePathLeaf(normalized))) {
+                skipped.add(value);
+                continue;
+            }
+            requested.add(gamePathKey(gamePathLeaf(normalized)));
+        }
+        const candidates = new Set<string>();
+        const candidateNames = this.getCampaignArchiveCandidateNames(profile);
+        if (requested.size === 0) {
+            for (const filename of candidateNames) {
+                candidates.add(gamePathKey(filename));
+            }
+        }
+        else {
+            for (const filename of requested) {
+                candidates.add(filename);
+            }
+        }
+        const rfsIndex = this.rfs ? await this.getRfsEntryIndex() : undefined;
+        if (rfsIndex) {
+            for (const entry of rfsIndex.entries) {
+                const leaf = gamePathLeaf(canonicalizeFileProviderCopyPath(entry.path));
+                const key = gamePathKey(leaf);
+                if (requested.has(key) || (requested.size === 0 && isCampaignOnlyMixFilename(leaf))) {
+                    candidates.add(key);
+                }
+            }
+        }
+        for (const filename of candidateNames) {
+            const key = gamePathKey(filename);
+            if (requested.size > 0 && !requested.has(key)) {
+                continue;
+            }
+            if (this.fileExists(filename) || await this.findRfsEntry(filename)) {
+                candidates.add(key);
+            }
+        }
+        const loaded = new Set<string>();
+        const pending = [...candidates].sort(compareStableText);
+        for (let pass = 0; pass < 3 && pending.length > 0; pass++) {
+            const current = pending.splice(0, pending.length);
+            for (const key of current) {
+                const filename = [...candidates].find((candidate) => gamePathKey(candidate) === key) ?? key;
+                if (this.hasArchive(filename)) {
+                    loaded.add(key);
+                    continue;
+                }
+                try {
+                    const available = this.fileExists(filename) || !!await this.findRfsEntry(filename);
+                    if (!available) {
+                        if (requested.has(key)) {
+                            skipped.add(filename);
+                        }
+                        continue;
+                    }
+                    if (await this.loadCampaignArchive(filename, profile)) {
+                        loaded.add(key);
+                    }
+                    else if (requested.has(key)) {
+                        skipped.add(filename);
+                    }
+                }
+                catch (error) {
+                    this.logger.warn(`Could not load campaign archive "${filename}".`, error);
+                    if (requested.has(key)) {
+                        skipped.add(filename);
+                    }
+                }
+            }
+            const discovered = new Set<string>();
+            for (const filename of candidateNames) {
+                const key = gamePathKey(filename);
+                if (this.hasArchive(filename) || candidates.has(key)) {
+                    continue;
+                }
+                if (this.fileExists(filename) || await this.findRfsEntry(filename)) {
+                    discovered.add(key);
+                    candidates.add(key);
+                }
+            }
+            pending.push(...[...discovered].sort(compareStableText));
+        }
+        const descriptors = [...loaded]
+            .map((key): CampaignArchiveDescriptor | undefined => {
+                const filename = [...candidates].find((candidate) => gamePathKey(candidate) === key) ?? key;
+                const descriptor = this.getArchiveDescriptor(filename);
+                if (!descriptor) {
+                    return undefined;
+                }
+                return {
+                    filename: descriptor.filename,
+                    provenance: [...descriptor.provenance],
+                    layer: descriptor.layer,
+                    priority: descriptor.priority,
+                    source: descriptor.source,
+                    profile: descriptor.profile,
+                    campaignOnly: isCampaignOnlyMixFilename(descriptor.filename),
+                } satisfies CampaignArchiveDescriptor;
+            })
+            .filter((descriptor): descriptor is CampaignArchiveDescriptor => !!descriptor)
+            .sort((left, right) => compareStableText(left.filename, right.filename));
+        this.rememberCampaignIniFiles(profile);
+        return {
+            loaded: descriptors,
+            skipped: [...skipped].sort(compareStableText),
+        };
     }
     /**
      * Discover known extra MIX names inside already mounted archives.
@@ -643,16 +1002,22 @@ export class VirtualFileSystem {
     async loadNestedMixFiles(engineType: EngineType, profile?: GameProfileDescriptor, options: ExtraMixLoadOptions = {}): Promise<void> {
         const startedAt = Date.now();
         const candidates = this.getExtraMixNames(engineType, profile);
+        let requireCampaignFiles = false;
+        if (options.deferAfterProfileFiles && this.rfs) {
+            requireCampaignFiles = this.profileCampaignContentPresent(await this.getRfsEntryIndex(), profile);
+        }
         let loadedArchives = 0;
         let deferredArchives = 0;
-        const deferRemaining = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
+        const deferRemaining = options.deferAfterProfileFiles &&
+            this.profileOverrideFilesMounted(profile, requireCampaignFiles);
         for (let pass = 0; pass < 3; pass++) {
             let loaded = false;
             for (const filename of candidates) {
                 if (this.hasArchive(filename) || !this.fileExists(filename)) {
                     continue;
                 }
-                if (deferRemaining || (options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile))) {
+                if (deferRemaining || (options.deferAfterProfileFiles &&
+                    this.profileOverrideFilesMounted(profile, requireCampaignFiles))) {
                     this.deferExtraMixFile(filename, undefined, this.metadataForExtraMix(filename, profile));
                     deferredArchives++;
                     continue;
@@ -849,7 +1214,10 @@ export class VirtualFileSystem {
                 : undefined;
             return indexed ?? preferred;
         };
-        let profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
+        const requireCampaignFiles = options.deferAfterProfileFiles &&
+            this.profileCampaignContentPresent(rfsIndex, profile);
+        let profileFilesReady = options.deferAfterProfileFiles &&
+            this.profileOverrideFilesMounted(profile, requireCampaignFiles);
         let deferredArchives = 0;
         for (const fileToTry of this.getExtraMixNames(engineType, profile)) {
             if (this.hasArchive(fileToTry)) {
@@ -873,7 +1241,8 @@ export class VirtualFileSystem {
             }
             const layeredArchives = await this.addMixFilesFromMountedLayers(fileToTry, profile);
             if (layeredArchives > 0) {
-                profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
+                profileFilesReady = options.deferAfterProfileFiles &&
+                    this.profileOverrideFilesMounted(profile, requireCampaignFiles);
                 continue;
             }
             const rfsEntry = await findEntryByLeaf(fileToTry);
@@ -887,7 +1256,8 @@ export class VirtualFileSystem {
                     ...this.metadataForExtraMix(fileToTry, profile),
                     provenance: [rfsEntry],
                 });
-                profileFilesReady = options.deferAfterProfileFiles && this.profileOverrideFilesMounted(profile);
+                profileFilesReady = options.deferAfterProfileFiles &&
+                    this.profileOverrideFilesMounted(profile, requireCampaignFiles);
             }
         }
         // Imported installations can contain profile containers that are not

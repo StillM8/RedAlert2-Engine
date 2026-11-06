@@ -66,6 +66,21 @@ SW.AITargeting.Constraints=Attacked,LowPower
         });
     });
 
+    test("uses the source table's required target and house defaults", () => {
+        expect(resolveAresSuperWeaponAITargeting({
+            swAITargeting: "PsychicDominator",
+        })).toMatchObject({ requiredTarget: "infantry,units", requiredHouse: "all" });
+        expect(resolveAresSuperWeaponAITargeting({
+            swAITargeting: "GeneticMutator",
+        })).toMatchObject({ requiredTarget: "infantry", requiredHouse: "all" });
+        expect(resolveAresSuperWeaponAITargeting({
+            swAITargeting: "ForceShield",
+        })).toMatchObject({ requiredTarget: "", requiredHouse: "" });
+        expect(resolveAresSuperWeaponAITargeting({
+            swAITargeting: "HunterSeeker",
+        })).toMatchObject({ requiredTarget: "", requiredHouse: "" });
+    });
+
     test("does not silently enable an unknown Ares AI mode", () => {
         const profile = resolveAresSuperWeaponAITargeting({
             typeId: "GenericWarhead",

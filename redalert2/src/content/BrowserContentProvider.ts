@@ -1,4 +1,5 @@
 import { gamePathKey, normalizeGamePath } from "@/engine/GamePath";
+import { extractArchiveContentSource } from "@/content/ArchiveContentSource";
 import type {
     ContentImportFile,
     ContentImportKind,
@@ -128,10 +129,14 @@ export class BrowserContentProvider implements PlatformContentProvider {
 
     async pickModArchives(options: { multiple?: boolean; onProgress?: ContentImportProgress } = {}): Promise<ContentImportSource | undefined> {
         const pickerWindow = globalThis as DirectoryPickerWindow;
+        let source: ContentImportSource | undefined;
         if (pickerWindow.showOpenFilePicker) {
             try {
                 const handles = await pickerWindow.showOpenFilePicker({ multiple: options.multiple !== false });
-                return sourceFromFiles(
+                if (!handles.length) {
+                    return undefined;
+                }
+                source = sourceFromFiles(
                     "archives",
                     handles.length === 1 ? handles[0]?.name : "imported-content",
                     await Promise.all(handles.map(async (handle) => {
@@ -149,7 +154,10 @@ export class BrowserContentProvider implements PlatformContentProvider {
                 throw error;
             }
         }
-        return this.pickFromInput("archives", options.multiple !== false, false);
+        else {
+            source = await this.pickFromInput("archives", options.multiple !== false, false);
+        }
+        return source ? extractArchiveContentSource(source, options.onProgress) : undefined;
     }
 
     private async pickDirectory(): Promise<ContentImportSource | undefined> {
@@ -177,6 +185,9 @@ export class BrowserContentProvider implements PlatformContentProvider {
             let settled = false;
             input.type = "file";
             input.multiple = multiple;
+            if (kind === "archives") {
+                input.accept = ".zip,.7z,.rar,application/zip,application/x-7z-compressed,application/vnd.rar,application/x-rar-compressed";
+            }
             if (directory) {
                 input.setAttribute("webkitdirectory", "");
                 input.setAttribute("directory", "");

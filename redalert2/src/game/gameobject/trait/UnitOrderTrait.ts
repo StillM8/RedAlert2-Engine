@@ -3,6 +3,34 @@ import { TaskStatus } from "@/game/gameobject/task/system/TaskStatus";
 import { fnv32aStrings } from "@/util/math";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
 import { WaitTicksTask } from "@/game/gameobject/task/system/WaitTicksTask";
+import { TurnTask } from "@/game/gameobject/task/TurnTask";
+import { getTaskStateFactory, registerTaskStateFactory } from "@/game/gameobject/task/TaskStateRegistry";
+import { captureOrder, restoreOrder, validateOrderState } from "@/game/order/OrderState";
+
+/** Task fields every task carries regardless of its concrete type. */
+function applyCommonTaskState(task: any, entry: any): void {
+    task.status = entry.status;
+    task.cancellable = entry.cancellable !== false;
+    task.blocking = entry.blocking !== false;
+    task.waitingForChildrenToFinish = entry.waitingForChildrenToFinish === true;
+    task.preventOpportunityFire = entry.preventOpportunityFire !== false;
+    task.preventLanding = entry.preventLanding !== false;
+    task.isAttackMove = entry.isAttackMove === true;
+}
+
+registerTaskStateFactory("wait-ticks", (payload) => {
+    if (!Number.isSafeInteger(payload?.ticks)) {
+        throw new Error("Invalid wait task ticks");
+    }
+    return new WaitTicksTask(payload.ticks);
+});
+
+registerTaskStateFactory("turn", (payload) => {
+    if (!Number.isFinite(payload?.direction)) {
+        throw new Error("Invalid turn task direction");
+    }
+    return new TurnTask(payload.direction);
+});
 import { NotifyOwnerChange } from "@/game/gameobject/trait/interface/NotifyOwnerChange";
 import { CallbackTask } from "@/game/gameobject/task/system/CallbackTask";
 import { NotifyTeleport } from "@/game/gameobject/trait/interface/NotifyTeleport";
@@ -52,25 +80,171 @@ export class UnitOrderTrait implements NotifyTick, NotifyOwnerChange, NotifyTele
         this.gameObject = gameObject;
     }
     /**
-     * BOUNDED hash coverage, deliberately honest about its limits.
-     *
-     * Orders and tasks are an open object graph (tasks carry closures,
-     * children, and per-task primitives with no uniform surface), so a fully
-     * faithful fingerprint needs a per-task snapshot contract. What IS
-     * covered here — pending order count/types, queued flags, live task
-     * descriptors for tasks with an explicit contract, and waypoint progress
-     * presence — catches common divergence classes. Closure-bearing and
-     * target-bearing tasks without an override remain explicitly marked
-     * "unclassified-task" and are canonical-but-unqualified.
+     * Orders are fully restorable: each one is rebuilt from its `OrderType`
+     * (which fully determines its constructor flags) plus a stable target
+     * reference. Tasks are the remaining open graph, so a task without an
+     * explicit contract stays marked `unclassified-task` and strict restore
+     * refuses it rather than silently dropping it.
      */
+    captureState(): Record<string, unknown> {
+        return {
+            version: 2,
+            orders: this.orders.map(order => captureOrder(order, this.queuedOrders.has(order))),
+            tasks: this.tasks.map(task => task.getDeterministicState?.() ?? {
+                type: "unclassified-task",
+                status: task.status,
+            }),
+            waypointPath: this.waypointPath
+                ? {
+                    waypointCount: this.waypointPath.waypoints.length,
+                    unitIds: this.waypointPath.units
+                        .map(unit => (unit as any)?.id)
+                        .filter((id: any) => Number.isSafeInteger(id)),
+                }
+                : null,
+            currentWaypointIndex: this.currentWaypoint
+                ? this.waypointPath?.waypoints.indexOf(this.currentWaypoint) ?? -1
+                : null,
+        };
+    }
+    validateState(state: unknown, options: { strict?: boolean } = {}): Record<string, any> {
+        if (!state || typeof state !== "object") {
+            throw new Error("Invalid unit order state");
+        }
+        const candidate = state as Record<string, any>;
+        if (candidate.version === 1) {
+            throw new Error(
+                "Unsupported unit order state version: 1 (order restoration requires version 2)",
+            );
+        }
+        if (candidate.version !== 2 || !Array.isArray(candidate.orders) ||
+            !Array.isArray(candidate.tasks)) {
+            throw new Error("Invalid unit order state");
+        }
+        for (const [index, entry] of candidate.orders.entries()) {
+            validateOrderState(entry, `orders[${index}]`);
+        }
+        for (const task of candidate.tasks) {
+            if (!task || typeof task !== "object" || typeof task.type !== "string" ||
+                !Number.isSafeInteger(task.status) || !Array.isArray(task.children)) {
+                throw new Error("Invalid unit order task state");
+            }
+        }
+        if (candidate.waypointPath !== null && candidate.waypointPath !== undefined) {
+            const path = candidate.waypointPath;
+            if (!Number.isSafeInteger(path.waypointCount) || path.waypointCount < 0 ||
+                !Array.isArray(path.unitIds) ||
+                path.unitIds.some((id: any) => !Number.isSafeInteger(id))) {
+                throw new Error("Invalid unit order waypoint path state");
+            }
+        }
+        if (candidate.currentWaypointIndex !== null && candidate.currentWaypointIndex !== undefined &&
+            !Number.isSafeInteger(candidate.currentWaypointIndex)) {
+            throw new Error("Invalid unit order current waypoint index");
+        }
+        return candidate;
+    }
+    restoreState(
+        state: unknown,
+        options: { strict?: boolean; game?: any; resolveObjectById?: (id: number) => any } = {},
+    ): void {
+        const parsed = this.validateState(state, options);
+        const strict = options.strict === true;
+        const context = {
+            game: options.game,
+            resolveObjectById: options.resolveObjectById,
+            strict,
+        };
+        // Task factories need tile/rule resolution in addition to the object
+        // lookup, so the wider restore context is forwarded verbatim.
+        const traitOptions = { ...options } as Record<string, unknown>;
+        // Everything below resolves before any mutation, so a rejected
+        // checkpoint cannot leave a partially rebuilt order queue behind.
+        const restoredOrders: any[] = [];
+        const queuedOrders = new Set<any>();
+        for (const [index, entry] of parsed.orders.entries()) {
+            if (!context.game && strict) {
+                throw new Error("Cannot restore unit order state: game context is unresolved");
+            }
+            const { order, queued } = restoreOrder(entry, this.gameObject, context, `orders[${index}]`);
+            restoredOrders.push(order);
+            if (queued) queuedOrders.add(order);
+        }
+        const restoreTask = (entry: any): any => {
+            const factory = getTaskStateFactory(entry?.type);
+            if (!factory) {
+                if (strict) {
+                    throw new Error(`Cannot restore unit order task ${String(entry?.type)}`);
+                }
+                return undefined;
+            }
+            const task = factory(entry, { ...context, ...traitOptions });
+            if (!task) {
+                if (strict) {
+                    throw new Error(`Cannot restore unit order task ${String(entry?.type)}: factory failed`);
+                }
+                return undefined;
+            }
+            applyCommonTaskState(task, entry);
+            task.children = (entry.children ?? []).map(restoreTask).filter(Boolean);
+            return task;
+        };
+        const tasks = (parsed.tasks as any[]).map(restoreTask).filter(Boolean);
+        if (strict && tasks.length !== (parsed.tasks as any[]).length) {
+            throw new Error("Cannot restore unit order state: unsupported task");
+        }
+        const waypointPath = parsed.waypointPath
+            ? {
+                waypoints: [] as Waypoint[],
+                units: parsed.waypointPath.unitIds
+                    .map((id: number) => options.resolveObjectById?.(id))
+                    .filter((unit: any) => !!unit) as GameObject[],
+            }
+            : undefined;
+        if (strict && parsed.waypointPath &&
+            waypointPath!.units.length !== parsed.waypointPath.unitIds.length) {
+            throw new Error("Cannot restore unit order state: waypoint path unit is unresolved");
+        }
+        if (waypointPath) {
+            for (let index = 0; index < parsed.waypointPath!.waypointCount; index++) {
+                waypointPath.waypoints.push(index < waypointPath.waypoints.length
+                    ? waypointPath.waypoints[index]
+                    : { next: waypointPath.waypoints[index - 1] });
+            }
+        }
+        const currentWaypointIndex = parsed.currentWaypointIndex ?? null;
+        if (strict && currentWaypointIndex !== null &&
+            (!waypointPath || currentWaypointIndex < 0 ||
+                currentWaypointIndex >= waypointPath.waypoints.length)) {
+            throw new Error("Cannot restore unit order state: current waypoint index is out of range");
+        }
+
+        this.orders = restoredOrders;
+        this.queuedOrders = queuedOrders;
+        this.tasks = tasks;
+        this.waypointPath = waypointPath;
+        this.currentWaypoint = currentWaypointIndex !== null && waypointPath
+            ? waypointPath.waypoints[currentWaypointIndex] ?? undefined
+            : undefined;
+        this.targetLinesTask = undefined;
+        this.targetLinesConfig = undefined;
+    }
     getHash(): number {
         return fnv32aStrings([
             "UnitOrderTrait",
-            this.orders.length,
-            ...this.orders.flatMap((order) => [order.orderType, this.queuedOrders.has(order) ? 1 : 0]),
-            "queued-orders",
-            this.queuedOrders.size,
-            this.tasks.length,
+            ...this.orders.flatMap((order) => {
+                const captured = captureOrder(order, this.queuedOrders.has(order));
+                return [
+                    captured.orderType,
+                    captured.queued ? 1 : 0,
+                    captured.target
+                        ? `${captured.target.objectId ?? -1}:${captured.target.rx},${captured.target.ry}:${captured.target.bridgeMode}`
+                        : "no-target",
+                    // PlaceBomb and Attack share an order type but not their
+                    // constructor flags, so the flags are hashed too.
+                    JSON.stringify(captured.flags ?? {}),
+                ];
+            }),
             ...this.tasks.map((task) => JSON.stringify(task.getDeterministicState?.() ?? {
                 type: "unclassified-task",
                 status: task.status,

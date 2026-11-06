@@ -59,19 +59,19 @@ WeaponUIName5=Name_CustomIFVWeapon
         const rules = technoRules("[Techno]\nPoweredBy=PowerCore,AuxGenerator\n").poweredBy;
         const warped = {
             rules: { name: "PowerCore" },
+            isBuilding: () => true,
+            isSpawned: true,
+            buildStatus: 1,
             warpedOutTrait: { isActive: () => true },
             poweredTrait: { isPoweredOn: () => true },
         };
         const online = {
             rules: { name: "AuxGenerator" },
+            isBuilding: () => true,
+            isSpawned: true,
+            buildStatus: 1,
             empTrait: { isUnderEMP: () => false },
             operatorTrait: { isOffline: () => false },
-            poweredTrait: {
-                online: true,
-                isPoweredOn() {
-                    return this.online;
-                },
-            },
         };
 
         expect(isAresPoweredByProviderOnline(warped)).toBe(false);
@@ -92,6 +92,9 @@ WeaponUIName5=Name_CustomIFVWeapon
         const rules = technoRules("[Techno]\nPoweredBy=PowerCore\n").poweredBy;
         const base = {
             rules: { name: "PowerCore" },
+            isBuilding: () => true,
+            isSpawned: true,
+            buildStatus: 1,
             empTrait: { isUnderEMP: () => false },
             operatorTrait: { isOffline: () => false },
             poweredTrait: { isPoweredOn: () => true },
@@ -110,5 +113,26 @@ WeaponUIName5=Name_CustomIFVWeapon
             poweredTrait: { isPoweredOn: () => false },
         })).toBe(false);
         expect(resolveAresPoweredByDecision(rules, [base]).powered).toBe(true);
+    });
+
+    test("requires a spawned alive ready operational building but accepts one without PoweredTrait", () => {
+        const provider = {
+            rules: { name: "PowerCore" },
+            isBuilding: () => true,
+            isSpawned: true,
+            isDestroyed: false,
+            isCrashing: false,
+            isDisposed: false,
+            healthTrait: { health: 100 },
+            buildStatus: 1,
+        };
+
+        expect(isAresPoweredByProviderOnline(provider)).toBe(true);
+        expect(isAresPoweredByProviderOnline({ ...provider, isBuilding: () => false })).toBe(false);
+        expect(isAresPoweredByProviderOnline({ ...provider, isSpawned: false })).toBe(false);
+        expect(isAresPoweredByProviderOnline({ ...provider, isDestroyed: true })).toBe(false);
+        expect(isAresPoweredByProviderOnline({ ...provider, healthTrait: { health: 0 } })).toBe(false);
+        expect(isAresPoweredByProviderOnline({ ...provider, buildStatus: 0 })).toBe(false);
+        expect(isAresPoweredByProviderOnline({ ...provider, operational: false, buildStatus: 1 })).toBe(false);
     });
 });

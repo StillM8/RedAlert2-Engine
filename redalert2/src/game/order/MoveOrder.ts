@@ -29,6 +29,15 @@ export class MoveOrder extends Order {
         this.unitSelection = unitSelection;
         this.forceMove = forceMove;
     }
+    captureState(): Record<string, unknown> {
+        return { forceMove: this.forceMove };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || typeof (state as any).forceMove !== "boolean") {
+            throw new Error("Invalid move order state");
+        }
+        this.forceMove = (state as any).forceMove;
+    }
     getPointerType(isMini: boolean): PointerType {
         let canMove = this.isAllowed();
         if (!canMove ||

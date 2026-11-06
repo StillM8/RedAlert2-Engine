@@ -1,5 +1,6 @@
 import { SuperWeaponsTrait } from '@/game/trait/SuperWeaponsTrait';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
+import { resolveTriggerHousePlayer } from '@/game/trigger/HouseReference';
 import { TriggerExecutor } from '@/game/trigger/TriggerExecutor';
 export class IronCurtainExecutor extends TriggerExecutor {
     execute(game: Game): void {
@@ -10,7 +11,7 @@ export class IronCurtainExecutor extends TriggerExecutor {
                 `Skipping action ${this.getDebugName()}.`);
             return;
         }
-        const player = game.getAllPlayers().find((p) => !p.defeated && p.country?.name === this.trigger.houseName);
+        const player = resolveTriggerHousePlayer(game, this.trigger);
         if (!player) {
             return;
         }

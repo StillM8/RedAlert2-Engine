@@ -1,11 +1,14 @@
-import { TriggerCondition } from '../TriggerCondition';
+import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class CreditsBelowCondition extends TriggerCondition {
-    private threshold: number;
-    constructor(params: any[], context: any) {
-        super(params, context);
-        this.threshold = Number(params[1]);
+    private readonly threshold: number;
+
+    constructor(event: any, trigger: any) {
+        super(event, trigger);
+        this.threshold = Number(event.params[1]);
     }
-    check(event: any, context: any): boolean {
+
+    check(context: any, events: any[]): boolean {
         return !!this.player && this.player.credits < this.threshold;
     }
 }

@@ -3,7 +3,7 @@ import { RangeHelper } from '../gameobject/unit/RangeHelper';
 import { RadialTileFinder } from '../map/tileFinder/RadialTileFinder';
 import { Warhead } from '../Warhead';
 import { EventDispatcher } from '../../util/event';
-import { lerp } from '../../util/math';
+import { lerp, fnv32aStrings } from '../../util/math';
 import { NotifyTick } from './interface/NotifyTick';
 export class MapRadiationTrait {
     private map: any;
@@ -23,6 +23,50 @@ export class MapRadiationTrait {
         this.radSites = new Map();
         this.radLevelByTile = new Map();
         this._onChange = new EventDispatcher();
+    }
+    getHash(): number {
+        return fnv32aStrings([
+            "MapRadiationTrait",
+            ...[...this.radSites.entries()]
+                .map(([position, value]) => [position?.rx ?? -1, position?.ry ?? -1, value.radLevel, value.radius] as const)
+                .sort((a, b) => a[1] - b[1] || a[0] - b[0])
+                .flat(),
+            this.nextDamage ?? -1,
+            this.nextDecay ?? -1,
+        ]);
+    }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            sites: [...this.radSites.entries()]
+                .filter(([position]) => position && Number.isSafeInteger(position.rx) && Number.isSafeInteger(position.ry))
+                .map(([position, value]) => ({ x: position.rx, y: position.ry, ...value }))
+                .sort((a, b) => a.y - b.y || a.x - b.x),
+            nextDamage: this.nextDamage ?? null,
+            nextDecay: this.nextDecay ?? null,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 || !Array.isArray((state as any).sites)) {
+            throw new Error("Invalid map radiation state");
+        }
+        const sites = new Map<any, { radLevel: number; radius: number }>();
+        for (const entry of (state as any).sites) {
+            if (!entry || !Number.isSafeInteger(entry.x) || !Number.isSafeInteger(entry.y) ||
+                !Number.isFinite(entry.radLevel) || !Number.isFinite(entry.radius)) {
+                throw new Error("Invalid radiation site");
+            }
+            const tile = this.map.tiles.getByMapCoords(entry.x, entry.y);
+            if (!tile) throw new Error("Invalid radiation site tile");
+            sites.set(tile, { radLevel: entry.radLevel, radius: entry.radius });
+        }
+        this.radSites = sites;
+        this.radLevelByTile.clear();
+        for (const [position, value] of sites) {
+            this.setRadLevelAround(position, value.radius, value.radLevel);
+        }
+        this.nextDamage = (state as any).nextDamage === null ? undefined : (state as any).nextDamage;
+        this.nextDecay = (state as any).nextDecay === null ? undefined : (state as any).nextDecay;
     }
     getRadLevel(tile: any): number | undefined {
         return this.radLevelByTile.get(tile);

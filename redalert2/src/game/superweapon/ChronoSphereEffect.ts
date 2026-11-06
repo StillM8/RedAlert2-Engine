@@ -5,6 +5,7 @@ import { ZoneType } from "@/game/gameobject/unit/ZoneType";
 import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { MovementZone } from "@/game/type/MovementZone";
 import { SpeedType } from "@/game/type/SpeedType";
+import { LocomotorType } from "@/game/type/LocomotorType";
 import { SuperWeaponEffect } from "@/game/superweapon/SuperWeaponEffect";
 import {
     isAresSuperWeaponInRange,
@@ -15,6 +16,12 @@ import {
     resolveAresChronoshiftCrushable,
     type AresChronosphereEligibilityRules,
 } from "@/extensions/ares/AresChronoshift";
+import { createAresSuperWeaponTargetFilter } from "@/extensions/ares/AresSuperWeaponFilters";
+
+type AresChronosphereEffectRules = AresChronosphereEligibilityRules & {
+    affectsHouse?: unknown;
+};
+
 export class ChronoSphereEffect extends SuperWeaponEffect {
     private tile2: any;
     private objectsToTeleport: Array<{
@@ -44,7 +51,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         i: any,
         r: any,
         superWeaponRange?: readonly number[],
-        chronosphereRules?: AresChronosphereEligibilityRules,
+        chronosphereRules?: AresChronosphereEffectRules,
     ) {
         super(e, t, i);
         this.tile2 = r;
@@ -53,7 +60,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         this.chronosphereRules = chronosphereRules;
     }
     private readonly superWeaponRange?: readonly number[];
-    private readonly chronosphereRules?: AresChronosphereEligibilityRules;
+    private readonly chronosphereRules?: AresChronosphereEffectRules;
 
     private flag(value: unknown, defaultValue: boolean): boolean {
         return typeof value === "boolean" ? value : defaultValue;
@@ -120,8 +127,30 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
             this.isAresChronoshiftEligible(object);
     }
 
-    private isAffectedByChronosphere(object: any): boolean {
-        if (!this.isChronoshiftObject(object)) return false;
+    private isFactoryLinkedTarget(object: any, game: any): boolean {
+        if (object?.isUnit?.() !== true || object?.isInfantry?.() === true) return false;
+        return [...(object.owner?.buildings ?? [])].some((building: any) =>
+            building?.factoryTrait?.deliveringUnit === object &&
+            building.rules?.weaponsFactory === true &&
+            game.map.tileOccupation?.isTileOccupiedBy?.(object.tile, building) === true,
+        );
+    }
+
+    private setChronoAftereffectLock(object: any, locked: boolean): void {
+        object?.moveTrait?.setChronoAftereffectLocked?.(locked);
+    }
+
+    private isAffectedByChronosphere(
+        object: any,
+        game: any,
+        canAffectHouse: (object: any, tile: any) => boolean,
+    ): boolean {
+        if (!canAffectHouse(object, object.tile) || !this.isChronoshiftObject(object)) return false;
+        if (object.limboData !== undefined ||
+            object.moveTrait?.isChronoAftereffectLocked?.() === true ||
+            object.zone === ZoneType.Air ||
+            object.warpedOutTrait?.isActive?.() === true ||
+            this.isFactoryLinkedTarget(object, game)) return false;
         if (!this.affectsUnwarpable() && object.rules?.warpable === false) return false;
         if (!this.affectsIronCurtain() && object.invulnerableTrait?.isActive?.()) return false;
         return true;
@@ -207,6 +236,10 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         this.delayTicks = t.rules.general.chronoDelay;
         let i = t.map.tiles;
         const candidates: Array<{ object: any; sourceTile: any; destTile?: any }> = [];
+        const affectsHouse = this.chronosphereRules?.affectsHouse;
+        const canAffectHouse = typeof affectsHouse === "string"
+            ? createAresSuperWeaponTargetFilter(affectsHouse, undefined, this.owner, t)
+            : () => true;
 
         if (this.superWeaponRange !== undefined) {
             // Antares collects each techno once from the configured area. The
@@ -218,7 +251,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
             });
             for (const object of t.getWorld().getAllObjects()) {
                 const sourceTile = object.tile;
-                if (!this.isAffectedByChronosphere(object) || !sourceTile || object.isDisposed ||
+                if (!this.isAffectedByChronosphere(object, t, canAffectHouse) || !sourceTile || object.isDisposed ||
                     object.onBridge !== !!sourceTile.onBridgeLandType ||
                     (object.isInfantry?.() && object.stance === StanceType.Paradrop && 2 < object.tileElevation) ||
                     !isAresSuperWeaponInRange(this.tile, object, range, t.map.tileOccupation)) {
@@ -242,7 +275,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                     const onBridge = !!sourceTile.onBridgeLandType;
                     const destTile = i.getByMapCoords(this.tile2.rx + o, this.tile2.ry + e);
                     for (const object of t.map.getGroundObjectsOnTile(sourceTile)) {
-                        if (!this.isAffectedByChronosphere(object) ||
+                        if (!this.isAffectedByChronosphere(object, t, canAffectHouse) ||
                             object.tile !== sourceTile ||
                             object.onBridge !== onBridge ||
                             (object.isInfantry() &&
@@ -258,14 +291,16 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
         }
 
         for (const { object, destTile } of candidates) {
-            const killOrganic = this.killOrganic() && object.rules.organic === true;
-            const killTeleporter = this.killTeleporters() && object.rules.teleporter === true;
-            if (killOrganic || killTeleporter || (!destTile && !(object.isBuilding?.() && !this.blowUnplaceable()))) {
+            const killOrganic = this.killOrganic() &&
+                object.rules.organic === true &&
+                (object.rules.teleporter !== true || this.killTeleporters());
+            if (killOrganic || (!destTile && !(object.isBuilding?.() && !this.blowUnplaceable()))) {
                 this.killObjectCargo(object, t);
                 t.destroyObject(object, { player: this.owner }, this.killCargo());
             }
             else if (!object.warpedOutTrait.isActive()) {
                 if (this.killCargo()) this.killObjectCargo(object, t);
+                this.setChronoAftereffectLock(object, true);
                 object.warpedOutTrait.setActive(true, true, t);
                 this.objectsToTeleport.push({
                     obj: object,
@@ -273,6 +308,12 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                 });
             }
         }
+    }
+    private shouldSinkJumpjet(object: any, tile: any, map: any): boolean {
+        return object?.rules?.speedType === SpeedType.Hover &&
+            (object?.rules?.locomotor === LocomotorType.Jumpjet ||
+                object?.rules?.jumpjet === true) &&
+            map?.getTileZone?.(tile) === ZoneType.Water;
     }
     onTick(l: any): boolean {
         if (0 < this.delayTicks) {
@@ -285,6 +326,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
             if (d.isSpawned) {
                 if (d.isBuilding?.()) {
                     this.teleportBuilding(d, g, l);
+                    this.setChronoAftereffectLock(d, false);
                     continue;
                 }
                 let i = false, r = g ? l.map.tileOccupation.getBridgeOnTile(g) : undefined, s = l.map.getGroundObjectsOnTile(g), a = s.find((e: any) => e.isBuilding());
@@ -294,6 +336,14 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                     !a.dockTrait.hasReservedDockAt(a.dockTrait.getDockNumberByTile(g)) &&
                     a.owner === d.owner;
                 let e = false, n = d.rules.speedType, o = d.isInfantry();
+                if (this.shouldSinkJumpjet(d, g, l.map)) {
+                    d.moveTrait.teleportUnitToTile(g, r, true, false, l);
+                    d.deathType = DeathType.Sink;
+                    d.warpedOutTrait.setActive(false, true, l);
+                    this.setChronoAftereffectLock(d, false);
+                    l.destroyObject(d, { player: this.owner });
+                    continue;
+                }
                 if (d.rules.movementZone === MovementZone.Fly) {
                     n = SpeedType.Wheel;
                 }
@@ -321,6 +371,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                     if (!t) {
                         d.moveTrait.teleportUnitToTile(g, r, true, false, l);
                         d.warpedOutTrait.setActive(false, true, l);
+                        this.setChronoAftereffectLock(d, false);
                         if (l.map.getTileZone(g) === ZoneType.Water) {
                             d.deathType = DeathType.Sink;
                         }
@@ -336,6 +387,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                         !(2 < Math.abs(t.tileElevation - d.tileElevation))) {
                         if (resolveAresChronoshiftCrushable(t.rules?.aresChronoshift) === false ||
                             (d.isInfantry() && l.rules.general?.chronoInfantryCrush === false && !t.isInfantry())) {
+                            this.setChronoAftereffectLock(d, false);
                             l.destroyObject(d, { player: this.owner });
                             e = true;
                             break;
@@ -365,6 +417,7 @@ export class ChronoSphereEffect extends SuperWeaponEffect {
                     }
                 }
             }
+            this.setChronoAftereffectLock(d, false);
         }
         return true;
     }

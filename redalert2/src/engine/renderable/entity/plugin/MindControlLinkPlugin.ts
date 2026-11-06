@@ -18,6 +18,12 @@ export class MindControlLinkPlugin {
         this.renderableManager = renderableManager;
     }
     update(): void {
+        const parasiteWeapon = [this.source.primaryWeapon, this.source.secondaryWeapon]
+            .some(weapon => weapon?.warhead?.rules?.parasite === true);
+        if (parasiteWeapon) {
+            this.disposeLinks();
+            return;
+        }
         if (!this.source.isDestroyed &&
             !this.source.isCrashing &&
             this.source.mindControllerTrait) {
@@ -60,4 +66,70 @@ export class MindControlLinkPlugin {
         this.links.forEach((link) => link.removeAndDispose());
         this.links.clear();
     }
+}
+
+export class DominatorControlAnimationPlugin {
+    private readonly gameObject: any;
+    private readonly renderable: any;
+    private renderableManager?: any;
+    private animation?: any;
+    private animationName?: string;
+
+    constructor(gameObject: any, renderable: any) {
+        this.gameObject = gameObject;
+        this.renderable = renderable;
+    }
+
+    onCreate(renderableManager: any): void {
+        this.renderableManager = renderableManager;
+    }
+
+    update(time?: number): void {
+        const permanent = this.gameObject.mindControllableTrait?.isPermanent?.() === true;
+        const name = permanent ? animationName(this.gameObject.dominatorControlAnimation) : undefined;
+        if (name !== this.animationName) {
+            this.animationName = name;
+            this.disposeAnimation();
+        }
+        if (name && !this.animation) this.createAnimation(name);
+        if (Number.isFinite(time)) this.animation?.update?.(time);
+    }
+
+    onRemove(): void {
+        this.disposeAnimation();
+        this.renderableManager = undefined;
+    }
+
+    dispose(): void {
+        this.disposeAnimation();
+    }
+
+    private createAnimation(name: string): void {
+        const parent = this.renderable?.get3DObject?.();
+        if (!parent || !this.renderableManager) return;
+        const animation = this.renderableManager.createAnim(name, undefined, true);
+        animation.create3DObject();
+        const props = animation.getAnimProps?.();
+        const object = animation.get3DObject?.();
+        if (!props || !object) {
+            animation.dispose?.();
+            return;
+        }
+        props.loopCount = -1;
+        parent.add(object);
+        this.animation = animation;
+    }
+
+    private disposeAnimation(): void {
+        const parent = this.renderable?.get3DObject?.();
+        const object = this.animation?.get3DObject?.();
+        if (object && parent) parent.remove(object);
+        this.animation?.dispose?.();
+        this.animation = undefined;
+    }
+}
+
+function animationName(value: any): string | undefined {
+    const name = typeof value === "string" ? value.trim() : "";
+    return name && !/^(?:none|null)$/i.test(name) ? name : undefined;
 }

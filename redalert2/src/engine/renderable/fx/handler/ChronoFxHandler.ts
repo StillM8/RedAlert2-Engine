@@ -35,6 +35,7 @@ interface GameObject {
     };
     isBuilding: () => boolean;
     deathType: DeathType;
+    temporalWarpAwayOverride?: string;
 }
 interface TeleportEvent {
     isChronoshift: boolean;
@@ -82,7 +83,11 @@ export class ChronoFxHandler {
                     : event.target.position
                         .getTileOffset()
                         .multiplyScalar(1 / Coords.LEPTONS_PER_TILE);
-                this.renderableManager.createTransientAnim(this.game.rules.audioVisual.warpAway, (anim) => {
+                const override = event.target.temporalWarpAwayOverride;
+                const animation = override && !/^(?:none|<none>)$/i.test(override)
+                    ? override
+                    : this.game.rules.audioVisual.warpAway;
+                this.renderableManager.createTransientAnim(animation, (anim) => {
                     anim.setPosition(Coords.tile3dToWorld(tile.rx + offset.x, tile.ry + offset.y, tile.z));
                 });
             }

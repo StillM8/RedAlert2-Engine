@@ -9,6 +9,12 @@ export class TriggerAnimEvent {
         /** Optional creator context used by Ares animation damage attribution. */
         public readonly sourcePlayer?: any,
         public readonly sourceObject?: any,
+        public mutationOwner?: any,
+        public useUnitPalette: boolean = false,
+        public mutationId?: number,
+        public mutationContext?: string,
+        public animationChain?: string[],
+        public triggerOwner?: any,
     ) {
         this.type = EventType.TriggerAnim;
     }

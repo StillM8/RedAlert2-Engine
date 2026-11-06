@@ -114,6 +114,7 @@ const DEFINITION_LIST_SECTION_KINDS: Readonly<Record<string, IniSectionKind>> = 
     animtypes: "Animation",
     weapontypes: "Weapon",
     warheadtypes: "Warhead",
+    warheads: "Warhead",
     projectiletypes: "Projectile",
     superweapontypes: "SuperWeapon",
     scripttypes: "ScriptType",
@@ -141,12 +142,12 @@ const DIRECT_SECTION_KINDS: Readonly<Record<string, IniSectionKind>> = {
     multiplayeradvancedcommandbar: "UI",
 };
 
-const COMMON_VANILLA_KEYS = /^(?:name|uiname|image|art|cost|power|strength|health|armor|speed|sight|range|rof|primary|secondary|eliteprimary|elitesec|weapon|warhead|projectile|owner|prerequisite|techlevel|buildlimit|category|locomotor|movementzone|size|foundation|ammo|burst|damage|verses|cellspread|percent|anim|report|sound|sounds|volume|control|delay|fshift|cloak|cloakable|capturable|spyable|passengers|passengersexits|opentopped|open topped|naval|type|action|palette|superweapons|newtheater|theater|normalized|points|rate|maxdebris|mindebris|min_debris|usenormallight|layer|explosion|insignificant|height|occupyheight|loopcount|loopstart|loopend|chronoshift\.allow|shadow|nominal|canbehidden|canhide|canhidethings|basenormal|remapable|threatposed|damagefireoffset\d+|damagesmokeoffset|debrisanims|start|clickrepairable|voiceselect|voicemove|voiceattack|soylent|bright|allowedtostartinmultiplayer|priority|vshift|wall|translucent|wood|voxel|animlist|infdeath|canbeoccupied|canoccupyfire|isselectablecombatant|die|diesound|deathweapon|voices?|rot|crew|crewed|crushsound|leaverubble|primaryfireflh|turret|movesound|zadjust|weight|radarinvisible|crategoodie|subjecttoelevation|subjecttocliffs|subjecttowalls|conventional|activeanim|activeanimzadjust|activeanimpowered|activeanimdamaged|crusher|damagesound|muzzleflash\d+|eliteabilities|veteranabilities|selectable|radarcolor|specialthreatvalue|aibaseplanningside|fireup|addoccupy\d+|minimumrange|maxnumberoccupants|translucency|ysortadjust|zfudgecolumn|zfudgetunnel|aa|ag|powered|accelerates|adjacent|percentatmax|sparky|immunetopsionics|buildcat|bounty\.value)$/i;
+const COMMON_VANILLA_KEYS = /^(?:name|uiname|image|art|cost|power|strength|health|armor|speed|sight|range|rof|primary|secondary|eliteprimary|elitesec|weapon|warhead|projectile|owner|prerequisite|techlevel|buildlimit|category|locomotor|movementzone|size|foundation|ammo|burst|damage|verses|cellspread|percent|anim|report|sound|sounds|volume|control|delay|fshift|cloak|cloakable|capturable|spyable|passengers|passengersexits|opentopped|open topped|naval|type|action|palette|superweapons|newtheater|theater|normalized|points|rate|maxdebris|mindebris|min_debris|usenormallight|layer|explosion|insignificant|height|occupyheight|loopcount|loopstart|loopend|chronoshift\.allow|shadow|nominal|canbehidden|canhide|canhidethings|basenormal|remapable|threatposed|damagefireoffset\d+|damagesmokeoffset|debrisanims|start|clickrepairable|voiceselect|voicemove|voiceattack|soylent|bright|allowedtostartinmultiplayer|priority|vshift|wall|translucent|wood|voxel|animlist|infdeath|canbeoccupied|canoccupyfire|isselectablecombatant|die|diesound|deathweapon|voices?|rot|crew|crewed|crushsound|leaverubble|primaryfireflh|turret|movesound|zadjust|weight|radarinvisible|crategoodie|subjecttoelevation|subjecttocliffs|subjecttowalls|conventional|activeanim|activeanimzadjust|activeanimpowered|activeanimdamaged|crusher|damagesound|muzzleflash\d+|eliteabilities|veteranabilities|selectable|radarcolor|specialthreatvalue|aibaseplanningside|fireup|addoccupy\d+|minimumrange|maxnumberoccupants|translucency|ysortadjust|zfudgecolumn|zfudgetunnel|aa|ag|powered|accelerates|adjacent|percentatmax|sparky|immunetopsionics|buildcat|bounty\.value|arcing|inaccurate|inviso|flakscatter|ballisticscatter)$/i;
 
 const SECTION_VANILLA_KEYS: Readonly<Record<IniSectionKind, RegExp>> = {
-    General: /^(?:baseunit|buildspeed|credits|startingunits|startingcredits|timer|unitcount|harvestercount|aislots|walls|water|tiberium|ore|growth|repair|repairbay|forbiddenhouses|requiredhouses|sides|alliances|storage|harvesters|refinery|conyard|radar|cloakable|infiltratable|selectable|voice|theme|scenario|game|map|theater)$/i,
+    General: /^(?:baseunit|buildspeed|credits|startingunits|startingcredits|timer|unitcount|harvestercount|aislots|walls|water|tiberium|ore|growth|repair|repairbay|forbiddenhouses|requiredhouses|sides|alliances|storage|harvesters|refinery|conyard|radar|cloakable|infiltratable|selectable|voice|theme|scenario|game|map|theater|medians)$/i,
     AudioVisual: /^(?:conditionyellow|conditionred|dropzoneradius|message|shroud|repairanim|moveflash|behind|flyerhelper)$/i,
-    CombatDamage: /^(?:conditionyellow|conditionred|healthbar|firepower|armors|veteran|elite)$/i,
+    CombatDamage: /^(?:conditionyellow|conditionred|healthbar|firepower|armors|veteran|elite|ballisticscatter)$/i,
     Country: /^(?:0|\d+|name|uiname|side|color|prefix|suffix|loadscreen|flag|multiplayer|selectable|crew|survivordivisor|buildings|units|infantry|vehicles|aircraft)$/i,
     Side: /^(?:0|\d+|name|uiname|side|color|prefix|suffix|loadscreen|flag|multiplayer|selectable|crew|survivordivisor|buildings|units|infantry|vehicles|aircraft)$/i,
     Techno: COMMON_VANILLA_KEYS,
@@ -297,8 +298,26 @@ const ARES_SUPERWEAPON_TYPE_FEATURES: Readonly<Record<string, string>> = {
 };
 
 function featureForKey(section: string, sectionKind: IniSectionKind, key: string, value: string): string | undefined {
+    if (/^alternatetheaterart$/i.test(key)) {
+        return "ares.alternate-theater-art";
+    }
+    if (/^(?:cameopalette|sidebarpalette)$/i.test(key)) {
+        return "ares.custom-cameo-palettes";
+    }
+    if (/^(?:parachute\.anim|parachutemaxfallrate|noparachutemaxfallrate|fallrate\.(?:parachute|noparachute|parachutemax|noparachutemax))$/i.test(key)) {
+        return "ares.customizable-parachute-animations";
+    }
+    if (/^(?:iscow|isdesolator)$/i.test(key)) {
+        return "ares.hardcoded-unit-properties";
+    }
     if ((sectionKind === "Side" || sectionKind === "Country") && /^(?:sidebar\.(?:mixfileindex|yurifilenames)|tooltipcolor|eva\.tag|loadingtheme|graphicaltext\.(?:image|palette)|multiplayerscore\.(?:background|palette|bars|wintheme|losetheme))$/i.test(key)) {
         return "ares.side-ui";
+    }
+    if (sectionKind === "Building" && /^spyeffect\.undoreverseengineer$/i.test(key)) {
+        return "ares.reverse-engineer";
+    }
+    if (sectionKind === "Building" && /^spyeffect\.(?:custom|resetradar|revealradar|poweroutageduration|stolenmoneyamount|stolenmoneypercentage|resetsuperweapons|stolentechindex|unitveterancy|revealproduction)$/i.test(key)) {
+        return "ares.spy-behavior";
     }
     if (/^radarjamradius$/i.test(key)) {
         return "ares.radar-jammers";
@@ -353,7 +372,7 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
         sectionKind === "SuperWeapon") {
         return "ares.chronoshift";
     }
-    if (/^(?:beam\.(?:color|ishousecolor|duration|amplitude)|bolt\.color[123]|wave\.(?:islaser|isbiglaser|color|ishousecolor|reverseagainst(?:vehicles|aircraft|buildings|infantry|others)))$/i.test(key) &&
+    if (/^(?:beam\.(?:color|ishousecolor|duration|amplitude)|bolt\.color[123]|wave\.(?:islaser|isbiglaser|color|ishousecolor|reverseagainst(?:vehicles|aircraft|buildings|infantry|others))|laserThickness|ambientDamage)$/i.test(key) &&
         sectionKind === "Weapon") {
         return "ares.weapon-visuals";
     }
@@ -374,6 +393,9 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
         const typeFeature = ARES_SUPERWEAPON_TYPE_FEATURES[normalize(value)];
         if (typeFeature) return typeFeature;
     }
+    if (/^(?:subjecttobuildings|solidheight)$/i.test(key)) {
+        return "ares.solid-buildings";
+    }
     if (/^emp\.threshold$/i.test(key)) {
         return "ares.emp-threshold";
     }
@@ -382,6 +404,13 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     }
     if (/^(?:emp\.(?:duration|cap|sparkles)|immuneToEMP|emp\.modifier)$/i.test(key)) {
         return "ares.emp";
+    }
+    if (sectionKind === "Warhead" && /^(?:ironcurtain\.(?:duration|cap)|mindcontrol\.permanent|temporal\.warpaway|ripple\.radius|deployed\.damage|damage\.deployed|preimpactanim|infdeathanim|affectsallies|affectsowner|affectsenemies|malicious)$/i.test(key)) {
+        return "ares.warhead-effects";
+    }
+    if (["Techno", "Infantry", "Vehicle", "Aircraft", "Building"].includes(sectionKind) &&
+        /^ironcurtain\.modifier$/i.test(key)) {
+        return "ares.warhead-effects";
     }
     if (/^genericprerequisites$/i.test(section)) {
         return "ares.generic-prerequisites";
@@ -428,6 +457,10 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     }
     if (/^sw\.(?:initialready|virtualcharge)$/i.test(key)) {
         return "ares.superweapon-charge-state";
+    }
+    if ((sectionKind === "Building" && /^(?:laserfencepost|laserfence)$/i.test(key)) ||
+        (sectionKind === "General" && /^walltower$/i.test(key))) {
+        return "ares.laser-fences";
     }
     if (/^firestorm\.wall$/i.test(key) || /^subjecttofirestorm$/i.test(key) || /^ignoresfirestorm$/i.test(key)) {
         return "ares.firestorm-wall";
@@ -477,8 +510,9 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
         (/^type$/i.test(key) && /^hunterseeker$/i.test(value))) {
         return "ares.superweapon-hunter-seeker";
     }
-    if (/^(?:sw\.(?:inhibitors|designators|animation|animationheight|animationvisibility|sound|activationsound|cursor|nocursor|warhead|damage|maxcount)|deliver\.(?:types|owner|basenormal)|droppod\.(?:types|veterancy|minimum|maximum|weapon|trailer)|genericwarhead\.|chronowarp\.|sonarpulse\.)/i.test(key) ||
-        /^(?:eva|text)\./i.test(key)) {
+    if (/^(?:sw\.(?:inhibitors|designators|animation|animationheight|animationvisibility|sound|activationsound|cursor|nocursor|warhead|damage|maxcount)|deliver\.(?:types|owner|basenormal)|droppod\.(?:types|veterancy|minimum|maximum|weapon|trailer)|genericwarhead\.|chronowarp\.|chronosphere\.|sonarpulse\.|nuke\.|dominator\.|protect\.|mutate\.|paradrop\.|spyplane\.)/i.test(key) ||
+        /^(?:eva|text|message|light|lightning)\./i.test(key) ||
+        /^(?:droppodweapon|droppodtrailer)/i.test(key)) {
         return "ares.custom-superweapons";
     }
     if (/^type$/i.test(key)) {
@@ -486,6 +520,9 @@ function featureForKey(section: string, sectionKind: IniSectionKind, key: string
     }
     if (/^foundation$/i.test(key) && /custom/i.test(value)) return "ares.custom-foundations";
     if (/^foundation\.(?:x|y|\d+|outline(?:\.length|\.\d+)?)$/i.test(key)) return "ares.custom-foundations";
+    if (/^ballisticscatter\.(?:min|max)$/i.test(key)) {
+        return "ares.projectile-extensions";
+    }
     if (/^(splits|airburst(?:weapon|spread)?|cluster|proximity|aroundtarget|retarget(?:accuracy|self)?|attachedsystem)\b/i.test(key)) {
         return "ares.projectile-extensions";
     }

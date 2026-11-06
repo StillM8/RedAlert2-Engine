@@ -23,6 +23,8 @@ interface GameObject {
     };
     rules: {
         undeployDelay?: number;
+        isDesolator?: boolean;
+        immuneToRadiation?: boolean;
     };
 }
 interface Weapon {
@@ -77,7 +79,10 @@ export class DeployerTrait implements NotifyTick {
             if (deployed) {
                 this.deployFireState = DeployFireState.PreparingToFire;
                 const deployWeapon = gameObject.armedTrait?.getDeployFireWeapon();
-                this.deployWeapon = deployWeapon?.rules.areaFire ? deployWeapon : undefined;
+                this.deployWeapon = deployWeapon?.rules.areaFire &&
+                    (!gameObject.rules.isDesolator || gameObject.rules.immuneToRadiation)
+                    ? deployWeapon
+                    : undefined;
                 const otherWeapon = deployWeapon === gameObject.primaryWeapon
                     ? gameObject.secondaryWeapon
                     : gameObject.primaryWeapon;
@@ -154,7 +159,10 @@ export class DeployerTrait implements NotifyTick {
         }
     }
     private computeDeployFireCooldown(weapon: Weapon, context: GameContext): number {
-        if (weapon.rules.radLevel && weapon.rules.areaFire) {
+        if (this.gameObject.rules.isDesolator &&
+            this.gameObject.rules.immuneToRadiation &&
+            weapon.rules.radLevel &&
+            weapon.rules.areaFire) {
             const tile = this.gameObject.tile;
             const radLevel = context.mapRadiationTrait.getRadSiteLevel(tile);
             if (!radLevel) {
@@ -169,6 +177,33 @@ export class DeployerTrait implements NotifyTick {
             return cooldown;
         }
         return weapon.getCooldownTicks();
+    }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            deployed: this.deployed,
+            deployFireDelay: this.deployFireDelay,
+            deployFireState: this.deployFireState,
+            fireUpDelay: this.fireUpDelay,
+            deployFireCount: this.deployFireCount,
+            undeployDelay: this.undeployDelay ?? null,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            typeof (state as any).deployed !== "boolean" ||
+            !Number.isSafeInteger((state as any).deployFireDelay) || (state as any).deployFireDelay < 0 ||
+            !Number.isSafeInteger((state as any).deployFireState) ||
+            !Number.isSafeInteger((state as any).fireUpDelay) || (state as any).fireUpDelay < 0 ||
+            !Number.isSafeInteger((state as any).deployFireCount) || (state as any).deployFireCount < 0) {
+            throw new Error("Invalid deployer state");
+        }
+        this.deployed = (state as any).deployed;
+        this.deployFireDelay = (state as any).deployFireDelay;
+        this.deployFireState = (state as any).deployFireState;
+        this.fireUpDelay = (state as any).fireUpDelay;
+        this.deployFireCount = (state as any).deployFireCount;
+        this.undeployDelay = (state as any).undeployDelay === null ? undefined : (state as any).undeployDelay;
     }
     getHash(): number {
         return this.deployed ? 1 : 0;

@@ -1,6 +1,7 @@
 import {
     CONTENT_IMPORT_IN_PROGRESS_FILE,
     INSTALLED_CONTENT_METADATA_FILE,
+    isContentImportTransactionName,
     type InstalledContentMetadata,
 } from "@/content/ContentIdentity";
 import { gamePathKey } from "@/engine/GamePath";
@@ -79,7 +80,49 @@ function parseMetadata(value: string): Partial<InstalledContentMetadata> | undef
 }
 
 function metadataProfile(metadata: Partial<InstalledContentMetadata> | undefined): GameProfileId | undefined {
-    return metadata && isGameProfileId(metadata.runtimeProfile) ? metadata.runtimeProfile : undefined;
+    if (!metadata) {
+        return undefined;
+    }
+    const candidate = metadata.runtimeProfile ??
+        (metadata as Partial<InstalledContentMetadata> & { profileId?: unknown; profile?: unknown }).profileId ??
+        (metadata as Partial<InstalledContentMetadata> & { profileId?: unknown; profile?: unknown }).profile;
+    return typeof candidate === "string" && isGameProfileId(candidate) ? candidate : undefined;
+}
+
+function metadataBaseProfile(metadata: Partial<InstalledContentMetadata> | undefined): "ra2" | "yr" | undefined {
+    return metadata?.baseProfile === "ra2" || metadata?.baseProfile === "yr"
+        ? metadata.baseProfile
+        : undefined;
+}
+
+async function directoryEntries(directory: FileSystemDirectoryHandle): Promise<[string, FileSystemHandle][]> {
+    const candidate = directory as unknown as {
+        entries?: unknown;
+    };
+    if (typeof candidate.entries === "function") {
+        const entries: [string, FileSystemHandle][] = [];
+        for await (const entry of (candidate.entries as () => AsyncIterable<[string, FileSystemHandle]>)()) {
+            entries.push(entry);
+        }
+        return entries;
+    }
+    if (candidate.entries instanceof Map) {
+        return [...candidate.entries].map(([name, entry]) => [name, entry as FileSystemHandle]);
+    }
+    const keys = (directory as unknown as { keys?: unknown }).keys;
+    if (typeof keys === "function") {
+        const entries: [string, FileSystemHandle][] = [];
+        for await (const name of (keys as () => AsyncIterable<string>).call(directory)) {
+            try {
+                entries.push([name, await directory.getDirectoryHandle(name)]);
+            }
+            catch {
+                entries.push([name, await directory.getFileHandle(name)]);
+            }
+        }
+        return entries;
+    }
+    throw new Error("Content directory does not support enumeration");
 }
 
 async function readGeneratedMetadata(directory: FileSystemDirectoryHandle): Promise<Partial<InstalledContentMetadata> | undefined> {
@@ -92,13 +135,25 @@ async function readGeneratedMetadata(directory: FileSystemDirectoryHandle): Prom
     }
 }
 
+function isNotFoundError(error: unknown): boolean {
+    const name = (error as { name?: unknown } | undefined)?.name;
+    if (name === "NotFoundError") {
+        return true;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return /(?:not found|notfounderror|no such file|entry not found|directory not found|file not found)/i.test(message);
+}
+
 async function hasImportInProgressMarker(directory: FileSystemDirectoryHandle): Promise<boolean> {
     try {
         await directory.getFileHandle(CONTENT_IMPORT_IN_PROGRESS_FILE);
         return true;
     }
-    catch {
-        return false;
+    catch (error) {
+        if (isNotFoundError(error)) {
+            return false;
+        }
+        return true;
     }
 }
 
@@ -195,7 +250,7 @@ export class ContentRegistry {
         }
         const root = await navigator.storage.getDirectory();
         const rootFiles: string[] = [];
-        for await (const [name, handle] of root.entries()) {
+        for (const [name, handle] of await directoryEntries(root)) {
             if (handle.kind === "file") {
                 rootFiles.push(name);
             }
@@ -209,8 +264,8 @@ export class ContentRegistry {
         catch {
             return items;
         }
-        for await (const [modId, handle] of modsDirectory.entries()) {
-            if (handle.kind !== "directory") {
+        for (const [modId, handle] of await directoryEntries(modsDirectory)) {
+            if (isContentImportTransactionName(modId) || handle.kind !== "directory") {
                 continue;
             }
             const modDirectory = handle as FileSystemDirectoryHandle;
@@ -221,11 +276,10 @@ export class ContentRegistry {
             if (!metadata || await hasImportInProgressMarker(modDirectory)) {
                 continue;
             }
-            const profileId = metadataProfile(metadata) ?? "ra2";
-            const resolvedProfile = profileId ?? "ra2";
-            const baseProfile = metadata?.baseProfile === "ra2" || metadata?.baseProfile === "yr"
-                ? metadata.baseProfile
-                : baseProfileForRuntime(resolvedProfile);
+            const metadataBase = metadataBaseProfile(metadata);
+            const resolvedProfile = metadataProfile(metadata) ??
+                (metadataBase === "yr" ? "yr" : "ra2");
+            const baseProfile = metadataBase ?? baseProfileForRuntime(resolvedProfile);
             const extensions = Array.isArray(metadata?.extensions)
                 ? metadata.extensions.filter((extension): extension is string => typeof extension === "string")
                 : resolvedProfile === "mental-omega" ? ["ares"] : [];
@@ -250,6 +304,9 @@ export class ContentRegistry {
             return { id, kind: "builtin", profileId: profileForBuiltin(id) };
         }
         const modId = id.slice("mod:".length);
+        if (isContentImportTransactionName(modId)) {
+            return undefined;
+        }
         const installed = await this.findInstalledMod(modId);
         if (installed?.exists === false) {
             return undefined;
@@ -302,7 +359,7 @@ export class ContentRegistry {
         try {
             const root = await navigator.storage.getDirectory();
             const rootFiles: string[] = [];
-            for await (const [name, handle] of root.entries()) {
+            for (const [name, handle] of await directoryEntries(root)) {
                 if (handle.kind === "file") {
                     rootFiles.push(name);
                 }

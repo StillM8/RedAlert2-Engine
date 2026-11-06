@@ -16,7 +16,7 @@ import { MoveSoundFxPlugin } from "@/engine/renderable/entity/plugin/MoveSoundFx
 import { VehicleDisguisePlugin } from "@/engine/renderable/entity/plugin/VehicleDisguisePlugin";
 import { ChronoSparkleFxPlugin } from "@/engine/renderable/entity/plugin/ChronoSparkleFxPlugin";
 import { TntFxPlugin } from "@/engine/renderable/entity/plugin/TntFxPlugin";
-import { MindControlLinkPlugin } from "@/engine/renderable/entity/plugin/MindControlLinkPlugin";
+import { DominatorControlAnimationPlugin, MindControlLinkPlugin } from "@/engine/renderable/entity/plugin/MindControlLinkPlugin";
 import { InfantryDisguisePlugin } from "@/engine/renderable/entity/plugin/InfantryDisguisePlugin";
 import { PsychicDetectPlugin } from "@/engine/renderable/entity/building/PsychicDetectPlugin";
 import { TrailerSmokePlugin } from "@/engine/renderable/entity/plugin/TrailerSmokePlugin";
@@ -51,6 +51,7 @@ interface GameEntity {
     };
     type: string;
     mindControllerTrait?: any;
+    mindControllableTrait?: any;
     psychicDetectorTrait?: any;
     harvesterTrait?: any;
     disguiseTrait?: any;
@@ -103,6 +104,7 @@ interface VoxelAnims {
 }
 interface Theater {
     getPalette(paletteType: string, customPaletteName?: string): any;
+    unitPalette: any;
     animPalette: any;
     isoPalette: any;
 }
@@ -217,13 +219,13 @@ export class RenderableFactory {
         this.hasWarheadAttachEffects = [...(this.rules.warheadRules?.values?.() ?? [])]
             .some((warhead) => warhead.aresAttachEffect !== undefined);
     }
-    createTransientAnim(name: string, callback?: any): TransientAnim {
+    createTransientAnim(name: string, callback?: any, onFinished?: () => void): TransientAnim {
         const artObject = this.art.getObject(name, ObjectType.Animation);
-        return new TransientAnim(name, artObject, { x: 0, y: 0 }, this.imageFinder, this.theater, this.camera, this.debugWireframes, this.gameSpeed, this.useSpriteBatching, callback, this.worldSound);
+        return new TransientAnim(name, artObject, { x: 0, y: 0 }, this.imageFinder, this.theater, this.camera, this.debugWireframes, this.gameSpeed, this.useSpriteBatching, callback, this.worldSound, onFinished);
     }
-    createAnim(name: string): Anim {
+    createAnim(name: string, palette?: any): Anim {
         const artObject = this.art.getObject(name, ObjectType.Animation);
-        return new Anim(name, artObject, { x: 0, y: 0 }, this.imageFinder as any, this.theater, this.camera, this.debugWireframes as any, this.gameSpeed as any, this.useSpriteBatching, undefined, this.worldSound as any);
+        return new Anim(name, artObject, { x: 0, y: 0 }, this.imageFinder as any, this.theater, this.camera, this.debugWireframes as any, this.gameSpeed as any, this.useSpriteBatching, undefined, this.worldSound as any, palette);
     }
     create(entity: GameEntity): RenderableEntity {
         let palette = this.theater.getPalette(entity.art.paletteType, entity.art.customPaletteName);
@@ -236,7 +238,7 @@ export class RenderableFactory {
         if (entity.isTechno()) {
             palette = palette.clone();
             const selectionModel = this.unitSelection.getOrCreateSelectionModel(entity);
-            const pipOverlay = new PipOverlay(this.rules.general.paradrop, this.rules.audioVisual, entity as any, this.localPlayer, this.alliances, selectionModel, this.imageFinder, this.palettes.get("palette.pal"), this.camera as any, this.strings as any, this.flyerHelperOpt as any, this.hiddenObjectsOpt as any, this.debugText as any, (name: string) => this.createAnim(name), this.useSpriteBatching, this.useMeshInstancing);
+            const pipOverlay = new PipOverlay(this.rules.general.paradrop, this.rules.audioVisual, entity as any, this.localPlayer, this.alliances, selectionModel, this.imageFinder, this.theater.unitPalette, this.camera as any, this.strings as any, this.flyerHelperOpt as any, this.hiddenObjectsOpt as any, this.debugText as any, (name: string) => this.createAnim(name), this.useSpriteBatching, this.useMeshInstancing);
             if (entity.isUnit()) {
                 const moveSound = entity.rules.moveSound;
                 if (moveSound && this.worldSound) {
@@ -276,10 +278,13 @@ export class RenderableFactory {
                 }
             }
             else if (entity.isAircraft()) {
-                renderable = new Aircraft(entity as any, this.rules as any, this.voxels as any, this.voxelAnims as any, palette, this.lighting as any, this.debugWireframes as any, this.gameSpeed, selectionModel, this.vxlBuilderFactory as any, this.useSpriteBatching, pipOverlay);
+                renderable = new Aircraft(entity as any, this.rules as any, this.voxels as any, this.voxelAnims as any, palette, this.lighting as any, this.debugWireframes as any, this.gameSpeed, selectionModel, this.vxlBuilderFactory as any, this.useSpriteBatching, pipOverlay, this.imageFinder, this.camera);
             }
             else {
                 throw new Error("Unhandled game object type " + entity.type);
+            }
+            if (entity.mindControllableTrait && entity.isUnit()) {
+                plugins.push(new DominatorControlAnimationPlugin(entity, renderable));
             }
             const damageSmokeParticleSystems = getDamageSmokeParticleSystems(entity.rules);
             const damageSparkParticleSystems = getDamageSparkParticleSystems(entity.rules);

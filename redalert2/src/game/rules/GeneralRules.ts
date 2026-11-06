@@ -13,6 +13,8 @@ import { normalizePrerequisiteId } from '@/extensions/ares/AresPrerequisites';
 import { clamp } from '@/util/math';
 import type { AresSideRegistry } from '@/extensions/ares/AresSides';
 import { parseAresBountyGeneralRules } from '@/extensions/ares/AresBounty';
+import { parseAresSecretLabRules } from '@/extensions/ares/AresSecretLabs';
+import { parseAresWallTower } from '@/extensions/ares/AresLaserFences';
 export enum PrereqCategory {
     Power = 0,
     Factory = 1,
@@ -48,6 +50,8 @@ const prereqCategoryMap = new Map<PrereqCategory, string>([
 export class GeneralRules {
     /** Ares global bounty enablers; empty means bounty is always enabled. */
     public bountyEnablers: string[] = [];
+    /** Ares SecretLab payout authoring from `[General]`. */
+    public secretLabRules: any;
     public prereqCategories = new Map<PrereqCategory, string[]>();
     /**
      * Normalized prerequisite groups, including the six vanilla groups and
@@ -65,6 +69,8 @@ export class GeneralRules {
     public cloakDelay!: number;
     public infantryBlinkDisguiseTime!: number;
     public baseUnit!: string[];
+    public animToInfantry!: string[];
+    public wallTower?: string;
     public buildSpeed!: number;
     public buildupTime!: number;
     public wallBuildSpeedCoefficient!: number;
@@ -85,6 +91,17 @@ export class GeneralRules {
     public chronoTrigger!: boolean;
     /** Ares global rule controlling whether infantry may crush non-infantry during Chronoshift. */
     public chronoInfantryCrush!: boolean;
+    public dominatorCaptureRange: number = 1;
+    public dominatorDamage: number = 1000;
+    public dominatorWarhead: string = "DominatorWH";
+    public dominatorFirstAnim: string = "PDFXCLD";
+    public dominatorSecondAnim: string = "PDFXLOC";
+    public dominatorFireAtPercentage: number = 20;
+    public forceShieldRadius: number = 4;
+    public forceShieldDuration: number = 500;
+    public forceShieldBlackoutDuration: number = 1000;
+    public forceShieldPlayFadeSoundTime: number = 0;
+    public forceShieldInvokeAnim: string = "FORCSHLD";
     public bridgeVoxelMax!: number;
     public cliffBackImpassability!: number;
     public closeEnough!: number;
@@ -101,6 +118,7 @@ export class GeneralRules {
     public revealTriggerRadius!: number;
     public padAircraft!: string[];
     public parachuteMaxFallRate!: number;
+    public noParachuteMaxFallRate!: number;
     public dropPodWeapon!: string;
     /** Ares global fallback list for Type=DropPod superweapons. */
     public dropPodTypes!: string[];
@@ -144,10 +162,13 @@ export class GeneralRules {
     public veteran!: VeteranRules;
     public readIni(ini: IniReader, sideRegistry?: AresSideRegistry, rootIni?: IniFileReader): void {
         this.bountyEnablers = parseAresBountyGeneralRules(ini).enablers;
+        this.secretLabRules = parseAresSecretLabRules(ini);
         this.aircraftFogReveal = ini.getNumber('AircraftFogReveal');
         this.alliedDisguise = ini.getString('AlliedDisguise');
         this.thirdDisguise = ini.getString('ThirdDisguise');
         this.baseUnit = ini.getArray('BaseUnit');
+        this.wallTower = parseAresWallTower(ini.getString('WallTower'));
+        this.animToInfantry = ini.getArray('AnimToInfantry');
         this.bridgeVoxelMax = ini.getNumber('BridgeVoxelMax');
         this.buildSpeed = ini.getFixed('BuildSpeed');
         this.buildupTime = ini.getNumber('BuildupTime');
@@ -158,6 +179,17 @@ export class GeneralRules {
         this.chronoRangeMinimum = ini.getNumber('ChronoRangeMinimum');
         this.chronoTrigger = ini.getBool('ChronoTrigger', true);
         this.chronoInfantryCrush = ini.getBool('ChronoInfantryCrush', true);
+        this.dominatorCaptureRange = ini.getNumber('DominatorCaptureRange', 1);
+        this.dominatorDamage = ini.getNumber('DominatorDamage', 1000);
+        this.dominatorWarhead = ini.getString('DominatorWarhead') || 'DominatorWH';
+        this.dominatorFirstAnim = ini.getString('DominatorFirstAnim') || 'PDFXCLD';
+        this.dominatorSecondAnim = ini.getString('DominatorSecondAnim') || 'PDFXLOC';
+        this.dominatorFireAtPercentage = ini.getNumber('DominatorFireAtPercentage', 20);
+        this.forceShieldRadius = ini.getNumber('ForceShieldRadius', 4);
+        this.forceShieldDuration = ini.getNumber('ForceShieldDuration', 500);
+        this.forceShieldBlackoutDuration = ini.getNumber('ForceShieldBlackoutDuration', 1000);
+        this.forceShieldPlayFadeSoundTime = ini.getNumber('ForceShieldPlayFadeSoundTime', 0);
+        this.forceShieldInvokeAnim = ini.getString('ForceShieldInvokeAnim') || 'FORCSHLD';
         this.cliffBackImpassability = ini.getNumber('CliffBackImpassability', 2);
         this.cloakDelay = ini.getNumber('CloakDelay');
         this.closeEnough = ini.getNumber('CloseEnough');
@@ -199,6 +231,7 @@ export class GeneralRules {
         this.normalTargetingDelay = ini.getNumber('NormalTargetingDelay');
         this.padAircraft = ini.getArray('PadAircraft');
         this.parachuteMaxFallRate = ini.getNumber('ParachuteMaxFallRate');
+        this.noParachuteMaxFallRate = ini.getNumber('NoParachuteMaxFallRate');
         this.paradrop = new ParadropRules().readIni(ini, sideRegistry, rootIni);
         this.prism = new PrismRules().readIni(ini);
         this.purifierBonus = ini.getNumber('PurifierBonus');

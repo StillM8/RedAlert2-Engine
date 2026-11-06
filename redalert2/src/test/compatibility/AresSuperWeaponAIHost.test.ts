@@ -400,7 +400,7 @@ describe("Ares custom superweapon AI host path", () => {
         expect(shield.actions).toHaveLength(0);
     });
 
-    test("LightningRandom uses the project RNG and HunterSeeker waits for a target house", () => {
+    test("LightningRandom uses the project RNG and HunterSeeker accepts an enemy house without visible units", () => {
         const random = host({
             superWeapon: {
                 index: 0,
@@ -423,7 +423,8 @@ describe("Ares custom superweapon AI host path", () => {
                 ares: { extensionType: "HunterSeeker", swAITargeting: "HunterSeeker" },
             },
         });
-        expect(hunter.actions).toHaveLength(0);
+        expect(hunter.actions).toHaveLength(1);
+        expect(hunter.actions[0][1]).toEqual({ rx: 5, ry: 5 });
     });
 
     test("inactive superweapon constraints block a launch while its effect is running", () => {

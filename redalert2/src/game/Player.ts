@@ -10,7 +10,16 @@ interface PlayerOwnedObject {
     type: ObjectType;
     owner: Player;
     buildLimit: number;
+    rules?: any;
     limboData?: any;
+    isDestroyed?: boolean;
+    isDisposed?: boolean;
+    aresVehicleHijackerTrait?: any;
+}
+
+export interface PlayerBuildLimitState {
+    version: 1;
+    limitedUnitsBuiltByFamily: Record<string, number>;
 }
 export class Player {
     private _credits: number = 0;
@@ -24,6 +33,13 @@ export class Player {
     public playerListIndex: number = -1;
     public readonly country?: Country;
     public readonly startLocation: any;
+    public startLocationPoint?: { x: number; y: number };
+    public houseName?: string;
+    public houseIndex?: number;
+    public mapHouse?: any;
+    public techLevel?: number;
+    public productionEnabled: boolean = true;
+    public aiTriggersEnabled: boolean = true;
     public readonly color: Color;
     public isAi: boolean = false;
     public defeated: boolean = false;
@@ -34,6 +50,7 @@ export class Player {
     public readonly traits: Traits = new Traits();
     public score: number = 0;
     private limitedUnitsBuiltByName: Map<string, number> = new Map();
+    private buildLimitFamilyResolver?: (value: any) => string[];
     private unitsBuiltByType: Map<ObjectType, number> = new Map();
     private unitsKilledByType: Map<ObjectType, number> = new Map();
     private unitsLostByType: Map<ObjectType, number> = new Map();
@@ -60,13 +77,13 @@ export class Player {
         }
         this._credits = value;
     }
-    constructor(name: string, country?: Country, startLocation?: any, color: Color = new Color(255, 0, 0)) {
+    constructor(name: string, country?: Country, startLocation?: any, color: Color = new Color(255, 0, 0), forceCombatant: boolean = false) {
         this.name = name;
         this.country = country;
         this.startLocation = startLocation;
         this.color = color;
         this.isObserver = !country;
-        this.isNeutral = !!country && !country.isPlayable();
+        this.isNeutral = !!country && !country.isPlayable() && !forceCombatant;
     }
     getOrCreateObjectsForType(type: ObjectType): Set<PlayerOwnedObject> {
         let objects = this.objectsByType.get(type);
@@ -117,13 +134,92 @@ export class Player {
     get buildings(): Set<PlayerOwnedObject> {
         return this.getOrCreateObjectsForType(ObjectType.Building);
     }
+    setBuildLimitFamilyResolver(resolver: (value: any) => string[]): void {
+        this.buildLimitFamilyResolver = resolver;
+    }
+    getBuildLimitFamily(objectOrName: any): string[] {
+        const name = typeof objectOrName === "string"
+            ? objectOrName
+            : objectOrName?.name ?? objectOrName?.rules?.name;
+        if (!name) return [];
+        const family = this.buildLimitFamilyResolver?.(objectOrName) ?? [name];
+        return [...new Set(family
+            .filter((entry): entry is string => typeof entry === "string" && !!entry.trim())
+            .map(entry => entry.trim().toLocaleLowerCase("en-US")))]
+            .sort();
+    }
+    private getBuildLimitFamilyKey(objectOrName: any): string {
+        return this.getBuildLimitFamily(objectOrName).join("|") ||
+            String(objectOrName).trim().toLocaleLowerCase("en-US");
+    }
+    getBuildLimitCount(objectOrName: any): number {
+        const family = new Set(this.getBuildLimitFamily(objectOrName));
+        if (!family.size) return 0;
+        const owned = typeof this.getOwnedObjects === "function"
+            ? this.getOwnedObjects(true)
+            : [];
+        const counted = new Set<any>();
+        let count = 0;
+        for (const object of owned) {
+            const name = String(object?.name ?? object?.rules?.name ?? "").toLocaleLowerCase("en-US");
+            if (family.has(name) && !object?.isDestroyed && !object?.isDisposed) {
+                counted.add(object);
+                count++;
+            }
+        }
+        for (const object of owned) {
+            const hijacker = object?.aresVehicleHijackerTrait?.getHijacker?.();
+            const name = String(hijacker?.name ?? hijacker?.rules?.name ?? "").toLocaleLowerCase("en-US");
+            if (hijacker && !counted.has(hijacker) && family.has(name) &&
+                !hijacker.isDestroyed && !hijacker.isDisposed) {
+                counted.add(hijacker);
+                count++;
+            }
+        }
+        return count;
+    }
+    captureBuildLimitState(): PlayerBuildLimitState {
+        return {
+            version: 1,
+            limitedUnitsBuiltByFamily: Object.fromEntries(
+                [...this.limitedUnitsBuiltByName.entries()].sort(([a], [b]) => a.localeCompare(b)),
+            ),
+        };
+    }
+    validateBuildLimitState(state: unknown): PlayerBuildLimitState {
+        if (!state || typeof state !== "object") {
+            throw new Error("Invalid player BuildLimit state");
+        }
+        const candidate = state as Partial<PlayerBuildLimitState>;
+        if (candidate.version !== 1 || !candidate.limitedUnitsBuiltByFamily ||
+            typeof candidate.limitedUnitsBuiltByFamily !== "object" || Array.isArray(candidate.limitedUnitsBuiltByFamily)) {
+            throw new Error("Invalid player BuildLimit state");
+        }
+        const normalized: Record<string, number> = {};
+        for (const [family, count] of Object.entries(candidate.limitedUnitsBuiltByFamily)) {
+            if (!family || !Number.isSafeInteger(count) || (count as number) < 0) {
+                throw new Error("Invalid player BuildLimit history");
+            }
+            normalized[family] = count as number;
+        }
+        return { version: 1, limitedUnitsBuiltByFamily: normalized };
+    }
+    restoreBuildLimitState(state: unknown): void {
+        const validated = this.validateBuildLimitState(state);
+        this.limitedUnitsBuiltByName.clear();
+        for (const [family, count] of Object.entries(validated.limitedUnitsBuiltByFamily)) {
+            this.limitedUnitsBuiltByName.set(family, count);
+        }
+    }
     addUnitsBuilt(object: PlayerOwnedObject, count: number): void {
         if (!Number.isSafeInteger(count) || count < 0) {
             throw new RangeError("Units-built count must be a non-negative integer");
         }
         this.unitsBuiltByType.set(object.type, (this.unitsBuiltByType.get(object.type) ?? 0) + count);
-        if (object.buildLimit < 0) {
-            this.limitedUnitsBuiltByName.set(object.name, (this.limitedUnitsBuiltByName.get(object.name) ?? 0) + count);
+        const buildLimit = object.buildLimit ?? object.rules?.buildLimit;
+        if (typeof buildLimit === "number" && buildLimit < 0) {
+            const family = this.getBuildLimitFamilyKey(object);
+            this.limitedUnitsBuiltByName.set(family, (this.limitedUnitsBuiltByName.get(family) ?? 0) + count);
         }
     }
     getUnitsBuilt(type?: ObjectType): number {
@@ -133,7 +229,7 @@ export class Player {
         return [...this.unitsBuiltByType.values()].reduce((sum, count) => sum + count, 0);
     }
     getLimitedUnitsBuilt(name: string): number {
-        return this.limitedUnitsBuiltByName.get(name) ?? 0;
+        return this.limitedUnitsBuiltByName.get(this.getBuildLimitFamilyKey(name)) ?? 0;
     }
     addUnitsKilled(type: ObjectType, count: number): void {
         this.unitsKilledByType.set(type, (this.unitsKilledByType.get(type) ?? 0) + count);
@@ -152,6 +248,39 @@ export class Player {
             return this.unitsLostByType.get(type) ?? 0;
         }
         return [...this.unitsLostByType.values()].reduce((sum, count) => sum + count, 0);
+    }
+    restoreUnitsBuiltState(type: number, count: number): void {
+        if (!Number.isSafeInteger(type) || !Number.isSafeInteger(count) || count < 0) {
+            throw new Error("Invalid units-built state");
+        }
+        if (count === 0) {
+            this.unitsBuiltByType.delete(type as ObjectType);
+        }
+        else {
+            this.unitsBuiltByType.set(type as ObjectType, count);
+        }
+    }
+    restoreUnitsKilledState(type: number, count: number): void {
+        if (!Number.isSafeInteger(type) || !Number.isSafeInteger(count) || count < 0) {
+            throw new Error("Invalid units-killed state");
+        }
+        if (count === 0) {
+            this.unitsKilledByType.delete(type as ObjectType);
+        }
+        else {
+            this.unitsKilledByType.set(type as ObjectType, count);
+        }
+    }
+    restoreUnitsLostState(type: number, count: number): void {
+        if (!Number.isSafeInteger(type) || !Number.isSafeInteger(count) || count < 0) {
+            throw new Error("Invalid units-lost state");
+        }
+        if (count === 0) {
+            this.unitsLostByType.delete(type as ObjectType);
+        }
+        else {
+            this.unitsLostByType.set(type as ObjectType, count);
+        }
     }
     isCombatant(): boolean {
         return !this.isNeutral && !this.isObserver && !this.defeated;
@@ -202,6 +331,7 @@ export class Player {
             countryId: this.country?.id,
             sideId: this.country?.sideId,
             aresFirestormActive: this.aresFirestormActive,
+            buildLimitState: this.captureBuildLimitState(),
             production: this.production?.debugGetState?.(),
             traits: this.traits.getAll().reduce((acc, trait) => {
                 const state = trait.debugGetState?.();
@@ -215,5 +345,7 @@ export class Player {
     dispose(): void {
         this.traits.dispose();
         this.production?.dispose();
+        this.limitedUnitsBuiltByName.clear();
+        this.buildLimitFamilyResolver = undefined;
     }
 }

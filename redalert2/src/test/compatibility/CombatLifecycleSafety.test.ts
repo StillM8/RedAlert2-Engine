@@ -3,6 +3,7 @@ import { Game } from "@/game/Game";
 import { Warhead } from "@/game/Warhead";
 import { TemporalTrait } from "@/game/gameobject/trait/TemporalTrait";
 import { NotifyTick } from "@/game/gameobject/trait/interface/NotifyTick";
+import { EnterBuildingTask } from "@/game/gameobject/task/EnterBuildingTask";
 
 describe("shared combat lifecycle safety", () => {
     test("ignores a stale damage reference after the target was destroyed", () => {
@@ -76,5 +77,28 @@ describe("shared combat lifecycle safety", () => {
         expect(() => targetTemporal[NotifyTick.onTick](target, {} as any)).not.toThrow();
         expect((targetTemporal as any).attackers.size).toBe(0);
         expect((targetTemporal as any).eraseTicks).toBeUndefined();
+    });
+
+    test("does not start temporal state for non-warpable targets", () => {
+        const target: any = {
+            isDestroyed: false,
+            isDisposed: false,
+            rules: { warpable: false },
+        };
+        target.temporalTrait = new TemporalTrait(target);
+        const attacker: any = { isDestroyed: false, isDisposed: false };
+        attacker.temporalTrait = new TemporalTrait(attacker);
+
+        attacker.temporalTrait.updateTarget(target, {}, {} as any);
+
+        expect(target.temporalTrait.attackers.size).toBe(0);
+        expect(attacker.temporalTrait.getTarget()).toBeUndefined();
+    });
+
+    test("cancels building entry when the destination disappears", () => {
+        const target: any = { isDestroyed: true, isDisposed: false };
+        const task = new EnterBuildingTask({}, target);
+
+        expect(task.onTick({ moveTrait: { isDisabled: () => false } })).toBe(true);
     });
 });

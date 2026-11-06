@@ -11,12 +11,12 @@ export class IdleActionTrait {
         this._actionDueThisTick = false;
         const isIdle = !gameObject.unitOrderTrait.hasTasks();
         if (isIdle && !this.idle) {
-            this.resetCooldown(world);
+            this.resetCooldown(world, gameObject);
         }
         else if (isIdle) {
             if (this.cooldownTicks === 0) {
                 this.doIdleAction(gameObject, world);
-                this.resetCooldown(world);
+                this.resetCooldown(world, gameObject);
             }
             else {
                 this.cooldownTicks--;
@@ -36,13 +36,19 @@ export class IdleActionTrait {
                 }
             }
             this._actionDueThisTick = true;
+            if (gameObject.rules.isCow && world.generateRandom() > 0.5) {
+                gameObject.unitOrderTrait.addTask(new ScatterTask(world, undefined, { noSlopes: true }));
+            }
         }
     }
     actionDueThisTick(): boolean {
         return this._actionDueThisTick;
     }
-    private resetCooldown(world: World): void {
-        const baseFrequency = world.rules.audioVisual.idleActionFrequency;
+    private resetCooldown(world: World, gameObject?: GameObject): void {
+        const authoredFrequency = world.rules.audioVisual.idleActionFrequency;
+        const baseFrequency = gameObject?.rules.isCow
+            ? Math.min(authoredFrequency, 1)
+            : authoredFrequency;
         const randomOffset = world.generateRandom() * baseFrequency * 0.5;
         const frequency = Math.max(0, baseFrequency - randomOffset);
         this.cooldownTicks = Math.floor(frequency * GameSpeed.BASE_TICKS_PER_SECOND);

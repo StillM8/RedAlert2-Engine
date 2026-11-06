@@ -57,6 +57,16 @@ InsigniaFrame.Veteran=2
         expect(selectAresInsignia(rules, 2)).toEqual({ fileName: "EliteChevrons", frame: 0 });
     });
 
+    test("uses the exact pips fallback frames for missing veteran and elite art", () => {
+        const section = new IniSection("VETERANINF");
+        section.set("Insignia.Rookie", "ROOKIECHEV");
+        const rules = parseAresInsigniaRules(section)!;
+
+        expect(selectAresInsignia(rules, 0)).toEqual({ fileName: "ROOKIECHEV", frame: 0 });
+        expect(selectAresInsignia(rules, 1)).toEqual({ fileName: "pips", frame: 14 });
+        expect(selectAresInsignia(rules, 2)).toEqual({ fileName: "pips", frame: 15 });
+    });
+
     test("wires General EnemyInsignia and TechnoType override into TechnoRules", () => {
         const hidden = new IniSection("HiddenUnit");
         hidden.set("Insignia.Veteran", "VeteranChevrons");

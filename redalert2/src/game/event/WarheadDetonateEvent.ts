@@ -12,6 +12,7 @@ export class WarheadDetonateEvent {
         public readonly zone?: any,
         public readonly sourcePlayer?: any,
         public readonly sourceObject?: any,
+        public readonly rippleRadius: number = 0,
     ) {
         this.type = EventType.WarheadDetonate;
     }

@@ -4,6 +4,7 @@ import {
     type AresAnimationDamageState,
 } from "@/extensions/ares/AresAnimationDamage";
 import { GameSpeed } from "@/game/GameSpeed";
+import { Vector3 } from "@/game/math/Vector3";
 import { fnv32aStrings } from "@/util/math";
 
 export interface AresAnimationDamageSpawn {
@@ -299,11 +300,11 @@ export class AresAnimationDamageRuntime {
             replacement.set(entry.id as number, {
                 ...(definition ? { definition } : { definition: { name: entry.definitionName } as AresAnimationDamageDefinition }),
                 tile,
-                position: {
-                    x: entry.positionX as number,
-                    y: entry.positionY as number,
-                    z: entry.positionZ as number,
-                },
+                position: new Vector3(
+                    entry.positionX as number,
+                    entry.positionY as number,
+                    entry.positionZ as number,
+                ),
                 elevation: entry.elevation as number,
                 zone: entry.zone,
                 sourcePlayer,
@@ -317,6 +318,10 @@ export class AresAnimationDamageRuntime {
         // the restored allocation stream.
         this.instances = replacement;
         this.nextId = candidate.nextId as number;
+    }
+
+    validateState(state: unknown, context: AresAnimationDamageRestoreContext = {}): void {
+        new AresAnimationDamageRuntime().restoreState(state, context);
     }
 
     update(host: AresAnimationDamageRuntimeHost): void {

@@ -68,5 +68,9 @@ export enum EventType {
     AresSuperWeaponEffect = 66,
     AresIvanBombAttach = 67,
     AresFirestormWallStateChange = 68,
-    AresSuperWeaponMessage = 69
+    AresSuperWeaponMessage = 69,
+    PrismSupportBeam = 70,
+    ObjectDiscovered = 71,
+    HouseDiscovered = 72,
+    ObjectSelected = 73
 }

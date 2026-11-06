@@ -199,6 +199,43 @@ export class PowerTrait {
             }
         }
     }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            power: this.power,
+            drain: this.drain,
+            level: this.level,
+            blackoutFrames: this.blackoutFrames,
+            auxiliaryPower: this.auxiliaryPower,
+            activeAresBatteries: this.activeAresBatteries,
+            batteryKeepOnline: Object.fromEntries([...this.batteryKeepOnline.entries()].sort(([a], [b]) => a.localeCompare(b))),
+            batteryOverpower: Object.fromEntries([...this.batteryOverpower.entries()].sort(([a], [b]) => a.localeCompare(b))),
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isFinite((state as any).power) || !Number.isFinite((state as any).drain) ||
+            !Number.isSafeInteger((state as any).blackoutFrames) || (state as any).blackoutFrames < 0 ||
+            !Number.isSafeInteger((state as any).activeAresBatteries) || (state as any).activeAresBatteries < 0) {
+            throw new Error("Invalid power state");
+        }
+        this.power = (state as any).power;
+        this.drain = (state as any).drain;
+        this.level = (state as any).level;
+        this.blackoutFrames = (state as any).blackoutFrames;
+        this.auxiliaryPower = Number((state as any).auxiliaryPower ?? 0);
+        this.activeAresBatteries = (state as any).activeAresBatteries;
+        this.batteryKeepOnline.clear();
+        this.batteryOverpower.clear();
+        for (const [key, value] of Object.entries((state as any).batteryKeepOnline ?? {})) {
+            if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error("Invalid battery keep-online state");
+            this.batteryKeepOnline.set(key, value as number);
+        }
+        for (const [key, value] of Object.entries((state as any).batteryOverpower ?? {})) {
+            if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error("Invalid battery overpower state");
+            this.batteryOverpower.set(key, value as number);
+        }
+    }
     getHash(): number {
         const values: (string | number)[] = [
             "power",

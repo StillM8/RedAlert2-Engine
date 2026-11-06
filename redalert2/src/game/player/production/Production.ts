@@ -19,17 +19,20 @@ import {
     type AresProductionExtensionState,
 } from '@/extensions/ares/AresProductionState';
 
-export const PRODUCTION_STATE_VERSION = 3 as const;
+export const PRODUCTION_STATE_VERSION = 4 as const;
+const LEGACY_PRODUCTION_STATE_VERSION = 3 as const;
 
 export interface ProductionState {
     readonly version: typeof PRODUCTION_STATE_VERSION;
     readonly extension: AresProductionExtensionState;
     /** Mutable power/production modifier consumed by the next queue tick. */
     readonly buildSpeedModifier: number;
+    readonly productionEnabled: boolean;
     /** Historical factory unlocks granted by infiltration. */
     readonly veteranFactoryTypes: readonly FactoryType[];
     /** Explicitly selected primary factory per factory category. */
     readonly primaryFactoryObjectIds: readonly ProductionPrimaryFactoryState[];
+    readonly revealedFactoryObjectIds: readonly number[];
     readonly queues: readonly ProductionQueueState[];
 }
 
@@ -42,6 +45,21 @@ export interface ProductionRestoreContext extends ProductionQueueRestoreContext 
     /** Resolves a stable world object ID for an explicitly selected factory. */
     resolveObjectById?(id: number): any | undefined;
 }
+
+interface ProductionRestorePlan {
+    buildSpeedModifier: number;
+    productionEnabled: boolean;
+    veteranFactoryTypes: FactoryType[];
+    revealedFactoryObjectIds: number[];
+    extensionTarget: {
+        stolenTech: Set<number | SideId>;
+        permanentFactoryOwnerPlans: Set<string>;
+        reverseEngineeredPlans: Set<string>;
+    };
+    queuePlans: Array<{ queue: ProductionQueue; plan: QueueRestorePlan }>;
+    primaryFactories: Map<FactoryType, any>;
+}
+
 export class Production {
     private player: any;
     private maxTechLevel: number;
@@ -49,19 +67,21 @@ export class Production {
     private rules: any;
     private allAvailableObjects: any[];
     private buildSpeedModifier: number;
+    private _productionEnabled: boolean;
     private queues: Map<QueueType, ProductionQueue>;
     private _onQueueUpdate: EventDispatcher<any>;
     private primaryFactories: Map<any, any>;
     private factoryCounts: Map<any, number>;
     private veteranTypes: Set<FactoryType>;
+    private revealedFactoryObjectIds: Set<number>;
     private stolenTech: Set<number | SideId>;
     /** Stable country IDs whose complete factory plans were permanently captured. */
     private permanentFactoryOwnerPlans: Set<string>;
     /** TechnoType names unlocked by reverse-engineering. */
     private reverseEngineeredPlans: Set<string>;
     private theater?: string;
-    static factory(player: any, rules: any, gameOpts: any, availableObjects: any[], theater?: string): Production {
-        const production = new Production(player, rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects, theater);
+    static factory(player: any, rules: any, gameOpts: any, availableObjects: any[], theater?: string, productionEnabled: boolean = true, techLevel?: number): Production {
+        const production = new Production(player, techLevel ?? rules.mpDialogSettings.techLevel, gameOpts, rules, availableObjects, theater, productionEnabled);
         const maxQueueSize = rules.general.maximumQueuedObjects + 1;
         production.addQueue(QueueType.Structures, new ProductionQueue(QueueType.Structures, 1, 1));
         production.addQueue(QueueType.Armory, new ProductionQueue(QueueType.Armory, 1, 1));
@@ -71,22 +91,40 @@ export class Production {
         production.addQueue(QueueType.Aircrafts, new ProductionQueue(QueueType.Aircrafts, 0, maxQueueSize));
         return production;
     }
-    constructor(player: any, techLevel: number, gameOpts: any, rules: any, availableObjects: any[], theater?: string) {
+    constructor(player: any, techLevel: number, gameOpts: any, rules: any, availableObjects: any[], theater?: string, productionEnabled: boolean = true) {
         this.player = player;
         this.maxTechLevel = techLevel;
         this.gameOpts = gameOpts;
         this.rules = rules;
         this.allAvailableObjects = availableObjects;
         this.buildSpeedModifier = 1;
+        this._productionEnabled = productionEnabled;
+        if (player) {
+            player.productionEnabled = productionEnabled;
+        }
         this.queues = new Map();
         this._onQueueUpdate = new EventDispatcher();
         this.primaryFactories = new Map();
         this.factoryCounts = new Map();
         this.veteranTypes = new Set();
+        this.revealedFactoryObjectIds = new Set();
         this.stolenTech = new Set();
         this.permanentFactoryOwnerPlans = new Set();
         this.reverseEngineeredPlans = new Set();
         this.theater = theater;
+        this.player?.setBuildLimitFamilyResolver?.((value: any) => this.getBuildLimitFamily(value));
+    }
+    get productionEnabled(): boolean {
+        return this.player?.productionEnabled ?? this._productionEnabled ?? true;
+    }
+    setProductionEnabled(enabled: boolean): void {
+        this._productionEnabled = Boolean(enabled);
+        if (this.player) {
+            this.player.productionEnabled = this._productionEnabled;
+        }
+    }
+    isProductionEnabled(): boolean {
+        return this.productionEnabled;
     }
     get onQueueUpdate() {
         return this._onQueueUpdate.asEvent();
@@ -153,11 +191,87 @@ export class Production {
     getQueueForFactory(type: FactoryType): ProductionQueue {
         return this.getQueue(this.getQueueTypeForFactory(type));
     }
+    getBuildLimitFamily(objectOrName: any): string[] {
+        const initialName = typeof objectOrName === "string"
+            ? objectOrName
+            : objectOrName?.name ?? objectOrName?.rules?.name;
+        if (!initialName) return [];
+        const initialType = typeof objectOrName === "string"
+            ? undefined
+            : objectOrName?.type ?? objectOrName?.rules?.type;
+        const queue: Array<{ name: string; type?: ObjectType }> = [{ name: initialName, type: initialType }];
+        const visited = new Set<string>();
+        const names = new Set<string>();
+        while (queue.length) {
+            const current = queue.shift()!;
+            const normalizedName = current.name.trim().toLocaleLowerCase("en-US");
+            if (!normalizedName) continue;
+            const visitKey = `${current.type ?? "*"}:${normalizedName}`;
+            if (visited.has(visitKey)) continue;
+            visited.add(visitKey);
+            names.add(normalizedName);
+            const rules = this.resolveBuildLimitRules(current.name, current.type);
+            const linked: Array<{ name?: string; type: ObjectType }> = [];
+            if (current.type === ObjectType.Vehicle || current.type === undefined) {
+                if (rules?.deploysInto) linked.push({ name: rules.deploysInto, type: ObjectType.Building });
+            }
+            if (current.type === ObjectType.Building || current.type === undefined) {
+                if (rules?.undeploysInto) linked.push({ name: rules.undeploysInto, type: ObjectType.Vehicle });
+            }
+            for (const link of linked) {
+                if (link.name) queue.push({ name: link.name, type: link.type });
+            }
+        }
+        return [...names].sort();
+    }
+    private resolveBuildLimitRules(name: string, type?: ObjectType): any {
+        const normalized = name.trim().toLocaleLowerCase("en-US");
+        const available = this.allAvailableObjects?.find((rules: any) =>
+            String(rules?.name ?? rules?.rules?.name ?? "").toLocaleLowerCase("en-US") === normalized &&
+            (type === undefined || (rules?.type ?? rules?.rules?.type) === type));
+        if (available) return available;
+        if (type !== undefined) {
+            try {
+                return this.rules?.getObject?.(name, type);
+            }
+            catch {
+                return undefined;
+            }
+        }
+        for (const objectType of [ObjectType.Vehicle, ObjectType.Building]) {
+            try {
+                const rules = this.rules?.getObject?.(name, objectType);
+                if (rules) return rules;
+            }
+            catch {
+                continue;
+            }
+        }
+        return undefined;
+    }
+    private hasReachedBuildLimit(object: any): boolean {
+        const limit = object?.buildLimit;
+        if (!Number.isFinite(limit) || limit === 0) return limit === 0 && !this.player.isAi;
+        const count = limit < 0
+            ? this.player.getLimitedUnitsBuilt?.(object.name) ?? 0
+            : this.player.getBuildLimitCount?.(object) ??
+                (this.player.getOwnedObjectsByType?.(object.type, true) ?? [])
+                    .filter((owned: any) => owned.name === object.name).length;
+        return count >= Math.abs(limit);
+    }
     isAvailableForProduction(object: any): boolean {
+        if (!this.productionEnabled) {
+            return false;
+        }
         const reverseEngineered = this.hasReverseEngineeredPlan(object);
+        const override = this.rules?.getObjectTechLevelOverride?.(object);
+        const effectiveTechLevel = override ?? object.techLevel;
+        const techLevelAvailable = override === -1
+            ? false
+            : reverseEngineered || (effectiveTechLevel !== -1 && effectiveTechLevel <= this.maxTechLevel);
         return ((reverseEngineered || object.isAvailableTo(this.player.country)) &&
-            (reverseEngineered || (object.techLevel !== -1 && object.techLevel <= this.maxTechLevel)) &&
-            !(object.buildLimit === 0 && !this.player.isAi) &&
+            techLevelAvailable &&
+            !this.hasReachedBuildLimit(object) &&
             !(object.superWeapon &&
                 this.rules.getSuperWeapon(object.superWeapon).disableableFromShell &&
                 !this.gameOpts.superWeapons) &&
@@ -356,6 +470,22 @@ export class Production {
     hasVeteranType(type: FactoryType): boolean {
         return this.veteranTypes?.has(type) ?? false;
     }
+    addRevealedFactory(objectId: number): void {
+        if (!Number.isSafeInteger(objectId) || objectId < 0) {
+            throw new RangeError(`Invalid revealed factory object ID ${String(objectId)}`);
+        }
+        this.revealedFactoryObjectIds ??= new Set();
+        this.revealedFactoryObjectIds.add(objectId);
+    }
+    removeRevealedFactory(objectId: number): void {
+        this.revealedFactoryObjectIds?.delete(objectId);
+    }
+    hasRevealedFactory(objectId: number): boolean {
+        return this.revealedFactoryObjectIds?.has(objectId) ?? false;
+    }
+    getRevealedFactoryObjectIds(): number[] {
+        return [...(this.revealedFactoryObjectIds ?? [])].sort((a, b) => a - b);
+    }
     private hasStolenTech(value: number | SideId): boolean {
         if (typeof value === "number") {
             return this.stolenTech.has(value) || this.stolenTech.has(String(value));
@@ -414,8 +544,10 @@ export class Production {
             version: PRODUCTION_STATE_VERSION,
             extension: this.serializeState(),
             buildSpeedModifier: this.buildSpeedModifier,
+            productionEnabled: this.productionEnabled,
             veteranFactoryTypes: this.getVeteranFactoryTypes(),
             primaryFactoryObjectIds: this.getPrimaryFactoryStates(),
+            revealedFactoryObjectIds: this.getRevealedFactoryObjectIds(),
             queues: this.getAllQueues()
                 .slice()
                 .sort((a, b) => a.type - b.type)
@@ -428,12 +560,39 @@ export class Production {
      * prepared before any live queue or Ares collection is changed.
      */
     restoreDeterministicState(state: unknown, context: ProductionRestoreContext = {}): void {
+        const plan = this.prepareRestoreState(state, context);
+        for (const { queue, plan: queuePlan } of plan.queuePlans) queue.applyRestorePlan(queuePlan);
+        this.buildSpeedModifier = plan.buildSpeedModifier;
+        this.setProductionEnabled(plan.productionEnabled);
+        this.veteranTypes.clear();
+        for (const type of plan.veteranFactoryTypes) this.veteranTypes.add(type);
+        this.revealedFactoryObjectIds ??= new Set();
+        this.revealedFactoryObjectIds.clear();
+        for (const objectId of plan.revealedFactoryObjectIds) this.revealedFactoryObjectIds.add(objectId);
+        this.replaceExtensionState(plan.extensionTarget);
+        this.rebuildFactoryDerivedState();
+        for (const [type, factory] of plan.primaryFactories) {
+            this.primaryFactories.set(type, factory);
+        }
+        for (const { queue } of plan.queuePlans) queue.notifyUpdated();
+    }
+
+    validateDeterministicState(state: unknown, context: ProductionRestoreContext = {}): void {
+        this.prepareRestoreState(state, context);
+    }
+
+    private prepareRestoreState(state: unknown, context: ProductionRestoreContext): ProductionRestorePlan {
         if (typeof state !== "object" || state === null) {
             throw new Error("Invalid production state: expected an object");
         }
         const candidate = state as Record<string, unknown>;
-        if (candidate.version !== PRODUCTION_STATE_VERSION) {
+        if (candidate.version !== PRODUCTION_STATE_VERSION &&
+            candidate.version !== LEGACY_PRODUCTION_STATE_VERSION) {
             throw new Error(`Unsupported production state version: ${String(candidate.version)}`);
+        }
+        if (candidate.version === PRODUCTION_STATE_VERSION &&
+            !Array.isArray(candidate.revealedFactoryObjectIds)) {
+            throw new Error("Invalid production state: revealedFactoryObjectIds must be an array");
         }
         if (!Array.isArray(candidate.queues)) {
             throw new Error("Invalid production state: queues must be an array");
@@ -442,19 +601,30 @@ export class Production {
             !Number.isFinite(candidate.buildSpeedModifier) || candidate.buildSpeedModifier < 0) {
             throw new Error("Invalid production state: buildSpeedModifier");
         }
+        const productionEnabled = candidate.productionEnabled === undefined
+            ? true
+            : candidate.productionEnabled;
+        if (typeof productionEnabled !== "boolean") {
+            throw new Error("Invalid production state: productionEnabled");
+        }
         const veteranFactoryTypes = normalizeVeteranFactoryTypes(candidate.veteranFactoryTypes);
         const primaryFactoryStates = normalizePrimaryFactoryStates(candidate.primaryFactoryObjectIds);
-
+        const revealedFactoryObjectIds = normalizeRevealedFactoryObjectIds(
+            candidate.version === PRODUCTION_STATE_VERSION
+                ? candidate.revealedFactoryObjectIds
+                : [],
+            context,
+            this.player,
+        );
         const extensionTarget = {
             stolenTech: new Set<number | SideId>(),
             permanentFactoryOwnerPlans: new Set<string>(),
             reverseEngineeredPlans: new Set<string>(),
         };
         restoreAresProductionExtensionState(extensionTarget, candidate.extension);
-
         const queueByType = new Map<QueueType, ProductionQueue>();
         for (const queue of this.getAllQueues()) queueByType.set(queue.type, queue);
-        const plans: Array<{ queue: ProductionQueue; plan: QueueRestorePlan }> = [];
+        const queuePlans: Array<{ queue: ProductionQueue; plan: QueueRestorePlan }> = [];
         const seenTypes = new Set<QueueType>();
         for (const rawQueue of candidate.queues) {
             if (typeof rawQueue !== "object" || rawQueue === null) {
@@ -469,16 +639,15 @@ export class Production {
             }
             seenTypes.add(type as QueueType);
             const queue = queueByType.get(type as QueueType)!;
-            const plan = queue.prepareRestoreState(rawQueue, {
+            const queuePlan = queue.prepareRestoreState(rawQueue, {
                 ...context,
                 resolveRules: context.resolveRules ?? ((name) => this.resolveRulesForQueue(type as QueueType, name)),
             });
-            plans.push({ queue, plan });
+            queuePlans.push({ queue, plan: queuePlan });
         }
         if (seenTypes.size !== queueByType.size) {
             throw new Error("Invalid production state: queue set is incomplete");
         }
-
         const primaryFactories = new Map<FactoryType, any>();
         for (const entry of primaryFactoryStates) {
             const factory = context.resolveObjectById?.(entry.objectId) ??
@@ -497,22 +666,15 @@ export class Production {
             }
             primaryFactories.set(entry.factoryType, factory);
         }
-
-        // Commit point: all extension and queue state is now validated and
-        // all authored/world references have been resolved (in strict mode).
-        for (const { queue, plan } of plans) queue.applyRestorePlan(plan);
-        this.buildSpeedModifier = candidate.buildSpeedModifier as number;
-        this.veteranTypes.clear();
-        for (const type of veteranFactoryTypes) this.veteranTypes.add(type);
-        this.replaceExtensionState(extensionTarget);
-        // These indexes are derived from the already-live world. They are
-        // rebuilt only after every serialized field has validated, so a
-        // failed restore cannot leave a partially rebuilt production object.
-        this.rebuildFactoryDerivedState();
-        for (const [type, factory] of primaryFactories) {
-            this.primaryFactories.set(type, factory);
-        }
-        for (const { queue } of plans) queue.notifyUpdated();
+        return {
+            buildSpeedModifier: candidate.buildSpeedModifier as number,
+            productionEnabled,
+            veteranFactoryTypes,
+            revealedFactoryObjectIds,
+            extensionTarget,
+            queuePlans,
+            primaryFactories,
+        };
     }
     restoreState(state: unknown): void {
         if (!this.stolenTech) {
@@ -546,12 +708,17 @@ export class Production {
             ...state.reverseEngineeredPlans,
             "build-speed-modifier",
             this.buildSpeedModifier,
+            "production-enabled",
+            this.productionEnabled ? 1 : 0,
             "veteran-factory-types",
             veteranFactoryTypes.length,
             ...veteranFactoryTypes,
             "primary-factories",
             this.getPrimaryFactoryStates().length,
             ...this.getPrimaryFactoryStates().flatMap(entry => [entry.factoryType, entry.objectId]),
+            "revealed-factories",
+            this.getRevealedFactoryObjectIds().length,
+            ...this.getRevealedFactoryObjectIds(),
             "queues",
         ];
         // Some extension-only callers construct a prototype-shaped Production
@@ -566,16 +733,21 @@ export class Production {
         stolenTechs: Array<number | SideId>;
         permanentFactoryOwnerPlans: string[];
         reverseEngineeredPlans: string[];
+        revealedFactoryObjectIds: number[];
+        productionEnabled: boolean;
     } {
         const state = this.serializeState();
         return {
             stolenTechs: [...state.stolenTechs],
             permanentFactoryOwnerPlans: [...state.permanentFactoryOwnerPlans],
             reverseEngineeredPlans: [...state.reverseEngineeredPlans],
+            revealedFactoryObjectIds: this.getRevealedFactoryObjectIds(),
+            productionEnabled: this.productionEnabled,
         };
     }
     dispose() {
         this.queues.clear();
+        this.revealedFactoryObjectIds.clear();
         this.stolenTech.clear();
         this.permanentFactoryOwnerPlans.clear();
         this.reverseEngineeredPlans.clear();
@@ -668,6 +840,43 @@ function normalizeVeteranFactoryTypes(value: unknown): FactoryType[] {
 
 function isVeteranFactoryType(value: unknown): value is FactoryType {
     return isFactoryType(value) && value !== FactoryType.None;
+}
+
+function normalizeRevealedFactoryObjectIds(
+    value: unknown,
+    context: ProductionRestoreContext,
+    player: any,
+): number[] {
+    if (!Array.isArray(value)) {
+        throw new Error("Invalid production state: revealedFactoryObjectIds must be an array");
+    }
+    const objectIds = value.map((entry, index) => {
+        if (!Number.isSafeInteger(entry) || (entry as number) < 0) {
+            throw new Error(`Invalid production state: revealedFactoryObjectIds[${index}]`);
+        }
+        return entry as number;
+    });
+    if (new Set(objectIds).size !== objectIds.length) {
+        throw new Error("Invalid production state: duplicate revealed factory object ID");
+    }
+    if (context.strict && objectIds.length) {
+        if (!context.resolveObjectById) {
+            throw new Error("Cannot restore revealed factories: object resolver is unavailable");
+        }
+        for (const objectId of objectIds) {
+            const factory = context.resolveObjectById(objectId);
+            if (!factory) {
+                throw new Error(`Cannot restore revealed factory ${objectId}: unresolved`);
+            }
+            if (factory.id !== objectId || !factory.isBuilding?.() || factory.isDestroyed) {
+                throw new Error(`Invalid production state: revealed factory ${objectId}`);
+            }
+            if (factory.owner === player) {
+                throw new Error(`Invalid production state: revealed factory ${objectId} is owned by the restoring player`);
+            }
+        }
+    }
+    return objectIds.sort((a, b) => a - b);
 }
 
 function normalizePrimaryFactoryStates(value: unknown): ProductionPrimaryFactoryState[] {

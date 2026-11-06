@@ -10,6 +10,16 @@ export class PoweredTrait {
     setTurnedOn(turnedOn: boolean): void {
         this.turnedOn = turnedOn;
     }
+    captureState(): { version: 1; turnedOn: boolean } {
+        return { version: 1, turnedOn: this.turnedOn };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            typeof (state as any).turnedOn !== "boolean") {
+            throw new Error("Invalid powered state");
+        }
+        this.turnedOn = (state as any).turnedOn;
+    }
     isCharged(): boolean {
         return (!!this.obj.isBuilding() &&
             !!this.obj.overpoweredTrait?.hasChargersToPowerOn());

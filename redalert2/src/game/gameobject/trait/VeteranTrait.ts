@@ -118,9 +118,8 @@ export class VeteranTrait implements NotifyTargetDestroy {
             return;
         if (target.rules.dontScore || target.rules.insignificant)
             return;
-        const isTemporalOrParasiteKill = weapon && (weapon.warhead.rules.temporal ||
-            (weapon.warhead.rules.parasite && source.rules.organic));
-        if (isTemporalOrParasiteKill || gameManager?.areFriendly(source, target)) {
+        const isParasiteKill = weapon?.warhead.rules.parasite === true && source.rules.organic;
+        if (isParasiteKill || gameManager?.areFriendly(source, target)) {
             return;
         }
         const killAttribution = attribution ?? createAresKillAttribution({ obj: source, weapon });

@@ -34,7 +34,8 @@ import { Prng } from './Prng';
 import { Ai } from './ai/Ai';
 import { BotFactory } from './bot/BotFactory';
 import { BotManager } from './BotManager';
-import { isHumanPlayerInfo } from './gameopts/GameOpts';
+import { getCampaignSession, isCampaignGameOpts, isHumanPlayerInfo } from './gameopts/GameOpts';
+import type { CampaignSession } from './gameopts/GameOpts';
 import { TheaterType } from '@/engine/TheaterType';
 interface GameMode {
     type: number;
@@ -53,6 +54,7 @@ interface HumanPlayerInfo extends PlayerInfo {
 }
 interface AiPlayerInfo extends PlayerInfo {
     difficulty: string;
+    customBotId?: string;
 }
 interface GameCreationOptions {
     artOverrides?: IniFile;
@@ -65,28 +67,38 @@ interface MultiplayerCountry {
     id: string;
     name: string;
 }
+interface CampaignPlayerOptions {
+    name: string;
+    country: Country;
+    house: any;
+    isAi: boolean;
+    startLocation?: { x: number; y: number };
+    startIndex?: number;
+}
 export class GameFactory {
     static create(gameOptions: GameCreationOptions, mapData: any, baseRules: IniFile, baseArt: IniFile, aiConfig: any, modRules: IniFile, additionalRules: IniFile[], randomSeed1: number | string, randomSeed2: number, gameOpts: GameOpts, gameModeRegistry: GameModeRegistry, skipStalemate: boolean, botConfig: any, debugFlags: any, speedCheat: any, debugBotIndex?: any, actionLogger?: any): Game {
+        const mapFile = gameOptions as any;
+        const campaignSession = getCampaignSession(gameOpts);
+        const campaignMode = isCampaignGameOpts(gameOpts) || Boolean(mapFile.isCampaign || campaignSession);
         const mergedRules: IniFile = baseRules.clone().mergeWith(modRules);
         for (const additionalRule of additionalRules) {
             mergedRules.mergeWith(additionalRule);
         }
-        mergedRules.mergeWith(gameOptions as any);
-        const mergedArt: IniFile = baseArt.clone().mergeWith(gameOptions.artOverrides ?? new IniFile());
+        mergedRules.mergeWith(mapFile);
+        const mergedArt: IniFile = baseArt.clone().mergeWith(mapFile.artOverrides ?? new IniFile());
         const rules: Rules = new Rules(mergedRules, debugFlags);
         const art: Art = new Art(rules, mergedArt, gameOptions, debugFlags);
         const ai: Ai = new Ai(aiConfig);
-        rules.applySpecialFlags(gameOptions.specialFlags as any);
-        GameOptSanitizer.sanitize(gameOpts, rules);
-        // Resolve lobby identities from the ruleset that will actually run the
-        // match.  Using baseRules here silently remapped extension profiles
-        // back to the retail YR country list (for example MO's `Latin` to the
-        // old `Arabs`).  The resulting country then failed generic MCV owner
-        // checks because MO's rules quite correctly refer to `Latin`.
+        if (mapFile.specialFlags) {
+            rules.applySpecialFlags(mapFile.specialFlags as any);
+        }
+        if (!campaignMode) {
+            GameOptSanitizer.sanitize(gameOpts, rules);
+        }
         const multiplayerCountries: MultiplayerCountry[] = rules.getMultiplayerCountries();
         const multiplayerColors: string[] = [...rules.getMultiplayerColors().values()] as any;
         const prng: Prng = Prng.factory(randomSeed1, randomSeed2);
-        const gameMap: GameMap = new GameMap(gameOptions as any, mapData, rules, prng.generateRandomInt.bind(prng));
+        const gameMap: GameMap = new GameMap(mapFile, mapData, rules, prng.generateRandomInt.bind(prng));
         const world: World = new World();
         const gameMode: GameMode = gameModeRegistry.getById(gameOpts.gameMode as any);
         const playerList: PlayerList = new PlayerList();
@@ -98,6 +110,7 @@ export class GameFactory {
         const botFactory: BotFactory = new BotFactory(botConfig);
         const botManager: BotManager = BotManager.factory(actionFactory, botFactory, debugBotIndex, actionLogger);
         const game: Game = new Game(world, gameMap, rules, art, ai, randomSeed1, randomSeed2, gameOpts, gameMode.type, playerList, unitSelection, alliances, tickCounter, objectFactory, botManager);
+        game.configureCampaign(mapFile, campaignSession, campaignMode);
         new ActionFactoryReg().register(actionFactory, game, undefined);
         this.setupGameTraits(game, rules, gameMap, alliances, gameOpts, skipStalemate, speedCheat);
         const productionTrait: ProductionTrait = game.traits.get(ProductionTrait) as ProductionTrait;
@@ -108,18 +121,227 @@ export class GameFactory {
         const theater = theaterName && theaterName !== "None"
             ? theaterName
             : undefined;
-        const playerFactory: PlayerFactory = new PlayerFactory(rules, gameOpts, productionTrait.getAvailableObjects(), theater);
-        const randomGen: GameOptRandomGen = GameOptRandomGen.factory(randomSeed1, randomSeed2);
-        const generatedColors: Map<PlayerInfo, string> = randomGen.generateColors(gameOpts) as any;
-        const generatedCountries: Map<PlayerInfo, string> = randomGen.generateCountries(gameOpts, rules) as any;
-        const generatedStartLocations: Map<PlayerInfo, number> = randomGen.generateStartLocations(gameOpts, gameMap.startingLocations as any);
-        const allPlayers: (HumanPlayerInfo | AiPlayerInfo)[] = [
-            ...gameOpts.humanPlayers,
-            ...gameOpts.aiPlayers
-        ].filter(isNotNullOrUndefined) as any;
-        this.createPlayers(game, allPlayers, playerFactory, multiplayerCountries, multiplayerColors, rules, generatedCountries, generatedColors, generatedStartLocations);
+        const playerFactory: PlayerFactory = new PlayerFactory(
+            rules,
+            gameOpts,
+            productionTrait.getAvailableObjects(),
+            theater,
+            campaignMode,
+        );
+        if (campaignMode) {
+            this.createCampaignPlayers(game, mapFile, rules, playerFactory, campaignSession);
+        }
+        else {
+            const randomGen: GameOptRandomGen = GameOptRandomGen.factory(randomSeed1, randomSeed2);
+            const generatedColors: Map<PlayerInfo, string> = randomGen.generateColors(gameOpts) as any;
+            const generatedCountries: Map<PlayerInfo, string> = randomGen.generateCountries(gameOpts, rules) as any;
+            const generatedStartLocations: Map<PlayerInfo, number> = randomGen.generateStartLocations(gameOpts, gameMap.startingLocations as any);
+            const allPlayers: (HumanPlayerInfo | AiPlayerInfo)[] = [
+                ...gameOpts.humanPlayers,
+                ...gameOpts.aiPlayers
+            ].filter(isNotNullOrUndefined) as any;
+            this.createPlayers(game, allPlayers, playerFactory, multiplayerCountries, multiplayerColors, rules, generatedCountries, generatedColors, generatedStartLocations);
+        }
         game.addPlayer(playerFactory.createNeutral(rules, "@@NEUTRAL@@"));
+        alliances.setFixedAlliance(Boolean(mapFile.specialFlags?.fixedAlliance));
+        this.applyCampaignAlliances(game, mapFile);
         return game;
+    }
+    private static createCampaignPlayers(game: Game, mapFile: any, rules: Rules, playerFactory: PlayerFactory, session?: CampaignSession): void {
+        const houses = Array.isArray(mapFile.houses) ? mapFile.houses : [];
+        const basicPlayer = String(mapFile.player ?? "").trim();
+        const basicPlayerIndex = /^\d+$/.test(basicPlayer) ? Number(basicPlayer) : undefined;
+        const requestedPlayerHouse = String(session?.playerHouse ?? "").trim();
+        const requestedPlayerName = String(session?.playerName ?? game.gameOpts.humanPlayers?.[0]?.name ?? basicPlayer).trim();
+        const alternate = this.useAlternateStart(session);
+        let humanAssigned = false;
+        if (houses.length) {
+            for (const house of houses) {
+                const resolved = this.resolveCampaignCountry(house.country || house.name, house.name, rules, house.actsLike);
+                if (resolved.neutral || !resolved.country) {
+                    continue;
+                }
+                const houseName = String(house.name ?? house.sectionName ?? "");
+                const requestedHouseMatch = requestedPlayerHouse && (
+                    this.normalizeIdentity(requestedPlayerHouse) === this.normalizeIdentity(houseName) ||
+                    this.normalizeIdentity(requestedPlayerHouse) === this.normalizeIdentity(house.country) ||
+                    this.normalizeIdentity(requestedPlayerHouse) === this.normalizeIdentity(house.index)
+                );
+                const basicHouseMatch = basicPlayer && (
+                    this.normalizeIdentity(basicPlayer) === this.normalizeIdentity(houseName) ||
+                    this.normalizeIdentity(basicPlayer) === this.normalizeIdentity(house.country) ||
+                    house.index === basicPlayerIndex
+                );
+                const isHuman = !humanAssigned && (
+                    Boolean(house.playerControl) ||
+                    basicHouseMatch ||
+                    (!basicPlayer && Boolean(requestedHouseMatch))
+                );
+                const startIndex = this.resolveCampaignStartIndex(house, mapFile, isHuman, alternate);
+                const startLocation = mapFile.startingLocationsByWaypoint?.get(startIndex) ??
+                    mapFile.getWaypointLocation?.(startIndex) ??
+                    mapFile.startingLocations?.[startIndex];
+                const color = this.resolveCampaignColor(house.color, rules, house.index);
+                const name = isHuman ? requestedPlayerName || houseName : houseName;
+                const player = playerFactory.createCombatant(
+                    name,
+                    resolved.country,
+                    startIndex,
+                    color,
+                    !isHuman,
+                    isHuman ? undefined : house.iq,
+                    undefined,
+                    {
+                        houseName,
+                        houseIndex: house.index,
+                        mapHouse: house,
+                        isCombatant: true,
+                        credits: house.credits,
+                        techLevel: house.techLevel ?? rules.mpDialogSettings.techLevel,
+                        productionEnabled: house.productionEnabled === true,
+                        startLocation,
+                    },
+                );
+                game.addPlayer(player);
+                if (isHuman) {
+                    humanAssigned = true;
+                }
+            }
+        }
+        if (!game.getNonNeutralPlayers().length) {
+            const allPlayers: (HumanPlayerInfo | AiPlayerInfo)[] = [
+                ...game.gameOpts.humanPlayers,
+                ...game.gameOpts.aiPlayers,
+            ].filter(isNotNullOrUndefined) as any;
+            const multiplayerCountries = rules.getMultiplayerCountries();
+            const colors = [...rules.getMultiplayerColors().values()];
+            for (const info of allPlayers) {
+                const isHuman = isHumanPlayerInfo(info);
+                const countryInfo = multiplayerCountries[info.countryId];
+                if (!countryInfo) {
+                    continue;
+                }
+                const startIndex = info.startPos >= 0 ? info.startPos : 0;
+                const startLocation = mapFile.startingLocationsByWaypoint?.get(startIndex) ?? mapFile.startingLocations?.[startIndex];
+                const player = playerFactory.createCombatant(
+                    isHuman ? info.name : game.getAiPlayerName(info),
+                    Country.factory(countryInfo.id, rules as any),
+                    startIndex,
+                    colors[info.colorId] ?? colors[0],
+                    !isHuman,
+                    isHuman ? undefined : (info as AiPlayerInfo).difficulty,
+                    (info as AiPlayerInfo).customBotId,
+                    {
+                        startLocation,
+                        productionEnabled: false,
+                        isCombatant: true,
+                        techLevel: rules.mpDialogSettings.techLevel,
+                    },
+                );
+                game.addPlayer(player);
+            }
+        }
+    }
+    private static applyCampaignAlliances(game: Game, mapFile: any): void {
+        for (const house of mapFile.houses ?? []) {
+            const owner = game.getPlayerByHouseName?.(house.name);
+            if (!owner) {
+                continue;
+            }
+            for (const allyName of house.allies ?? []) {
+                const ally = game.resolveMapOwner?.(allyName);
+                if (!ally || ally === owner || ally.isNeutral || owner.isNeutral || game.alliances.areAllied(owner, ally)) {
+                    continue;
+                }
+                const alliance = game.alliances.forceAlliance(owner, ally);
+                game.onAllianceChange(alliance, owner, true);
+            }
+        }
+    }
+    private static resolveCampaignCountry(value: any, houseName: any, rules: Rules, actsLike?: any): { country?: Country; neutral: boolean } {
+        const candidates = [value, actsLike, houseName]
+            .filter((candidate) => candidate !== undefined && candidate !== null)
+            .map((candidate) => String(candidate).trim())
+            .filter(Boolean);
+        const neutralAliases = new Set(["neutral", "special", "civilian", "none", "@@neutral@@", "<none>"]);
+        if (candidates.some((candidate) => neutralAliases.has(candidate.toLocaleLowerCase("en-US")))) {
+            return { neutral: true };
+        }
+        for (const candidate of candidates) {
+            try {
+                const countryId = rules.getCountry(candidate).id;
+                return { country: Country.factory(countryId, rules as any), neutral: false };
+            }
+            catch {
+            }
+            const countries = rules.getMultiplayerCountries();
+            const match = countries.find((country: any) =>
+                this.normalizeIdentity(country.id) === this.normalizeIdentity(candidate) ||
+                this.normalizeIdentity(country.name) === this.normalizeIdentity(candidate) ||
+                this.normalizeIdentity(country.sideId) === this.normalizeIdentity(candidate) ||
+                this.normalizeIdentity(country.side) === this.normalizeIdentity(candidate) ||
+                this.normalizeIdentity(country.uiName) === this.normalizeIdentity(candidate));
+            if (match) {
+                return { country: Country.factory(match.id, rules as any), neutral: false };
+            }
+            if (/^\d+$/.test(candidate)) {
+                const byIndex = countries[Number(candidate)];
+                if (byIndex) {
+                    return { country: Country.factory(byIndex.id, rules as any), neutral: false };
+                }
+            }
+        }
+        return { neutral: false };
+    }
+    private static resolveCampaignColor(value: any, rules: Rules, houseIndex: number): any {
+        const colors = rules.colors;
+        const requested = String(value ?? "").trim();
+        const color = requested ? colors.get(requested) ?? [...colors.entries()].find(([name]) => this.normalizeIdentity(name) === this.normalizeIdentity(requested))?.[1] : undefined;
+        if (color) {
+            return color;
+        }
+        const values = [...colors.values()];
+        return values[houseIndex % Math.max(1, values.length)];
+    }
+    private static resolveCampaignStartIndex(house: any, mapFile: any, isHuman: boolean, alternate: boolean): number {
+        const candidates = isHuman
+            ? [alternate ? house.altHomeCell : house.homeCell, house.startCell, house.startPos]
+            : [house.homeCell, house.altHomeCell, house.startCell, house.startPos];
+        const waypointNumbers = new Set<number>([
+            ...(mapFile.waypoints ?? []).map((waypoint: any) => waypoint.number),
+            ...(mapFile.startingLocationsByWaypoint?.keys?.() ?? []),
+        ]);
+        const hasLocation = (candidate: any): candidate is number =>
+            Number.isSafeInteger(candidate) && candidate >= 0 &&
+            (waypointNumbers.has(candidate) || (candidate < 8 && mapFile.startingLocations?.[candidate] !== undefined));
+        for (const candidate of candidates) {
+            if (hasLocation(candidate)) {
+                return candidate;
+            }
+        }
+        const basicCell = isHuman
+            ? (alternate ? mapFile.altHomeCell : mapFile.homeCell)
+            : undefined;
+        if (hasLocation(basicCell)) {
+            return basicCell;
+        }
+        if (hasLocation(house.index)) {
+            return house.index;
+        }
+        return [...waypointNumbers].sort((left, right) => left - right)[0] ?? 0;
+    }
+    private static useAlternateStart(session?: CampaignSession): boolean {
+        if (!session) {
+            return false;
+        }
+        if (session.alternateStartLocation !== undefined) {
+            return Boolean(session.alternateStartLocation);
+        }
+        const variables = session.globalVariables;
+        return Boolean(variables?.["0"] ?? variables?.[0]);
+    }
+    private static normalizeIdentity(value: any): string {
+        return String(value ?? "").trim().toLocaleLowerCase("en-US");
     }
     private static setupGameTraits(game: Game, rules: Rules, gameMap: GameMap, alliances: Alliances, gameOpts: GameOpts, skipStalemate: boolean, speedCheat: any): void {
         game.traits.add(new PowerTrait());

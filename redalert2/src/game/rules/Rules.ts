@@ -33,6 +33,7 @@ import {
     type AresParticleTypeRules,
 } from "@/extensions/ares/AresParticleSystems";
 import { parseAresWeaponTypeNames } from "@/extensions/ares/AresWeaponVisuals";
+import { fnv32aStrings } from "@/util/math";
 interface IniFile {
     getSection(name: string): IniSection | undefined;
     getOrCreateSection(name: string): IniSection;
@@ -52,6 +53,10 @@ interface ObjectRules {
     secondary?: string;
     elitePrimary?: string;
     eliteSecondary?: string;
+    prismForwarding?: {
+        supportWeapon?: string;
+        eliteSupportWeapon?: string;
+    };
     occupyWeapon?: string;
     eliteOccupyWeapon?: string;
     weaponCount?: number;
@@ -61,6 +66,85 @@ interface ObjectRules {
 interface SpecialFlags {
     initialVeteran?: boolean;
 }
+
+export const OBJECT_TECH_LEVEL_OVERRIDE_STATE_VERSION = 1 as const;
+
+export interface ObjectTechLevelOverrideStateEntry {
+    readonly objectType: ObjectType;
+    readonly technoTypeName: string;
+    readonly techLevel: number;
+}
+
+export interface ObjectTechLevelOverrideState {
+    readonly version: typeof OBJECT_TECH_LEVEL_OVERRIDE_STATE_VERSION;
+    readonly overrides: readonly ObjectTechLevelOverrideStateEntry[];
+}
+
+const OBJECT_TECH_LEVEL_TYPES: readonly ObjectType[] = [
+    ObjectType.Building,
+    ObjectType.Infantry,
+    ObjectType.Vehicle,
+    ObjectType.Aircraft,
+];
+
+function isObjectTechLevelType(value: unknown): value is ObjectType {
+    return OBJECT_TECH_LEVEL_TYPES.includes(value as ObjectType);
+}
+
+function objectTechLevelKey(objectType: ObjectType, technoTypeName: string): string {
+    return `${objectType}:${technoTypeName}`;
+}
+
+function normalizeObjectTechLevel(value: unknown): number {
+    if (!Number.isSafeInteger(value) || (value as number) < -1) {
+        throw new Error(`Invalid object tech level: ${String(value)}`);
+    }
+    return value as number;
+}
+
+export function normalizeObjectTechLevelOverrideState(state: unknown): ObjectTechLevelOverrideState {
+    if (!state || typeof state !== "object" || Array.isArray(state)) {
+        throw new Error("Invalid object tech level override state: expected an object");
+    }
+    const candidate = state as Record<string, unknown>;
+    if (candidate.version !== OBJECT_TECH_LEVEL_OVERRIDE_STATE_VERSION) {
+        throw new Error(`Unsupported object tech level override state version: ${String(candidate.version)}`);
+    }
+    if (!Array.isArray(candidate.overrides)) {
+        throw new Error("Invalid object tech level override state: overrides must be an array");
+    }
+    const identities = new Set<string>();
+    const overrides = candidate.overrides.map((value, index): ObjectTechLevelOverrideStateEntry => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            throw new Error(`Invalid object tech level override state: overrides[${index}]`);
+        }
+        const entry = value as Record<string, unknown>;
+        if (!isObjectTechLevelType(entry.objectType)) {
+            throw new Error(`Invalid object tech level override state: overrides[${index}].objectType`);
+        }
+        if (typeof entry.technoTypeName !== "string" || !entry.technoTypeName.trim()) {
+            throw new Error(`Invalid object tech level override state: overrides[${index}].technoTypeName`);
+        }
+        const technoTypeName = entry.technoTypeName.trim();
+        const key = objectTechLevelKey(entry.objectType, technoTypeName);
+        if (identities.has(key)) {
+            throw new Error(`Duplicate object tech level identity: ${ObjectType[entry.objectType]}:${technoTypeName}`);
+        }
+        identities.add(key);
+        return {
+            objectType: entry.objectType,
+            technoTypeName,
+            techLevel: normalizeObjectTechLevel(entry.techLevel),
+        };
+    });
+    return {
+        version: OBJECT_TECH_LEVEL_OVERRIDE_STATE_VERSION,
+        overrides: overrides.slice().sort((left, right) =>
+            left.objectType - right.objectType ||
+            (left.technoTypeName < right.technoTypeName ? -1 : left.technoTypeName > right.technoTypeName ? 1 : 0)),
+    };
+}
+
 export class Rules {
     private ini: IniFile;
     private logger?: Logger;
@@ -82,6 +166,7 @@ export class Rules {
     private countryNetworkIndices = new Map<string, number>();
     readonly weaponTypes = new Map<number, string>();
     private allObjectRules = new Map<ObjectType, Map<string, ObjectRules>>();
+    private objectTechLevelOverrides = new Map<string, ObjectTechLevelOverrideStateEntry>();
     readonly buildingRules = new Map<string, ObjectRules>();
     readonly infantryRules = new Map<string, ObjectRules>();
     readonly vehicleRules = new Map<string, ObjectRules>();
@@ -156,6 +241,136 @@ export class Rules {
         }
         return this.getObject(typeName, type);
     }
+    private getObjectTechLevelRegistries(): Array<[ObjectType, Map<string, ObjectRules>]> {
+        return [
+            [ObjectType.Building, this.buildingRules],
+            [ObjectType.Infantry, this.infantryRules],
+            [ObjectType.Vehicle, this.vehicleRules],
+            [ObjectType.Aircraft, this.aircraftRules],
+        ];
+    }
+
+    private resolveObjectTechLevelIdentity(
+        identifier: unknown,
+        expectedObjectType?: ObjectType,
+    ): {
+        objectType: ObjectType;
+        technoTypeName: string;
+    } {
+        if (typeof identifier !== "string" || !identifier.trim()) {
+            throw new Error("Invalid object type identifier");
+        }
+        const technoTypeName = identifier.trim();
+        const matches = this.getObjectTechLevelRegistries()
+            .filter(([objectType, registry]) =>
+                registry.has(technoTypeName) &&
+                (expectedObjectType === undefined || objectType === expectedObjectType))
+            .map(([objectType]) => objectType);
+        if (matches.length === 0) {
+            if (expectedObjectType !== undefined) {
+                throw new Error(
+                    `Unresolved object tech level identity: ${ObjectType[expectedObjectType]}:${technoTypeName}`,
+                );
+            }
+            throw new Error(`Unknown object type identifier: ${technoTypeName}`);
+        }
+        if (matches.length > 1) {
+            throw new Error(`Ambiguous object type identifier: ${technoTypeName}`);
+        }
+        return { objectType: matches[0], technoTypeName };
+    }
+
+    setObjectTechLevelOverride(identifier: unknown, techLevel: unknown): ObjectTechLevelOverrideStateEntry {
+        const identity = this.resolveObjectTechLevelIdentity(identifier);
+        const normalizedTechLevel = normalizeObjectTechLevel(techLevel);
+        const entry: ObjectTechLevelOverrideStateEntry = {
+            ...identity,
+            techLevel: normalizedTechLevel,
+        };
+        this.objectTechLevelOverrides ??= new Map();
+        this.objectTechLevelOverrides.set(objectTechLevelKey(identity.objectType, identity.technoTypeName), entry);
+        return entry;
+    }
+
+    getObjectTechLevelOverride(objectOrName: any, objectType?: ObjectType): number | undefined {
+        const technoTypeName = typeof objectOrName === "string"
+            ? objectOrName.trim()
+            : String(objectOrName?.name ?? objectOrName?.rules?.name ?? "").trim();
+        const resolvedType = objectType ?? objectOrName?.type ?? objectOrName?.rules?.type;
+        if (!technoTypeName || !isObjectTechLevelType(resolvedType)) {
+            return undefined;
+        }
+        return this.objectTechLevelOverrides?.get(objectTechLevelKey(resolvedType, technoTypeName))?.techLevel;
+    }
+
+    getEffectiveObjectTechLevel(objectOrName: any, objectType?: ObjectType): number | undefined {
+        return this.getObjectTechLevelOverride(objectOrName, objectType) ?? objectOrName?.techLevel;
+    }
+
+    captureObjectTechLevelOverrideState(): ObjectTechLevelOverrideState {
+        return {
+            version: OBJECT_TECH_LEVEL_OVERRIDE_STATE_VERSION,
+            overrides: [...(this.objectTechLevelOverrides?.values() ?? [])]
+                .map(entry => ({ ...entry }))
+                .sort((left, right) =>
+                    left.objectType - right.objectType ||
+                    (left.technoTypeName < right.technoTypeName ? -1 : left.technoTypeName > right.technoTypeName ? 1 : 0)),
+        };
+    }
+
+    validateObjectTechLevelOverrideState(state: unknown, strict: boolean = true): void {
+        this.prepareObjectTechLevelOverrideRestore(state, strict);
+    }
+
+    restoreObjectTechLevelOverrideState(state: unknown, strict: boolean = true): void {
+        const prepared = this.prepareObjectTechLevelOverrideRestore(state, strict);
+        this.objectTechLevelOverrides = prepared;
+    }
+
+    getObjectTechLevelOverrideHash(): number {
+        const state = this.captureObjectTechLevelOverrideState();
+        return fnv32aStrings([
+            "object-tech-level-overrides",
+            state.version,
+            state.overrides.length,
+            ...state.overrides.flatMap(entry => [entry.objectType, entry.technoTypeName, entry.techLevel]),
+        ]);
+    }
+
+    private prepareObjectTechLevelOverrideRestore(
+        state: unknown,
+        strict: boolean,
+    ): Map<string, ObjectTechLevelOverrideStateEntry> {
+        const normalized = normalizeObjectTechLevelOverrideState(state);
+        const prepared = new Map<string, ObjectTechLevelOverrideStateEntry>();
+        for (const entry of normalized.overrides) {
+            let identity: { objectType: ObjectType; technoTypeName: string };
+            try {
+                identity = this.resolveObjectTechLevelIdentity(entry.technoTypeName, entry.objectType);
+            }
+            catch (error) {
+                if (strict) {
+                    throw error;
+                }
+                continue;
+            }
+            if (identity.objectType !== entry.objectType) {
+                const error = new Error(
+                    `Object tech level identity changed: ${ObjectType[entry.objectType]}:${entry.technoTypeName}`,
+                );
+                if (strict) {
+                    throw error;
+                }
+                continue;
+            }
+            prepared.set(objectTechLevelKey(identity.objectType, identity.technoTypeName), {
+                ...identity,
+                techLevel: entry.techLevel,
+            });
+        }
+        return prepared;
+    }
+
     getBuilding(name: string): ObjectRules {
         const rules = this.buildingRules.get(name);
         if (!rules) {
@@ -598,7 +813,7 @@ export class Rules {
             if (!section) {
                 throw new Error("Missing rules section for superweapon type " + name);
             }
-            this.superWeaponRules.set(name, new SuperWeaponRules(id).readIni(section));
+            this.superWeaponRules.set(name, new SuperWeaponRules(id).readIni(section, this.general, this.combatDamage));
         });
     }
     private buildWeaponsList(): void {
@@ -625,6 +840,10 @@ export class Rules {
             if (superWeapon.weaponType) {
                 addWeaponName(superWeapon.weaponType);
             }
+            const nukePayload = superWeapon.nukePayload ?? superWeapon.ares?.nukePayload;
+            if (nukePayload) {
+                addWeaponName(nukePayload);
+            }
         }
         addWeaponName(Weapon.NUKE_PAYLOAD_NAME);
         const allObjectRules = [
@@ -640,6 +859,8 @@ export class Rules {
                 rules.secondary,
                 rules.elitePrimary,
                 rules.eliteSecondary,
+                rules.prismForwarding?.supportWeapon,
+                rules.prismForwarding?.eliteSupportWeapon,
                 rules.occupyWeapon,
                 rules.eliteOccupyWeapon,
                 ...(rules.weaponCount

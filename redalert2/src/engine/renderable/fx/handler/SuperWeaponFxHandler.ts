@@ -3,6 +3,7 @@ import { CompositeDisposable } from '@/util/disposable/CompositeDisposable';
 import { getRandomInt } from '@/util/math';
 import { LightningStormFx } from '@/engine/gfx/lighting/LightningStormFx';
 import { AresSuperWeaponLightingFx } from '@/engine/gfx/lighting/AresSuperWeaponLightingFx';
+import { resolvePsychicDominatorFireDelay } from '@/game/superweapon/PsychicDominatorEffect';
 import { GameSpeed } from '@/game/GameSpeed';
 import { SuperWeaponType } from '@/game/type/SuperWeaponType';
 import { Coords } from '@/game/Coords';
@@ -68,6 +69,9 @@ interface SuperWeaponActivateEvent {
     atTile: Tile;
     atTile2?: Tile;
     rules?: any;
+}
+function normalizeDeferment(value: number | undefined): number {
+    return Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
 }
 export class SuperWeaponFxHandler {
     private game: Game;
@@ -164,10 +168,12 @@ export class SuperWeaponFxHandler {
             return Number.isFinite(ticks) ? Math.max(0, ticks / GameSpeed.BASE_TICKS_PER_SECOND) : 0;
         }
         if (type === SuperWeaponType.PsychicDominator) {
-            const deferment = Number.isFinite(event.rules?.ares?.swDeferment)
-                ? Math.max(0, event.rules.ares.swDeferment)
-                : 0;
-            return (45 + deferment) / GameSpeed.BASE_TICKS_PER_SECOND;
+            const deferment = normalizeDeferment(event.rules?.ares?.swDeferment);
+            const fireDelay = resolvePsychicDominatorFireDelay(
+                this.game as any,
+                event.rules?.ares,
+            );
+            return (deferment + fireDelay) / GameSpeed.BASE_TICKS_PER_SECOND;
         }
         // Retail nuclear lighting uses a short flash envelope. Custom Ares
         // primary handlers use the same conservative envelope unless their

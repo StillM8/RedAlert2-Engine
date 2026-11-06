@@ -20,6 +20,7 @@ import { OverlayTibType } from "@/engine/type/OverlayTibType";
 import { TiberiumTrait } from "@/game/gameobject/trait/TiberiumTrait";
 import { Vector2 } from "@/game/math/Vector2";
 import { Box2 } from "@/game/math/Box2";
+import { fnv32aStrings } from "@/util/math";
 export const UNSUPPORTED_POWERUP_TYPES = [
     PowerupType.IonStorm,
     PowerupType.Gas,
@@ -91,6 +92,45 @@ export class CrateGeneratorTrait implements NotifyTick {
         this.mapEdgeIsWater = landEdgeCount === 0;
         this.minCrates = gameState.rules.crateRules.crateMinimum *
             gameState.gameOpts.humanPlayers.filter((player: any) => player.countryId !== OBS_COUNTRY_ID).length;
+    }
+    getHash(): number {
+        return fnv32aStrings([
+            "CrateGeneratorTrait",
+            ...this.crates.map(crate => [crate.obj?.id ?? -1, crate.powerup?.type ?? "", crate.ticksLeft] as const).flat(),
+        ]);
+    }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            crates: this.crates.map(crate => ({
+                objectId: crate.obj?.id,
+                powerupType: crate.powerup?.type,
+                ticksLeft: crate.ticksLeft,
+            })),
+        };
+    }
+    restoreState(state: unknown, context: { resolveObjectById?: (id: number) => any; resolvePowerup?: (type: string) => any; strict?: boolean } = {}): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 || !Array.isArray((state as any).crates)) {
+            throw new Error("Invalid crate generator state");
+        }
+        const crates: CrateInfo[] = [];
+        const seen = new Set<number>();
+        for (const entry of (state as any).crates) {
+            if (!entry || !Number.isSafeInteger(entry.objectId) || entry.objectId < 0 || seen.has(entry.objectId) ||
+                typeof entry.powerupType !== "string" || !Number.isFinite(entry.ticksLeft)) {
+                throw new Error("Invalid crate entry");
+            }
+            seen.add(entry.objectId);
+            const object = context.resolveObjectById?.(entry.objectId);
+            const powerup = context.resolvePowerup?.(entry.powerupType);
+            if ((!object || !powerup) && context.strict) {
+                throw new Error(`Cannot restore crate ${entry.objectId}: unresolved`);
+            }
+            if (object && powerup) {
+                crates.push({ obj: object, powerup, ticksLeft: entry.ticksLeft });
+            }
+        }
+        this.crates = crates;
     }
     [NotifyTick.onTick](gameState: any): void {
         for (const crate of this.crates) {

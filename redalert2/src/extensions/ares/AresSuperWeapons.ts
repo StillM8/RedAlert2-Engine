@@ -1,4 +1,5 @@
 import { SuperWeaponType } from "@/game/type/SuperWeaponType";
+import { normalizeAresCameoPalette } from "@/extensions/ares/AresPcxCameos";
 
 /**
  * Ares superweapon type names which are not represented by the vanilla
@@ -19,6 +20,12 @@ export const ARES_SUPER_WEAPON_TYPES = [
 ] as const;
 
 export type AresSuperWeaponType = typeof ARES_SUPER_WEAPON_TYPES[number];
+
+export function isAresSuperWeaponTargetType(rules: any): boolean {
+    if (rules?.type !== undefined) return true;
+    const extensionType = normalize(String(rules?.ares?.extensionType ?? ""));
+    return ARES_SUPER_WEAPON_TYPES.some((type) => normalize(type) === extensionType);
+}
 
 interface IniSectionLike {
     entries: Map<string, string | string[]>;
@@ -103,6 +110,12 @@ const EXTENSION_PREFIXES = [
     "genericwarhead.",
     "chronowarp.",
     "chronosphere.",
+    "nuke.",
+    "dominator.",
+    "protect.",
+    "mutate.",
+    "paradrop.",
+    "spyplane.",
     "sidebarpcx",
     "sonarpulse.",
     "eva.",
@@ -135,9 +148,12 @@ export interface AresSuperWeaponDefinition {
 
     swDamage?: number;
     swWarhead?: string;
+    nukePayload?: string;
+    nukeSiloLaunch?: boolean;
     /** Ares uses this to make a manual/auto-fired SW use its AI selector. */
     swUseAITargeting?: boolean;
     swAITargeting?: string;
+    swAITargetingType?: string;
     swAITargetingConstraints?: string;
     swAITargetingPreference?: string;
     swAffectsHouse?: string;
@@ -169,6 +185,13 @@ export interface AresSuperWeaponDefinition {
     swAnyInhibitor?: boolean;
     swMaxCount?: number;
     swDeferment?: number;
+    lightningDuration?: number;
+    lightningHitDelay?: number;
+    lightningScatterDelay?: number;
+    lightningScatterCount?: number;
+    lightningSeparation?: number;
+    lightningRadarOutage?: number;
+    lightningRadarOutageAffects?: string;
     /** Type=LightningStorm: bypass LightningRod attraction and damage scaling. */
     lightningIgnoreLightningRod?: boolean;
     swActivationSound?: string;
@@ -190,6 +213,7 @@ export interface AresSuperWeaponDefinition {
     swSound?: string;
     /** Ares PCX sidebar asset; absent means the legacy SidebarImage is used. */
     sidebarPcx?: string;
+    sidebarPalette: string;
     /** Chronosphere.ReconsiderBuildings; absent means the Ares default. */
     chronosphereReconsiderBuildings?: boolean;
     /** Chronosphere.KillOrganic; absent means the Ares default. */
@@ -206,6 +230,24 @@ export interface AresSuperWeaponDefinition {
     chronosphereBlowUnplaceable?: boolean;
     /** Chronosphere.KillCargo; absent means the Ares default. */
     chronosphereKillCargo?: boolean;
+
+    dominatorFirstAnim?: string;
+    dominatorFirstAnimHeight?: number;
+    dominatorSecondAnim?: string;
+    dominatorSecondAnimHeight?: number;
+    dominatorFireAtPercentage?: number;
+    dominatorControlAnim?: string;
+    dominatorCapture?: boolean;
+    dominatorRipple?: boolean;
+    dominatorCaptureMindControlled?: boolean;
+    dominatorCapturePermaMindControlled?: boolean;
+    dominatorCaptureImmuneToPsionics?: boolean;
+    dominatorPermanentCapture?: boolean;
+
+    protectDuration?: number;
+    protectPowerOutage?: number;
+    protectPlayFadeSoundTime?: number;
+    specialSound?: string;
 
     /** Shared Ares availability/grant fields. */
     requiredHouses?: string[];
@@ -283,6 +325,34 @@ export interface AresSuperWeaponDefinition {
     extensionEntries: ReadonlyMap<string, string | string[]>;
 }
 
+export interface AresLightningStormSettings {
+    readonly duration?: number;
+    readonly hitDelay?: number;
+    readonly scatterDelay?: number;
+    readonly separation?: number;
+    readonly scatterCount?: number;
+    readonly damage?: number;
+    readonly warhead?: string;
+    readonly radarOutage?: number;
+    readonly radarOutageAffects?: string;
+}
+
+export function createAresLightningStormSettings(
+    definition?: AresSuperWeaponDefinition,
+): Readonly<AresLightningStormSettings> {
+    return Object.freeze({
+        duration: definition?.lightningDuration,
+        hitDelay: definition?.lightningHitDelay,
+        scatterDelay: definition?.lightningScatterDelay,
+        separation: definition?.lightningSeparation,
+        scatterCount: definition?.lightningScatterCount,
+        damage: definition?.swDamage,
+        warhead: definition?.swWarhead,
+        radarOutage: definition?.lightningRadarOutage,
+        radarOutageAffects: definition?.lightningRadarOutageAffects,
+    });
+}
+
 export interface SuperWeaponIdentity {
     index: number;
     type?: SuperWeaponType;
@@ -311,7 +381,11 @@ export function resolveSuperWeaponActivationId(
 }
 
 function isMeaningful(definition: AresSuperWeaponDefinition): boolean {
-    return !!definition.extensionType || definition.extensionEntries.size > 0;
+    const type = normalize(definition.typeId ?? "");
+    return !!definition.extensionType ||
+        definition.extensionEntries.size > 0 ||
+        type === "psychicdominator" ||
+        type === "forceshield";
 }
 
 /**
@@ -322,14 +396,21 @@ function isMeaningful(definition: AresSuperWeaponDefinition): boolean {
  */
 export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSuperWeaponDefinition | undefined {
     const typeId = getString(section, "Type");
+    const type = normalize(typeId ?? "");
     const extensionType = parseExtensionType(typeId);
+    const damageText = getString(section, "SW.Damage");
+    const swDamage = getNumber(section, "SW.Damage") ??
+        (type === "psychicdominator" && damageText && /^(?:none|null)$/i.test(damageText.trim()) ? 0 : undefined);
     const definition: AresSuperWeaponDefinition = {
         typeId,
         extensionType,
-        swDamage: getNumber(section, "SW.Damage"),
+        swDamage,
         swWarhead: getString(section, "SW.Warhead"),
+        nukePayload: getString(section, "Nuke.Payload"),
+        nukeSiloLaunch: getBool(section, "Nuke.SiloLaunch"),
         swUseAITargeting: getBool(section, "SW.UseAITargeting"),
-        swAITargeting: getString(section, "SW.AITargeting"),
+        swAITargeting: getString(section, "SW.AITargeting") ?? getString(section, "SW.AITargetingType"),
+        swAITargetingType: getString(section, "SW.AITargetingType"),
         swAITargetingConstraints: getString(section, "SW.AITargeting.Constraints"),
         swAITargetingPreference: getString(section, "SW.AITargeting.Preference"),
         swAffectsHouse: getString(section, "SW.AffectsHouse"),
@@ -357,6 +438,14 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnyInhibitor: getBool(section, "SW.AnyInhibitor"),
         swMaxCount: getNumber(section, "SW.MaxCount"),
         swDeferment: getNumber(section, "SW.Deferment"),
+        lightningDuration: getNumber(section, "Lightning.Duration"),
+        lightningHitDelay: getNumber(section, "Lightning.HitDelay"),
+        lightningScatterDelay: getNumber(section, "Lightning.ScatterDelay"),
+        lightningScatterCount: getNumber(section, "Lightning.ScatterCount"),
+        lightningSeparation: getNumber(section, "Lightning.Separation") ??
+            getNumber(section, "Lightning.Seperation"),
+        lightningRadarOutage: getNumber(section, "Lightning.RadarOutage"),
+        lightningRadarOutageAffects: getString(section, "Lightning.RadarOutageAffects"),
         lightningIgnoreLightningRod: getBool(section, "Lightning.IgnoreLightningRod"),
         swActivationSound: getString(section, "SW.ActivationSound"),
         swCursor: getString(section, "Cursor") ?? getString(section, "SW.Cursor"),
@@ -375,6 +464,7 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         swAnimationVisibility: getString(section, "SW.AnimationVisibility"),
         swSound: getString(section, "SW.Sound"),
         sidebarPcx: getString(section, "SidebarPCX"),
+        sidebarPalette: normalizeAresCameoPalette(getString(section, "SidebarPalette")),
         chronosphereReconsiderBuildings: getBool(section, "Chronosphere.ReconsiderBuildings"),
         chronosphereKillOrganic: getBool(section, "Chronosphere.KillOrganic"),
         chronosphereKillTeleporters: getBool(section, "Chronosphere.KillTeleporters"),
@@ -383,6 +473,22 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         chronosphereAffectsUndeployable: getBool(section, "Chronosphere.AffectsUndeployable"),
         chronosphereBlowUnplaceable: getBool(section, "Chronosphere.BlowUnplaceable"),
         chronosphereKillCargo: getBool(section, "Chronosphere.KillCargo"),
+        dominatorFirstAnim: getString(section, "Dominator.FirstAnim"),
+        dominatorFirstAnimHeight: getNumber(section, "Dominator.FirstAnimHeight"),
+        dominatorSecondAnim: getString(section, "Dominator.SecondAnim"),
+        dominatorSecondAnimHeight: getNumber(section, "Dominator.SecondAnimHeight"),
+        dominatorFireAtPercentage: getNumber(section, "Dominator.FireAtPercentage"),
+        dominatorControlAnim: getString(section, "Dominator.ControlAnim"),
+        dominatorCapture: getBool(section, "Dominator.Capture"),
+        dominatorRipple: getBool(section, "Dominator.Ripple"),
+        dominatorCaptureMindControlled: getBool(section, "Dominator.CaptureMindControlled"),
+        dominatorCapturePermaMindControlled: getBool(section, "Dominator.CapturePermaMindControlled"),
+        dominatorCaptureImmuneToPsionics: getBool(section, "Dominator.CaptureImmuneToPsionics"),
+        dominatorPermanentCapture: getBool(section, "Dominator.PermanentCapture"),
+        protectDuration: getNumber(section, "Protect.Duration"),
+        protectPowerOutage: getNumber(section, "Protect.PowerOutage"),
+        protectPlayFadeSoundTime: getNumber(section, "Protect.PlayFadeSoundTime"),
+        specialSound: getString(section, "SpecialSound"),
         requiredHouses: getArray(section, "SW.RequiredHouses"),
         forbiddenHouses: getArray(section, "SW.ForbiddenHouses"),
         auxBuildings: getArray(section, "SW.AuxBuildings"),
@@ -437,6 +543,26 @@ export function parseAresSuperWeaponDefinition(section: IniSectionLike): AresSup
         batteryKeepOnline: getArray(section, "Battery.KeepOnline"),
         extensionEntries: collectExtensionEntries(section),
     };
+    if (type === "psychicdominator") {
+        definition.swAffectsHouse ??= "all";
+        definition.swAffectsTarget ??= "infantry,units";
+        definition.swDeferment ??= 0;
+        definition.dominatorFirstAnimHeight ??= 750;
+        definition.dominatorSecondAnimHeight ??= 0;
+        definition.dominatorCapture ??= true;
+        definition.dominatorRipple ??= true;
+        definition.dominatorCaptureMindControlled ??= true;
+        definition.dominatorCapturePermaMindControlled ??= true;
+        definition.dominatorCaptureImmuneToPsionics ??= false;
+        definition.dominatorPermanentCapture ??= true;
+    }
+    if (type === "forceshield") {
+        definition.swAffectsHouse ??= "team";
+        definition.swAffectsTarget ??= "buildings";
+        definition.swRequiresHouse ??= "team";
+        definition.swRequiresTarget ??= "buildings";
+        definition.swAnimationHeight ??= 5;
+    }
     return isMeaningful(definition) ? definition : undefined;
 }
 

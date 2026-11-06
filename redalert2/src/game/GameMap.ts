@@ -11,6 +11,20 @@ import { Vector2 } from '@/game/math/Vector2';
 import { Box2 } from '@/game/math/Box2';
 interface MapFile {
     startingLocations: any[];
+    startingLocationsByWaypoint?: Map<number, { x: number; y: number }>;
+    homeCell?: number;
+    altHomeCell?: number;
+    player?: string;
+    theme?: string;
+    nextScenario?: string;
+    altNextScenario?: string;
+    endOfGame?: boolean;
+    skipScore?: boolean;
+    oneTimeOnly?: boolean;
+    ignoreGlobalAITriggers?: boolean;
+    isCampaign?: boolean;
+    houses?: any[];
+    specialFlags?: any;
     tiles: any[];
     theaterType: TheaterType;
     tags: Tag[];
@@ -80,6 +94,48 @@ export class GameMap {
     get startingLocations() {
         return this.mapFile.startingLocations;
     }
+    get startingLocationsByWaypoint(): Map<number, { x: number; y: number }> {
+        return this.mapFile.startingLocationsByWaypoint ?? new Map();
+    }
+    get player(): string {
+        return this.mapFile.player ?? "";
+    }
+    get homeCell(): number | undefined {
+        return this.mapFile.homeCell;
+    }
+    get altHomeCell(): number | undefined {
+        return this.mapFile.altHomeCell;
+    }
+    get theme(): string {
+        return this.mapFile.theme ?? "";
+    }
+    get nextScenario(): string {
+        return this.mapFile.nextScenario ?? "";
+    }
+    get altNextScenario(): string {
+        return this.mapFile.altNextScenario ?? "";
+    }
+    get endOfGame(): boolean {
+        return this.mapFile.endOfGame ?? false;
+    }
+    get skipScore(): boolean {
+        return this.mapFile.skipScore ?? false;
+    }
+    get oneTimeOnly(): boolean {
+        return this.mapFile.oneTimeOnly ?? false;
+    }
+    get ignoreGlobalAITriggers(): boolean {
+        return this.mapFile.ignoreGlobalAITriggers ?? false;
+    }
+    get isCampaign(): boolean {
+        return this.mapFile.isCampaign ?? false;
+    }
+    get houses(): any[] {
+        return this.mapFile.houses ?? [];
+    }
+    get specialFlags(): any {
+        return this.mapFile.specialFlags;
+    }
     constructor(mapFile: MapFile, t: any, i: any, r: any) {
         this.mapFile = mapFile;
         this.tiles = new TileCollection(this.mapFile.tiles, t, i.general, r);
@@ -142,7 +198,30 @@ export class GameMap {
         return this.mapFile.variables;
     }
     getWaypoint(waypointNumber: number): Waypoint | undefined {
-        return this.mapFile.waypoints.find((waypoint) => waypoint.number === waypointNumber);
+        return this.mapFile.waypoints?.find((waypoint) => waypoint.number === waypointNumber);
+    }
+    getStartingLocation(waypointNumber: number | { x: number; y: number } | undefined): { x: number; y: number } | undefined {
+        if (waypointNumber && typeof waypointNumber === "object") {
+            return waypointNumber;
+        }
+        if (typeof waypointNumber !== "number") {
+            return undefined;
+        }
+        return this.startingLocationsByWaypoint.get(waypointNumber) ??
+            this.startingLocations?.[waypointNumber] ??
+            (() => {
+                const waypoint = this.getWaypoint(waypointNumber);
+                return waypoint ? { x: waypoint.rx, y: waypoint.ry } : undefined;
+            })();
+    }
+    getHomeLocation(useAlternate: boolean = false): { x: number; y: number } | undefined {
+        return this.getStartingLocation(useAlternate ? this.altHomeCell : this.homeCell);
+    }
+    getHouse(name: string): any | undefined {
+        const normalized = name.trim().toLocaleLowerCase("en-US");
+        return (this.houses ?? []).find((house) =>
+            house.name?.toLocaleLowerCase("en-US") === normalized ||
+            house.sectionName?.toLocaleLowerCase("en-US") === normalized);
     }
     getTileAtWaypoint(waypointNumber: number): Tile | undefined {
         const waypoint = this.getWaypoint(waypointNumber);

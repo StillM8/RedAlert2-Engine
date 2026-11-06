@@ -8,6 +8,23 @@
 
 export type AresRgb = readonly [number, number, number];
 
+export const DEFAULT_ARES_LASER_THICKNESS = 3;
+export const MAX_ARES_LASER_THICKNESS = 8;
+
+export function resolveAresLaserThickness(value: number | undefined): number {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        return DEFAULT_ARES_LASER_THICKNESS;
+    }
+    return Math.min(MAX_ARES_LASER_THICKNESS, Math.max(0, Math.trunc(value)));
+}
+
+export function isAresLaserProjectile(rules: any): boolean {
+    const visuals = rules?.aresWeaponVisuals;
+    return rules?.isLaser === true ||
+        visuals?.waveIsLaser === true ||
+        visuals?.waveIsBigLaser === true;
+}
+
 export interface AresWeaponVisualRules {
     beamColor?: AresRgb;
     beamDuration: number;

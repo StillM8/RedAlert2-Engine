@@ -1,5 +1,6 @@
 import { NotifyWarpChange } from "@/game/trait/interface/NotifyWarpChange";
 import { fnv32aStrings } from "@/util/math";
+import { scalarStateHash } from "@/util/stateHash";
 import { SuperWeapon, SuperWeaponStatus } from "@/game/SuperWeapon";
 import { SuperWeaponEffect, EffectStatus } from "@/game/superweapon/SuperWeaponEffect";
 import { NotifyPower } from "@/game/trait/interface/NotifyPower";
@@ -28,6 +29,10 @@ import { AresSuperWeaponEffectEvent } from "@/game/event/AresSuperWeaponEffectEv
 import { AresSuperWeaponMessageEvent } from "@/game/event/AresSuperWeaponMessageEvent";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { isAresEmpOperational } from "@/extensions/ares/AresEMP";
+import {
+    planAresSuperWeaponTargetFromWorld,
+    resolveAresSuperWeaponAutoFireProfile,
+} from "@/extensions/ares/AresSuperWeaponAutoFire";
 import { createAresSuperWeaponRadarEvent } from "@/extensions/ares/AresSuperWeaponRadar";
 import {
     applyAresSuperWeaponMoney,
@@ -44,6 +49,14 @@ import {
     getAvailableBuildingSuperWeapon,
     getBuildingSuperWeaponTraits,
 } from "@/game/gameobject/trait/SuperWeaponTrait";
+import {
+    prepareAresSuperWeaponEffectStateRestore,
+    serializeAresSuperWeaponEffectState,
+    type AresSuperWeaponEffectRestoreContext,
+    type AresSuperWeaponEffectsState,
+    type PreparedAresSuperWeaponEffectStateRestore,
+} from "@/extensions/ares/AresSuperWeaponEffectState";
+import { createAresLightningStormSettings } from "@/extensions/ares/AresSuperWeapons";
 export class SuperWeaponsTrait {
     private effects: SuperWeaponEffect[] = [];
     private aresAvailabilityRulesSource: any;
@@ -72,16 +85,76 @@ export class SuperWeaponsTrait {
      * superweapon only supplies the destination; all chronoshift semantics
      * come from the ChronoSphere that selected the source cell.
      */
-    private readonly chronoSphereSources = new WeakMap<object, {
+    private chronoSphereSources = new Map<any, {
         rules: any;
         tile: any;
     }>();
 
     /** Read-only query used by Ares AI inactive-effect constraints. */
     hasActiveEffect(type: any): boolean {
-        return this.effects.some((effect) =>
+        return (this.effects ?? []).some((effect) =>
             effect.status !== EffectStatus.Finished && effect.type === type,
         );
+    }
+    /**
+     * Stable positional accessors for cross-slice state (currently the
+     * lightning radar outage map). The effect codec restores effects in the
+     * same creation order, so the index is a canonical reference.
+     */
+    getEffectIndex(effect: any): number {
+        return (this.effects ?? []).indexOf(effect);
+    }
+    getEffectAt(index: number): SuperWeaponEffect | undefined {
+        return index >= 0 ? this.effects?.[index] : undefined;
+    }
+    captureAresState(): AresSuperWeaponEffectsState {
+        const sources = typeof this.chronoSphereSources?.entries === "function"
+            ? this.chronoSphereSources.entries()
+            : [];
+        return serializeAresSuperWeaponEffectState({
+            effects: this.effects ?? [],
+            chronoSphereSources: sources,
+        });
+    }
+    captureState(): AresSuperWeaponEffectsState {
+        return this.captureAresState();
+    }
+    serializeAresState(): AresSuperWeaponEffectsState {
+        return this.captureAresState();
+    }
+    prepareAresStateRestore(
+        state: unknown,
+        context: AresSuperWeaponEffectRestoreContext = {},
+    ): PreparedAresSuperWeaponEffectStateRestore {
+        const sources = typeof this.chronoSphereSources?.entries === "function"
+            ? this.chronoSphereSources.entries()
+            : [];
+        return prepareAresSuperWeaponEffectStateRestore(
+            state,
+            this.effects ?? [],
+            sources,
+            this.normalizeAresEffectRestoreContext(context),
+        );
+    }
+    private normalizeAresEffectRestoreContext(context: any): AresSuperWeaponEffectRestoreContext {
+        if (context && (context.map || context.playerList || context.getObjectById)) {
+            return { ...context, world: context };
+        }
+        return context ?? {};
+    }
+    validateAresState(state: unknown, context: AresSuperWeaponEffectRestoreContext = {}): void {
+        this.prepareAresStateRestore(state, context);
+    }
+    restoreAresState(state: unknown, context: AresSuperWeaponEffectRestoreContext = {}): void {
+        this.commitAresStateRestore(this.prepareAresStateRestore(state, context));
+    }
+    restoreState(state: unknown, context: AresSuperWeaponEffectRestoreContext = {}): void {
+        this.restoreAresState(state, context);
+    }
+    commitAresStateRestore(plan: PreparedAresSuperWeaponEffectStateRestore): void {
+        plan.apply();
+        this.effects = plan.effects;
+        this.chronoSphereSources = new Map(plan.pendingChronoSphereSources);
     }
     /**
      * Canonical state: every active superweapon effect carries phase/timer
@@ -90,18 +163,54 @@ export class SuperWeaponsTrait {
      * hashed in creation order, which is deterministic.
      */
     getHash(): number {
-        return fnv32aStrings([
-            "SuperWeaponsTrait",
-            ...this.effects.flatMap((effect) => {
-                const source = this.chronoSphereSources.get(effect);
-                return [
-                    effect.getHash(),
-                    source ? String(effect.type) : "",
-                    source?.tile?.rx ?? -1,
-                    source?.tile?.ry ?? -1,
-                ];
-            }),
-        ]);
+        const parts: (string | number)[] = ["SuperWeaponsTrait"];
+        const sourceEntries: Array<[any, any]> = typeof this.chronoSphereSources?.entries === "function"
+            ? [...this.chronoSphereSources.entries()]
+            : [];
+        for (const effect of this.effects ?? []) {
+            let effectHash: number;
+            if (typeof effect?.getHash === "function" &&
+                effect.getHash !== SuperWeaponEffect.prototype.getHash) {
+                effectHash = effect.getHash();
+            }
+            else {
+                effectHash = fnv32aStrings([
+                    "SuperWeaponEffect",
+                    String(effect?.type),
+                    effect?.owner?.playerListIndex ?? -1,
+                    effect?.tile?.rx ?? -1,
+                    effect?.tile?.ry ?? -1,
+                    effect?.status ?? EffectStatus.NotStarted,
+                    scalarStateHash("mutable-state", effect),
+                ]);
+            }
+            const source = this.chronoSphereSources?.get?.(effect);
+            parts.push(
+                effectHash,
+                source ? String(effect.type) : "",
+                source?.tile?.rx ?? -1,
+                source?.tile?.ry ?? -1,
+            );
+        }
+        const pending = new Map<number, any>();
+        for (const [owner, source] of sourceEntries) {
+            const index = owner?.playerListIndex;
+            if (Number.isSafeInteger(index) && (index as number) >= 0 && !pending.has(index as number)) {
+                pending.set(index as number, source);
+            }
+        }
+        for (const index of [...pending.keys()].sort((left, right) => left - right)) {
+            const source = pending.get(index);
+            parts.push(
+                "pending-chrono-source",
+                index,
+                source?.rules?.name ?? "",
+                source?.rules?.index ?? -1,
+                source?.tile?.rx ?? -1,
+                source?.tile?.ry ?? -1,
+            );
+        }
+        return fnv32aStrings(parts);
     }
     [NotifyTick.onTick](t: any) {
         const aresAvailabilityRules = this.getAresAvailabilityRules(t);
@@ -114,6 +223,7 @@ export class SuperWeaponsTrait {
                 i.update(t);
             }
         }
+        this.updateAresAutoFire(t);
         for (const r of this.effects) {
             if (r.status === EffectStatus.NotStarted) {
                 const presentation = this.effectPresentationRules.get(r);
@@ -138,11 +248,34 @@ export class SuperWeaponsTrait {
                 t.traits
                     .filter(NotifySuperWeaponDeactivate)
                     .forEach((e) => {
-                    e[NotifySuperWeaponDeactivate.onDeactivate](r.type, r.owner, t);
-                });
+                        e[NotifySuperWeaponDeactivate.onDeactivate](r.type, r.owner, t, r);
+                    });
             }
         }
         this.effects = this.effects.filter((e) => e.status !== EffectStatus.Finished);
+    }
+    private updateAresAutoFire(world: any): void {
+        for (const player of world.getCombatants()) {
+            if (player?.isAi === true) continue;
+            for (const weapon of player.superWeaponsTrait.getAll()) {
+                const rules = weapon.rules;
+                if (weapon.status !== SuperWeaponStatus.Ready) continue;
+                if (rules?.type === SuperWeaponType.ChronoSphere) continue;
+                if (!resolveAresSuperWeaponAutoFireProfile(rules)) continue;
+                const underAttack = typeof player.isUnderAttack === "function"
+                    ? player.isUnderAttack()
+                    : player.isUnderAttack === true || player.underAttack === true;
+                const target = planAresSuperWeaponTargetFromWorld(world, player, rules, {
+                    underAttack,
+                    lightningStormActive: this.hasActiveEffect(SuperWeaponType.LightningStorm),
+                    psychicDominatorActive: this.hasActiveEffect(SuperWeaponType.PsychicDominator),
+                });
+                if (!target) continue;
+                const tile = world.map?.tiles?.getByMapCoords?.(target.x, target.y);
+                if (!tile) continue;
+                this.activateSuperWeapon(rules.index, player, world, tile, undefined);
+            }
+        }
     }
     private getAresAvailabilityRules(world: any): readonly any[] {
         const source = world?.rules?.superWeaponRules;
@@ -400,7 +533,7 @@ export class SuperWeaponsTrait {
             }
             const isChronoWarp = a.rules.type === SuperWeaponType.ChronoWarp ||
                 a.rules.ares?.extensionType === "ChronoWarp";
-            this.activateEffect(a.rules, e, i, r, s, false, isChronoWarp ? s ?? r : undefined);
+            this.activateEffect(a.rules, e, i, r, s, false, isChronoWarp ? s ?? r : undefined, a);
             return true;
         }
         if (a?.rules?.ares) {
@@ -415,13 +548,14 @@ export class SuperWeaponsTrait {
     }
 
     /** Stop a charge-drain superweapon without changing ordinary SW timers. */
-    deactivateSuperWeapon(t: number, e: any): boolean {
-        const weapon = e.superWeaponsTrait
-            ?.getAll()
-            .find((candidate: any) => candidate.rules.index === t);
+    deactivateSuperWeapon(t: number, e: any, world?: any): boolean {
+        const weapons = e?.superWeaponsTrait?.getAll?.() ?? [];
+        const weapon = weapons.find((candidate: any) =>
+            candidate.owner === e && candidate.rules?.index === t);
         if (!weapon?.isChargeDrainActive?.()) return false;
-        if (weapon.rules.ares?.swUnstoppable === true) return false;
-        return weapon.deactivateChargeDrain();
+        const unstoppable = weapon.rules?.ares?.swUnstoppable;
+        if (unstoppable === true || unstoppable === "yes" || unstoppable === "true" || unstoppable === "1") return false;
+        return weapon.deactivateChargeDrain(world);
     }
     private activateEffect(
         e: any,
@@ -431,10 +565,17 @@ export class SuperWeaponsTrait {
         a: any,
         n: boolean = false,
         chronoWarpDestination?: any,
+        superWeapon?: any,
     ) {
         const o = e.type;
         const extensionType = e.ares?.extensionType;
         const eventType = o ?? e.typeId;
+        let lightningStormEffect: LightningStormEffect | undefined;
+        let lightningStormRadarOutage: {
+            duration: number;
+            affects: string;
+            deferment: number;
+        } | undefined;
         if (o !== undefined || extensionType !== undefined) {
             if (e.ares?.swCreateRadarEvent === true) {
                 createAresSuperWeaponRadarEvent(s, r, e, i);
@@ -524,6 +665,7 @@ export class SuperWeaponsTrait {
                         destination,
                         sourceRules.ares?.swRange,
                         {
+                            affectsHouse: sourceRules.ares?.swAffectsHouse,
                             affectedTargets: sourceRules.ares?.swAffectsTarget,
                             reconsiderBuildings: sourceRules.ares?.chronosphereReconsiderBuildings,
                             killOrganic: sourceRules.ares?.chronosphereKillOrganic,
@@ -562,24 +704,43 @@ export class SuperWeaponsTrait {
                     break;
                 }
                 case SuperWeaponType.MultiMissile:
-                    if (!e.weaponType) {
-                        throw new Error("Missing WeaponType in super weapon rules");
-                    }
-                    t.push(new NukeEffect(o, i, s, e.weaponType));
+                    t.push(new NukeEffect(o, i, s, e.weaponType, {
+                        payload: e.ares?.nukePayload ?? e.nukePayload,
+                        payloadConfigured: e.nukePayloadConfigured ?? e.ares?.nukePayload !== undefined,
+                        siloLaunch: e.nukeSiloLaunch ?? e.ares?.nukeSiloLaunch ?? true,
+                        damage: e.ares?.swDamage,
+                        warhead: e.ares?.swWarhead,
+                        superWeapon,
+                        superWeaponName: e.name,
+                    }));
                     break;
-                case SuperWeaponType.LightningStorm:
-                    t.push(new LightningStormEffect(
+                case SuperWeaponType.LightningStorm: {
+                    const settings = createAresLightningStormSettings(e.ares);
+                    const lightningStorm = r.rules.general.lightningStorm;
+                    lightningStormEffect = new LightningStormEffect(
                         o, i, s, e.ares?.swDeferment, e.ares?.swRange,
                         e.ares?.lightningIgnoreLightningRod === true,
-                    ));
+                        settings,
+                    );
+                    t.push(lightningStormEffect);
+                    lightningStormRadarOutage = {
+                        duration: settings.radarOutage ?? lightningStorm.duration,
+                        affects: settings.radarOutageAffects ?? "enemies",
+                        deferment: e.ares?.swDeferment ?? lightningStorm.deferment,
+                    };
                     break;
+                }
                 case SuperWeaponType.IronCurtain:
                     t.push(new IronCurtainEffect(o, i, s));
                     break;
                 case SuperWeaponType.ChronoSphere:
                     if (!a) {
                         if (!this.chronoSphereSources.has(i)) {
-                            throw new Error("Missing tile2 action param");
+                            // Non-click activators can reach this path without a
+                            // recorded source; drop the action instead of
+                            // aborting deterministic tick processing.
+                            console.warn("Missing tile2 action param; ChronoSphere activation dropped");
+                            break;
                         }
                         // A first-stage ChronoSphere activation only records
                         // its source. The existing two-click UI supplies
@@ -587,6 +748,7 @@ export class SuperWeaponsTrait {
                         break;
                     }
                     t.push(new ChronoSphereEffect(o, i, s, a, e.ares?.swRange, {
+                        affectsHouse: e.ares?.swAffectsHouse,
                         affectedTargets: e.ares?.swAffectsTarget,
                         reconsiderBuildings: e.ares?.chronosphereReconsiderBuildings,
                         killOrganic: e.ares?.chronosphereKillOrganic,
@@ -599,7 +761,7 @@ export class SuperWeaponsTrait {
                     }));
                     break;
                 case SuperWeaponType.PsychicDominator:
-                    t.push(new PsychicDominatorEffect(o, i, s, e.ares?.swDeferment, e.ares?.swRange));
+                    t.push(new PsychicDominatorEffect(o, i, s, e.ares?.swDeferment, e.ares?.swRange, e.ares));
                     break;
                 case SuperWeaponType.GeneticConverter:
                     t.push(new GeneticConverterEffect(o, i, s, e.range, e.ares?.swRange));
@@ -608,7 +770,7 @@ export class SuperWeaponsTrait {
                     t.push(new PsychicRevealEffect(o, i, s, e.ares?.swRange));
                     break;
                 case SuperWeaponType.ForceShield:
-                    t.push(new ForceShieldEffect(o, i, s, e.ares?.swRange));
+                    t.push(new ForceShieldEffect(o, i, s, e.ares?.swRange, e.ares));
                     break;
                 case SuperWeaponType.SpyPlane:
                     t.push(new SpyPlaneEffect(o, i, s));
@@ -618,7 +780,15 @@ export class SuperWeaponsTrait {
                 this.addEffect(d, e, n);
             }
             r.traits.filter(NotifySuperWeaponActivate).forEach((e) => {
-                e[NotifySuperWeaponActivate.onActivate](eventType, i, r, s, a);
+                e[NotifySuperWeaponActivate.onActivate](
+                    eventType,
+                    i,
+                    r,
+                    s,
+                    a,
+                    lightningStormRadarOutage,
+                    lightningStormEffect,
+                );
             });
             r.events.dispatch(new SuperWeaponActivateEvent(eventType, i, s, a, n, e));
         }

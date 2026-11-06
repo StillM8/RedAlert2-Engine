@@ -8,10 +8,42 @@ import {
     sortAresSplitCandidates,
     shouldRetargetAresSplit,
     resolveAresRangedTravel,
+    traceAresWaveCells,
 } from "@/extensions/ares/AresProjectileExtensions";
 import { ProjectileRules } from "@/game/rules/ProjectileRules";
 import { Projectile } from "@/game/gameobject/Projectile";
+import { Vector3 } from "@/game/math/Vector3";
 import { WeaponRules } from "@/game/rules/WeaponRules";
+
+function applyBallisticScatter(
+    rules: Record<string, any>,
+    randomValues: number[],
+    angles: number[],
+    range: number = 10,
+    distance: number = 10,
+): Vector3 {
+    const projectile = Object.create(Projectile.prototype) as any;
+    projectile.rules = {
+        inaccurate: false,
+        arcing: false,
+        flakScatter: false,
+        inviso: false,
+        ballisticScatterMin: undefined,
+        ballisticScatterMax: undefined,
+        ...rules,
+    };
+    projectile.initialSelfPosition = new Vector3();
+    projectile.fromWeapon = { range };
+    const game = {
+        rules: { combatDamage: { ballisticScatter: 4 } },
+        generateRandom: () => randomValues.shift() ?? 0,
+        generateRandomInt: () => angles.shift() ?? 0,
+        map: { tiles: { getByMapCoords: () => ({}) } },
+    };
+    const aimPoint = new Vector3(distance * 256, 0, 0);
+    projectile.adjustAimForBallisticScatter(game, aimPoint);
+    return aimPoint;
+}
 
 describe("Ares projectile Airburst/Splits", () => {
     test("normalizes Antares defaults and explicit projectile extension fields", () => {
@@ -28,6 +60,8 @@ describe("Ares projectile Airburst/Splits", () => {
         section.set("Ranged", "yes");
         section.set("AnimLength", "4");
         section.set("AnimRate", "3");
+        section.set("BallisticScatter.Min", "0.75");
+        section.set("BallisticScatter.Max", "2.5");
         section.set("AttachedSystem", "SpeederShotSys");
 
         const rules = new ProjectileRules(ObjectType.Projectile, section);
@@ -44,6 +78,8 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(rules.ranged).toBe(true);
         expect(rules.animLength).toBe(4);
         expect(rules.animRate).toBe(3);
+        expect(rules.ballisticScatterMin).toBe(0.75);
+        expect(rules.ballisticScatterMax).toBe(2.5);
         expect(rules.attachedSystem).toBe("SpeederShotSys");
     });
 
@@ -63,6 +99,62 @@ describe("Ares projectile Airburst/Splits", () => {
         expect(rules.ranged).toBe(false);
         expect(rules.animLength).toBe(1);
         expect(rules.animRate).toBe(1);
+        expect(rules.ballisticScatterMin).toBeUndefined();
+        expect(rules.ballisticScatterMax).toBeUndefined();
+    });
+
+    test("uses explicit per-projectile ballistic scatter bounds", () => {
+        const aimPoint = applyBallisticScatter({
+            inaccurate: true,
+            arcing: true,
+            ballisticScatterMin: 1,
+            ballisticScatterMax: 3,
+        }, [0.5], [0]);
+
+        expect(aimPoint.x).toBe(12 * 256);
+        expect(aimPoint.z).toBe(0);
+    });
+
+    test("uses documented ballistic scatter defaults when bounds are omitted", () => {
+        expect(applyBallisticScatter({ inaccurate: true, arcing: true }, [0], [0]).x).toBe(12 * 256);
+        expect(applyBallisticScatter({ inaccurate: true, arcing: true, flakScatter: true }, [0.5], [0], 10, 5).x).toBe(6 * 256);
+        expect(applyBallisticScatter({ inaccurate: true, arcing: true, inviso: true }, [0], [0]).x).toBe(12 * 256);
+    });
+
+    test("does not use per-projectile ballistic bounds without Arcing=yes", () => {
+        const aimPoint = applyBallisticScatter({
+            inaccurate: true,
+            arcing: false,
+            ballisticScatterMin: 8,
+            ballisticScatterMax: 10,
+        }, [0.5], [0]);
+
+        expect(aimPoint.x).toBe(12 * 256);
+        expect(aimPoint.z).toBe(0);
+    });
+
+    test("keeps FlakScatter primary scatter separate from Inviso extra scatter", () => {
+        const aimPoint = applyBallisticScatter({
+            inaccurate: true,
+            arcing: true,
+            flakScatter: true,
+            inviso: true,
+            ballisticScatterMin: 1,
+            ballisticScatterMax: 2,
+        }, [0, 1], [0, 90]);
+
+        expect(aimPoint.x).toBeCloseTo(11 * 256, 5);
+        expect(aimPoint.z).toBeCloseTo(8 * 256, 5);
+    });
+
+    test("applies the range-scaled Inviso extra scatter independently", () => {
+        const aimPoint = applyBallisticScatter({
+            flakScatter: true,
+            inviso: true,
+        }, [1], [0], 10, 5);
+
+        expect(aimPoint.x).toBe(9 * 256);
+        expect(aimPoint.z).toBe(0);
     });
 
     test("Ranged fuel travel is deterministic and ProjectileRange defaults to 390 cells", () => {
@@ -86,6 +178,17 @@ describe("Ares projectile Airburst/Splits", () => {
         explicit.set("ProjectileRange", "12.5");
         expect(new WeaponRules(explicit).projectileRange).toBe(12.5);
         expect(new WeaponRules(new IniSection("DefaultRangedWeapon")).projectileRange).toBe(390);
+    });
+
+    test("traces every wave cell along a fast movement segment once", () => {
+        expect(traceAresWaveCells({ x: 1, z: 1 }, { x: 25, z: 15 }, 10)).toEqual([
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 2, y: 1 },
+        ]);
+        expect(traceAresWaveCells({ x: 4, z: 4 }, { x: 4, z: 4 }, 10)).toEqual([{ x: 0, y: 0 }]);
+        expect(traceAresWaveCells({ x: Number.NaN, z: 0 }, { x: 1, z: 1 }, 10)).toEqual([]);
     });
 
     test("Airburst cell pool is circular, includes the center, and is stable", () => {
@@ -120,6 +223,62 @@ describe("Ares projectile Airburst/Splits", () => {
         ];
         expect(sortAresSplitCandidates(candidates).map(candidate => candidate.id)).toEqual([3, 20]);
         expect(candidates.map(candidate => candidate.id)).toEqual([20, 3]);
+    });
+
+    test("applies fired-weapon ambient damage once per traced object", () => {
+        const projectile = Object.create(Projectile.prototype) as any;
+        projectile.fromPlayer = { id: "source" };
+        projectile.fromObject = { id: 1 };
+        projectile.fromWeapon = {
+            rules: { isSonic: true, ambientDamage: 10 },
+            warhead: {
+                rules: { allowZeroDamage: false },
+                canDamage: () => true,
+                computeDamage: (damage: number) => damage,
+                inflictDamage: (_damage: number, object: any) => {
+                    object.hits++;
+                },
+            },
+        };
+        projectile.veteranDamageMult = 1;
+        projectile.baseDamageMultiplier = 1;
+        projectile.ambientDamageVisitedObjects = new Set();
+        projectile.waveImpactCell = { rx: 2, ry: 0 };
+        const objects = new Map<string, any>();
+        const getObject = (id: string) => {
+            const object = objects.get(id) ?? {
+                id,
+                name: id,
+                owner: projectile.fromPlayer,
+                isSpawned: true,
+                isDestroyed: false,
+                isCrashing: false,
+                isDisposed: false,
+                hits: 0,
+            };
+            objects.set(id, object);
+            return object;
+        };
+        const game = {
+            alliances: { areAllied: () => false },
+            map: {
+                tiles: {
+                    getByMapCoords: (x: number, y: number) => ({ rx: x, ry: y, z: 0 }),
+                },
+                getTileZone: () => "ground",
+                getObjectsOnTile: (tile: any) => {
+                    const object = getObject(`cell-${tile.rx}`);
+                    return [object];
+                },
+            },
+        };
+        const first = getObject("cell-0");
+        const second = getObject("cell-1");
+        const impact = getObject("cell-2");
+        projectile.processWaveAmbientDamage(game, { x: 1, z: 1 }, { x: 700, z: 1 });
+        expect(first.hits).toBe(1);
+        expect(second.hits).toBe(1);
+        expect(impact.hits).toBe(0);
     });
 
     test("runtime creates one child at the impact cell for a half-cell Airburst", () => {

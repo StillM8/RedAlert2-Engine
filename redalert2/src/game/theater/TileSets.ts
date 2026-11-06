@@ -71,12 +71,15 @@ export class TileSets {
         });
         return totalTileCount;
     }
-    public getGeneralValue(key: string): number {
+    public getGeneralValue(key: string, defaultValue?: number): number {
         const generalSection = this.theaterIni.getSection('General');
         if (!generalSection) {
             throw new Error('Missing [General] section in theater ini');
         }
-        return generalSection.getNumber(key);
+        const fallback = defaultValue ?? (key.toLocaleLowerCase("en-US") === "medians" ? 71 : undefined);
+        return fallback === undefined
+            ? generalSection.getNumber(key)
+            : generalSection.getNumber(key, fallback);
     }
     public loadTileData(vfs: any, extension: string): void {
         this.tileSets.length = 0;

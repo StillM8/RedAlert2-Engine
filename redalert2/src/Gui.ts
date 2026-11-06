@@ -353,6 +353,8 @@ export class Gui {
         console.log('[Gui] Video source:', videoSrc);
         const subScreens = new Map<MainMenuScreenType, any>();
         subScreens.set(MainMenuScreenType.Home, HomeScreen);
+        const { CampaignSelectionScreen } = await import('./gui/screen/mainMenu/campaign/CampaignSelectionScreen.js');
+        subScreens.set(MainMenuScreenType.CampaignSelection, CampaignSelectionScreen);
         subScreens.set(MainMenuScreenType.OptionsStorage, StorageScreen);
         const { SkirmishScreen } = await import('./gui/screen/mainMenu/lobby/SkirmishScreen.js');
         subScreens.set(MainMenuScreenType.Skirmish, SkirmishScreen);

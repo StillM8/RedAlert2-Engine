@@ -27,6 +27,7 @@ interface WarheadDetonateEvent {
         };
     };
     isLightningStrike?: boolean;
+    rippleRadius?: number;
 }
 export class WarheadDetonateFxHandler {
     private game: Game;
@@ -47,6 +48,12 @@ export class WarheadDetonateFxHandler {
                         position = new THREE.Vector3(getRandomInt(-offset, offset), 0, getRandomInt(-offset, offset)).add(position);
                     }
                     anim.setPosition(position);
+                });
+            }
+            if (typeof event.rippleRadius === 'number' && event.rippleRadius !== 0) {
+                this.renderableManager.createTransientAnim('IONRING', (anim) => {
+                    anim.rippleRadius = event.rippleRadius;
+                    anim.setPosition(event.position.clone());
                 });
             }
             if (event.isLightningStrike) {

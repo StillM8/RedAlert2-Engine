@@ -5,6 +5,7 @@ import { Engine } from "@/engine/Engine";
 import { TileSets } from "@/game/theater/TileSets";
 import { TheaterType } from "@/engine/TheaterType";
 import { ObjectType } from "@/engine/type/ObjectType";
+import { getCampaignSession, isCampaignGameOpts } from "@/game/gameopts/GameOpts";
 interface BuildingRule {
     undeploysInto?: string;
 }
@@ -13,13 +14,18 @@ interface TechnoRule {
     deploysInto?: string;
 }
 export class MapSupport {
-    static check(map: MapFile, translator: Strings): string | undefined {
+    static check(map: MapFile, translator: Strings, gameOpts?: unknown): string | undefined {
         const hasReference = (value: string | undefined): value is string =>
             !!value && value.toLowerCase() !== "none";
+        const campaign = Boolean(map.isCampaign || map.player || isCampaignGameOpts(gameOpts));
+        const campaignError = campaign ? validateCampaignMapSupport(map, translator, getCampaignSession(gameOpts)) : undefined;
+        if (campaignError) {
+            return campaignError;
+        }
         if (map.iniFormat < 4) {
             return translator.get("TS:MapUnsupportedGame");
         }
-        if (map.startingLocations.length < 2) {
+        if (!campaign && map.startingLocations.length < 2) {
             return translator.get("TXT_SCENARIO_TOO_SMALL", map.startingLocations.length);
         }
         if (!Engine.supportsTheater(map.theaterType)) {
@@ -103,4 +109,34 @@ export class MapSupport {
         }
         return undefined;
     }
+}
+export function validateCampaignMapSupport(map: MapFile, translator: Strings, session?: { playerHouse?: string }): string | undefined {
+    const houses = map.houses ?? [];
+    const basicPlayer = String(map.player ?? "").trim();
+    const controlled = houses.filter((house) => house.playerControl);
+    const normalizedBasic = basicPlayer.toLocaleLowerCase("en-US");
+    const basicIndex = /^\d+$/.test(basicPlayer) ? Number(basicPlayer) : undefined;
+    const basicHouse = basicPlayer
+        ? houses.find((house) =>
+            house.name.toLocaleLowerCase("en-US") === normalizedBasic ||
+            house.sectionName.toLocaleLowerCase("en-US") === normalizedBasic ||
+            house.index === basicIndex)
+        : undefined;
+    const requestedHouse = session?.playerHouse
+        ? houses.find((house) => {
+            const requested = session.playerHouse!.toLocaleLowerCase("en-US");
+            return house.name.toLocaleLowerCase("en-US") === requested ||
+                house.sectionName.toLocaleLowerCase("en-US") === requested ||
+                house.country?.toLocaleLowerCase("en-US") === requested;
+        })
+        : undefined;
+    const humanHouses = controlled.length ? controlled : basicHouse ? [basicHouse] : requestedHouse ? [requestedHouse] : [];
+    if (humanHouses.length !== 1) {
+        return translator.get("TS:MapCampaignRequiresOneHuman");
+    }
+    const home = map.getHomeLocation(false) ?? map.getHomeLocation(true);
+    if (!home) {
+        return translator.get("TXT_SCENARIO_TOO_SMALL", 0);
+    }
+    return undefined;
 }

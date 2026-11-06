@@ -1,44 +1,37 @@
 import { ObjectType } from "@/engine/type/ObjectType";
 import { EventType } from "@/game/event/EventType";
+import { resolveHousePlayer } from "@/game/trigger/HouseReference";
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class DestroyedAllUnitsCondition extends TriggerCondition {
-    private allDestroyed: boolean;
-    private houseId: number;
-    constructor(params: any[], trigger: any) {
-        super(params, trigger);
-        this.allDestroyed = false;
-        this.houseId = Number(params[1]);
+    private allDestroyed = false;
+    private readonly houseReference: unknown;
+
+    constructor(event: any, trigger: any) {
+        super(event, trigger);
+        this.houseReference = event.params[1];
     }
-    check(events: any[], context: any): boolean {
+
+    check(context: any, events: any[]): boolean {
         if (this.allDestroyed) {
             return true;
         }
-        const hasDestroyedAll = events.some((event) => {
+        const owner = resolveHousePlayer(context, this.houseReference);
+        if (!owner) {
+            return false;
+        }
+        this.allDestroyed = events.some((event) => {
             if (event.type !== EventType.ObjectDestroy) {
                 return false;
             }
             const target = event.target;
-            if (!target.isUnit() || target.owner.country?.id !== this.houseId) {
-                return false;
-            }
-            return !this.hasUnitsLeft(target.owner);
+            return target.isUnit() && target.owner === owner && !this.hasUnitsLeft(owner);
         });
-        if (hasDestroyedAll) {
-            this.allDestroyed = true;
-        }
-        return hasDestroyedAll;
+        return this.allDestroyed;
     }
+
     private hasUnitsLeft(owner: any): boolean {
-        const unitTypes = [
-            ObjectType.Aircraft,
-            ObjectType.Vehicle,
-            ObjectType.Infantry,
-        ];
-        for (const type of unitTypes) {
-            if (owner.getOwnedObjectsByType(type, true).length) {
-                return true;
-            }
-        }
-        return false;
+        return [ObjectType.Aircraft, ObjectType.Vehicle, ObjectType.Infantry]
+            .some((type) => owner.getOwnedObjectsByType(type, true).length > 0);
     }
 }

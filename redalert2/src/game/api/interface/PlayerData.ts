@@ -6,6 +6,7 @@ export interface PlayerData {
     isAi: boolean;
     isCombatant: boolean;
     credits: number;
+    aiTriggersEnabled?: boolean;
     power: {
         total: number;
         drain: number;

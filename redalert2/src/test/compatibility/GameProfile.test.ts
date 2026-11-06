@@ -79,7 +79,12 @@ describe('GameProfile detection', () => {
         expect(getGameProfile('mental-omega').multiplayerMapListFiles).toEqual([
             'INI/MentalOmegaMaps.ini',
         ]);
-        expect(getGameProfile('mental-omega').nonMultiplayerMapRoots).toEqual(['MissionsMO']);
+        expect(getGameProfile('mental-omega').nonMultiplayerMapRoots).toEqual([
+            'MissionsMO',
+            'Campaign',
+            'Campaigns',
+            'Missions',
+        ]);
         expect(getGameProfile('mental-omega').resolveCanonicalFile('rules.ini')).toBe('rulesmo.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('ui.ini')).toBe('uimd.ini');
         expect(getGameProfile('mental-omega').resolveCanonicalFile('eva.ini')).toBe('evamo.ini');
@@ -98,6 +103,26 @@ describe('GameProfile detection', () => {
         expect(detectContentProfile([
             'rules.ini', 'art.ini', 'expand02.mix',
         ])).toBe('ra2');
+    });
+
+    test('detects campaign signatures and retail aliases', () => {
+        expect(detectContentProfile(['package/missionmo.ini'])).toBe('mental-omega');
+        expect(detectContentProfile(['package/mapselmo.ini'])).toBe('mental-omega');
+        expect(detectContentProfile(['package/INI/BattleClient07.ini'])).toBe('mental-omega');
+        expect(detectContentProfile(['package/missionsmo.mix'])).toBe('mental-omega');
+        expect(detectContentProfile(['package/Campaigns/Chapter01/mission.map'])).toBe('mental-omega');
+        expect(detectContentProfile(['battle.ini'])).toBe('ra2');
+        expect(detectContentProfile(['battlemd.ini'])).toBe('yr');
+        expect(detectContentProfile(['mission.ini'])).toBe('ra2');
+        expect(detectContentProfile(['missionmd.ini'])).toBe('yr');
+        expect(detectContentProfile(['mapsel01.ini'])).toBe('ra2');
+        expect(detectContentProfile(['mapselmd.ini'])).toBe('yr');
+        expect(getGameProfile('yr').resolveCanonicalFile('mission.ini')).toBe('missionmd.ini');
+        expect(getGameProfile('mental-omega').resolveCanonicalFile('mission.ini')).toBe('missionmo.ini');
+        expect(getGameProfile('mental-omega').resolveCanonicalFile('battlemd.ini')).toBe('battlemo.ini');
+        expect(getGameProfile('mental-omega').resolveCanonicalFile('battlemd.ini', () => false)).toBe('battlemd.ini');
+        expect(getGameProfile('mental-omega').resolveCanonicalFile('INI/BattleClient01.ini')).toBe('INI/BattleClient01.ini');
+        expect(getGameProfile('yr').resolveCanonicalFile('INI/BattleClient01.ini')).toBe('INI/BattleClient01.ini');
     });
 
     test('validates Mental Omega only when its own content signatures are present', () => {

@@ -10,10 +10,13 @@ export class ParadropTask extends Task {
         this.game = game;
     }
     onTick(e: any): boolean {
-        const fallRate = Math.abs(this.game.rules.general.parachuteMaxFallRate);
-        const bridgeElevation = e.tile.onBridgeLandType
-            ? this.game.map.tileOccupation.getBridgeOnTile(e.tile).tileElevation
-            : 0;
+        const fallRate = Math.abs(e.parachuteAnimationFinished === true
+            ? this.game.rules.general.noParachuteMaxFallRate
+            : this.game.rules.general.parachuteMaxFallRate);
+        const bridge = e.tile.onBridgeLandType
+            ? this.game.map.tileOccupation.getBridgeOnTile(e.tile)
+            : undefined;
+        const bridgeElevation = bridge?.tileElevation ?? 0;
         const bridgeHeight = Coords.tileHeightToWorld(bridgeElevation);
         const currentElevation = e.tileElevation;
         const currentHeight = Coords.tileHeightToWorld(currentElevation);
@@ -23,9 +26,15 @@ export class ParadropTask extends Task {
             return false;
         }
         e.position.tileElevation = bridgeElevation;
-        e.stance = StanceType.None;
-        if (!this.game.map.terrain.getPassableSpeed(e.tile, e.rules.speedType, e.isInfantry(), e.onBridge)) {
-            e.infDeathType = InfDeathType.None;
+        e.onBridge = !!bridge;
+        e.zone = this.game.map.getTileZone(e.tile, !e.onBridge);
+        if (e.isInfantry?.() === true) {
+            e.stance = StanceType.None;
+        }
+        if (!this.game.map.terrain.getPassableSpeed(e.tile, e.rules.speedType, e.isInfantry?.() === true, e.onBridge)) {
+            if (e.isInfantry?.() === true) {
+                e.infDeathType = InfDeathType.None;
+            }
             this.game.destroyObject(e, undefined, true);
         }
         return true;

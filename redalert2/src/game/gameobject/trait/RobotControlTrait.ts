@@ -12,6 +12,22 @@ export class RobotControlTrait implements NotifyTick {
     constructor(gameObject: any) {
         this.gameObject = gameObject;
     }
+    captureState(): Record<string, unknown> {
+        return { version: 1, offline: this.offline, ticksUntilCheck: this.ticksUntilCheck };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            typeof (state as any).offline !== "boolean" || !Number.isSafeInteger((state as any).ticksUntilCheck) ||
+            (state as any).ticksUntilCheck < 0) {
+            throw new Error("Invalid robot control state");
+        }
+        this.offline = (state as any).offline;
+        this.ticksUntilCheck = (state as any).ticksUntilCheck;
+        if (this.offline) {
+            this.gameObject.moveTrait?.setDisabled(true);
+            this.gameObject.attackTrait?.setDisabled(true);
+        }
+    }
     isOffline(): boolean {
         return this.offline;
     }

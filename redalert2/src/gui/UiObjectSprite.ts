@@ -9,10 +9,12 @@ export class UiObjectSprite extends UiObject {
     private initialTransparency?: boolean;
     private initialOpacity?: number;
     private initialLightMult?: number;
-    static fromShpFile(shpFile: ShpFile, palette: Palette, camera: THREE.Camera): UiObjectSprite {
+    static fromShpFile(shpFile: ShpFile, palette: Palette, camera: THREE.Camera, batched: boolean = true): UiObjectSprite {
         const builder = new ShpBuilder(shpFile, palette, camera);
-        builder.setBatched(true);
-        builder.setBatchPalettes([palette]);
+        builder.setBatched(batched);
+        if (batched) {
+            builder.setBatchPalettes([palette]);
+        }
         builder.setOffset({
             x: Math.floor(shpFile.width / 2),
             y: Math.floor(shpFile.height / 2)
@@ -46,6 +48,9 @@ export class UiObjectSprite extends UiObject {
     }
     setFrame(frame: number): void {
         this.builder.setFrame(frame);
+    }
+    setPalette(palette: Palette): void {
+        this.builder.setPalette(palette);
     }
     getFrame(): number {
         return this.builder.getFrame();

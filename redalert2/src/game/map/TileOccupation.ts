@@ -2,6 +2,7 @@ import { LandType, getLandType } from '@/game/type/LandType';
 import { EventDispatcher } from '@/util/event';
 import { ZoneType, getZoneType } from '@/game/gameobject/unit/ZoneType';
 import { getFoundationCells } from '@/game/art/Foundation';
+import { isLaserFenceActive, isLaserFenceArt } from '@/extensions/ares/AresLaserFences';
 export enum LayerType {
     All = 0,
     Ground = 1,
@@ -45,6 +46,19 @@ export class TileOccupation {
             type: 'removed'
         });
     }
+    refreshTile(tile: any, object?: any): void {
+        if (!tile) return;
+        tile.landType = this.computeTileLandType(tile);
+        tile.onBridgeLandType = this.computeOnBridgeLandType(tile);
+        if (object) {
+            this._onChange.dispatch(this, {
+                tiles: [tile],
+                object,
+                type: 'refreshed',
+            });
+        }
+    }
+
     occupySingleTile(tile: any, obj: any) {
         this.occupyTile(tile, obj);
         this._onChange.dispatch(this, {
@@ -95,7 +109,8 @@ export class TileOccupation {
             return LandType.Rock;
         const baseLandType = getLandType(tile.terrainType);
         for (const obj of this.tileOccupation[tile.rx]?.[tile.ry] ?? []) {
-            if ((obj.isOverlay() || obj.isBuilding()) && obj.rules.wall) {
+            if ((obj.isOverlay() || obj.isBuilding()) && obj.rules.wall &&
+                (!isLaserFenceArt(obj) || isLaserFenceActive(obj))) {
                 return LandType.Wall;
             }
             if (obj.isOverlay() && obj.isTiberium()) {

@@ -1,38 +1,116 @@
 import { Coords } from "@/game/Coords";
 import { fnv32aStrings } from "@/util/math";
 import { CollisionType } from "@/game/gameobject/unit/CollisionType";
-import { RadialTileFinder } from "@/game/map/tileFinder/RadialTileFinder";
 import { TriggerAnimEvent } from "@/game/event/TriggerAnimEvent";
 import { Warhead } from "@/game/Warhead";
 import { SuperWeaponEffect } from "@/game/superweapon/SuperWeaponEffect";
 import type { Game } from "@/game/Game";
+import type { AresSuperWeaponDefinition } from "@/extensions/ares/AresSuperWeapons";
+import { createAresSuperWeaponTargetFilter } from "@/extensions/ares/AresSuperWeaponFilters";
 import {
     isAresSuperWeaponInRange,
     resolveAresSuperWeaponRange,
 } from "@/game/superweapon/AresSuperWeaponRange";
 
-// The psychic storm builds above the target for a moment before the blast
-// lands (~3s at the base 15 ticks/s).
 const DEFERMENT_TICKS = 45;
-// Dominated units shrug off the accompanying blast.
 const BLAST_SHIELD_TICKS = 30;
+const DEFAULT_FIRE_PERCENTAGE = 20;
 
 function normalizeDeferment(value: number | undefined): number {
     return Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
 }
 
-/**
- * Yuri's Psychic Dominator: a warhead blast at the epicenter plus permanent
- * capture of every non-psionic-immune unit around it. Tuning comes from the
- * retail [General] Dominator* keys.
- */
+function finiteOr(value: number | undefined, fallback: number): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function generalNumber(game: Game, key: string, fallback: number): number {
+    const rules = game.rules as any;
+    const modeled = rules?.general?.[key];
+    if (typeof modeled === "number" && Number.isFinite(modeled)) return modeled;
+    const section = rules?.ini?.getSection?.("General");
+    const authored = section?.getNumber?.(key, fallback);
+    return typeof authored === "number" && Number.isFinite(authored) ? authored : fallback;
+}
+
+function generalString(game: Game, key: string, fallback: string): string {
+    const rules = game.rules as any;
+    const modeled = rules?.general?.[key];
+    if (typeof modeled === "string" && modeled.trim()) return modeled;
+    const section = rules?.ini?.getSection?.("General");
+    const authored = section?.getString?.(key, "");
+    return typeof authored === "string" && authored.trim() ? authored : fallback;
+}
+
+function combatDamageString(game: Game, key: string): string {
+    const rules = game.rules as any;
+    const modeled = rules?.combatDamage?.[key];
+    if (typeof modeled === "string" && modeled.trim()) return modeled;
+    const section = rules?.ini?.getSection?.("CombatDamage");
+    const authored = section?.getString?.(key, "");
+    return typeof authored === "string" ? authored : "";
+}
+
+function animationName(authored: string | undefined, fallback: string): string | undefined {
+    const value = authored === undefined ? fallback : authored.trim();
+    if (!value || /^(?:none|null)$/i.test(value)) return undefined;
+    return value;
+}
+
+function isTechno(object: any): boolean {
+    return object?.isTechno?.() === true ||
+        object?.isUnit?.() === true ||
+        object?.isBuilding?.() === true;
+}
+
+export function resolvePsychicDominatorFireDelay(
+    game: Game,
+    settings?: AresSuperWeaponDefinition,
+): number {
+    const percentage = finiteOr(
+        settings?.dominatorFireAtPercentage,
+        generalNumber(game, "dominatorFireAtPercentage", DEFAULT_FIRE_PERCENTAGE),
+    );
+    return normalizeDeferment(Math.round(DEFERMENT_TICKS * percentage / DEFAULT_FIRE_PERCENTAGE));
+}
+
 export class PsychicDominatorEffect extends SuperWeaponEffect {
     private ticksLeft = DEFERMENT_TICKS;
     private initialDeferment: number;
     private readonly superWeaponRange?: readonly number[];
+    private readonly settings?: AresSuperWeaponDefinition;
+    private configured = false;
+    private firstAnim?: string;
+    private firstAnimHeight = 750;
+    private secondAnim?: string;
+    private secondAnimHeight = 0;
+    private controlAnim?: string;
+    private capture = true;
+    private ripple = true;
+    private captureMindControlled = true;
+    private capturePermaMindControlled = true;
+    private captureImmuneToPsionics = false;
+    private permanentCapture = true;
+
     getHash(): number {
-        // The countdown decides the detonation tick.
-        return fnv32aStrings(["PsychicDominatorEffect", super.getHash(), this.ticksLeft]);
+        return fnv32aStrings([
+            "PsychicDominatorEffect",
+            super.getHash(),
+            this.initialDeferment,
+            this.ticksLeft,
+            this.configured ? 1 : 0,
+            this.firstAnim ?? "",
+            this.firstAnimHeight,
+            this.secondAnim ?? "",
+            this.secondAnimHeight,
+            this.controlAnim ?? "",
+            this.capture ? 1 : 0,
+            this.ripple ? 1 : 0,
+            this.captureMindControlled ? 1 : 0,
+            this.capturePermaMindControlled ? 1 : 0,
+            this.captureImmuneToPsionics ? 1 : 0,
+            this.permanentCapture ? 1 : 0,
+        ]);
     }
 
     constructor(
@@ -41,35 +119,37 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
         tile: any,
         superWeaponDeferment?: number,
         superWeaponRange?: readonly number[],
+        settings?: AresSuperWeaponDefinition,
     ) {
         super(type, owner, tile);
         this.initialDeferment = normalizeDeferment(superWeaponDeferment);
-        this.superWeaponRange = superWeaponRange?.slice();
+        this.superWeaponRange = (superWeaponRange ?? settings?.swRange)?.slice();
+        this.settings = settings;
     }
 
     onStart(game: Game): void {
+        this.configure(game);
         if (this.initialDeferment <= 0) {
-            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile, undefined, this.owner));
+            this.playFirstAnimation(game);
         }
     }
 
     onTick(game: Game): boolean {
+        this.configure(game);
         if (this.initialDeferment > 0) {
             this.initialDeferment--;
             if (this.initialDeferment > 0) {
                 return false;
             }
-            // The Ares deferment is before the first Dominator animation; the
-            // existing 45-tick counter remains the retail animation/build-up
-            // timing after that animation has been created.
-            game.events.dispatch(new TriggerAnimEvent("PDFXCLD", this.tile, undefined, this.owner));
+            this.playFirstAnimation(game);
         }
         if (this.ticksLeft-- > 0) {
             return false;
         }
-        game.events.dispatch(new TriggerAnimEvent("PDFXLOC", this.tile, undefined, this.owner));
-        // Retail dominates first: the newly captured units visibly survive
-        // the blast that levels everything else around them.
+        this.playSecondAnimation(game);
+        if (this.ripple) {
+            this.playAnimation(game, "IONRING", 0);
+        }
         const captured = this.captureUnits(game);
         for (const object of captured) {
             object.invulnerableTrait?.setActiveFor(BLAST_SHIELD_TICKS, game.currentTick);
@@ -78,10 +158,74 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
         return true;
     }
 
+    private configure(game: Game): void {
+        if (this.configured) return;
+        this.configured = true;
+        this.firstAnim = animationName(
+            this.settings?.dominatorFirstAnim,
+            generalString(game, "dominatorFirstAnim", "PDFXCLD"),
+        );
+        this.firstAnimHeight = finiteOr(
+            this.settings?.dominatorFirstAnimHeight,
+            750,
+        );
+        this.secondAnim = animationName(
+            this.settings?.dominatorSecondAnim,
+            generalString(game, "dominatorSecondAnim", "PDFXLOC"),
+        );
+        this.secondAnimHeight = finiteOr(
+            this.settings?.dominatorSecondAnimHeight,
+            0,
+        );
+        this.controlAnim = animationName(
+            this.settings?.dominatorControlAnim,
+            combatDamageString(game, "permaControlledAnimationType"),
+        );
+        this.capture = this.settings?.dominatorCapture ?? true;
+        this.ripple = this.settings?.dominatorRipple ?? true;
+        this.captureMindControlled = this.settings?.dominatorCaptureMindControlled ?? true;
+        this.capturePermaMindControlled = this.settings?.dominatorCapturePermaMindControlled ?? true;
+        this.captureImmuneToPsionics = this.settings?.dominatorCaptureImmuneToPsionics ?? false;
+        this.permanentCapture = this.settings?.dominatorPermanentCapture ?? true;
+        this.ticksLeft = this.firstAnim
+            ? resolvePsychicDominatorFireDelay(game, this.settings)
+            : 0;
+    }
+
+    private playFirstAnimation(game: Game): void {
+        if (this.firstAnim) {
+            this.playAnimation(game, this.firstAnim, this.firstAnimHeight);
+        }
+    }
+
+    private playSecondAnimation(game: Game): void {
+        if (this.secondAnim) {
+            this.playAnimation(game, this.secondAnim, this.secondAnimHeight);
+        }
+    }
+
+    private playAnimation(game: Game, name: string, height: number): void {
+        const bridge = game.map?.tileOccupation?.getBridgeOnTile?.(this.tile);
+        const elevation = bridge?.tileElevation ?? 0;
+        const position = Coords.tile3dToWorld(
+            this.tile.rx + 0.5,
+            this.tile.ry + 0.5,
+            (this.tile.z ?? 0) + elevation + height,
+        );
+        game.events.dispatch(new TriggerAnimEvent(name, this.tile, position, this.owner));
+    }
+
     private detonate(game: Game): void {
-        const general = (game.rules as any).ini.getSection("General");
-        const warheadName = general?.getString("DominatorWarhead") || "DominatorWH";
-        const damage = general?.getNumber("DominatorDamage", 1000) ?? 1000;
+        const damage = finiteOr(
+            this.settings?.swDamage,
+            generalNumber(game, "dominatorDamage", 1000),
+        );
+        if (damage <= 0) return;
+        const warheadName = animationName(
+            this.settings?.swWarhead,
+            generalString(game, "dominatorWarhead", "DominatorWH"),
+        );
+        if (!warheadName) return;
         let warheadRules;
         try {
             warheadRules = game.rules.getWarhead(warheadName);
@@ -99,49 +243,37 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
     }
 
     private captureUnits(game: Game): any[] {
-        const general = (game.rules as any).ini.getSection("General");
-        const captureRange = general?.getNumber("DominatorCaptureRange", 1) ?? 1;
+        if (!this.capture) return [];
+        const captureRange = generalNumber(game, "dominatorCaptureRange", 1);
+        const range = resolveAresSuperWeaponRange(this.superWeaponRange, {
+            widthOrRange: captureRange,
+            height: -1,
+        });
+        const canAffect = createAresSuperWeaponTargetFilter(
+            this.settings?.swAffectsHouse ?? "all",
+            this.settings?.swAffectsTarget ?? "infantry,units",
+            this.owner,
+            game as any,
+        );
         const captured: any[] = [];
-
-        // Ares SW.Range selects a rectangle when two values are supplied and
-        // a radius when only one is supplied. Keep the retail radial finder
-        // below for definitions without the extension so vanilla behavior is
-        // unchanged.
-        if (this.superWeaponRange !== undefined) {
-            const range = resolveAresSuperWeaponRange(this.superWeaponRange, {
-                widthOrRange: captureRange,
-                height: -1,
-            });
-            for (const object of (game as any).getWorld().getAllObjects()) {
-                if (!object.isUnit() ||
-                    object.isDestroyed ||
-                    object.owner === this.owner ||
-                    object.rules.immuneToPsionics ||
-                    object.rules.slaved ||
-                    object.rules.missileSpawn ||
-                    !isAresSuperWeaponInRange(this.tile, object, range, (game as any).map.tileOccupation)) {
-                    continue;
-                }
-                this.captureUnit(game, object, captured);
+        for (const object of game.getWorld().getAllObjects()) {
+            if (!isTechno(object) ||
+                object.isDestroyed ||
+                object.rules.immuneToPsionics && !this.captureImmuneToPsionics ||
+                object.rules.slaved ||
+                object.rules.missileSpawn ||
+                !canAffect(object, object.tile) ||
+                !isAresSuperWeaponInRange(this.tile, object, range, game.map.tileOccupation)) {
+                continue;
             }
-            return captured;
-        }
-
-        const tileFinder = new RadialTileFinder(game.map.tiles, game.map.mapBounds, this.tile, { width: 1, height: 1 }, 0, Math.max(0, Math.ceil(captureRange)), () => true);
-        let tile;
-        while ((tile = tileFinder.getNextTile())) {
-            for (const object of game.map.getGroundObjectsOnTile(tile)) {
-                if (!object.isUnit() ||
-                    object.tile !== tile ||
-                    object.isDestroyed ||
-                    object.owner === this.owner ||
-                    object.rules.immuneToPsionics ||
-                    object.rules.slaved ||
-                    object.rules.missileSpawn) {
-                    continue;
-                }
-                this.captureUnit(game, object, captured);
+            const controllable = object.mindControllableTrait;
+            if (controllable?.isPermanent?.()) {
+                if (!this.capturePermaMindControlled) continue;
             }
+            else if (controllable?.isActive?.() && !this.captureMindControlled) {
+                continue;
+            }
+            this.captureUnit(game, object, captured);
         }
         return captured;
     }
@@ -151,8 +283,9 @@ export class PsychicDominatorEffect extends SuperWeaponEffect {
         if (controllable?.isActive()) {
             controllable.getController()?.mindControllerTrait?.cleanTarget(object);
         }
-        controllable?.makePermanent();
+        controllable?.makePermanent(this.permanentCapture);
         game.changeObjectOwner(object, this.owner);
+        object.dominatorControlAnimation = this.permanentCapture ? this.controlAnim : undefined;
         captured.push(object);
     }
 }

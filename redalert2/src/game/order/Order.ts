@@ -20,6 +20,16 @@ export abstract class Order {
         this.target = target;
         return this;
     }
+    /**
+     * Constructor flags that `orderType` alone does not determine. For example
+     * `PlaceBomb` and `Attack` both construct an `AttackOrder` and both report
+     * `OrderType.Attack`, but they differ in whether an Ivan bomb may be used,
+     * so the type number alone cannot round-trip. Subclasses override this with
+     * their own scalar flags; the base contributes nothing.
+     */
+    captureState(): Record<string, unknown> {
+        return {};
+    }
     isValid(): boolean {
         return true;
     }

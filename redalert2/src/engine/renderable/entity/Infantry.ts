@@ -25,12 +25,14 @@ import { ExtraLightHelper } from "@/engine/renderable/entity/unit/ExtraLightHelp
 import { DebugRenderable } from "@/engine/renderable/DebugRenderable";
 import { MathUtils } from "@/engine/gfx/MathUtils";
 import { resolveAresParachuteAnim } from "@/extensions/ares/AresTechnoExtensions";
+import { AlphaRenderable } from "@/engine/renderable/AlphaRenderable";
 export class Infantry {
     private gameObject: any;
     private rules: any;
     private art: any;
     private imageFinder: any;
     private palette: any;
+    private unitPalette: any;
     private camera: any;
     private lighting: any;
     private debugFrame: any;
@@ -62,6 +64,7 @@ export class Infantry {
     private currentSequenceParams: any;
     private sequenceQueue: any[] = [];
     private renderableManager: any;
+    private alphaRenderable?: AlphaRenderable;
     private ambientSound: any;
     private deathPromiseResolve: (() => void) | undefined;
     private deathAnimRenderable: any;
@@ -90,6 +93,7 @@ export class Infantry {
         this.art = art;
         this.imageFinder = imageFinder;
         this.palette = palette;
+        this.unitPalette = theater.unitPalette ?? palette;
         this.camera = camera;
         this.lighting = lighting;
         this.debugFrame = debugFrame;
@@ -141,6 +145,31 @@ export class Infantry {
         const override = this.plugins.reduce((name, plugin) => plugin.getUiNameOverride?.() ?? name, undefined);
         return override !== undefined ? override : this.gameObject.getUiName();
     }
+    private createAlphaImage(parent: THREE.Object3D): void {
+        const imageName = this.gameObject.rules.alphaImage;
+        if (!imageName) return;
+        const image = this.imageFinder.tryFind?.(imageName, false);
+        if (!image) {
+            console.warn(`<${this.gameObject.name}>: Alpha image "${imageName}" not found`);
+            return;
+        }
+        this.alphaRenderable = new AlphaRenderable(image, this.camera, new THREE.Vector2(0, (Coords.ISO_TILE_SIZE + 1) / 2));
+        this.alphaRenderable.create3DObject();
+        const object = this.alphaRenderable.get3DObject();
+        if (object) parent.add(object);
+        this.updateAlphaImage(this.gameObject.direction ?? 0);
+    }
+    private updateAlphaImage(direction: number): void {
+        this.alphaRenderable?.setFacing(direction);
+        this.alphaRenderable?.setVisible(
+            !this.gameObject.isDestroyed &&
+            !this.gameObject.deactivated &&
+            !this.gameObject.warpedOutTrait?.isActive?.() &&
+            !this.gameObject.cloakableTrait?.isCloaked?.() &&
+            !this.gameObject.disguiseTrait?.isDisguised?.() &&
+            (this.gameObject.tileElevation ?? 0) >= 0,
+        );
+    }
     create3DObject(): void {
         let obj = this.get3DObject();
         if (!obj) {
@@ -152,6 +181,7 @@ export class Infantry {
             this.withPosition.matrixUpdate = true;
             this.withPosition.applyTo(this);
             this.createObjects(obj);
+            this.createAlphaImage(obj);
             this.updateBridgeRenderOrder();
             this.shpRenderable?.setExtraLight(this.extraLight);
             if (this.pipOverlay) {
@@ -179,6 +209,7 @@ export class Infantry {
     }
     update(deltaTime: number): void {
         this.plugins.forEach((plugin) => plugin.update(deltaTime));
+        this.updateAlphaImage(this.computedDirection ?? this.gameObject.direction ?? 0);
         const { zone, stance, isCrashing, isMoving, isFiring, isPanicked, owner, veteranLevel, } = this.gameObject;
         this.pipOverlay?.update(deltaTime);
         this.updateBridgeRenderOrder();
@@ -366,7 +397,8 @@ export class Infantry {
                     owner.country?.parachuteAnim,
                     owner.country?.sideDefinition?.parachuteAnim,
                 );
-                this.paradropAnim = this.renderableManager.createAnim(parachuteArt, undefined, true);
+                this.gameObject.parachuteAnimationFinished = false;
+                this.paradropAnim = this.renderableManager.createAnim(parachuteArt, undefined, true, this.unitPalette);
                 this.paradropAnim.remapColor(owner.color);
                 this.paradropAnim.create3DObject();
                 this.paradropAnim.get3DObject().position.y = Coords.tileHeightToWorld(1);
@@ -386,6 +418,7 @@ export class Infantry {
         if (this.paradropAnim) {
             this.paradropAnim.update(deltaTime);
             if (this.paradropAnim.isAnimFinished()) {
+                this.gameObject.parachuteAnimationFinished = true;
                 this.posWrap.remove(this.paradropAnim.get3DObject());
                 this.paradropAnim = undefined;
             }
@@ -592,6 +625,9 @@ export class Infantry {
         this.renderableManager = undefined;
         this.plugins.forEach((plugin) => plugin.onRemove(renderableManager));
         this.ambientSound?.stop();
+        if (this.gameObject.aresMakeInfantryAnimationHandled) {
+            return;
+        }
         if (this.gameObject.isDestroyed &&
             this.gameObject.deathType !== DeathType.Temporal &&
             this.gameObject.deathType !== DeathType.Crush &&
@@ -613,7 +649,14 @@ export class Infantry {
             else {
                 if (!this.gameObject.rules.isHuman)
                     return;
-                const deathAnim = sequenceMap.getDeathAnim(this.rules, this.gameObject.infDeathType);
+                const authoredDeathAnims = this.gameObject.rules.deathAnims;
+                const authoredDeathAnim = Array.isArray(authoredDeathAnims)
+                    ? authoredDeathAnims[this.gameObject.infDeathType] ??
+                        (authoredDeathAnims.length === 1 ? authoredDeathAnims[0] : undefined)
+                    : typeof authoredDeathAnims === "string"
+                        ? authoredDeathAnims
+                        : undefined;
+                const deathAnim = authoredDeathAnim ?? sequenceMap.getDeathAnim(this.rules, this.gameObject.infDeathType);
                 if (!deathAnim)
                     return;
                 const animData = this.art.getAnimation(deathAnim);
@@ -641,6 +684,7 @@ export class Infantry {
     }
     dispose(): void {
         this.plugins.forEach((plugin) => plugin.dispose());
+        this.alphaRenderable?.dispose();
         this.pipOverlay?.dispose();
         this.shpRenderable?.dispose();
         this.placeholder?.dispose();

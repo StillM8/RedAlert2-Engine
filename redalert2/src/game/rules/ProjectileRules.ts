@@ -25,6 +25,8 @@ export class ProjectileRules extends ObjectRules {
     public courseLockDuration!: number;
     public detonationAltitude!: number;
     public firersPalette!: boolean;
+    public ballisticScatterMin?: number;
+    public ballisticScatterMax?: number;
     public flakScatter!: boolean;
     public inaccurate!: boolean;
     public inviso!: boolean;
@@ -37,6 +39,7 @@ export class ProjectileRules extends ObjectRules {
     public shrapnelWeapon?: string;
     public shrapnelCount!: number;
     public subjectToCliffs!: boolean;
+    public subjectToBuildings!: boolean;
     /** Ares projectile flag; defaults to being blocked by active Firestorm walls. */
     public subjectToFirestorm!: boolean;
     /** Ares Urban Combat projectile flag; defaults to participating in trenches. */
@@ -79,6 +82,12 @@ export class ProjectileRules extends ObjectRules {
         this.courseLockDuration = this.ini.getNumber("CourseLockDuration");
         this.detonationAltitude = this.ini.getNumber("DetonationAltitude");
         this.firersPalette = this.ini.getBool("FirersPalette");
+        this.ballisticScatterMin = this.ini.has("BallisticScatter.Min")
+            ? this.ini.getNumber("BallisticScatter.Min")
+            : undefined;
+        this.ballisticScatterMax = this.ini.has("BallisticScatter.Max")
+            ? this.ini.getNumber("BallisticScatter.Max")
+            : undefined;
         this.flakScatter = this.ini.getBool("FlakScatter");
         this.inaccurate = this.ini.getBool("Inaccurate");
         this.inviso = this.ini.getBool("Inviso");
@@ -91,6 +100,7 @@ export class ProjectileRules extends ObjectRules {
         this.shrapnelWeapon = this.ini.getString("ShrapnelWeapon") || undefined;
         this.shrapnelCount = this.ini.getNumber("ShrapnelCount");
         this.subjectToCliffs = this.ini.getBool("SubjectToCliffs");
+        this.subjectToBuildings = this.ini.getBool("SubjectToBuildings");
         this.subjectToFirestorm = this.ini.getBool("SubjectToFirestorm", true);
         this.subjectToTrenches = this.ini.getBool("SubjectToTrenches", true);
         this.subjectToElevation = this.ini.getBool("SubjectToElevation");

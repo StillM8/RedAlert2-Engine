@@ -10,6 +10,7 @@ import { OccupationBits } from "@/game/rules/TerrainRules";
 import { MapBounds } from "@/game/map/MapBounds";
 import { Rules } from "@/game/rules/Rules";
 import { getFoundationBlockingCells } from "@/game/art/Foundation";
+import { isLaserFenceActive, isLaserFenceArt } from "@/extensions/ares/AresLaserFences";
 interface GameObject {
     tile: Tile;
     onBridge?: boolean;
@@ -119,6 +120,7 @@ export class Terrain {
                 isInfantry = false;
             }
             return (object.isOverlay() && (object.isBridge() || object.isTiberium())) ||
+                isLaserFenceArt(object) ||
                 this.isBlockerObject(object, tile, false, speedType, isInfantry) ||
                 this.isBlockerObject(object, tile, true, speedType, isInfantry) ||
                 (object.isBuilding() && object.rules.leaveRubble);
@@ -263,6 +265,18 @@ export class Terrain {
                 this.computePassabilityGraph(speedType, true);
             }
         });
+    }
+    areInSameMovementZone(startTile: Tile, endTile: Tile, speedType: SpeedType, startOnBridge: boolean = false, endOnBridge: boolean = false): boolean {
+        if (startTile === endTile || speedType === undefined || speedType === null) {
+            return true;
+        }
+        if (!this.mapBounds.isWithinBounds(startTile) || !this.mapBounds.isWithinBounds(endTile)) {
+            return true;
+        }
+        const islandMap = this.getIslandIdMap(speedType, startOnBridge);
+        const startIsland = islandMap.get(startTile, startOnBridge);
+        const endIsland = islandMap.get(endTile, endOnBridge);
+        return startIsland !== undefined && startIsland === endIsland;
     }
     private computePassabilityGraph(speedType: SpeedType, onBridge: boolean): Graph<NodeData> {
         const graphKey = this.getGraphKey(speedType, onBridge);
@@ -417,6 +431,19 @@ export class Terrain {
         let landType = bridgeLevel ? tile.onBridgeLandType : tile.landType;
         if (landType === undefined)
             return 0;
+        const laserFences = this.tileOccupation.getObjectsOnTile(tile)
+            .filter(obj => isLaserFenceArt(obj));
+        if (speedType !== SpeedType.Winged && laserFences.some(obj => isLaserFenceActive(obj))) {
+            if (!skipBlockerCheck) return 0;
+        }
+        const hasOtherWall = this.tileOccupation.getObjectsOnTile(tile)
+            .some(obj => obj.rules?.wall && !isLaserFenceArt(obj));
+        if (laserFences.length &&
+            (laserFences.every(obj => !isLaserFenceActive(obj)) ||
+                speedType === SpeedType.Winged) &&
+            !hasOtherWall) {
+            landType = getLandType(tile.terrainType);
+        }
         if (landType === LandType.Wall && speedType === SpeedType.Track) {
             landType = getLandType(tile.terrainType);
         }
@@ -440,6 +467,7 @@ export class Terrain {
             return false;
         }
         if (obj.isBuilding()) {
+            if (isLaserFenceArt(obj)) return speedType !== SpeedType.Winged && isLaserFenceActive(obj);
             if (obj.rules.invisibleInGame)
                 return false;
             if (obj.isDestroyed && obj.rules.leaveRubble)

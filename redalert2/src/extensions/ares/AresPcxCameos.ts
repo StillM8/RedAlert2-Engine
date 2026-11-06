@@ -50,6 +50,17 @@ export interface AresPcxCameoAssetManifest {
 /** Ares' documented cameo surface size. No resize or dimension synthesis is performed. */
 export const ARES_PCX_CAMEO_WIDTH = 60;
 export const ARES_PCX_CAMEO_HEIGHT = 48;
+export const ARES_DEFAULT_CAMEO_PALETTE = "cameo.pal";
+
+export function normalizeAresCameoPalette(value: unknown): string {
+    if (typeof value !== "string") {
+        return ARES_DEFAULT_CAMEO_PALETTE;
+    }
+    const filename = value.trim();
+    return filename && /\.pal$/i.test(filename)
+        ? filename
+        : ARES_DEFAULT_CAMEO_PALETTE;
+}
 
 export function isAresPcxCameoSize(width: unknown, height: unknown): boolean {
     return width === ARES_PCX_CAMEO_WIDTH && height === ARES_PCX_CAMEO_HEIGHT;

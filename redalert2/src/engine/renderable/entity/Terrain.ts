@@ -27,6 +27,7 @@ export class Terrain {
     private extraLight: THREE.Vector3;
     private target?: THREE.Object3D;
     private mainObj?: ShpRenderable;
+    private alphaRenderable?: AlphaRenderable;
     private animationRunner?: SimpleRunner;
     private lastTiberiumSpawnStatus?: any;
     constructor(gameObject: any, terrainLayer: any, imageFinder: ImageFinder, palette: any, camera: any, lighting: any, debugFrame: any, gameSpeed: any, useSpriteBatching: boolean) {
@@ -76,6 +77,7 @@ export class Terrain {
         return this.withPosition.getPosition();
     }
     public update(delta: number): void {
+        this.alphaRenderable?.setVisible(!this.gameObject.isDestroyed);
         if (this.tiberiumTreeTrait) {
             const status = this.tiberiumTreeTrait.status;
             if (status !== this.lastTiberiumSpawnStatus && status === SpawnStatus.Spawning) {
@@ -114,9 +116,10 @@ export class Terrain {
         if (alphaImage) {
             const alphaTexture = this.imageFinder.tryFind(alphaImage, false);
             if (alphaTexture) {
-                const alphaRenderable = new AlphaRenderable(alphaTexture, this.camera, this.objectArt.getDrawOffset());
-                alphaRenderable.create3DObject();
-                parent.add(alphaRenderable.get3DObject());
+                this.alphaRenderable = new AlphaRenderable(alphaTexture, this.camera, this.objectArt.getDrawOffset());
+                this.alphaRenderable.create3DObject();
+                const alphaObject = this.alphaRenderable.get3DObject();
+                if (alphaObject) parent.add(alphaObject);
             }
             else {
                 console.warn(`<${this.gameObject.name}>: Alpha image "${alphaImage}" not found`);
@@ -165,6 +168,7 @@ export class Terrain {
         }
     }
     public dispose(): void {
+        this.alphaRenderable?.dispose();
         this.mainObj?.dispose();
     }
 }

@@ -14,10 +14,12 @@ const DROP_DAMAGE_FRACTION = 0.15;
 export class MagnetizedTrait {
     private holdTicks = 0;
     private active = false;
+    private gameObject: any;
     private game: any;
     private lifter: any;
 
     refresh(gameObject: any, game: any, lifter: any): void {
+        this.gameObject = gameObject;
         this.holdTicks = HOLD_TICKS;
         this.game = game;
         this.lifter = lifter;
@@ -28,6 +30,32 @@ export class MagnetizedTrait {
         }
     }
 
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            active: this.active,
+            holdTicks: this.holdTicks,
+            lifterId: this.lifter?.id ?? null,
+        };
+    }
+    restoreState(state: any, context: { resolveObjectById?: (id: number) => any; strict?: boolean; game?: any; gameObject?: any } = {}): void {
+        if (!state || state.version !== 1 || typeof state.active !== "boolean" ||
+            !Number.isSafeInteger(state.holdTicks) || state.holdTicks < 0) {
+            throw new Error("Invalid magnetized state");
+        }
+        this.active = state.active;
+        this.gameObject = context.gameObject;
+        this.game = context.game;
+        this.holdTicks = state.holdTicks;
+        this.lifter = state.lifterId === null ? undefined : context.resolveObjectById?.(state.lifterId);
+        if (state.lifterId !== null && !this.lifter && context.strict) {
+            throw new Error("Cannot restore magnetized lifter: unresolved");
+        }
+        if (state.active) {
+            this.gameObject.moveTrait?.setDisabled(true);
+            this.gameObject.attackTrait?.setDisabled(true);
+        }
+    }
     isActive(): boolean {
         return this.active;
     }

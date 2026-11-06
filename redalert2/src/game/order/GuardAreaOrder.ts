@@ -18,6 +18,18 @@ export class GuardAreaOrder extends Order {
         this.minimapAllowed = targeted;
         this.feedbackType = targeted ? OrderFeedbackType.Move : OrderFeedbackType.None;
     }
+    captureState(): Record<string, unknown> {
+        return { targeted: this.targeted };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || typeof (state as any).targeted !== "boolean") {
+            throw new Error("Invalid guard area order state");
+        }
+        this.targeted = (state as any).targeted;
+        this.targetOptional = !this.targeted;
+        this.minimapAllowed = this.targeted;
+        this.feedbackType = this.targeted ? OrderFeedbackType.Move : OrderFeedbackType.None;
+    }
     getPointerType(isMini: boolean): PointerType {
         if (isMini) {
             return this.isAllowed() ? PointerType.GuardMini : PointerType.NoActionMini;

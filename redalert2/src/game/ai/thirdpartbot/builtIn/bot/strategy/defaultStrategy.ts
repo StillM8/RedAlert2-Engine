@@ -152,6 +152,9 @@ function collectCosts(costs: Map<string, number>, rulesMap: any): void {
  * divergence for anyone who played a previous match in the same session.
  */
 export function buildAiTriggerDatabase(context: SupabotContext): AiTriggerDatabase | null {
+    if (context.game.shouldIgnoreGlobalAITriggers?.()) {
+        return null;
+    }
     try {
         const aiIni = (Engine as any).ai;
         if (!aiIni) {
@@ -262,6 +265,9 @@ export class DefaultStrategy implements Strategy {
 
     private selectRandomAttackComposition(context: SupabotContext, logger: DebugLogger): SideComposition | null {
         const playerData = context.game.getPlayerData(context.player.name);
+        if (playerData.aiTriggersEnabled === false) {
+            return null;
+        }
         const side = playerData.country?.side;
         if (side === undefined) {
             return null;

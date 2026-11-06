@@ -1,21 +1,27 @@
 import { EventType } from "@/game/event/EventType";
+import { resolveHousePlayer } from "@/game/trigger/HouseReference";
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class SpyEnteringAsHouseCondition extends TriggerCondition {
-    private houseId: number;
-    constructor(params: any[], targets: any[]) {
-        super(params, targets);
-        this.houseId = Number(params[1]);
+    private readonly houseReference: unknown;
+
+    constructor(event: any, trigger: any) {
+        super(event, trigger);
+        this.houseReference = event.params[1];
     }
-    check(events: any[], targets: any[]): any[] {
+
+    check(context: any, events: any[]): any[] {
+        const disguiseOwner = resolveHousePlayer(context, this.houseReference);
         return events
             .filter((event) => {
-            if (event.type !== EventType.BuildingInfiltration)
-                return false;
-            const target = event.target;
-            return (this.targets.includes(target) &&
-                (this.houseId === -1 ||
-                    event.source.disguiseTrait?.getDisguise()?.owner?.country?.id === this.houseId));
-        })
+                if (event.type !== EventType.BuildingInfiltration) {
+                    return false;
+                }
+                const disguisedPlayer = event.source.disguiseTrait?.getDisguise()?.owner;
+                return this.targets.includes(event.target) &&
+                    (disguisedPlayer === disguiseOwner ||
+                        this.matchesHouse(context, disguisedPlayer, this.houseReference));
+            })
             .map((event) => event.target);
     }
 }

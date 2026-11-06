@@ -17,7 +17,6 @@ import { AresIvanBombAttachEvent } from '@/game/event/AresIvanBombAttachEvent';
 import { MovementZone } from '@/game/type/MovementZone';
 import { StanceType } from './infantry/StanceType';
 import { MovePositionHelper } from './unit/MovePositionHelper';
-import { GameSpeed } from '@/game/GameSpeed';
 import { VeteranLevel } from './unit/VeteranLevel';
 import { ScatterTask } from './task/ScatterTask';
 import { Warhead } from '@/game/Warhead';
@@ -34,16 +33,22 @@ import {
     sortAresSplitCandidates,
     shouldRetargetAresSplit,
     resolveAresRangedTravel,
+    traceAresWaveCells,
 } from '@/extensions/ares/AresProjectileExtensions';
 import {
     applyAresFirestormWallDamage,
     isAresActiveFirestormWall,
 } from '@/extensions/ares/AresFirestorm';
 import {
+    canAffectAresWarheadTarget,
+    resolveAresPreImpactDurationTicks,
+} from '@/extensions/ares/AresWarheadEffects';
+import {
     getAresUrbanCombatPassThroughChance,
     resolveAresUrbanCombatHit,
 } from '@/extensions/ares/AresUrbanCombatRuntime';
 import { resolveAresIvanBombRules } from '@/extensions/ares/AresIvanBombs';
+import { composePrismProjectileDamage } from '@/extensions/ares/AresPrismForwarding';
 export enum ProjectileState {
     Travel = 0,
     Impact = 1,
@@ -54,6 +59,9 @@ export class Projectile extends GameObject {
     private tileOccupation: TileOccupation;
     private state: ProjectileState;
     private detonationTimer: number;
+    private preImpactPending: boolean = false;
+    private preImpactCollisionType: CollisionType = CollisionType.None;
+    private preImpactAnimName?: string;
     /** Game tick the projectile spawned; used for wave expansion rendering. */
     public spawnTick?: number;
     /** Simulation-age clock for deterministic Ares projectile presentation. */
@@ -64,6 +72,8 @@ export class Projectile extends GameObject {
     private isShrapnel: boolean;
     private isNuke: boolean;
     private baseDamageMultiplier: number;
+    public baseDamageBonus: number;
+    public prismBeamThicknessOffset: number;
     private veteranDamageMult: number;
     private snapToTarget: boolean;
     private targetLockLost: boolean;
@@ -73,7 +83,8 @@ export class Projectile extends GameObject {
     private travelDistance: number;
     private homingTravelTicks: number;
     private velocity: Vector3;
-    private sonicVisitedObjects: Map<any, Set<any>>;
+    private ambientDamageVisitedObjects: Set<any>;
+    private waveImpactCell?: { rx: number; ry: number };
     private collisionHelper: CollisionHelper;
     private initialSelfPosition?: Vector3;
     private target: any;
@@ -118,6 +129,8 @@ export class Projectile extends GameObject {
         this.isShrapnel = false;
         this.isNuke = false;
         this.baseDamageMultiplier = 1;
+        this.baseDamageBonus = 0;
+        this.prismBeamThicknessOffset = 0;
         this.veteranDamageMult = 1;
         this.snapToTarget = false;
         this.targetLockLost = false;
@@ -126,11 +139,13 @@ export class Projectile extends GameObject {
         this.travelDistance = 0;
         this.homingTravelTicks = 0;
         this.velocity = new Vector3();
-        this.sonicVisitedObjects = new Map();
+        this.ambientDamageVisitedObjects = new Set();
         this.collisionHelper = new CollisionHelper(tileOccupation);
     }
     onSpawn(game: any): void {
         super.onSpawn(game);
+        this.ambientDamageVisitedObjects.clear();
+        this.waveImpactCell = undefined;
         this.initialSelfPosition = this.position.worldPosition.clone();
         if (!this.target.obj ||
             this.fromWeapon.type === WeaponType.DeathWeapon ||
@@ -196,9 +211,14 @@ export class Projectile extends GameObject {
                 this.snapToTarget = !targetMoved &&
                     isFinite(this.maxSpeed!) &&
                     !this.fromWeapon.warhead.rules.sonic;
-                if (this.rules.inaccurate || this.rules.flakScatter) {
+                const hasFlakInvisoScatter = this.rules.flakScatter &&
+                    this.rules.inviso &&
+                    (!this.rules.ranged || this.rules.inaccurate);
+                if (this.rules.inaccurate || hasFlakInvisoScatter) {
                     this.adjustAimForBallisticScatter(game, aimPoint);
-                    this.snapToTarget = false;
+                    if (this.rules.inaccurate || !this.rules.ranged) {
+                        this.snapToTarget = false;
+                    }
                 }
                 if (!targetMoved && this.rules.arcing) {
                     if (this.rules.inaccurate) {
@@ -221,24 +241,57 @@ export class Projectile extends GameObject {
         }
     }
     private adjustAimForBallisticScatter(game: any, aimPoint: Vector3): void {
-        let scatter = game.rules.combatDamage.ballisticScatter;
-        let scatterAmount: number;
-        if (this.rules.flakScatter) {
-            if (this.rules.inviso) {
-                scatter *= 2;
+        const ballisticScatter = Number(game.rules.combatDamage.ballisticScatter) || 0;
+        const targetPoint = aimPoint.clone();
+        if (this.rules.inaccurate && !this.rules.arcing) {
+            this.applyBallisticScatter(game, aimPoint, targetPoint, 0, ballisticScatter, false);
+        }
+        else if (this.rules.inaccurate && this.rules.arcing) {
+            const defaultMin = !this.rules.flakScatter || this.rules.inviso
+                ? ballisticScatter / 2
+                : 0;
+            this.applyBallisticScatter(
+                game,
+                aimPoint,
+                targetPoint,
+                this.rules.ballisticScatterMin ?? defaultMin,
+                this.rules.ballisticScatterMax ?? ballisticScatter,
+                this.rules.flakScatter && !this.rules.inviso,
+            );
+        }
+        if (this.rules.flakScatter && this.rules.inviso) {
+            this.applyBallisticScatter(game, aimPoint, targetPoint, 0, ballisticScatter * 2, true);
+        }
+    }
+    private applyBallisticScatter(
+        game: any,
+        aimPoint: Vector3,
+        targetPoint: Vector3,
+        minimum: number,
+        maximum: number,
+        scaleByRange: boolean,
+    ): void {
+        const min = Number.isFinite(minimum) ? minimum : 0;
+        const max = Number.isFinite(maximum) ? maximum : min;
+        const lower = Math.min(min, max);
+        const upper = Math.max(min, max);
+        const random = Math.max(0, Math.min(1, game.generateRandom()));
+        let scatterDistance = (lower + (upper - lower) * random) * Coords.LEPTONS_PER_TILE;
+        if (scaleByRange) {
+            const weaponRange = this.fromWeapon?.range;
+            if (weaponRange === 0 || weaponRange === Number.POSITIVE_INFINITY) {
+                scatterDistance = 0;
             }
-            scatterAmount = game.generateRandom() * scatter;
+            else if (Number.isFinite(weaponRange) && weaponRange > 0) {
+                const distanceToTarget = targetPoint.clone().sub(this.initialSelfPosition!).length();
+                scatterDistance *= distanceToTarget / (weaponRange * Coords.LEPTONS_PER_TILE);
+            }
         }
-        else {
-            scatterAmount = scatter / 2 + game.generateRandom() * (scatter / 2);
-        }
-        let scatterDistance = scatterAmount * Coords.LEPTONS_PER_TILE;
-        if (this.rules.flakScatter) {
-            const distanceToTarget = aimPoint.clone().sub(this.initialSelfPosition!).length();
-            scatterDistance *= distanceToTarget / (this.fromWeapon.range * Coords.LEPTONS_PER_TILE);
-        }
-        const scatterVec = geometry.rotateVec2(new Vector2(scatterDistance, 0), game.generateRandomInt(0, 360));
-        const scatterTile = Coords.vecWorldToGround(aimPoint)
+        const scatterVec = geometry.rotateVec2(
+            new Vector2(Math.max(0, scatterDistance), 0),
+            game.generateRandomInt(0, 360),
+        );
+        const scatterTile = Coords.vecWorldToGround(targetPoint)
             .add(scatterVec)
             .multiplyScalar(1 / Coords.LEPTONS_PER_TILE)
             .floor();
@@ -267,12 +320,18 @@ export class Projectile extends GameObject {
             return;
         super.update(game);
         this.ageTicks++;
+        this.waveImpactCell = undefined;
         if (this.state === ProjectileState.Impact) {
             if (this.detonationTimer > 0) {
                 this.detonationTimer--;
             }
-            else {
-                this.detonate(game, this.collisionType);
+            if (this.detonationTimer <= 0) {
+                if (this.preImpactPending) {
+                    this.completeDetonation(game, this.preImpactCollisionType);
+                }
+                else {
+                    this.completeDetonation(game, this.collisionType);
+                }
             }
             return;
         }
@@ -491,61 +550,106 @@ export class Projectile extends GameObject {
                     this.position.moveByLeptons3(targetPos.clone().sub(this.position.worldPosition));
                 }
                 this.collisionType = collisionType;
-                if (this.isNuke) {
-                    this.state = ProjectileState.Impact;
-                    this.detonationTimer = 2.5 * GameSpeed.BASE_TICKS_PER_SECOND;
-                }
-                else {
-                    this.detonate(game, collisionType);
-                }
+                this.detonate(game, collisionType);
             }
         }
+        this.processWaveAmbientDamage(game, oldPosition.worldPosition, this.position.worldPosition);
+    }
+    private processWaveAmbientDamage(game: any, start: any, end: any): void {
+        const weaponRules = this.fromWeapon?.rules;
+        const ambientDamage = weaponRules?.ambientDamage;
+        if (!this.isWaveWeapon() || typeof ambientDamage !== "number" || !Number.isFinite(ambientDamage) || ambientDamage === 0) {
+            return;
+        }
+        const cells = traceAresWaveCells(start, end, Coords.LEPTONS_PER_TILE);
+        this.ambientDamageVisitedObjects ??= new Set();
         const warhead = this.fromWeapon.warhead;
-        if (this.isWaveWeapon() && this.fromWeapon.rules.ambientDamage !== 0) {
-            const sonicRadius = (11 / 30) * Coords.LEPTONS_PER_TILE;
-            const waveDirection = this.velocity.lengthSq() > 0
-                ? this.velocity.clone()
-                : this.target.getWorldCoords().clone().sub(this.position.worldPosition);
-            const sonicPos = this.position.worldPosition
-                .clone()
-                .add(waveDirection.lengthSq() > 0 ? waveDirection.setLength(sonicRadius) : waveDirection);
-            const sonicTile = Coords.vecWorldToGround(sonicPos)
-                .multiplyScalar(1 / Coords.LEPTONS_PER_TILE)
-                .floor();
-            const tile = game.map.tiles.getByMapCoords(sonicTile.x, sonicTile.y);
-            if (tile && tile !== this.fromObject?.tile) {
-                const tileZone = game.map.getTileZone(tile);
-                for (const obj of game.map.getGroundObjectsOnTile(tile)) {
-                    if ((!obj.isUnit() || !obj.onBridge) &&
-                        (!obj.isTechno() ||
-                            !obj.rules.typeImmune ||
-                            obj.owner !== this.fromPlayer ||
-                            obj.name !== this.fromObject?.name) &&
-                        (!obj.isAircraft() || !obj.rules.spawned) &&
-                        warhead.canDamage(obj, tile, tileZone)) {
-                        let visitedTiles = this.sonicVisitedObjects.get(obj) ?? new Set();
-                        visitedTiles.add(tile);
-                        this.sonicVisitedObjects.set(obj, visitedTiles);
-                    }
-                }
+        const sourcePlayer = this.fromPlayer;
+        for (const cell of cells) {
+            if (this.waveImpactCell?.rx === cell.x && this.waveImpactCell.ry === cell.y) {
+                continue;
             }
-            for (const [obj, tiles] of this.sonicVisitedObjects) {
-                for (const visitedTile of tiles) {
-                    if (game.map.tileOccupation.isTileOccupiedBy(visitedTile, obj) &&
-                        obj.isSpawned) {
-                        let damage = this.fromWeapon.rules.ambientDamage *
-                            this.veteranDamageMult *
-                            this.baseDamageMultiplier;
-                        damage = warhead.computeDamage(damage, obj, game);
-                        warhead.inflictDamage(damage, obj, {
-                            player: this.fromPlayer,
-                            weapon: this.fromWeapon,
-                            obj: this.fromObject,
-                        }, game, obj !== this.target.obj);
-                    }
+            const tile = game.map.tiles.getByMapCoords(cell.x, cell.y);
+            if (!tile) {
+                continue;
+            }
+            const tileZone = game.map.getTileZone(tile);
+            const objects = (typeof game.map.getObjectsOnTile === "function"
+                ? game.map.getObjectsOnTile(tile)
+                : game.map.getGroundObjectsOnTile(tile)) ?? [];
+            const orderedObjects = objects
+                .map((object: any, index: number) => ({ object, index }))
+                .sort((first: any, second: any) => {
+                    const firstId = Number(first.object?.id);
+                    const secondId = Number(second.object?.id);
+                    const firstHasId = Number.isSafeInteger(firstId);
+                    const secondHasId = Number.isSafeInteger(secondId);
+                    if (firstHasId && secondHasId && firstId !== secondId) return firstId - secondId;
+                    if (firstHasId !== secondHasId) return firstHasId ? -1 : 1;
+                    const firstName = String(first.object?.name ?? "");
+                    const secondName = String(second.object?.name ?? "");
+                    return firstName.localeCompare(secondName) || first.index - second.index;
+                })
+                .map((entry: any) => entry.object);
+            for (const object of orderedObjects) {
+                if (this.ambientDamageVisitedObjects.has(object) || object === this.fromObject) {
+                    continue;
                 }
+                if (!this.canApplyWaveAmbientDamage(object, tile, tileZone, warhead, game)) {
+                    continue;
+                }
+                this.ambientDamageVisitedObjects.add(object);
+                let damage = ambientDamage * this.veteranDamageMult * this.baseDamageMultiplier;
+                damage = warhead.computeDamage(damage, object, game);
+                if (!damage && !(warhead.rules?.allowZeroDamage ?? false)) {
+                    continue;
+                }
+                warhead.inflictDamage(damage, object, {
+                    player: sourcePlayer,
+                    weapon: this.fromWeapon,
+                    obj: this.fromObject,
+                }, game, object !== this.target?.obj);
             }
         }
+    }
+    private canApplyWaveAmbientDamage(
+        object: any,
+        tile: any,
+        tileZone: any,
+        warhead: any,
+        game: any,
+    ): boolean {
+        if (object?.isDestroyed === true || object?.isCrashing === true || object?.isDisposed === true || object?.isSpawned === false) {
+            return false;
+        }
+        if (this.fromObject && object?.isTechno?.() && object.rules?.typeImmune &&
+            object.owner === this.fromPlayer && object.name === this.fromObject.name) {
+            return false;
+        }
+        if (object?.isAircraft?.() && object.rules?.spawned) {
+            return false;
+        }
+        if (typeof warhead.canDamage !== "function" || !warhead.canDamage(object, tile, tileZone)) {
+            return false;
+        }
+        const sourcePlayer = this.fromPlayer;
+        if (sourcePlayer && typeof warhead.canAffectTarget === "function" &&
+            !warhead.canAffectTarget(object, sourcePlayer, game)) {
+            return false;
+        }
+        if (!sourcePlayer) {
+            return true;
+        }
+        const rules = warhead.rules ?? {};
+        const isOwner = object?.owner === sourcePlayer;
+        const isFriendly = isOwner || game.alliances?.areAllied?.(object.owner, sourcePlayer) === true;
+        if (isOwner) {
+            return rules.affectsOwner ?? rules.affectsAllies ?? true;
+        }
+        if (isFriendly) {
+            return rules.affectsAllies ?? true;
+        }
+        return rules.affectsEnemies ?? true;
     }
     private isWaveWeapon(): boolean {
         const weaponRules = this.fromWeapon.rules;
@@ -627,6 +731,10 @@ export class Projectile extends GameObject {
         if (this.fromWeapon.rules.limboLaunch) {
             return { type: CollisionType.None };
         }
+        if (this.rules.subjectToBuildings) {
+            const buildingCollision = this.collisionHelper.checkSolidBuildingCollisions(this.position, oldPosition);
+            if (buildingCollision.type) return buildingCollision;
+        }
         return this.collisionHelper.checkCollisions(this.position, oldPosition, {
             cliffs: this.rules.subjectToCliffs,
             ground: this.isHoming(),
@@ -640,12 +748,8 @@ export class Projectile extends GameObject {
                     !game.alliances.areAllied(this.fromPlayer, owner)),
         });
     }
-    private isPrismSupportBeam(game: any): boolean {
-        const prismType = game.rules.general.prism.type;
-        return !!prismType &&
-            this.fromWeapon.type === WeaponType.Secondary &&
-            !!this.fromObject?.isBuilding() &&
-            this.fromObject.name === prismType;
+    private isPrismSupportBeam(_game: any): boolean {
+        return (this.fromWeapon as any)?.isPrismSupportBeam === true;
     }
 
     private computeBaseDamage(game: any): number {
@@ -655,7 +759,11 @@ export class Projectile extends GameObject {
         if (weapon.type === WeaponType.DeathWeapon && warhead.rules.ivanBomb) {
             damage = this.resolveIvanBombRules(game).damage;
         }
-        let totalDamage = damage * this.baseDamageMultiplier;
+        let totalDamage = composePrismProjectileDamage(
+            damage,
+            this.baseDamageBonus ?? 0,
+            this.baseDamageMultiplier,
+        );
         if (weapon.type === WeaponType.DeathWeapon && this.fromObject) {
             totalDamage *= this.fromObject.rules.deathWeaponDamageModifier;
         }
@@ -758,6 +866,22 @@ export class Projectile extends GameObject {
     }
     private detonate(game: any, collisionType: CollisionType = CollisionType.None): void {
         const weapon = this.fromWeapon;
+        const preImpactAnim = weapon?.warhead?.rules?.preImpactAnim;
+        if (preImpactAnim) {
+            this.preImpactPending = true;
+            this.preImpactCollisionType = collisionType;
+            this.preImpactAnimName = preImpactAnim;
+            this.impactAnim = preImpactAnim;
+            this.state = ProjectileState.Impact;
+            const animation = game?.art?.getAnimation?.(preImpactAnim);
+            this.detonationTimer = resolveAresPreImpactDurationTicks(animation);
+            return;
+        }
+        this.completeDetonation(game, collisionType);
+    }
+
+    private completeDetonation(game: any, collisionType: CollisionType = CollisionType.None): void {
+        const weapon = this.fromWeapon;
         let warhead = weapon.warhead;
         const targetObj = this.target.obj;
         const detonationZone = this.zone = this.collisionHelper.computeDetonationZone(this.tile, this.tileElevation, collisionType);
@@ -766,8 +890,10 @@ export class Projectile extends GameObject {
             warhead = new Warhead(game.rules.getWarhead(this.resolveIvanBombRules(game).warhead));
         }
         const damage = this.computeBaseDamage(game);
-        game.destroyObject(this);
+        this.preImpactPending = false;
+        this.preImpactAnimName = undefined;
         this.state = ProjectileState.Detonation;
+        game.destroyObject(this);
 
         // Antares replaces ordinary detonation for Airburst/Splits bullets:
         // the configured AirburstWeapon projectiles carry the actual warhead.
@@ -845,15 +971,25 @@ export class Projectile extends GameObject {
         }
         if (warhead.rules.mindControl) {
             shouldDetonate = false;
-            if (this.fromObject &&
-                !this.fromObject.isDestroyed &&
-                targetObj?.isTechno() &&
-                targetObj.mindControllableTrait &&
-                !targetObj.mindControllableTrait?.isActive() &&
-                !game.areFriendly(targetObj, this.fromObject) &&
+            const permanent = warhead.rules.mindControlPermanent === true;
+            const sourcePlayer = this.fromPlayer ?? this.fromObject?.owner;
+            const targetTrait = targetObj?.mindControllableTrait;
+            const ordinaryTarget = !!targetObj && !targetObj.isBuilding();
+            const eligible = !!targetObj &&
+                !!sourcePlayer &&
+                !!targetTrait &&
+                (permanent ? true : ordinaryTarget) &&
+                (permanent || !targetTrait.isPermanent()) &&
+                !targetObj.invulnerableTrait?.isActive?.() &&
                 warhead.canDamage(targetObj, detonationTile, detonationZone) &&
-                !targetObj.invulnerableTrait.isActive()) {
-                this.fromObject.mindControllerTrait.control(targetObj, game);
+                canAffectAresWarheadTarget(targetObj, sourcePlayer, game, warhead.rules);
+            if (eligible) {
+                if (permanent) {
+                    targetTrait.capturePermanent(sourcePlayer, game);
+                }
+                else if (this.fromObject && !this.fromObject.isDestroyed && this.fromObject.mindControllerTrait) {
+                    this.fromObject.mindControllerTrait.control(targetObj, game);
+                }
             }
         }
         if (warhead.rules.isLocomotor) {
@@ -966,6 +1102,7 @@ export class Projectile extends GameObject {
             shouldDetonate = false;
         }
         if (shouldDetonate) {
+            this.waveImpactCell = { rx: detonationTile.rx, ry: detonationTile.ry };
             const occupantHit = this.applyAresUrbanCombatOccupantHit(
                 game,
                 targetObj,
@@ -991,20 +1128,38 @@ export class Projectile extends GameObject {
             }
         }
         if (warhead.rules.nukeMaker) {
-            let nukeProjectile: Projectile;
-            if (this.fromObject) {
-                const nukeWeapon = Weapon.factory(Weapon.NUKE_PAYLOAD_NAME, WeaponType.Primary, this.fromObject, game.rules);
-                nukeProjectile = game.createProjectile(nukeWeapon.projectileRules.name, this.fromObject, nukeWeapon, this.target, false);
+            const payloadName = (weapon as any)?.nukePayloadName ?? Weapon.NUKE_PAYLOAD_NAME;
+            try {
+                let nukeProjectile: Projectile | undefined;
+                let nukeWeapon: any;
+                if (this.fromObject) {
+                    nukeWeapon = Weapon.factory(payloadName, WeaponType.Primary, this.fromObject, game.rules);
+                    nukeProjectile = game.createProjectile(nukeWeapon.projectileRules.name, this.fromObject, nukeWeapon, this.target, false);
+                }
+                else {
+                    nukeProjectile = game.createLooseProjectile(payloadName, this.fromPlayer, this.target);
+                    nukeWeapon = nukeProjectile?.fromWeapon;
+                }
+                if (!nukeProjectile) throw new Error("Missing nuke projectile");
+                const overrideDamage = (weapon as any)?.nukeDamage;
+                const overrideWarhead = (weapon as any)?.nukeWarheadName;
+                if (nukeWeapon && overrideDamage !== undefined) {
+                    nukeWeapon.rules = { ...(nukeWeapon.rules ?? {}), damage: overrideDamage };
+                }
+                if (nukeWeapon && overrideWarhead) {
+                    nukeWeapon.rules = { ...(nukeWeapon.rules ?? {}), warhead: overrideWarhead };
+                    nukeWeapon.warhead = new Warhead(game.rules.getWarhead(overrideWarhead));
+                }
+                nukeProjectile.isNuke = true;
+                nukeProjectile.impactAnim = "NUKEBALL";
+                const nukeTile = this.target.tile;
+                nukeProjectile.position.moveToTileCoords(nukeTile.rx + 0.5, nukeTile.ry + 0.5);
+                nukeProjectile.position.tileElevation = this.position.tileElevation;
+                game.spawnObject(nukeProjectile, nukeTile);
             }
-            else {
-                nukeProjectile = game.createLooseProjectile(Weapon.NUKE_PAYLOAD_NAME, this.fromPlayer, this.target);
+            catch (error) {
+                console.warn(`Nuke payload "${payloadName}" could not be spawned.`, error);
             }
-            nukeProjectile.isNuke = true;
-            nukeProjectile.impactAnim = "NUKEBALL";
-            const nukeTile = this.target.tile;
-            nukeProjectile.position.moveToTileCoords(nukeTile.rx + 0.5, nukeTile.ry + 0.5);
-            nukeProjectile.position.tileElevation = this.position.tileElevation;
-            game.spawnObject(nukeProjectile, nukeTile);
         }
         if (this.rules.shrapnelCount &&
             this.rules.shrapnelWeapon &&

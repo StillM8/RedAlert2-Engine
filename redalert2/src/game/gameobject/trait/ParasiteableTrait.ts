@@ -34,6 +34,43 @@ export class ParasiteableTrait implements NotifyTick, NotifyHeal, NotifyDamage, 
             this.gameObject.moveTrait.setDisabled(true);
         }
     }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            beingBoarded: this.beingBoarded,
+            parasiteId: this.parasite?.id ?? null,
+            weaponName: this.parasiteWeapon?.rules?.name ?? null,
+            weaponType: this.parasiteWeapon?.type ?? null,
+            damageTickCooldown: this.damageTickCooldown,
+            lastExternalDamageInflicted: this.lastExternalDamageInflicted ?? null,
+            lastExternalDamageTick: this.lastExternalDamageTick ?? null,
+        };
+    }
+    restoreState(state: any, context: { resolveObjectById?: (id: number) => any; strict?: boolean } = {}): void {
+        if (!state || state.version !== 1 || typeof state.beingBoarded !== "boolean" ||
+            !Number.isSafeInteger(state.damageTickCooldown) || state.damageTickCooldown < 0) {
+            throw new Error("Invalid parasiteable state");
+        }
+        const parasite = state.parasiteId === null ? undefined : context.resolveObjectById?.(state.parasiteId);
+        if (state.parasiteId !== null && !parasite && context.strict) {
+            throw new Error("Cannot restore parasite: unresolved");
+        }
+        const weapon = parasite && state.weaponName
+            ? [parasite.primaryWeapon, parasite.secondaryWeapon, parasite.deathWeapon]
+                .find((candidate: any) => candidate?.rules?.name === state.weaponName)
+            : undefined;
+        if (state.weaponName && !weapon && context.strict) {
+            throw new Error("Cannot restore parasite weapon: unresolved");
+        }
+        this.uninfest();
+        this.beingBoarded = state.beingBoarded;
+        this.parasite = parasite;
+        this.parasiteWeapon = weapon;
+        this.damageTickCooldown = state.damageTickCooldown;
+        this.lastExternalDamageInflicted = state.lastExternalDamageInflicted ?? undefined;
+        this.lastExternalDamageTick = state.lastExternalDamageTick ?? undefined;
+        if (weapon?.warhead.rules.paralyzes) this.gameObject.moveTrait.setDisabled(true);
+    }
     isInfested(): boolean {
         return (!(!this.parasite || this.parasite.isDestroyed)) || this.beingBoarded;
     }

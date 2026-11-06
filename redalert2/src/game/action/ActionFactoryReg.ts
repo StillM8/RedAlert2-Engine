@@ -10,6 +10,8 @@ import { DropPlayerActionFactory } from './factories/DropPlayerActionFactory';
 import { ToggleRepairActionFactory } from './factories/ToggleRepairActionFactory';
 import { ToggleAllianceActionFactory } from './factories/ToggleAllianceFactory';
 import { ActivateSuperWeaponActionFactory } from './factories/ActivateSuperWeaponActionFactory';
+import { DetonateIvanBombsActionFactory } from './factories/DetonateIvanBombsActionFactory';
+import { DeactivateSuperWeaponActionFactory } from './factories/DeactivateSuperWeaponActionFactory';
 import { PingLocationActionFactory } from './factories/PingLocationActionFactory';
 import { ObserveGameActionFactory } from './factories/ObserveGameActionFactory';
 import { ResignGameActionFactory } from './factories/ResignGameActionFactory';
@@ -26,6 +28,8 @@ export class ActionFactoryReg {
         actionRegistry.registerFactory(ActionType.UpdateQueue, new UpdateQueueActionFactory(gameContext));
         actionRegistry.registerFactory(ActionType.ToggleAlliance, new ToggleAllianceActionFactory(gameContext));
         actionRegistry.registerFactory(ActionType.ActivateSuperWeapon, new ActivateSuperWeaponActionFactory(gameContext));
+        actionRegistry.registerFactory(ActionType.DetonateIvanBombs, new DetonateIvanBombsActionFactory(gameContext));
+        actionRegistry.registerFactory(ActionType.DeactivateSuperWeapon, new DeactivateSuperWeaponActionFactory(gameContext));
         actionRegistry.registerFactory(ActionType.PingLocation, new PingLocationActionFactory(gameContext));
         actionRegistry.registerFactory(ActionType.DropPlayer, new DropPlayerActionFactory(gameContext, playerContext));
         actionRegistry.registerFactory(ActionType.ObserveGame, new ObserveGameActionFactory(gameContext));

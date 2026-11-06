@@ -2,8 +2,15 @@ import { DataStream } from '@/data/DataStream';
 
 /** Binary magic bytes: "RA2R" */
 const REPLAY_MAGIC = 0x52324152;
-/** Current replay format version */
-const REPLAY_FORMAT_VERSION = 1;
+/**
+ * Highest supported replay format version. Version 1 is the base action-log
+ * format; version 2 appends the extension-state snapshot payload. Files
+ * without a snapshot are still written as version 1 for byte compatibility,
+ * so only snapshot-carrying saves are rejected by older readers.
+ */
+const REPLAY_FORMAT_VERSION = 3;
+const REPLAY_FORMAT_VERSION_WITH_EXTENSION_STATE = 2;
+const REPLAY_FORMAT_VERSION_WITH_WORLD_STATE = 3;
 
 export interface ActionRecord {
     tick: number;
@@ -52,6 +59,10 @@ export class Replay {
     public actionRecords: ActionRecord[] = [];
     public eventRecords: ReplayEventRecord[] = [];
     public hashCheckpoints: HashCheckpoint[] = [];
+    /** Extension-owned simulation state (see game/state/ExtensionStateSnapshot). */
+    public extensionState?: unknown;
+    /** Core world checkpoint (see game/state/WorldStateSnapshot). */
+    public worldState?: unknown;
 
     get endTick(): number {
         return this.finishedTick;
@@ -70,7 +81,11 @@ export class Replay {
 
         // Header
         ds.writeUint32(REPLAY_MAGIC);
-        ds.writeUint16(REPLAY_FORMAT_VERSION);
+        ds.writeUint16(this.worldState !== undefined
+            ? REPLAY_FORMAT_VERSION_WITH_WORLD_STATE
+            : this.extensionState !== undefined
+                ? REPLAY_FORMAT_VERSION_WITH_EXTENSION_STATE
+                : 1);
         ds.writeUtf8WithLen(this.engineVersion);
         ds.writeUtf8WithLen(this.modHash);
         ds.writeUtf8WithLen(this.gameId);
@@ -109,6 +124,15 @@ export class Replay {
         for (const cp of this.hashCheckpoints) {
             ds.writeUint32(cp.tick);
             ds.writeUint32(cp.hash);
+        }
+
+        // Extension-state payload (format v2 trailing block). Files without a
+        // snapshot end above exactly like version-1 files.
+        if (this.extensionState !== undefined) {
+            ds.writeUtf8WithLen(JSON.stringify(this.toSerializableValue(this.extensionState)));
+        }
+        if (this.worldState !== undefined) {
+            ds.writeUtf8WithLen(JSON.stringify(this.toSerializableValue(this.worldState)));
         }
 
         // Convert to base64 string for storage
@@ -178,6 +202,25 @@ export class Replay {
             const tick = ds.readUint32();
             const hash = ds.readUint32();
             this.hashCheckpoints.push({ tick, hash });
+        }
+
+        // Extension-state payload (format v2 trailing block). Version-1 files
+        // end here with no trailing bytes.
+        this.extensionState = undefined;
+        this.worldState = undefined;
+        if (version >= REPLAY_FORMAT_VERSION_WITH_EXTENSION_STATE &&
+            (ds as any).position < ds.byteLength) {
+            const extensionStateJson = ds.readUtf8WithLen();
+            if (extensionStateJson) {
+                this.extensionState = JSON.parse(extensionStateJson);
+            }
+        }
+        if (version >= REPLAY_FORMAT_VERSION_WITH_WORLD_STATE &&
+            (ds as any).position < ds.byteLength) {
+            const worldStateJson = ds.readUtf8WithLen();
+            if (worldStateJson) {
+                this.worldState = JSON.parse(worldStateJson);
+            }
         }
     }
 

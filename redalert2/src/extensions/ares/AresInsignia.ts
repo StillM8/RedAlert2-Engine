@@ -5,6 +5,10 @@ export interface AresInsigniaSelection {
     frame: number;
 }
 
+export const ARES_DEFAULT_INSIGNIA_FILE = "pips";
+export const ARES_VETERAN_INSIGNIA_FRAME = 14;
+export const ARES_ELITE_INSIGNIA_FRAME = 15;
+
 export interface AresInsigniaRules {
     rookie?: string;
     veteran?: string;
@@ -96,5 +100,14 @@ export function selectAresInsignia(
         fileName = rules.elite;
         frame = rules.eliteFrame;
     }
-    return fileName ? { fileName, frame: frame < 0 ? 0 : Math.trunc(frame) } : undefined;
+    if (fileName) {
+        return { fileName, frame: frame < 0 ? 0 : Math.trunc(frame) };
+    }
+    if (veteranLevel === 1) {
+        return { fileName: ARES_DEFAULT_INSIGNIA_FILE, frame: ARES_VETERAN_INSIGNIA_FRAME };
+    }
+    if (veteranLevel > 1) {
+        return { fileName: ARES_DEFAULT_INSIGNIA_FILE, frame: ARES_ELITE_INSIGNIA_FRAME };
+    }
+    return undefined;
 }

@@ -12,7 +12,7 @@ export class DetonateBombOrder extends Order {
     public targetOptional: boolean = false;
     public terminal: boolean = true;
     public feedbackType: OrderFeedbackType = OrderFeedbackType.SpecialAttack;
-    constructor() {
+    constructor(private readonly game?: any) {
         super(OrderType.DetonateBomb);
     }
     getPointerType(isMini: boolean): PointerType {
@@ -31,8 +31,15 @@ export class DetonateBombOrder extends Order {
         return this.target.obj.tntChargeTrait.canBeManuallyDetonated?.() !== false;
     }
     process() {
+        if (!this.isAllowed()) return [];
         const target = this.target.obj;
-        target.tntChargeTrait.removeCharge();
+        const trait = target?.tntChargeTrait;
+        if (typeof trait?.tryManualDetonate === "function") {
+            trait.tryManualDetonate(target, this.game);
+        }
+        else {
+            trait?.removeCharge?.();
+        }
         return [];
     }
 }

@@ -33,6 +33,10 @@ export class EmpTrait implements NotifyTick {
         return this.remainingFrames > 0;
     }
 
+    isDeactivated(): boolean {
+        return this.stateApplied;
+    }
+
     getRemainingFrames(): number {
         return this.remainingFrames;
     }
@@ -83,6 +87,31 @@ export class EmpTrait implements NotifyTick {
         }
     }
 
+    captureState(): { version: 1; remainingFrames: number; stateApplied: boolean; previousMoveDisabled?: boolean; previousAttackDisabled?: boolean } {
+        return {
+            version: 1,
+            remainingFrames: this.remainingFrames,
+            stateApplied: this.stateApplied,
+            ...(this.previousMoveDisabled === undefined ? {} : { previousMoveDisabled: this.previousMoveDisabled }),
+            ...(this.previousAttackDisabled === undefined ? {} : { previousAttackDisabled: this.previousAttackDisabled }),
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isSafeInteger((state as any).remainingFrames) || (state as any).remainingFrames < 0 ||
+            typeof (state as any).stateApplied !== "boolean") {
+            throw new Error("Invalid EMP state");
+        }
+        this.disableParalysis();
+        this.remainingFrames = (state as any).remainingFrames;
+        this.stateApplied = (state as any).stateApplied;
+        this.previousMoveDisabled = (state as any).previousMoveDisabled;
+        this.previousAttackDisabled = (state as any).previousAttackDisabled;
+        if (this.stateApplied) {
+            this.setDisabled(this.gameObject?.moveTrait, true);
+            this.setDisabled(this.gameObject?.attackTrait, true);
+        }
+    }
     getHash(): number {
         // remainingFrames alone is NOT sufficient: stateApplied and the
         // pre-EMP disabled flags decide what movement/attack state gets

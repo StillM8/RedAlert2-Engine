@@ -266,4 +266,140 @@ describe("Ares animation damage", () => {
 
         expect(target.healthTrait.health).toBe(75);
     });
+
+    test("delivers live and restored spread damage to in-radius targets only", () => {
+        const definition = parseAresAnimationDamage("RuntimeSpread", animation({
+            Damage: "40",
+            Warhead: "Fire2",
+            Rate: "900",
+            End: "0",
+        }))!;
+        const warheadSection = new IniSection("Fire2");
+        warheadSection.set("CellSpread", "1.5");
+        warheadSection.set("Verses", "1,1,1,1,1,100%");
+        const sourcePlayer = { name: "Source", playerListIndex: 0, isCombatant: () => true };
+        const makeTile = (rx: number, ry: number) => ({ rx, ry, z: 0 });
+        const makeTarget = (tile: any, owner: any, x: number, z: number) => ({
+            tile,
+            zone: ZoneType.Ground,
+            owner,
+            position: { worldPosition: new Vector3(x, 0, z), tileElevation: 0 },
+            rules: {
+                armor: 5,
+                wall: false,
+                immune: false,
+                invisibleInGame: false,
+                typeImmune: false,
+                immuneToRadiation: false,
+                immuneToPsionics: false,
+            },
+            crateBonuses: { armor: 1 },
+            moveTrait: { reservedPathNodes: [] },
+            invulnerableTrait: { isActive: () => false },
+            warpedOutTrait: { isInvulnerable: () => false },
+            healthTrait: {
+                health: 100,
+                getHitPoints: () => 100,
+                inflictDamage(amount: number) {
+                    this.health -= amount;
+                },
+            },
+            isSpawned: true,
+            isDisposed: false,
+            isDestroyed: false,
+            isCrashing: false,
+            isTechno: () => true,
+            isUnit: () => true,
+            isBuilding: () => false,
+            isInfantry: () => false,
+            isAircraft: () => false,
+            isVehicle: () => true,
+            isOverlay: () => false,
+            isTerrain: () => false,
+            isBridge: () => false,
+            onAttack: () => undefined,
+            applyRocking: () => undefined,
+        });
+        const makeFixture = () => {
+            const owner = { name: "Enemy", playerListIndex: 1, isCombatant: () => true };
+            const centerTile = makeTile(10, 10);
+            const outsideTile = makeTile(12, 10);
+            const inside = makeTarget(centerTile, owner, 10.5 * 256, 10.5 * 256);
+            const outside = makeTarget(outsideTile, owner, 12.5 * 256, 10.5 * 256);
+            const game: any = {
+                rules: {
+                    getWarhead: () => new WarheadRules(warheadSection),
+                    general: { cloakDelay: 0 },
+                    audioVisual: { weatherConBoltExplosion: "" },
+                    combatDamage: { c4Warhead: "Fire2", flameDamage2: "Fire2", splashList: [] },
+                },
+                map: {
+                    tiles: {
+                        getByMapCoords: (rx: number, ry: number) => {
+                            if (rx === centerTile.rx && ry === centerTile.ry) return centerTile;
+                            if (rx === outsideTile.rx && ry === outsideTile.ry) return outsideTile;
+                            return makeTile(rx, ry);
+                        },
+                    },
+                    mapBounds: { isWithinBounds: () => true },
+                    tileOccupation: { getBridgeOnTile: () => undefined },
+                    getObjectsOnTile: (tile: any) => {
+                        if (tile.rx === centerTile.rx && tile.ry === centerTile.ry) return [inside];
+                        if (tile.rx === outsideTile.rx && tile.ry === outsideTile.ry) return [outside];
+                        return [];
+                    },
+                },
+                alliances: { areAllied: () => false },
+                gameOpts: { destroyableBridges: true },
+                traits: { filter: () => [] },
+                events: { dispatch: () => undefined },
+                mapRadiationTrait: { createRadSite: () => undefined },
+                destroyObject: () => undefined,
+                generateRandomInt: () => 0,
+            };
+            game.resolveAresAnimationDamageDelivery = (Game.prototype as any).resolveAresAnimationDamageDelivery;
+            game.createTarget = (Game.prototype as any).createTarget;
+            return { game, centerTile, inside, outside };
+        };
+
+        const liveFixture = makeFixture();
+        const liveRuntime = new AresAnimationDamageRuntime({
+            getPlayerIndex: player => player === sourcePlayer ? 0 : undefined,
+        });
+        liveRuntime.spawn({
+            definition,
+            tile: liveFixture.centerTile,
+            position: new Vector3(10.5 * 256, 0, 10.5 * 256),
+            elevation: 0,
+            zone: ZoneType.Ground,
+            sourcePlayer,
+        });
+        const snapshot = JSON.parse(JSON.stringify(liveRuntime.captureState()));
+        expect(snapshot.version).toBe(2);
+
+        const restoredFixture = makeFixture();
+        const restoredRuntime = new AresAnimationDamageRuntime({
+            getPlayerIndex: player => player === sourcePlayer ? 0 : undefined,
+        });
+        restoredRuntime.restoreState(snapshot, {
+            strict: true,
+            resolveTile: (rx, ry) => rx === 10 && ry === 10 ? restoredFixture.centerTile : makeTile(rx, ry),
+            resolvePlayerByIndex: index => index === 0 ? sourcePlayer : undefined,
+            resolveDefinition: name => name === definition.name ? definition : undefined,
+        });
+
+        liveRuntime.update({
+            applyAresAnimationDamageArea: request =>
+                Game.prototype.applyAresAnimationDamageArea.call(liveFixture.game, request),
+        });
+        restoredRuntime.update({
+            applyAresAnimationDamageArea: request =>
+                Game.prototype.applyAresAnimationDamageArea.call(restoredFixture.game, request),
+        });
+
+        expect(liveFixture.inside.healthTrait.health).toBe(60);
+        expect(liveFixture.outside.healthTrait.health).toBe(100);
+        expect(restoredFixture.inside.healthTrait.health).toBe(liveFixture.inside.healthTrait.health);
+        expect(restoredFixture.outside.healthTrait.health).toBe(liveFixture.outside.healthTrait.health);
+    });
 });

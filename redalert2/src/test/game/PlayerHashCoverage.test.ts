@@ -4,6 +4,7 @@ import { Color } from "@/util/Color";
 import { ObjectType } from "@/engine/type/ObjectType";
 import { ProductionQueue, QueueType } from "@/game/player/production/ProductionQueue";
 import { UpdateQueueAction, UpdateType } from "@/game/action/UpdateQueueAction";
+import { Production } from "@/game/player/production/Production";
 
 /**
  * Adversarial coverage for Player canonical-hash coverage.
@@ -97,6 +98,68 @@ describe("Player canonical hash coverage", () => {
         };
         expect(addToQueue(first).currentSize).toBe(1);
         expect(addToQueue(second).currentSize).toBe(0);
+    });
+
+    test("shares positive BuildLimit across deploy forms and hijackers", () => {
+        const player = makePlayer("Soviet");
+        player.setBuildLimitFamilyResolver((value: any) => {
+            const name = String(value?.name ?? value).toLocaleLowerCase("en-US");
+            return name === "mcv" || name === "construction yard"
+                ? ["mcv", "construction yard"]
+                : name === "hijacker" ? ["hijacker"] : [name];
+        });
+        const vehicle = {
+            id: "vehicle-1",
+            name: "MCV",
+            type: ObjectType.Vehicle,
+            buildLimit: 3,
+        } as any;
+        const building = {
+            id: "building-1",
+            name: "Construction Yard",
+            type: ObjectType.Building,
+            buildLimit: 3,
+        } as any;
+        const hijacker = {
+            id: "hijacker-1",
+            name: "Hijacker",
+            type: ObjectType.Infantry,
+            isDestroyed: false,
+            isDisposed: false,
+        } as any;
+        const stolenVehicle = {
+            id: "vehicle-2",
+            name: "Tank",
+            type: ObjectType.Vehicle,
+            buildLimit: 3,
+            aresVehicleHijackerTrait: { getHijacker: () => hijacker },
+        } as any;
+        player.addOwnedObject(vehicle);
+        player.addOwnedObject(building);
+        player.addOwnedObject(stolenVehicle);
+
+        expect(player.getBuildLimitCount("MCV")).toBe(2);
+        expect(player.getBuildLimitCount("Hijacker")).toBe(1);
+    });
+
+    test("resolves both directions of a deploy BuildLimit family", () => {
+        const player = makePlayer("Soviet");
+        const vehicleRules: any = {
+            name: "MCV",
+            type: ObjectType.Vehicle,
+            deploysInto: "Construction Yard",
+            undeploysInto: "",
+        };
+        const buildingRules: any = {
+            name: "Construction Yard",
+            type: ObjectType.Building,
+            deploysInto: "",
+            undeploysInto: "MCV",
+        };
+        new Production(player, 0, {}, { getObject: () => undefined }, [vehicleRules, buildingRules]);
+
+        expect(player.getBuildLimitFamily("MCV")).toEqual(["construction yard", "mcv"]);
+        expect(player.getBuildLimitFamily("Construction Yard")).toEqual(["construction yard", "mcv"]);
     });
 
     test("units-built history rejects non-integer counts", () => {

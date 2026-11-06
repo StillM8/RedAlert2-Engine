@@ -16,28 +16,36 @@ import { DestroyedAllCondition } from "@/game/trigger/condition/DestroyedAllCond
 import { DestroyedAllUnitsCondition } from "@/game/trigger/condition/DestroyedAllUnitsCondition";
 import { DestroyedAllUnitsLandCondition } from "@/game/trigger/condition/DestroyedAllUnitsLandCondition";
 import { DestroyedAllUnitsNavalCondition } from "@/game/trigger/condition/DestroyedAllUnitsNavalCondition";
+import { DiscoveredByPlayerCondition } from "@/game/trigger/condition/DiscoveredByPlayerCondition";
 import { DestroyedBridgeCondition } from "@/game/trigger/condition/DestroyedBridgeCondition";
 import { DestroyedBuildingsCondition } from "@/game/trigger/condition/DestroyedBuildingsCondition";
 import { DestroyedByAnyCondition } from "@/game/trigger/condition/DestroyedByAnyCondition";
-import { DestroyedOrCapturedCondition } from "@/game/trigger/condition/DestroyedOrCapturedCondition";
 import { DestroyedOrCapturedOrInfiltratedCondition } from "@/game/trigger/condition/DestroyedOrCapturedOrInfiltratedCondition";
 import { DestroyedUnitsCondition } from "@/game/trigger/condition/DestroyedUnitsCondition";
 import { ElapsedScenarioTimeCondition } from "@/game/trigger/condition/ElapsedScenarioTimeCondition";
+import { EnteredOrOverflownByCondition } from "@/game/trigger/condition/EnteredOrOverflownByCondition";
+import { ZoneEntryByCondition } from "@/game/trigger/condition/ZoneEntryByCondition";
 import { ElapsedTimeCondition } from "@/game/trigger/condition/ElapsedTimeCondition";
 import { EnteredByCondition } from "@/game/trigger/condition/EnteredByCondition";
 import { GlobalVariableCondition } from "@/game/trigger/condition/GlobalVariableCondition";
+import { HouseDiscoveredCondition } from "@/game/trigger/condition/HouseDiscoveredCondition";
 import { HealthBelowAnyCondition } from "@/game/trigger/condition/HealthBelowAnyCondition";
 import { HealthBelowCombatCondition } from "@/game/trigger/condition/HealthBelowCombatCondition";
 import { LocalVariableCondition } from "@/game/trigger/condition/LocalVariableCondition";
 import { LowPowerCondition } from "@/game/trigger/condition/LowPowerCondition";
 import { NoEventCondition } from "@/game/trigger/condition/NoEventCondition";
 import { NoFactoriesLeftCondition } from "@/game/trigger/condition/NoFactoriesLeftCondition";
+import { ObjectLostCondition } from "@/game/trigger/condition/ObjectLostCondition";
+import { ObjectSelectedCondition } from "@/game/trigger/condition/ObjectSelectedCondition";
 import { PickupCrateAnyCondition } from "@/game/trigger/condition/PickupCrateAnyCondition";
+import { PowerFullCondition } from "@/game/trigger/condition/PowerFullCondition";
 import { PickupCrateCondition } from "@/game/trigger/condition/PickupCrateCondition";
 import { RandomDelayCondition } from "@/game/trigger/condition/RandomDelayCondition";
 import { SpiedByCondition } from "@/game/trigger/condition/SpiedByCondition";
 import { SpyEnteringAsHouseCondition } from "@/game/trigger/condition/SpyEnteringAsHouseCondition";
 import { SpyEnteringAsInfantryCondition } from "@/game/trigger/condition/SpyEnteringAsInfantryCondition";
+import { TechTypeDoesNotExistCondition } from "@/game/trigger/condition/TechTypeDoesNotExistCondition";
+import { TechTypeExistsCondition } from "@/game/trigger/condition/TechTypeExistsCondition";
 import { TimerExpiredCondition } from "@/game/trigger/condition/TimerExpiredCondition";
 export class TriggerConditionFactory {
     create(e: any, t: any) {
@@ -48,6 +56,10 @@ export class TriggerConditionFactory {
                 return new EnteredByCondition(e, t);
             case TriggerEventType.SpiedBy:
                 return new SpiedByCondition(e, t);
+            case TriggerEventType.DiscoveredByPlayer:
+                return new DiscoveredByPlayerCondition(e, t);
+            case TriggerEventType.HouseDiscovered:
+                return new HouseDiscoveredCondition(e, t);
             case TriggerEventType.AttackedByAny:
                 return new AttackedByAnyCondition(e, t);
             case TriggerEventType.DestroyedByAny:
@@ -80,6 +92,8 @@ export class TriggerConditionFactory {
                 return new BuildObjectTypeCondition(e, t, ObjectType.Infantry);
             case TriggerEventType.BuildAircraft:
                 return new BuildObjectTypeCondition(e, t, ObjectType.Aircraft);
+            case TriggerEventType.ZoneEntryBy:
+                return new ZoneEntryByCondition(e, t);
             case TriggerEventType.CrossesHorizontalLine:
                 return new CrossHorizLineCondition(e, t);
             case TriggerEventType.CrossesVerticalLine:
@@ -88,14 +102,16 @@ export class TriggerConditionFactory {
                 return new GlobalVariableCondition(e, t, true);
             case TriggerEventType.GlobalIsCleared:
                 return new GlobalVariableCondition(e, t, false);
-            case TriggerEventType.DestroyedOrCaptured:
-                return new DestroyedOrCapturedCondition(e, t);
+            case TriggerEventType.DestroyedByAnythingExceptInfiltration:
+                return new ObjectLostCondition(e, t);
             case TriggerEventType.LowPower:
                 return new LowPowerCondition(e, t);
             case TriggerEventType.DestroyedBridge:
                 return new DestroyedBridgeCondition(e, t);
             case TriggerEventType.BuildingExists:
                 return new BuildingExistsCondition(e, t);
+            case TriggerEventType.ObjectSelected:
+                return new ObjectSelectedCondition(e, t);
             case TriggerEventType.ComesNearWaypoint:
                 return new ComesNearWaypointCondition(e, t);
             case TriggerEventType.LocalIsSet:
@@ -122,7 +138,7 @@ export class TriggerConditionFactory {
                 return new AmbientLightCondition(e, t, "above");
             case TriggerEventType.ElapsedScenarioTime:
                 return new ElapsedScenarioTimeCondition(e, t);
-            case TriggerEventType.DestroyedOrCapturedOrInfiltrated:
+            case TriggerEventType.DestroyedByAnything:
                 return new DestroyedOrCapturedOrInfiltratedCondition(e, t);
             case TriggerEventType.PickupCrate:
                 return new PickupCrateCondition(e, t);
@@ -142,6 +158,14 @@ export class TriggerConditionFactory {
                 return new DestroyedAllUnitsLandCondition(e, t);
             case TriggerEventType.BuildingNotExists:
                 return new BuildingExistsCondition(e, t, true);
+            case TriggerEventType.PowerFull:
+                return new PowerFullCondition(e, t);
+            case TriggerEventType.EnteredOrOverflownBy:
+                return new EnteredOrOverflownByCondition(e, t);
+            case TriggerEventType.TechTypeExists:
+                return new TechTypeExistsCondition(e, t);
+            case TriggerEventType.TechTypeDoesNotExist:
+                return new TechTypeDoesNotExistCondition(e, t);
             default:
                 throw new Error(`Unhandled trigger event type "${TriggerEventType[e.type]}"`);
         }

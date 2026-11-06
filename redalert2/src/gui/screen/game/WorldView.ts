@@ -19,6 +19,7 @@ import { CrateFxHandler } from '@/engine/renderable/fx/handler/CrateFxHandler';
 import { BeaconFxHandler } from '@/engine/renderable/fx/handler/BeaconFxHandler';
 import { AresBountyFxHandler } from '@/engine/renderable/fx/handler/AresBountyFxHandler';
 import { FirestormWallFxHandler } from '@/engine/renderable/fx/handler/FirestormWallFxHandler';
+import { PrismSupportFxHandler } from '@/engine/renderable/fx/handler/PrismSupportFxHandler';
 import { VxlBuilderFactory } from '@/engine/renderable/builder/VxlBuilderFactory';
 export class WorldView {
     private disposables = new CompositeDisposable();
@@ -60,7 +61,8 @@ export class WorldView {
         const startLocationIndex = (!localPlayer || localPlayer.isObserver)
             ? this.game.getCombatants()[0].startLocation
             : localPlayer.startLocation;
-        const startPos = this.game.map.startingLocations[startLocationIndex];
+        const startPos = this.game.map.getStartingLocation?.(startLocationIndex) ??
+            this.game.map.startingLocations[startLocationIndex];
         const panningHelper = new MapPanningHelper(this.game.map);
         worldScene.cameraPan.setPan(panningHelper.computeCameraPanFromTile(startPos.x, startPos.y));
         try {
@@ -198,6 +200,9 @@ export class WorldView {
         const firestormWallFxHandler = new FirestormWallFxHandler(this.game, renderableManager as any);
         firestormWallFxHandler.init();
         this.disposables.add(firestormWallFxHandler);
+        const prismSupportFxHandler = new PrismSupportFxHandler(this.game, renderableManager as any, worldScene.camera as any);
+        prismSupportFxHandler.init();
+        this.disposables.add(prismSupportFxHandler);
         const handleLightingChange = (lightingData: any) => {
             worldScene.applyLighting(lighting);
             renderableManager.updateLighting();

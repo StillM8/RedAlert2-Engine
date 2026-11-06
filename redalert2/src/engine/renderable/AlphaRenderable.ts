@@ -3,6 +3,19 @@ import { ShpBuilder } from "@/engine/renderable/builder/ShpBuilder";
 import { Color } from "@/util/Color";
 import { Coords } from "@/game/Coords";
 import * as THREE from "three";
+export function resolveAlphaImageFacings(frameCount: number): { count: number; offset: number } {
+    const normalized = Math.max(0, Math.trunc(frameCount));
+    if (normalized <= 1) return { count: 1, offset: 0 };
+    let count = 1;
+    while (count * 2 <= normalized) count *= 2;
+    return { count, offset: 0 };
+}
+export function resolveAlphaImageFacingFrame(direction: number, frameCount: number): number {
+    const facings = resolveAlphaImageFacings(frameCount);
+    const normalizedDirection = ((direction % 360) + 360) % 360;
+    const facing = Math.floor((normalizedDirection / 360) * facings.count) % facings.count;
+    return facings.offset + facing;
+}
 export class AlphaRenderable {
     private static alphaPalette?: Palette;
     private shpFile: any;
@@ -12,6 +25,8 @@ export class AlphaRenderable {
     private shpSize?: number;
     private builder?: ShpBuilder;
     private object3d?: THREE.Object3D;
+    private facingCount: number;
+    private facingFrameOffset: number;
     static getOrCreateAlphaPalette(): Palette {
         let palette = AlphaRenderable.alphaPalette;
         if (!palette) {
@@ -31,6 +46,10 @@ export class AlphaRenderable {
         this.camera = camera;
         this.visible = true;
         this.drawOffset = { ...drawOffset };
+        const frameCount = Math.min(shpFile?.numImages ?? 0, shpFile?.images?.length ?? 0);
+        const facings = resolveAlphaImageFacings(frameCount);
+        this.facingCount = facings.count;
+        this.facingFrameOffset = facings.offset;
     }
     setVisible(visible: boolean): void {
         this.visible = visible;
@@ -41,6 +60,21 @@ export class AlphaRenderable {
     setSize(size: number): void {
         this.shpSize = size;
         this.builder?.setSize(size);
+    }
+    setFrame(frame: number): void {
+        this.builder?.setFrame(frame);
+    }
+    setFacing(direction: number): void {
+        if (this.facingCount <= 1) return;
+        const normalizedDirection = ((direction % 360) + 360) % 360;
+        const facing = Math.floor((normalizedDirection / 360) * this.facingCount) % this.facingCount;
+        this.builder?.setFrame(this.facingFrameOffset + facing);
+    }
+    getFacingCount(): number {
+        return this.facingCount;
+    }
+    getFacingFrameOffset(): number {
+        return this.facingFrameOffset;
     }
     create3DObject(): void {
         if (!this.object3d) {

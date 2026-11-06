@@ -99,16 +99,16 @@ export class RenderableManager {
         this.renderablesByGameObject.delete(gameObject);
         this.renderablesById.delete(gameObject.id as any);
     }
-    createTransientAnim(anim: any, callback?: (renderable: Renderable) => void): Renderable {
-        const renderable = this.renderableFactory.createTransientAnim(anim, this.container);
+    createTransientAnim(anim: any, callback?: (renderable: Renderable) => void, onFinished?: () => void): Renderable {
+        const renderable = this.renderableFactory.createTransientAnim(anim, this.container, onFinished);
         if (callback) {
             callback(renderable);
         }
         this.container.add(renderable);
         return renderable;
     }
-    createAnim(anim: any, callback?: (renderable: Renderable) => void, skipAdd: boolean = false): Renderable {
-        const renderable = this.renderableFactory.createAnim(anim);
+    createAnim(anim: any, callback?: (renderable: Renderable) => void, skipAdd: boolean = false, palette?: any): Renderable {
+        const renderable = this.renderableFactory.createAnim(anim, palette);
         if (callback) {
             callback(renderable);
         }

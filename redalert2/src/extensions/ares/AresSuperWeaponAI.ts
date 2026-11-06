@@ -68,6 +68,7 @@ export interface AresSuperWeaponAITargetingInput extends Pick<
     AresSuperWeaponDefinition,
     | "swUseAITargeting"
     | "swAITargeting"
+    | "swAITargetingType"
     | "swAITargetingConstraints"
     | "swAITargetingPreference"
     | "swAIRequiresTarget"
@@ -94,7 +95,7 @@ const MODE_DEFAULTS: Readonly<Record<Exclude<AresSuperWeaponAITargetingMode, "un
     "nuke": { requiredTarget: "infantry,units,buildings", requiredHouse: "enemies", preference: "offensive", constraints: ["enemy"] },
     "lightning-storm": { requiredTarget: "infantry,units,buildings", requiredHouse: "enemies", preference: "offensive", constraints: ["enemy", "lightning-storm-inactive"] },
     "psychic-dominator": { requiredTarget: "infantry,units", requiredHouse: "all", preference: "none", constraints: ["offensive-cell-clear", "enemy", "dominator-inactive"] },
-    "paradrop": { requiredTarget: "", requiredHouse: "", preference: "offensive", constraints: [] },
+    "paradrop": { requiredTarget: "", requiredHouse: "", preference: "offensive", constraints: [], allowsEmptyCell: true },
     "genetic-mutator": { requiredTarget: "infantry", requiredHouse: "all", preference: "none", constraints: ["offensive-cell-clear"] },
     "force-shield": { requiredTarget: "", requiredHouse: "", preference: "defensive", constraints: [] },
     "no-target": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: [], allowsEmptyCell: true },
@@ -109,7 +110,7 @@ const MODE_DEFAULTS: Readonly<Record<Exclude<AresSuperWeaponAITargetingMode, "un
     "attack": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: ["attacked"], allowsEmptyCell: true },
     "low-power": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: ["low-power"], allowsEmptyCell: true },
     "low-power-attack": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: ["attacked", "low-power"], allowsEmptyCell: true },
-    "drop-pod": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: ["enemy"] },
+    "drop-pod": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: ["enemy"], allowsEmptyCell: true },
     "lightning-random": { requiredTarget: "", requiredHouse: "", preference: "none", constraints: [], allowsEmptyCell: true },
 };
 
@@ -185,7 +186,9 @@ export function normalizeAresSuperWeaponAIHouse(value: string | undefined): Ares
         case "owner":
         case "self": return "owner";
         case "allies":
-        case "ally": return "allies";
+        case "ally":
+        case "friend":
+        case "friends": return "allies";
         case "team": return "team";
         case "enemies":
         case "enemy": return "enemies";
@@ -206,6 +209,13 @@ function defaultMode(input: AresSuperWeaponAITargetingInput): AresSuperWeaponAIT
     if (extension === "empulse" || extension === "firestorm" || extension === "chronowarp") return "none";
 
     const type = compact(input.typeId);
+    if (type === "genericwarhead") return "offensive";
+    if (type === "unitdelivery") return "paradrop";
+    if (type === "droppod") return "drop-pod";
+    if (type === "sonarpulse") return "stealth";
+    if (type === "hunterseeker") return "hunter-seeker";
+    if (type === "battery") return "low-power";
+    if (type === "empulse" || type === "firestorm" || type === "chronowarp") return "none";
     if (type === "multimissile") return "nuke";
     if (type === "lightningstorm") return "lightning-storm";
     if (type === "psychicdominator") return "psychic-dominator";
@@ -254,7 +264,7 @@ export function normalizeAresSuperWeaponAITargeting(value: string | undefined): 
 export function resolveAresSuperWeaponAITargeting(
     input: AresSuperWeaponAITargetingInput,
 ): AresSuperWeaponAITargetingProfile {
-    const rawMode = input.swAITargeting?.trim() || undefined;
+    const rawMode = input.swAITargeting?.trim() || input.swAITargetingType?.trim() || undefined;
     const mode = rawMode === undefined ? defaultMode(input) : normalizeAresSuperWeaponAITargeting(rawMode);
     if (mode === "unknown") {
         return {

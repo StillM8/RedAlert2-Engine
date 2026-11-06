@@ -6,7 +6,7 @@ export class ElapsedScenarioTimeCondition extends TriggerCondition {
         super(event, trigger);
         this.timerTicks = Number(this.event.params[1]) * GameSpeed.BASE_TICKS_PER_SECOND;
     }
-    check(context: any): boolean {
-        return context.currentTick > this.timerTicks;
+    check(context: any, events: any[]): boolean {
+        return context.currentTick >= this.timerTicks;
     }
 }

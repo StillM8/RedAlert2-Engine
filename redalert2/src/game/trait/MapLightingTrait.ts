@@ -2,6 +2,7 @@ import { MapLighting } from '@/data/map/MapLighting';
 import { GameSpeed } from '@/game/GameSpeed';
 import { EventDispatcher } from '@/util/event';
 import { NotifyTick } from '@/game/trait/interface/NotifyTick';
+import { fnv32aStrings } from '@/util/math';
 export class MapLightingTrait {
     private mapLighting: MapLighting;
     private _onChange: EventDispatcher;
@@ -32,6 +33,47 @@ export class MapLightingTrait {
     }
     setTargetAmbientIntensity(intensity: number): void {
         this.targetAmbient = intensity;
+    }
+    getHash(): number {
+        return fnv32aStrings([
+            "MapLightingTrait",
+            this.mapLighting.level,
+            this.mapLighting.ambient,
+            this.mapLighting.red,
+            this.mapLighting.green,
+            this.mapLighting.blue,
+            this.mapLighting.ground,
+            this.mapLighting.forceTint ? 1 : 0,
+            this.targetAmbient ?? -1,
+            this.ambientUpdateTicks ?? -1,
+        ]);
+    }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            level: this.mapLighting.level,
+            ambient: this.mapLighting.ambient,
+            red: this.mapLighting.red,
+            green: this.mapLighting.green,
+            blue: this.mapLighting.blue,
+            ground: this.mapLighting.ground,
+            forceTint: this.mapLighting.forceTint,
+            targetAmbient: this.targetAmbient ?? null,
+            ambientUpdateTicks: this.ambientUpdateTicks ?? null,
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1) {
+            throw new Error("Invalid map lighting state");
+        }
+        for (const key of ["level", "ambient", "red", "green", "blue", "ground"]) {
+            if (!Number.isFinite((state as any)[key])) throw new Error("Invalid map lighting value");
+            this.mapLighting[key] = (state as any)[key];
+        }
+        if (typeof (state as any).forceTint !== "boolean") throw new Error("Invalid map lighting tint");
+        this.mapLighting.forceTint = (state as any).forceTint;
+        this.targetAmbient = (state as any).targetAmbient === null ? undefined : (state as any).targetAmbient;
+        this.ambientUpdateTicks = (state as any).ambientUpdateTicks === null ? undefined : (state as any).ambientUpdateTicks;
     }
     getAmbient(): MapLighting {
         return this.mapLighting;

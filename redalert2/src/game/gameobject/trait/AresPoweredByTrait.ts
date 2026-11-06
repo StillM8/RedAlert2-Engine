@@ -1,5 +1,6 @@
 import { resolveAresPoweredByDecision } from "@/extensions/ares/AresTechnoRuntimeAdapters";
 import { resolveAresPoweredUnitState } from "@/extensions/ares/AresPoweredUnitRuntime";
+import { fnv32aStrings } from "@/util/math";
 import { NotifyTick } from "./interface/NotifyTick";
 
 const DEFAULT_CHECK_INTERVAL_TICKS = 15;
@@ -21,6 +22,15 @@ export class AresPoweredByTrait implements NotifyTick {
     constructor(gameObject: any, checkIntervalTicks: number = DEFAULT_CHECK_INTERVAL_TICKS) {
         this.gameObject = gameObject;
         this.checkIntervalTicks = Math.max(0, Math.trunc(checkIntervalTicks));
+    }
+
+    getHash(): number {
+        return fnv32aStrings([
+            "AresPoweredByTrait",
+            this.offline ? 1 : 0,
+            this.powered ? 1 : 0,
+            this.ticksUntilCheck,
+        ]);
     }
 
     isOffline(): boolean {

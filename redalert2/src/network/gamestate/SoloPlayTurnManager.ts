@@ -3,11 +3,16 @@ import { GameStatus } from '@/game/Game';
 import { GameSpeed } from '@/game/GameSpeed';
 import { EventDispatcher } from '@/util/event';
 import type { ActionRecord } from './Replay';
+import { restoreWorldState } from '@/game/state/WorldStateSnapshot';
 
 export interface SoloResumeData {
     records: ActionRecord[];
     untilTick: number;
     actionFactory: any;
+    extensionState?: unknown;
+    worldState?: unknown;
+    restoreExtensionState?(state: unknown): void;
+    restoreWorldState?(state: unknown): void;
 }
 
 export class SoloPlayTurnManager {
@@ -17,6 +22,10 @@ export class SoloPlayTurnManager {
     private resumeActionsByTick?: Map<number, ActionRecord[]>;
     private resumeUntilTick = 0;
     private resumeActionFactory?: any;
+    private resumeExtensionState?: unknown;
+    private resumeStateRestorer?: (state: unknown) => void;
+    private resumeWorldState?: unknown;
+    private resumeWorldStateRestorer?: (state: unknown) => void;
     public readonly onActionsSent = new EventDispatcher<this, void>();
 
     private readonly onGameSpeedChanged = () => {
@@ -34,6 +43,15 @@ export class SoloPlayTurnManager {
         if (resume) {
             this.resumeUntilTick = resume.untilTick;
             this.resumeActionFactory = resume.actionFactory;
+            this.resumeExtensionState = resume.extensionState;
+            this.resumeStateRestorer = resume.restoreExtensionState;
+            this.resumeWorldState = resume.worldState;
+            this.resumeWorldStateRestorer = resume.restoreWorldState ?? (state => restoreWorldState(this.game, state, {
+                strict: true,
+                createObject: (type, name) => this.game.createObject?.(type, name),
+                spawnObject: (object, tile) => this.game.restoreSpawnedObject?.(object, tile),
+                unspawnObject: object => this.game.restoreUnspawnedObject?.(object),
+            }));
             this.resumeActionsByTick = new Map();
             for (const record of resume.records) {
                 let list = this.resumeActionsByTick.get(record.tick);
@@ -95,8 +113,38 @@ export class SoloPlayTurnManager {
             }
             this.game.update();
             if (!this.isResuming()) {
+                if (this.resumeWorldState !== undefined) {
+                    if (!this.resumeWorldStateRestorer) {
+                        this.errorState = true;
+                        throw new Error("Saved world state cannot be restored");
+                    }
+                    try {
+                        this.resumeWorldStateRestorer(this.resumeWorldState);
+                    }
+                    catch (error) {
+                        this.errorState = true;
+                        throw error;
+                    }
+                }
+                if (this.resumeExtensionState !== undefined) {
+                    if (!this.resumeStateRestorer) {
+                        this.errorState = true;
+                        throw new Error("Saved extension state cannot be restored");
+                    }
+                    try {
+                        this.resumeStateRestorer(this.resumeExtensionState);
+                    }
+                    catch (error) {
+                        this.errorState = true;
+                        throw error;
+                    }
+                }
                 this.resumeActionsByTick = undefined;
                 this.resumeActionFactory = undefined;
+                this.resumeExtensionState = undefined;
+                this.resumeStateRestorer = undefined;
+                this.resumeWorldState = undefined;
+                this.resumeWorldStateRestorer = undefined;
             }
             if (this.gameSpeedChanged) {
                 this.game.speed.value = this.game.desiredSpeed.value;

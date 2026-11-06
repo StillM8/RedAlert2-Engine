@@ -38,6 +38,10 @@ import {
     isAresInitialPayloadBuildingHost,
 } from "@/extensions/ares/AresPassengers";
 import { AresInitialPayloadTrait } from "@/game/gameobject/trait/AresInitialPayloadTrait";
+import { AresLaserFenceTrait } from "@/game/gameobject/trait/AresLaserFenceTrait";
+import { AresSpyEffectTrait } from "@/extensions/ares/AresSpyBehavior";
+import { PrismSupportTrait } from "@/game/gameobject/trait/PrismSupportTrait";
+import { canPrismAttack, canPrismForward } from "@/extensions/ares/AresPrismForwarding";
 export enum BuildStatus {
     BuildUp = 0,
     Ready = 1,
@@ -64,6 +68,8 @@ export class Building extends Techno {
     public superWeaponTrait?: SuperWeaponTrait;
     /** All ordered logical superweapon providers configured on this building. */
     public superWeaponTraits: SuperWeaponTrait[] = [];
+    public aresSpyEffectTrait?: AresSpyEffectTrait;
+    public prismSupportTrait?: PrismSupportTrait;
     public dockTrait?: DockTrait;
     public helipadTrait?: HelipadTrait;
     public unitRepairTrait?: UnitRepairTrait;
@@ -76,6 +82,7 @@ export class Building extends Techno {
     public psychicDetectorTrait?: PsychicDetectorTrait;
     public tankBunkerTrait?: TankBunkerTrait;
     public aresAdvancedRubbleTrait?: AresAdvancedRubbleTrait;
+    public laserFenceTrait?: AresLaserFenceTrait;
     static factory(owner: any, rules: TechnoRules, gameRules: any, art: any, world: any, coords: any): Building {
         const building = new this(owner, rules, art);
         if (rules.canBeOccupied) {
@@ -132,6 +139,10 @@ export class Building extends Techno {
             building.poweredTrait = new PoweredTrait(building);
             building.traits.add(building.poweredTrait);
         }
+        if (canPrismAttack(rules.prismForwarding) || canPrismForward(rules.prismForwarding)) {
+            building.prismSupportTrait = new PrismSupportTrait(building, gameRules);
+            building.traits.add(building.prismSupportTrait);
+        }
         if (rules.factory || rules.cloning) {
             building.factoryTrait = new FactoryTrait(rules.cloning ? FactoryType.InfantryType : rules.factory, rules.cloning);
             building.traits.add(building.factoryTrait);
@@ -141,6 +152,10 @@ export class Building extends Techno {
             building.superWeaponTraits = superWeaponNames.map(name => new SuperWeaponTrait(name));
             building.superWeaponTrait = building.superWeaponTraits[0];
             building.superWeaponTraits.forEach(trait => building.traits.add(trait));
+        }
+        if (rules.spyEffect?.custom && rules.spyEffect.revealProduction) {
+            building.aresSpyEffectTrait = new AresSpyEffectTrait();
+            building.traits.add(building.aresSpyEffectTrait);
         }
         if (rules.numberOfDocks) {
             building.dockTrait = new DockTrait(building as any, world, rules.numberOfDocks, art.dockingOffsets);
@@ -186,6 +201,10 @@ export class Building extends Techno {
         if (rules.firestormWall) {
             building.firestormWallTrait = new AresFirestormWallTrait();
             building.traits.add(building.firestormWallTrait);
+        }
+        if (rules.laserFencePost || rules.laserFence) {
+            building.laserFenceTrait = new AresLaserFenceTrait(building);
+            building.traits.add(building.laserFenceTrait);
         }
         if (rules.gapGenerator) {
             building.gapGeneratorTrait = new GapGeneratorTrait(rules.gapRadiusInCells);

@@ -10,7 +10,14 @@ import {
     isAresSuperWeaponManualActivationAllowed,
 } from '@/extensions/ares/AresSuperWeaponFilters';
 import { isAresSuperWeaponLaunchAllowed } from '@/extensions/ares/AresSuperWeaponLaunch';
+import {
+    planAresSuperWeaponTargetFromWorld,
+    resolveAresSuperWeaponTargetingProfile,
+} from '@/extensions/ares/AresSuperWeaponAutoFire';
 import { AresSuperWeaponMessageEvent } from '@/game/event/AresSuperWeaponMessageEvent';
+
+/** Escape byte marking an extended uint16 superweapon action index. */
+const EXTENDED_INDEX_ESCAPE = 0xff;
 export class ActivateSuperWeaponAction extends Action {
     private game: Game;
     private superWeaponType: number;
@@ -28,7 +35,15 @@ export class ActivateSuperWeaponAction extends Action {
     }
     unserialize(data: Uint8Array): void {
         const stream = new DataStream(data);
-        this.superWeaponType = stream.readUint8();
+        // 0xFF is the extended-index escape: legacy single-byte records encode
+        // indexes 0-254 directly, so old records parse unchanged while mods
+        // with 255+ superweapons round-trip instead of wrapping onto the wrong
+        // weapon. (Legacy records for exactly index 255 predate the escape and
+        // are the one documented edge case.)
+        const first = stream.readUint8();
+        this.superWeaponType = first === EXTENDED_INDEX_ESCAPE
+            ? stream.readUint16()
+            : first;
         const tileCount = stream.readUint8();
         this.tile = {
             x: stream.readUint16(),
@@ -42,9 +57,16 @@ export class ActivateSuperWeaponAction extends Action {
         }
     }
     serialize(): Uint8Array {
-        const stream = new DataStream(6 + (this.tile2 ? 4 : 0));
+        const wide = this.superWeaponType > 254;
+        const stream = new DataStream((wide ? 8 : 6) + (this.tile2 ? 4 : 0));
         stream.dynamicSize = false;
-        stream.writeUint8(this.superWeaponType);
+        if (wide) {
+            stream.writeUint8(EXTENDED_INDEX_ESCAPE);
+            stream.writeUint16(this.superWeaponType);
+        }
+        else {
+            stream.writeUint8(this.superWeaponType);
+        }
         stream.writeUint8(this.tile2 ? 4 : 2);
         stream.writeUint16(this.tile.x);
         stream.writeUint16(this.tile.y);
@@ -62,7 +84,7 @@ export class ActivateSuperWeaponAction extends Action {
     }
     process(): void {
         const player = this.player;
-        const tile = this.game.map.tiles.getByMapCoords(this.tile.x, this.tile.y);
+        let tile = this.game.map.tiles.getByMapCoords(this.tile.x, this.tile.y);
         if (!tile) {
             console.warn(`Tile ${this.tile.x},${this.tile.y} doesn't exist`);
             return;
@@ -77,6 +99,29 @@ export class ActivateSuperWeaponAction extends Action {
         if (!rules) {
             console.warn(`Superweapon index ${this.superWeaponType} doesn't exist; ignored`);
             return;
+        }
+        if (rules.ares?.swUseAITargeting === true && !this.tile2) {
+            const profile = resolveAresSuperWeaponTargetingProfile(rules);
+            const superWeapons = this.game.traits?.get?.(SuperWeaponsTrait);
+            const underAttack = typeof (player as any)?.isUnderAttack === "function"
+                ? (player as any).isUnderAttack()
+                : (player as any)?.isUnderAttack === true || (player as any)?.underAttack === true;
+            const selected = profile.supported
+                ? planAresSuperWeaponTargetFromWorld(this.game, player, rules, {
+                    underAttack,
+                    lightningStormActive: superWeapons?.hasActiveEffect?.(SuperWeaponType.LightningStorm),
+                    psychicDominatorActive: superWeapons?.hasActiveEffect?.(SuperWeaponType.PsychicDominator),
+                })
+                : undefined;
+            const selectedTile = selected
+                ? this.game.map.tiles.getByMapCoords(selected.x, selected.y)
+                : undefined;
+            if (!selectedTile) {
+                console.warn(`Superweapon ${rules.name} has no AI-selected target; ignored`);
+                this.notifyAresCannotFire(rules, tile);
+                return;
+            }
+            tile = selectedTile;
         }
         if (rules.ares && !isAresSuperWeaponManualActivationAllowed(
             rules.ares.swAutoFire,

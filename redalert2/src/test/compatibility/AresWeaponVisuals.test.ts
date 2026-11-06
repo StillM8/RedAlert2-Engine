@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { IniFile, IniSection } from "@/data/IniFile";
 import {
+    DEFAULT_ARES_LASER_THICKNESS,
+    MAX_ARES_LASER_THICKNESS,
     parseAresRgb,
     parseAresWeaponTypeNames,
     parseAresWeaponVisualRules,
+    resolveAresLaserThickness,
 } from "@/extensions/ares/AresWeaponVisuals";
 import { WeaponRules } from "@/game/rules/WeaponRules";
 import { scanMentalOmegaIniSources } from "@/extensions/ares/AresCompatibilityScanner";
@@ -69,6 +72,19 @@ describe("Ares weapon visual extensions", () => {
         expect(rules.aresWeaponVisuals.beamDuration).toBe(18);
         expect(rules.aresWeaponVisuals.waveIsBigLaser).toBe(true);
         expect(rules.aresWeaponVisuals.waveReverseAgainstBuildings).toBe(true);
+    });
+
+    test("normalizes laser thickness with the shared default and bounds", () => {
+        expect(resolveAresLaserThickness(undefined)).toBe(DEFAULT_ARES_LASER_THICKNESS);
+        expect(resolveAresLaserThickness(-1)).toBe(DEFAULT_ARES_LASER_THICKNESS);
+        expect(resolveAresLaserThickness(Number.NaN)).toBe(DEFAULT_ARES_LASER_THICKNESS);
+        expect(resolveAresLaserThickness(0)).toBe(0);
+        expect(resolveAresLaserThickness(7.9)).toBe(7);
+        expect(resolveAresLaserThickness(99)).toBe(MAX_ARES_LASER_THICKNESS);
+
+        const section = new IniSection("LaserWeapon");
+        section.set("LaserThickness", "99");
+        expect(new WeaponRules(section).laserThickness).toBe(MAX_ARES_LASER_THICKNESS);
     });
 
     test("registers standalone Ares [WeaponTypes] declarations", () => {

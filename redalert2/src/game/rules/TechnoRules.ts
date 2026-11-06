@@ -37,8 +37,14 @@ import { parseAresVeterancyRules } from "@/extensions/ares/AresVeterancy";
 import type { AresVeterancyRules } from "@/extensions/ares/AresVeterancy";
 import { parseAresChronoPrisonTechno } from "@/extensions/ares/AresChronoPrisons";
 import type { AresChronoPrisonTechnoRules } from "@/extensions/ares/AresChronoPrisons";
+import { createDefaultAresSpyEffectRules, parseAresSpyEffectRules } from "@/extensions/ares/AresSpyBehavior";
+import type { AresSpyEffectRules } from "@/extensions/ares/AresSpyBehavior";
 import { resolveAresParticleSystems } from "@/extensions/ares/AresParticleSystems";
 import type { AresParticleSystemRules } from "@/extensions/ares/AresParticleSystems";
+import {
+    parsePrismForwardingRules,
+    type PrismForwardingRules,
+} from "@/extensions/ares/AresPrismForwarding";
 interface House {
     name: string;
 }
@@ -133,14 +139,26 @@ export class TechnoRules extends ObjectRules {
     declare factoryOwnersHasAllPlans: boolean;
     /** BuildingType: captured plans remain available after the building is lost. */
     declare factoryOwnersPermanent: boolean;
+    /** Ares secret lab: pays a bonus when captured. */
+    declare secretLab: boolean;
     /** Ares BuildingType: enables reverse-engineering in a Grinding facility. */
     declare reverseEngineersVictims: boolean;
     /** Ares InfantryType/VehicleType: permits this unit to be reversed. */
     declare canBeReversed: boolean;
     /** Ares reverse-engineering output override; undefined means the unit itself. */
     declare reversedAs?: string;
-    /** Ares custom spy effect that clears the target player's reverse plans. */
+    declare spyEffect: AresSpyEffectRules;
     declare spyEffectCustom: boolean;
+    declare spyEffectResetRadar: boolean;
+    declare spyEffectRevealRadar: boolean;
+    declare spyEffectPowerOutageDuration: number;
+    declare spyEffectStolenMoneyAmount: number;
+    declare spyEffectStolenMoneyPercentage: number;
+    declare spyEffectResetSuperweapons: boolean;
+    declare spyEffectStolenTechIndex: number;
+    declare spyEffectStolenTechIndexSet: boolean;
+    declare spyEffectUnitVeterancy: boolean;
+    declare spyEffectRevealProduction: boolean;
     declare spyEffectUndoReverseEngineer: boolean;
     declare soylent: number;
     declare crateGoodie: boolean;
@@ -243,6 +261,7 @@ export class TechnoRules extends ObjectRules {
     declare turretAnimZAdjust: number;
     declare isChargeTurret: boolean;
     declare overpowerable: boolean;
+    declare prismForwarding: PrismForwardingRules;
     declare freeUnit: string;
     declare primary?: string;
     declare secondary?: string;
@@ -261,6 +280,8 @@ export class TechnoRules extends ObjectRules {
     declare eliteAbilities: Set<VeteranAbility>;
     declare selfHealing: boolean;
     declare wall: boolean;
+    declare laserFencePost: boolean;
+    declare laserFence: boolean;
     /** Ares Firestorm.Wall; separate from ordinary wall terrain/connection rules. */
     declare firestormWall: boolean;
     /** Ares BuildingType lightning-storm attraction flag. */
@@ -278,6 +299,7 @@ export class TechnoRules extends ObjectRules {
     /** Ares EMP immunity and target-specific duration modifier. */
     declare immuneToEMP: boolean;
     declare empModifier: number;
+    declare ironCurtainModifier: number;
     /** Ares EMP.Threshold; destruction handling is integrated separately. */
     declare empThreshold: number;
     /** Ares BuildingType flag for the default EMPulse launch-site path. */
@@ -318,7 +340,10 @@ export class TechnoRules extends ObjectRules {
     declare deployFireWeapon: number;
     declare undeployDelay: number;
     declare fraidycat: boolean;
+    declare isCow: boolean;
+    declare isDesolator: boolean;
     declare isHuman: boolean;
+    declare deathAnims: string[];
     declare organic: boolean;
     declare occupier: boolean;
     declare engineer: boolean;
@@ -549,6 +574,7 @@ export class TechnoRules extends ObjectRules {
         this.factoryOwnersForbidden = prerequisiteRules.factoryOwnersForbidden;
         this.factoryOwnersHasAllPlans = this.ini.getBool("FactoryOwners.HasAllPlans");
         this.factoryOwnersPermanent = this.ini.getBool("FactoryOwners.Permanent");
+        this.secretLab = this.ini.getBool("SecretLab", false);
         this.reverseEngineersVictims = this.type === ObjectType.Building &&
             this.ini.getBool("ReverseEngineersVictims");
         this.canBeReversed = [ObjectType.Infantry, ObjectType.Vehicle].includes(this.type)
@@ -558,10 +584,21 @@ export class TechnoRules extends ObjectRules {
         this.reversedAs = reversedAs && reversedAs.toLocaleLowerCase("en-US") !== "none"
             ? reversedAs
             : undefined;
-        this.spyEffectCustom = this.type === ObjectType.Building &&
-            this.ini.getBool("SpyEffect.Custom");
-        this.spyEffectUndoReverseEngineer = this.type === ObjectType.Building &&
-            this.ini.getBool("SpyEffect.UndoReverseEngineer");
+        this.spyEffect = this.type === ObjectType.Building
+            ? parseAresSpyEffectRules(this.ini)
+            : createDefaultAresSpyEffectRules();
+        this.spyEffectCustom = this.spyEffect.custom;
+        this.spyEffectResetRadar = this.spyEffect.resetRadar;
+        this.spyEffectRevealRadar = this.spyEffect.revealRadar;
+        this.spyEffectPowerOutageDuration = this.spyEffect.powerOutageDuration;
+        this.spyEffectStolenMoneyAmount = this.spyEffect.stolenMoneyAmount;
+        this.spyEffectStolenMoneyPercentage = this.spyEffect.stolenMoneyPercentage;
+        this.spyEffectResetSuperweapons = this.spyEffect.resetSuperweapons;
+        this.spyEffectStolenTechIndex = this.spyEffect.stolenTechIndex;
+        this.spyEffectStolenTechIndexSet = this.spyEffect.stolenTechIndexSet;
+        this.spyEffectUnitVeterancy = this.spyEffect.unitVeterancy;
+        this.spyEffectRevealProduction = this.spyEffect.revealProduction;
+        this.spyEffectUndoReverseEngineer = this.spyEffect.undoReverseEngineer;
         this.soylent = this.ini.getNumber("Soylent");
         this.crateGoodie = this.ini.getBool("CrateGoodie");
         this.buildCat = this.ini.getEnum("BuildCat", BuildCat, BuildCat.Combat);
@@ -648,6 +685,7 @@ export class TechnoRules extends ObjectRules {
         const hasAresTechnoFields = [...this.ini.entries.keys()].some((key: string) => {
             const normalized = key.trim().toLocaleLowerCase("en-US");
             return normalized === "poweredby" ||
+                normalized === "ifvmode" ||
                 normalized === "voiceifvrepair" ||
                 normalized === "parachute.anim" ||
                 normalized === "nomanualfire" ||
@@ -719,6 +757,18 @@ export class TechnoRules extends ObjectRules {
         this.secondary = this.parseWeaponName(this.ini.getString("Secondary"));
         this.elitePrimary = this.parseWeaponName(this.ini.getString("ElitePrimary"));
         this.eliteSecondary = this.parseWeaponName(this.ini.getString("EliteSecondary"));
+        this.prismForwarding = parsePrismForwardingRules(
+            this.ini,
+            this.type === ObjectType.Building ? this.name : undefined,
+            this.generalRules?.prism ?? {
+                type: "",
+                supportMax: 0,
+                supportModifier: 1,
+                supportHeight: 0,
+                supportDelay: 0,
+                supportDuration: 0,
+            },
+        );
         this.weaponCount = this.ini.getNumber("WeaponCount");
         // Gattling weapons (YTNK, YAGGUN): WeaponCount slots split into
         // WeaponStages pairs — odd slots anti-ground, even slots anti-air —
@@ -738,6 +788,8 @@ export class TechnoRules extends ObjectRules {
         ]);
         this.selfHealing = this.ini.getBool("SelfHealing");
         this.wall = this.ini.getBool("Wall");
+        this.laserFencePost = this.ini.getBool("LaserFencePost");
+        this.laserFence = this.ini.getBool("LaserFence");
         this.firestormWall = this.ini.getBool("Firestorm.Wall");
         this.lightningRod = this.type === ObjectType.Building && this.ini.getBool("LightningRod");
         this.lightningRodModifier = this.ini.getFixed("LightningRod.Modifier", 1);
@@ -817,7 +869,13 @@ export class TechnoRules extends ObjectRules {
         this.deployFireWeapon = this.ini.getNumber("DeployFireWeapon", WeaponType.Secondary);
         this.undeployDelay = this.ini.getNumber("UndeployDelay");
         this.fraidycat = this.ini.getBool("Fraidycat", false);
+        const infantryId = this.name.toLocaleLowerCase("en-US");
+        this.isCow = this.type === ObjectType.Infantry &&
+            this.ini.getBool("IsCow", infantryId === "cow");
+        this.isDesolator = this.type === ObjectType.Infantry &&
+            this.ini.getBool("IsDesolator", infantryId === "deso");
         this.isHuman = !this.ini.getBool("NotHuman");
+        this.deathAnims = this.ini.getArray("DeathAnims");
         this.organic = this.type === ObjectType.Infantry || this.ini.getBool("Organic");
         this.occupier = this.ini.getBool("Occupier");
         this.engineer = this.ini.getBool("Engineer");
@@ -901,6 +959,7 @@ export class TechnoRules extends ObjectRules {
             ? this.ini.getBool("ImmuneToEMP")
             : defaultImmuneToEMP;
         this.empModifier = this.ini.getFixed("EMP.Modifier", 1);
+        this.ironCurtainModifier = this.ini.getFixed("IronCurtain.Modifier", 1);
         this.empThreshold = parseAresEmpThreshold(this.ini.getString("EMP.Threshold"));
         this.empulseCannon = this.ini.getBool("EMPulseCannon");
         this.selectable = !(this.type === ObjectType.Aircraft && !landable) && this.ini.getBool("Selectable", true);
@@ -1032,7 +1091,7 @@ export class TechnoRules extends ObjectRules {
             gapGenerator: this.gapGenerator,
             sensors: this.sensors,
             sensorArray: this.sensorArray,
-            laserFencePost: this.ini.getBool("LaserFencePost"),
+            laserFencePost: this.laserFencePost,
             cyborg: this.ini.getBool("Cyborg"),
             organic: this.organic,
         });

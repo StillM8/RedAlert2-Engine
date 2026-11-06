@@ -1,5 +1,6 @@
 import { Screen } from '../../Controller';
 import { MainMenuScreenType } from '../../ScreenType';
+import { MainMenuRoute } from '../MainMenuRoute';
 import { MainMenuController } from '../MainMenuController';
 import { Strings } from '../../../../data/Strings';
 import { MusicType } from '../../../../engine/sound/Music';
@@ -60,6 +61,15 @@ export class HomeScreen implements Screen {
                         await this.messageBoxApi.alert('Skirmish - Under Development\n\nThe basic framework is in place, but the following components still need work:\n• Game rules system\n• Map loader\n• AI opponent system\n• Game mode manager', this.strings.get('GUI:OK') || 'OK');
                     }
                 }
+            },
+            {
+                label: this.strings.get('GUI:Campaign') || 'Campaign',
+                tooltip: this.strings.get('STT:CampaignList') || 'Select a campaign',
+                onClick: () => {
+                    this.controller?.pushScreen(MainMenuScreenType.CampaignSelection, {
+                        returnTo: new MainMenuRoute(MainMenuScreenType.Home, {}),
+                    });
+                },
             },
             {
                 label: 'Load Game',

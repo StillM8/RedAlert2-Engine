@@ -19,6 +19,8 @@ import { LosHelper } from "@/game/gameobject/unit/LosHelper";
 import { Vector2 } from "@/game/math/Vector2";
 import { Box2 } from "@/game/math/Box2";
 import { canUseArmorVersus } from "@/extensions/ares/AresArmor";
+import { canPrismAttack } from "@/extensions/ares/AresPrismForwarding";
+import { fnv32aStrings } from "@/util/math";
 export enum AttackState {
     Idle = 0,
     CheckRange = 1,
@@ -75,7 +77,7 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
     }
     selectDefaultWeapon(e: any): any {
         let i;
-        if ((e.isInfantry() || e.isVehicle()) && e.rules.deployFire) {
+        if ((e.isInfantry() || e.isVehicle()) && (e.rules.deployFire || e.rules.isDesolator)) {
             const t = e.armedTrait?.getDeployFireWeapon();
             i = e.deployerTrait?.isDeployed()
                 ? t && !t.rules.areaFire
@@ -141,7 +143,7 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
         let r;
         let s;
         if ((e.isInfantry() || e.isVehicle()) &&
-            e.rules.deployFire &&
+            (e.rules.deployFire || e.rules.isDesolator) &&
             e.armedTrait) {
             s = e.armedTrait.getDeployFireWeapon();
             r = [
@@ -165,6 +167,9 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
         }
         else if (e.isBuilding() && e.overpoweredTrait) {
             r = [e.overpoweredTrait.getWeapon()];
+        }
+        else if (e.isBuilding() && canPrismAttack(e.rules?.prismForwarding)) {
+            r = [e.primaryWeapon];
         }
         else if (i || t) {
             r = [
@@ -217,6 +222,57 @@ export class AttackTrait implements NotifyTick, NotifyDamage, NotifyTeleport {
     }
     createAttackTask(e: any, t: any, i: any, r: any, s: any): AttackTask {
         return new AttackTask(e, e.createTarget(t, i), r, s);
+    }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            disabled: this.disabled,
+            attackState: this.attackState,
+            passiveScanCooldownTicks: this.passiveScanCooldownTicks,
+            currentTargetId: this.currentTarget?.obj?.id ?? this.currentTarget?.id ?? null,
+            retaliateTargetId: this.retaliateTarget?.id ?? null,
+            distributedFireHistory: [...this.distributedFireHistory.entries()]
+                .map(([object, tick]) => [object?.id, tick])
+                .filter(([id]) => Number.isSafeInteger(id))
+                .sort((a, b) => a[0] - b[0]),
+        };
+    }
+    restoreState(state: unknown, context: { resolveObjectById?: (id: number) => any; strict?: boolean } = {}): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            typeof (state as any).disabled !== "boolean" || !Number.isSafeInteger((state as any).attackState) ||
+            (state as any).attackState < AttackState.Idle || (state as any).attackState > AttackState.JustFired ||
+            !Number.isSafeInteger((state as any).passiveScanCooldownTicks) || (state as any).passiveScanCooldownTicks < 0 ||
+            !Array.isArray((state as any).distributedFireHistory)) {
+            throw new Error("Invalid attack state");
+        }
+        this.disabled = (state as any).disabled;
+        this.attackState = (state as any).attackState;
+        this.passiveScanCooldownTicks = (state as any).passiveScanCooldownTicks;
+        const currentTargetObject = (state as any).currentTargetId === null ? undefined : context.resolveObjectById?.((state as any).currentTargetId);
+        this.currentTarget = currentTargetObject && (context as any).createTarget
+            ? (context as any).createTarget(currentTargetObject, currentTargetObject.tile)
+            : currentTargetObject;
+        this.retaliateTarget = (state as any).retaliateTargetId === null ? undefined : context.resolveObjectById?.((state as any).retaliateTargetId);
+        if ((state as any).currentTargetId !== null && !this.currentTarget && context.strict) {
+            throw new Error("Cannot restore attack target: unresolved");
+        }
+        this.distributedFireHistory.clear();
+        for (const entry of (state as any).distributedFireHistory as any[]) {
+            const object = context.resolveObjectById?.(entry[0]);
+            if (!object && context.strict) throw new Error(`Cannot restore attack history ${entry[0]}: unresolved`);
+            if (object && Number.isSafeInteger(entry[1])) this.distributedFireHistory.set(object, entry[1]);
+        }
+    }
+    getHash(): number {
+        return fnv32aStrings([
+            "AttackTrait",
+            this.disabled ? 1 : 0,
+            this.attackState,
+            this.passiveScanCooldownTicks,
+            this.currentTarget?.obj?.id ?? this.currentTarget?.id ?? -1,
+            this.retaliateTarget?.id ?? -1,
+            ...[...this.distributedFireHistory.entries()].map(([object, tick]) => [object?.id ?? -1, tick]).sort((a, b) => a[0] - b[0]).flat(),
+        ]);
     }
     [NotifyTick.onTick](a: any, n: any): void {
         if (!this.isDisabled()) {

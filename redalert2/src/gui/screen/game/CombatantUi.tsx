@@ -34,6 +34,7 @@ import { CenterBaseCmd } from '@/gui/screen/game/worldInteraction/keyboard/comma
 import { SelectByTypeCmd } from '@/gui/screen/game/worldInteraction/keyboard/command/SelectTypeByCmd';
 import { PlacementMode } from '@/gui/screen/game/worldInteraction/PlacementMode';
 import { ObjectType } from '@/engine/type/ObjectType';
+import { isAresSuperWeaponTargetType } from '@/extensions/ares/AresSuperWeapons';
 export class CombatantUi {
     private readonly disposables = new CompositeDisposable();
     private hudDisposables = new CompositeDisposable();
@@ -392,13 +393,23 @@ export class CombatantUi {
             return;
         }
         this.sound.play(SoundKey.GenericClick, ChannelType.Ui);
-        if (this.player.superWeaponsTrait?.getAll().find((superWeapon: any) => superWeapon.rules === event.target.rules)?.status !==
-            SuperWeaponStatus.Ready) {
+        const superWeapon = this.player.superWeaponsTrait?.getAll().find((candidate: any) =>
+            candidate.rules === event.target.rules ||
+            (event.target.rules?.index !== undefined && candidate.rules?.index === event.target.rules.index) ||
+            candidate.name === event.target.rules?.name);
+        if (!superWeapon) return;
+        if (superWeapon.status === SuperWeaponStatus.Draining) {
+            const unstoppable = superWeapon.rules?.ares?.swUnstoppable;
+            if (unstoppable === true || unstoppable === "yes" || unstoppable === "true" || unstoppable === "1") return;
+            this.pushAction(ActionType.DeactivateSuperWeapon, (action: any) => {
+                action.superWeaponType = superWeapon.rules.index;
+            });
             return;
         }
-        if (event.target.rules.type !== undefined) {
-            this.activateSpecialMode(event.target.rules);
+        if (superWeapon.status !== SuperWeaponStatus.Ready || !isAresSuperWeaponTargetType(event.target.rules)) {
+            return;
         }
+        this.activateSuperWeaponFromSidebar(event.target.rules);
     }
     private pushOrder(orderType: OrderType, target: any, feedbackType: OrderFeedbackType = OrderFeedbackType.None, feedbackUnit: any = undefined): void {
         const unitSelection = this.game.getUnitSelection();
@@ -453,6 +464,41 @@ export class CombatantUi {
         configure?.(action);
         this.actionQueue.push(action);
     }
+    private activateSuperWeaponFromSidebar(superWeaponRules: any): void {
+        const ares = superWeaponRules?.ares;
+        const extension = String(ares?.extensionType ?? "").toLocaleLowerCase("en-US");
+        const mode = String(ares?.swAITargeting ?? ares?.swAITargetingType ?? "")
+            .replace(/[._\s-]+/g, "").toLocaleLowerCase("en-US");
+        const fullMapSonar = extension === "sonarpulse" &&
+            ((Array.isArray(ares.swRange) && ares.swRange.some((value: number) => value < 0)) ||
+                Number(ares.swRange) < 0);
+        if (extension === "firestorm" || ares?.empulseTargetSelf === true || fullMapSonar || mode === "notarget") {
+            const tile = this.getSuperWeaponSidebarTile();
+            if (!tile) return;
+            this.pushAction(ActionType.ActivateSuperWeapon, (action: any) => {
+                action.superWeaponType = superWeaponRules.index;
+                action.tile = { x: tile.rx, y: tile.ry };
+            });
+            return;
+        }
+        this.activateSpecialMode(superWeaponRules);
+    }
+
+    private getSuperWeaponSidebarTile(): { rx: number; ry: number } | undefined {
+        const start = this.player?.startLocation;
+        const location = start && typeof start === "object" &&
+            (start.x !== undefined || start.y !== undefined || start.rx !== undefined || start.ry !== undefined)
+            ? start
+            : typeof start === "number" ? this.game.map?.startingLocations?.[start] : undefined;
+        const x = location?.x ?? location?.rx;
+        const y = location?.y ?? location?.ry;
+        if (location && Number.isFinite(Number(x)) && Number.isFinite(Number(y))) {
+            return { rx: Number(x), ry: Number(y) };
+        }
+        return this.game.map?.tiles?.getAll?.().find((tile: any) =>
+            Number.isFinite(tile?.rx) && Number.isFinite(tile?.ry));
+    }
+
     private activateSpecialMode(superWeaponRules: any): void {
         this.specialMode?.dispose();
         const specialMode = SpecialActionMode.factory(this.game.rules.superWeaponRules, superWeaponRules, this.superWeaponFxHandler, this.pointer, this.eva);

@@ -3,7 +3,21 @@ import type { GameProfileId } from "@/engine/GameProfile";
 
 export const INSTALLED_CONTENT_METADATA_FILE = ".ra2-content.json";
 export const CONTENT_IMPORT_IN_PROGRESS_FILE = ".ra2-importing";
+export const CONTENT_IMPORT_STAGING_PREFIX = ".ra2-import-staging-";
+export const CONTENT_IMPORT_BACKUP_PREFIX = ".ra2-import-backup-";
 export const INSTALLED_CONTENT_METADATA_VERSION = 1;
+
+export function isContentImportStagingName(name: string): boolean {
+    return name.toLocaleLowerCase("en-US").startsWith(CONTENT_IMPORT_STAGING_PREFIX);
+}
+
+export function isContentImportBackupName(name: string): boolean {
+    return name.toLocaleLowerCase("en-US").startsWith(CONTENT_IMPORT_BACKUP_PREFIX);
+}
+
+export function isContentImportTransactionName(name: string): boolean {
+    return isContentImportStagingName(name) || isContentImportBackupName(name);
+}
 
 export interface InstalledContentMetadata {
     schemaVersion: number;

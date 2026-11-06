@@ -62,7 +62,7 @@ export class OrderFactory {
             case OrderType.EnterTransport:
                 return new EnterTransportOrder(this.game);
             case OrderType.DetonateBomb:
-                return new DetonateBombOrder();
+                return new DetonateBombOrder(this.game);
             default:
                 throw new Error(`Unhandled order type ${OrderType[orderType]}`);
         }

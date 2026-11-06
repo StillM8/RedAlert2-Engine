@@ -46,6 +46,15 @@ describe("Ares TechnoRules integration", () => {
         expect(explicitRules.subjectToTrenches).toBe(false);
     });
 
+    test("attaches Ares IFV data to an IFVMode-only section", () => {
+        const section = new IniSection("PASSENGER");
+        section.set("IFVMode", "7");
+        const rules = new TechnoRules(ObjectType.Infantry, section, 0, {}, new ArmorRegistry());
+
+        expect(rules.ifvMode).toBe(7);
+        expect(rules.ares?.ifv.ifvMode).toBe(7);
+    });
+
     test("defaults Ares designator and inhibitor ranges to Sight", () => {
         const section = new IniSection("RangeBuilding");
         section.set("Sight", "5");

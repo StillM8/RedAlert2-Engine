@@ -4,6 +4,7 @@ import { ImageFinder } from "@/engine/ImageFinder";
 import { DebugUtils } from "@/engine/gfx/DebugUtils";
 import { MapSpriteTranslation } from "@/engine/renderable/MapSpriteTranslation";
 import { Coords } from "@/game/Coords";
+import { AlphaRenderable } from "@/engine/renderable/AlphaRenderable";
 import * as THREE from "three";
 export class Smudge {
     private gameObject: any;
@@ -19,6 +20,7 @@ export class Smudge {
     private extraLight: THREE.Vector3;
     private target?: THREE.Object3D;
     private builder?: ShpBuilder;
+    private alphaRenderable?: AlphaRenderable;
     constructor(gameObject: any, imageFinder: ImageFinder, palette: any, camera: any, lighting: any, debugFrame: any, mapSmudgeLayer: any) {
         this.gameObject = gameObject;
         this.imageFinder = imageFinder;
@@ -63,6 +65,22 @@ export class Smudge {
     public getPosition(): THREE.Vector3 {
         return this.withPosition.getPosition();
     }
+    private createAlphaImage(parent: THREE.Object3D): void {
+        const imageName = this.gameObject.rules.alphaImage;
+        if (!imageName) return;
+        const image = this.imageFinder.tryFind(imageName, false);
+        if (!image) {
+            console.warn(`<${this.gameObject.name}>: Alpha image "${imageName}" not found`);
+            return;
+        }
+        const translation = new MapSpriteTranslation(1, 1);
+        const { spriteOffset } = translation.compute();
+        const offset = spriteOffset.clone().add(this.objectArt.getDrawOffset());
+        this.alphaRenderable = new AlphaRenderable(image, this.camera, offset as any);
+        this.alphaRenderable.create3DObject();
+        const object = this.alphaRenderable.get3DObject();
+        if (object) parent.add(object);
+    }
     private createObjects(parent: THREE.Object3D): void {
         const size = { width: 1, height: 1 };
         const container = new THREE.Object3D();
@@ -71,6 +89,7 @@ export class Smudge {
             const wireframe = DebugUtils.createWireframe(size, 0);
             parent.add(wireframe);
         }
+        this.createAlphaImage(parent);
         if (this.mapSmudgeLayer?.shouldBeBatched(this.gameObject)) {
             this.mapSmudgeLayer.addObject(this.gameObject);
         }
@@ -106,6 +125,7 @@ export class Smudge {
         }
     }
     public dispose(): void {
+        this.alphaRenderable?.dispose();
         this.builder?.dispose();
     }
 }

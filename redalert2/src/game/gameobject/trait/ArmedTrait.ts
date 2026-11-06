@@ -34,6 +34,7 @@ interface GameObjectRules {
     guardRange: number;
     deployFire?: boolean;
     deployFireWeapon?: WeaponType;
+    isDesolator?: boolean;
     getEliteWeaponAtIndex(index: number): string | undefined;
     getWeaponAtIndex(index: number): string | undefined;
 }
@@ -179,6 +180,39 @@ export class ArmedTrait implements NotifyTick, NotifyDestroy {
      * already visible through VeteranTrait; weapon selection re-derives from
      * it, so only runtime-mutable state is fingerprinted here.
      */
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            specialWeaponIndex: this.specialWeaponIndex,
+            guardWeaponRangeOverride: this.guardWeaponRangeOverride ?? null,
+            weapons: [this.primaryWeapon, this.secondaryWeapon, this.deathWeapon]
+                .map(weapon => weapon ? { name: weapon.rules.name, type: weapon.type, state: weapon.captureState?.() } : null),
+        };
+    }
+    restoreState(state: unknown): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isSafeInteger((state as any).specialWeaponIndex) || (state as any).specialWeaponIndex < 0 ||
+            !Array.isArray((state as any).weapons) || (state as any).weapons.length !== 3) {
+            throw new Error("Invalid armed state");
+        }
+        const isElite = this.gameObject.veteranLevel === VeteranLevel.Elite;
+        if (this.gameObject.rules.weaponCount) {
+            if (this.gameObject.rules.isGattling) this.selectGattlingStage((state as any).specialWeaponIndex, isElite);
+            else this.selectSpecialWeapon((state as any).specialWeaponIndex, isElite);
+        }
+        else {
+            this.selectStandardWeapons(isElite);
+        }
+        this.guardWeaponRangeOverride = (state as any).guardWeaponRangeOverride === null ? undefined : (state as any).guardWeaponRangeOverride;
+        const entries = (state as any).weapons as any[];
+        for (const entry of entries) {
+            if (!entry) continue;
+            const weapon = [this.primaryWeapon, this.secondaryWeapon, this.deathWeapon]
+                .find(candidate => candidate?.rules?.name === entry.name && candidate.type === entry.type);
+            if (!weapon || !entry.state) throw new Error("Cannot restore armed weapon state");
+            weapon.restoreState?.(entry.state);
+        }
+    }
     getHash(): number {
         return fnv32aStrings([
             "ArmedTrait",
@@ -198,6 +232,9 @@ export class ArmedTrait implements NotifyTick, NotifyDestroy {
         return Math.min(15, 2 * guardRange - 1);
     }
     public getDeployFireWeapon(): Weapon | undefined {
+        if (this.gameObject.rules.isDesolator) {
+            return this.secondaryWeapon;
+        }
         if (this.gameObject.rules.deployFire) {
             return this.gameObject.rules.deployFireWeapon === WeaponType.Primary
                 ? this.primaryWeapon

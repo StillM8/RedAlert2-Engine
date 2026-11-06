@@ -1,26 +1,26 @@
 import { EventType } from "@/game/event/EventType";
 import { TriggerCondition } from "@/game/trigger/TriggerCondition";
+
 export class DestroyedUnitsCondition extends TriggerCondition {
-    private count: number = 0;
-    private threshold: number;
-    private houseId: number;
-    constructor(params: any, context: any) {
-        super(params, context);
-        this.threshold = Number(params[1]);
+    private count = 0;
+    private readonly threshold: number;
+
+    constructor(event: any, trigger: any) {
+        super(event, trigger);
+        this.threshold = Number(event.params[1]);
     }
-    check(events: any, eventList: any[]): boolean {
-        if (!this.player)
+
+    check(context: any, events: any[]): boolean {
+        if (!this.player) {
             return false;
-        if (this.count >= this.threshold)
-            return true;
-        for (const event of eventList) {
-            if (event.type === EventType.ObjectDestroy) {
-                const target = event.target;
-                if (target.isUnit() && target.owner.country?.id === this.houseId) {
-                    this.count++;
-                }
-            }
         }
+        if (this.count >= this.threshold) {
+            return true;
+        }
+        this.count += events.filter((event) =>
+            event.type === EventType.ObjectDestroy &&
+            event.target.isUnit() &&
+            event.target.owner === this.player).length;
         return this.count >= this.threshold;
     }
 }

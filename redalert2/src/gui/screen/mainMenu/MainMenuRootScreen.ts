@@ -202,7 +202,7 @@ export class MainMenuRootScreen extends RootScreen {
             screen = new screenClass(this.strings, this.jsxRenderer, mapFileLoader, errorHandler, this.messageBoxApi, this.localPrefs, mapList, gameModes, mapDir, fsAccessLib, sentry);
         }
         else if (screenType === MainMenuScreenType.Score) {
-            screen = new screenClass(this.strings, this.jsxRenderer, (this as any).wolService, this.music);
+            screen = new screenClass(this.strings, this.jsxRenderer, (this as any).wolService, this.music, this.rootController);
         }
         else if (screenType === MainMenuScreenType.LoadGame) {
             const { ErrorHandler } = await import('../../../ErrorHandler.js');
@@ -277,6 +277,9 @@ export class MainMenuRootScreen extends RootScreen {
         }
         else if (screenType === MainMenuScreenType.Home) {
             screen = new screenClass(this.strings, this.messageBoxApi, this.appVersion, true, false, this.fullScreen);
+        }
+        else if (screenType === MainMenuScreenType.CampaignSelection) {
+            screen = new screenClass(this.strings, this.jsxRenderer, this.rootController, this.sound);
         }
         else {
             screen = new screenClass(this.strings, this.messageBoxApi, this.appVersion, false, false);

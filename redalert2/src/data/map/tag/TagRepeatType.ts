@@ -1,5 +1,8 @@
 export enum TagRepeatType {
-    OnceAny = 0,
-    OnceAll = 1,
-    Repeat = 2
+    Volatile = 0,
+    SemiPersistent = 1,
+    Persistent = 2,
+    OnceAny = Volatile,
+    OnceAll = SemiPersistent,
+    Repeat = Persistent
 }

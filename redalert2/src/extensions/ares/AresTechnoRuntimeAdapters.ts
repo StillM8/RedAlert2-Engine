@@ -28,6 +28,18 @@ export interface AresPoweredByProviderLike {
     typeId?: string;
     name?: string;
     rules?: { id?: string; name?: string };
+    isBuilding?: () => boolean;
+    isSpawned?: boolean | (() => boolean);
+    isDestroyed?: boolean;
+    isCrashing?: boolean;
+    isDisposed?: boolean;
+    isAlive?: boolean | (() => boolean);
+    health?: number;
+    healthTrait?: { health?: number };
+    buildStatus?: boolean | number | string;
+    operational?: boolean | (() => boolean);
+    isOperational?: () => boolean;
+    isReady?: () => boolean;
     isWarpedOut?: boolean | (() => boolean);
     underEMP?: boolean | (() => boolean);
     operated?: boolean | (() => boolean);
@@ -103,6 +115,34 @@ export function matchesAresPoweredByProvider(
     return rules.providers.some(expected => normalizeId(expected) === providerId);
 }
 
+function isOperationalBuilding(provider: AresPoweredByProviderLike): boolean {
+    if (provider.isBuilding?.() !== true || readBoolean(provider.isSpawned) !== true) {
+        return false;
+    }
+    if (provider.isDestroyed === true || provider.isCrashing === true || provider.isDisposed === true ||
+        readBoolean(provider.isAlive) === false) {
+        return false;
+    }
+    const health = provider.healthTrait?.health ?? provider.health;
+    if (typeof health === "number" && health <= 0) {
+        return false;
+    }
+    const operational = readBoolean(provider.operational) ??
+        readBoolean(provider.isOperational ? () => provider.isOperational!() : undefined);
+    if (operational === false) {
+        return false;
+    }
+    const ready = readBoolean(provider.isReady ? () => provider.isReady!() : undefined) ??
+        (typeof provider.buildStatus === "boolean"
+            ? provider.buildStatus
+            : provider.buildStatus === 1 ||
+                (typeof provider.buildStatus === "string" && provider.buildStatus.toLocaleLowerCase("en-US") === "ready"));
+    if (ready !== undefined) {
+        return ready;
+    }
+    return operational === true;
+}
+
 function isWarpedOut(provider: AresPoweredByProviderLike): boolean {
     return readBoolean(provider.isWarpedOut) ??
         readBoolean(provider.warpedOutTrait?.isActive
@@ -130,16 +170,12 @@ function isPowerOnline(provider: AresPoweredByProviderLike): boolean {
     return readBoolean(provider.powerOnline) ??
         readBoolean(provider.poweredTrait?.isPoweredOn
             ? () => provider.poweredTrait!.isPoweredOn!()
-            : undefined) ?? false;
+            : undefined) ?? true;
 }
 
-/**
- * Applies Antares' provider eligibility gates without mutating provider or
- * player state. Missing power state is offline by default; missing operator
- * state is operated, matching objects with no operator restriction.
- */
 export function isAresPoweredByProviderOnline(provider: AresPoweredByProviderLike): boolean {
-    return !isWarpedOut(provider) &&
+    return isOperationalBuilding(provider) &&
+        !isWarpedOut(provider) &&
         !isUnderEmp(provider) &&
         isOperated(provider) &&
         isPowerOnline(provider);

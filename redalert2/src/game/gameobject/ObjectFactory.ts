@@ -207,8 +207,14 @@ export class ObjectFactory {
                 gameObject.tntChargeTrait = new TntChargeTrait();
                 gameObject.traits.add(gameObject.tntChargeTrait);
             }
-            if (!gameObject.rules.immuneToPsionics && !gameObject.isBuilding()) {
-                gameObject.mindControllableTrait = new MindControllableTrait(gameObject);
+            if (!gameObject.rules.immuneToPsionics) {
+                gameObject.mindControllableTrait = new MindControllableTrait(gameObject, {
+                    getPlayerIndex: (player: any) => {
+                        const players = this.playerList?.getAll?.() ?? [];
+                        const index = players.indexOf(player);
+                        return index === -1 ? undefined : index;
+                    },
+                });
                 gameObject.traits.add(gameObject.mindControllableTrait);
             }
             if (gameObject.isVehicle()) {

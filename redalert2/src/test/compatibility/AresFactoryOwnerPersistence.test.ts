@@ -44,6 +44,8 @@ describe('Ares FactoryOwners.Permanent persistence', () => {
             stolenTechs: [2],
             permanentFactoryOwnerPlans: ['AlphaCountry'],
             reverseEngineeredPlans: [],
+            revealedFactoryObjectIds: [],
+            productionEnabled: true,
         });
     });
 

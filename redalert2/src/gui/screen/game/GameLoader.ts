@@ -32,6 +32,7 @@ import { resolveLoadingTheme, resolveSideMixSelection, resolveSidePresentation, 
 import { createAresPcxCameoAssetManifest, isAresPcxCameoSize, normalizeAresPcxCameos, type AresPcxCameoAssetManifest, type AresPcxCameoDefinition } from '@/extensions/ares/AresPcxCameos';
 import { TextureUtils } from '@/engine/gfx/TextureUtils';
 import { Rules } from '@/game/rules/Rules';
+import { getCampaignSession, isCampaignGameOpts } from '@/game/gameopts/GameOpts';
 export class GameLoader {
     constructor(private appVersion: string, private workerHostApi: any, private cdnResourceLoader: any, private appResourceLoader: any, private rules: any, private gameModes: any, private sound: any, private iniLogger: any, private actionLogger: any, private speedCheat: any, private gameResConfig: any, private vxlGeometryPool: any, private buildingImageDataCache: any, private debugBotIndex: any, private devMode: boolean) { }
     async load(gameId: string, timestamp: number, gameOptions: any, mapFile: any, playerName: string, isSinglePlayer: boolean, loadingScreenApi: any, cancellationToken?: any): Promise<any> {
@@ -181,7 +182,32 @@ export class GameLoader {
         cancellationToken?.throwIfCancelled();
         loadingScreenApi.onLoadProgress(95);
         await sleep(1);
-        return { game, theater, hudSide, sideDescriptor, sidePresentation, useYuriArt, cameoFilenames };
+        const campaignSession = getCampaignSession(gameOptions);
+        const campaign = isCampaignGameOpts(gameOptions) || Boolean(mapFile.isCampaign)
+            ? {
+                session: campaignSession,
+                theme: String(mapFile.theme ?? "").trim(),
+                nextScenario: String(mapFile.nextScenario ?? "").trim() || campaignSession?.nextScenario || "",
+                altNextScenario: String(mapFile.altNextScenario ?? "").trim() || campaignSession?.altNextScenario || "",
+                endOfGame: Boolean(mapFile.endOfGame || campaignSession?.endOfGame),
+                skipScore: Boolean(mapFile.skipScore || campaignSession?.skipScore),
+                oneTimeOnly: Boolean(mapFile.oneTimeOnly || campaignSession?.oneTimeOnly),
+                ignoreGlobalAITriggers: Boolean(mapFile.ignoreGlobalAITriggers || campaignSession?.ignoreGlobalAITriggers),
+                fixedAlliance: Boolean(mapFile.specialFlags?.fixedAlliance || campaignSession?.fixedAlliance),
+                globalVariables: campaignSession?.globalVariables,
+            }
+            : undefined;
+        return {
+            game,
+            theater,
+            hudSide,
+            sideDescriptor,
+            sidePresentation,
+            useYuriArt,
+            cameoFilenames,
+            campaign,
+            campaignState: campaign,
+        };
     }
     private collectCameoFileNames(game: any): AresPcxCameoAssetManifest {
         const filenames: string[] = [];
@@ -306,6 +332,7 @@ export class GameLoader {
             .map(fileName => Engine.getIni(fileName));
         const theater = await Engine.loadTheater(mapFile.theaterType);
         ObjectArt.inSnowTheater = mapFile.theaterType === TheaterType.Snow;
+        ObjectArt.alternateTheaterSuffix = theater.settings.newTheaterChar;
         const activeEngine = Engine.getActiveEngine();
         const theaterSettings = Engine.getTheaterSettings(activeEngine, mapFile.theaterType);
         const theaterIni = Engine.getTheaterIni(activeEngine, mapFile.theaterType);

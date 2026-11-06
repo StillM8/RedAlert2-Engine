@@ -108,6 +108,39 @@ export class HarvesterTrait {
             this.status = HarvesterStatus.Idle;
         }
     }
+    captureState(): Record<string, unknown> {
+        return {
+            version: 1,
+            ore: this.ore,
+            gems: this.gems,
+            status: this.status,
+            lastGatherExplicit: this.lastGatherExplicit,
+            autoGatherOnNextIdle: this.autoGatherOnNextIdle,
+            ticksSinceLastRefineryCheck: this.ticksSinceLastRefineryCheck,
+            ticksSinceLastOreCheck: this.ticksSinceLastOreCheck,
+            lastOreSite: this.lastOreSite ? { x: this.lastOreSite.rx, y: this.lastOreSite.ry } : null,
+        };
+    }
+    restoreState(state: unknown, context: { resolveTile?: (x: number, y: number) => any; strict?: boolean } = {}): void {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isFinite((state as any).ore) || !Number.isFinite((state as any).gems) ||
+            !Number.isSafeInteger((state as any).status) || (state as any).status < HarvesterStatus.Idle || (state as any).status > HarvesterStatus.Unloading ||
+            typeof (state as any).lastGatherExplicit !== "boolean" || typeof (state as any).autoGatherOnNextIdle !== "boolean" ||
+            !Number.isSafeInteger((state as any).ticksSinceLastRefineryCheck) || !Number.isSafeInteger((state as any).ticksSinceLastOreCheck)) {
+            throw new Error("Invalid harvester state");
+        }
+        this.ore = (state as any).ore;
+        this.gems = (state as any).gems;
+        this.status = (state as any).status;
+        this.lastGatherExplicit = (state as any).lastGatherExplicit;
+        this.autoGatherOnNextIdle = (state as any).autoGatherOnNextIdle;
+        this.ticksSinceLastRefineryCheck = (state as any).ticksSinceLastRefineryCheck;
+        this.ticksSinceLastOreCheck = (state as any).ticksSinceLastOreCheck;
+        this.lastOreSite = (state as any).lastOreSite === null ? undefined : context.resolveTile?.((state as any).lastOreSite.x, (state as any).lastOreSite.y);
+        if ((state as any).lastOreSite !== null && !this.lastOreSite && context.strict) {
+            throw new Error("Cannot restore harvester ore site: unresolved");
+        }
+    }
     isFull(): boolean {
         return this.ore + this.gems >= this.storage;
     }

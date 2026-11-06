@@ -1,7 +1,7 @@
 import { EventDispatcher } from '../../util/event';
 import { GameSpeed } from '../GameSpeed';
 import { TerrainType } from '../../engine/type/TerrainType';
-import { clamp } from '../../util/math';
+import { clamp, fnv32aStrings } from '../../util/math';
 export enum ShroudType {
     Unexplored = 0,
     TemporaryReveal = 1,
@@ -40,6 +40,17 @@ interface Invalidation {
     radius?: number;
     rectangles: Array<{ width: number; height: number }>;
 }
+export interface MapShroudState {
+    version: 1;
+    width: number;
+    height: number;
+    padding: number;
+    tiles: number[];
+    temporaryReveals: { sx: number; sy: number; duration: number }[];
+    invalidations: { index: number; center: ShroudCoords; elevation: number; radius?: number; rectangles: { width: number; height: number }[] }[];
+    fullInvalidation: boolean;
+}
+
 export class MapShroud {
     private invalidations: Map<number, Invalidation>;
     private temporaryReveals: Map<ShroudCoords, number>;
@@ -78,6 +89,77 @@ export class MapShroud {
             this.tileElevation[index] = Math.max(this.tileElevation[index], tile.terrainType === TerrainType.Cliff && tile.z > 0 ? tile.z - 1 : tile.z);
         }
         return this;
+    }
+    captureState(): MapShroudState {
+        return {
+            version: 1,
+            width: this.size.width,
+            height: this.size.height,
+            padding: this.padding,
+            tiles: Array.from(this.tiles),
+            temporaryReveals: [...this.temporaryReveals.entries()]
+                .map(([coords, duration]) => ({ sx: coords.sx, sy: coords.sy, duration }))
+                .sort((a, b) => a.sy - b.sy || a.sx - b.sx),
+            invalidations: [...this.invalidations.entries()]
+                .map(([index, invalidation]) => ({
+                    index,
+                    center: { ...invalidation.center },
+                    elevation: invalidation.elevation,
+                    ...(invalidation.radius === undefined ? {} : { radius: invalidation.radius }),
+                    rectangles: invalidation.rectangles.map(rectangle => ({ ...rectangle })),
+                }))
+                .sort((a, b) => a.index - b.index),
+            fullInvalidation: this.fullInvalidation,
+        };
+    }
+    validateState(state: unknown): MapShroudState {
+        if (!state || typeof state !== "object" || (state as any).version !== 1 ||
+            !Number.isSafeInteger((state as any).width) || (state as any).width <= 0 ||
+            !Number.isSafeInteger((state as any).height) || (state as any).height <= 0 ||
+            !Number.isSafeInteger((state as any).padding) || (state as any).padding < 0 ||
+            !Array.isArray((state as any).tiles) || (state as any).tiles.length !== (state as any).width * (state as any).height ||
+            !Array.isArray((state as any).temporaryReveals) || !Array.isArray((state as any).invalidations) ||
+            typeof (state as any).fullInvalidation !== "boolean") {
+            throw new Error("Invalid map shroud state");
+        }
+        for (const value of (state as any).tiles) {
+            if (!Number.isSafeInteger(value) || value < 0 || value > 255) {
+                throw new Error("Invalid map shroud tile value");
+            }
+        }
+        return state as MapShroudState;
+    }
+    restoreState(state: unknown): void {
+        const parsed = this.validateState(state);
+        this.size = { width: parsed.width, height: parsed.height };
+        this.padding = parsed.padding;
+        this.tiles = Uint8Array.from(parsed.tiles);
+        this.temporaryReveals = new Map();
+        for (const entry of parsed.temporaryReveals) {
+            if (!Number.isSafeInteger(entry.sx) || !Number.isSafeInteger(entry.sy) ||
+                !Number.isSafeInteger(entry.duration)) {
+                throw new Error("Invalid temporary shroud reveal");
+            }
+            this.temporaryReveals.set({ sx: entry.sx, sy: entry.sy }, entry.duration);
+        }
+        this.invalidations = new Map();
+        for (const entry of parsed.invalidations) {
+            if (!Number.isSafeInteger(entry.index) || !entry.center ||
+                !Number.isSafeInteger(entry.center.sx) || !Number.isSafeInteger(entry.center.sy) ||
+                !Number.isFinite(entry.elevation) || !Array.isArray(entry.rectangles)) {
+                throw new Error("Invalid shroud invalidation");
+            }
+            this.invalidations.set(entry.index, {
+                center: { sx: entry.center.sx, sy: entry.center.sy },
+                elevation: entry.elevation,
+                ...(entry.radius === undefined ? {} : { radius: entry.radius }),
+                rectangles: entry.rectangles.map(rectangle => ({ ...rectangle })),
+            });
+        }
+        this.fullInvalidation = parsed.fullInvalidation;
+    }
+    getHash(): number {
+        return fnv32aStrings(["MapShroud", this.size.width, this.size.height, this.padding, ...this.tiles, this.fullInvalidation ? 1 : 0]);
     }
     getSize(): Size {
         return this.size;
@@ -205,9 +287,9 @@ export class MapShroud {
             }
         }
     }
-    revealAround(tile: Tile, radius: number): void {
+    revealAround(tile: Tile, radius: number, maxElevation: number = Number.POSITIVE_INFINITY): void {
         const coords = this.rxyzToSxy(tile.rx, tile.ry, tile.z);
-        this.invalidate(coords, Number.POSITIVE_INFINITY, radius);
+        this.invalidate(coords, maxElevation, radius);
     }
     /**
      * Reveal a circular or rectangular Ares-style area. A negative width is

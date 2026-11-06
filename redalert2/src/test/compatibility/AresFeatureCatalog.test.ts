@@ -7,11 +7,12 @@ import {
     getAresCatalogSummary,
 } from "@/extensions/ares/AresFeatureCatalog";
 import { resolveAresCapabilityOrder } from "@/extensions/ares/AresCapabilityDependencies";
+import { createDefaultAresFeatureRegistry } from "@/extensions/ares/AresFeatureRegistry";
 
 describe("Ares documentation catalog", () => {
     test("contains the complete official leaf-document inventory", () => {
         const paths = ARES_DOCUMENTATION_DOCUMENTS.map((document) => document.path);
-        expect(paths.length).toBe(132);
+        expect(paths.length).toBe(133);
         expect(new Set(paths).size).toBe(paths.length);
         expect(paths.every((path) => path.endsWith(".rst"))).toBe(true);
         expect(paths).toContain("new/damageparticlesystems.rst");
@@ -29,14 +30,43 @@ describe("Ares documentation catalog", () => {
         expect(emp?.runtimeStatus).toBe("partial");
     });
 
+    test("maps the implemented presentation and infantry capability leaves", () => {
+        const ids = [
+            "ares.alternate-theater-art",
+            "ares.custom-cameo-palettes",
+            "ares.customizable-insignia",
+            "ares.customizable-parachute-animations",
+            "ares.hardcoded-unit-properties",
+            "ares.ifv-modes",
+            "ares.powered-by",
+        ];
+        const registry = createDefaultAresFeatureRegistry();
+        for (const id of ids) {
+            expect(ARES_FEATURE_CATALOG.some((feature) => feature.id === id)).toBe(true);
+            expect(registry.has(id)).toBe(true);
+        }
+    });
+
     test("reports a stable category summary", () => {
         const summary = getAresCatalogSummary();
-        expect(summary.documents).toBe(132);
-        expect(summary.capabilities).toBe(132);
+        expect(summary.documents).toBe(133);
+        expect(summary.capabilities).toBe(133);
         expect(summary.categories.new).toBeGreaterThan(0);
         expect(summary.categories.restored).toBeGreaterThan(0);
         expect(summary.categories.bugfix).toBeGreaterThan(0);
         expect(summary.categories.ui).toBeGreaterThan(0);
+    });
+
+    test("tracks per-projectile ballistic scatter as a verified projectile capability", () => {
+        const ballistic = ARES_FEATURE_CATALOG.find((feature) =>
+            feature.sourceDocuments.includes("new/projectiles/ballisticscatter.rst"));
+
+        expect(ballistic?.id).toBe("ares.projectile-extensions");
+        expect(ballistic?.documentedKeys).toContain("[Projectile]BallisticScatter.Min");
+        expect(ballistic?.documentedKeys).toContain("[Projectile]BallisticScatter.Max");
+        expect(ballistic?.parserStatus).toBe("complete");
+        expect(ballistic?.runtimeStatus).toBe("complete");
+        expect(ballistic?.tests).toContain("AresProjectileExtensions.test.ts");
     });
 
     test("tracks damage-particle implementation metadata separately from the leaf inventory", () => {

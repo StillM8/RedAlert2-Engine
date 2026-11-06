@@ -1,6 +1,7 @@
 import { ObjectType } from "@/engine/type/ObjectType";
 export class MapObject {
     type: ObjectType;
+    rawValues: string[] = [];
     constructor(type: ObjectType) {
         this.type = type;
     }
@@ -46,6 +47,9 @@ export class TechnoObject extends NamedMapObject {
     tag?: string;
     veterancy = 0;
     onBridge = false;
+    mission?: string;
+    group?: string;
+    autocreate?: string;
 }
 export class TechnoTypeObject extends TechnoObject {
 }

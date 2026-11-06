@@ -1,5 +1,6 @@
 import { ObjectType } from '@/engine/type/ObjectType';
 import { getAresPassengerRules } from '@/extensions/ares/AresPassengers';
+import { fnv32aStrings } from '@/util/math';
 import { NotifySpawn } from './interface/NotifySpawn';
 
 /**
@@ -9,6 +10,10 @@ import { NotifySpawn } from './interface/NotifySpawn';
  */
 export class AresInitialPayloadTrait implements NotifySpawn {
     private initialized = false;
+
+    getHash(): number {
+        return fnv32aStrings(["AresInitialPayloadTrait", this.initialized ? 1 : 0]);
+    }
 
     [NotifySpawn.onSpawn](host: any, world: any): void {
         if (this.initialized) return;
