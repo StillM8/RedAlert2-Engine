@@ -35,6 +35,10 @@ if [ -z "$RETAIL" ]; then
     "$HOME/Library/Application Support/Steam/steamapps/common/Command and Conquer Red Alert 2"
     "$HOME/.steam/steam/steamapps/common/Command & Conquer Red Alert 2"
     "/Applications/CnCNet/RedAlert2"
+    # Common Linux/managed-workspace locations used by the local RA2/MO setup.
+    "/mnt/misc/Games/Red Alerts/RA2 MO"
+    "$HOME/.local/share/Steam/steamapps/common/Command & Conquer Red Alert 2"
+    "$HOME/.steam/steam/steamapps/common/Command & Conquer Red Alert 2"
   )
   for c in "${CANDIDATES[@]}"; do
     if [ -e "$c/ra2.mix" ] || [ -e "$c/RA2.MIX" ]; then RETAIL="$c"; break; fi
@@ -69,7 +73,15 @@ bold "Installing web dependencies..."
 
 # -------------------------------------------------------------- import
 bold "Importing game assets from your install (this takes a few minutes)..."
-RA2_RETAIL_DIR="$RETAIL" bun scripts/prepare-gameres.ts
+# Prefer the Mental Omega profile when the detected install contains its
+# signature expandmo archive. This preserves MO's rules/art/AI and catalog graph
+# instead of importing the same directory as plain Yuri's Revenge.
+if find "$RETAIL" -maxdepth 1 -type f -iname 'expandmo*.mix' -print -quit | grep -q .; then
+  echo "  Mental Omega installation detected — importing the MO resource profile"
+  RA2_RETAIL_DIR="$RETAIL" RA2_GAME_PROFILE=mental-omega bun scripts/prepare-gameres.ts
+else
+  RA2_RETAIL_DIR="$RETAIL" bun scripts/prepare-gameres.ts
+fi
 
 # -------------------------------------------------------------- done
 bold "Done! Next steps:"

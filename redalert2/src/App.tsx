@@ -48,7 +48,11 @@ function App() {
                     // resources are being seeded/loaded.
                     const params = new URLSearchParams(window.location.search);
                     const content = params.get('content');
-                    const profile = content === 'builtin:yr'
+                    // Keep the first-frame branding aligned with the same content
+                    // route Application.resolveSelection() will use. Mental Omega is
+                    // a Yuri's Revenge profile at the engine level, but it has its own
+                    // runtime/resource profile and must not briefly boot as vanilla RA2.
+                    const profile = content === 'builtin:yr' || content?.startsWith('mod:')
                         ? 'yr'
                         : 'ra2';
                     handleSplashScreenUpdate({
