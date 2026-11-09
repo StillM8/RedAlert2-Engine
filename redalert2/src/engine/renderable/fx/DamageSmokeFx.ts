@@ -11,6 +11,12 @@ export interface DamageSmokeFxOptions {
     velocity?: number;
     /** Authored Particle deacceleration, when present. */
     deacc?: number;
+    /** Authored ParticleSystem spawn radius, in world-cell units. */
+    spawnRadius?: number;
+    /** Authored ParticleSystem slowdown, applied as additional drag. */
+    slowdown?: number;
+    /** Authored Particle velocity spread components. */
+    velocitySpread?: { x?: number; y?: number; z?: number };
 }
 export class DamageSmokeFx {
     private static textureCache = new Map<any, THREE.Texture>();
@@ -80,7 +86,10 @@ export class DamageSmokeFx {
             this.particleMaxAge = (2 * this.shpFile.numImages) / animProps.rate;
             const particleCount = this.getParticleCount();
             const velocity = (this.options.velocity ?? 9) * rate;
-            const acceleration = (this.options.deacc ?? 0.05) * rate;
+            // Ares' Slowdown is authored at the ParticleSystem level. Treat it
+            // as deterministic drag in the same direction as Deacc instead of
+            // silently dropping it (the old renderer only used Deacc).
+            const acceleration = ((this.options.deacc ?? 0.05) + Math.max(0, this.options.slowdown ?? 0)) * rate;
             this.particleEmitter = new SPE.Emitter({
                 particleCount,
                 maxAge: { value: this.particleMaxAge },
