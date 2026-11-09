@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { FlhCoords } from "@/game/art/FlhCoords";
 import { IniSection } from "@/data/IniSection";
 import { parseAresAttachEffectDefinition } from "@/extensions/ares/AresAttachEffect";
+import { Techno } from "@/game/gameobject/Techno";
 import {
     AresAttachEffectTrait,
     isAresTechnoDeactivated,
@@ -19,6 +20,64 @@ function definition(values: Record<string, string> = {}) {
 }
 
 describe("Ares AttachEffect lifecycle seams", () => {
+    test("pauses active effects and automatic delays while temporally warped out", () => {
+        let warpedOut = true;
+        const makeTechno = (trait: AresAttachEffectTrait): Techno => Object.assign(
+            Object.create(Techno.prototype),
+            {
+                cachedTraits: { tick: [trait] },
+                warpedOutTrait: { isActive: () => warpedOut },
+            },
+        );
+
+        const activeTrait = new AresAttachEffectTrait({
+            automaticEffect: {
+                effectId: "active-effect",
+                definition: definition({ "AttachEffect.Duration": "2" }),
+            },
+        });
+        activeTrait.spawn();
+        const activeTechno = makeTechno(activeTrait);
+        activeTechno.update(1);
+        activeTechno.update(1);
+        expect(activeTrait.getState()).toEqual([
+            { effectId: "active-effect", remainingFrames: 2, discardOnEntry: false },
+        ]);
+
+        const delayedTrait = new AresAttachEffectTrait({
+            automaticEffect: {
+                effectId: "delayed-effect",
+                definition: definition({
+                    "AttachEffect.Duration": "2",
+                    "AttachEffect.InitialDelay": "1",
+                }),
+            },
+        });
+        delayedTrait.spawn();
+        const delayedTechno = makeTechno(delayedTrait);
+        delayedTechno.update(1);
+        delayedTechno.update(1);
+        expect(delayedTrait.getAutomaticSchedule()).toEqual({
+            phase: "waiting-initial",
+            remainingDelay: 1,
+        });
+
+        warpedOut = false;
+        activeTechno.update(1);
+        delayedTechno.update(1);
+        expect(activeTrait.getState()).toEqual([
+            { effectId: "active-effect", remainingFrames: 1, discardOnEntry: false },
+        ]);
+        expect(delayedTrait.getAutomaticSchedule()).toEqual({
+            phase: "waiting-initial",
+            remainingDelay: 0,
+        });
+        delayedTechno.update(1);
+        expect(delayedTrait.getState()).toEqual([
+            { effectId: "delayed-effect", remainingFrames: 2, discardOnEntry: false },
+        ]);
+    });
+
     test("derives deactivation from EMP, operator, and powered shutdown traits", () => {
         const shutdownObjects = [
             { empTrait: { isUnderEMP: () => true } },

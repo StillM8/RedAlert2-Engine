@@ -126,6 +126,8 @@ export interface AresAttachEffectPresentation {
  * does not mutate movement, armor, weapon, cloak, save, or network services.
  */
 export class AresAttachEffectTrait implements NotifySpawn, NotifyTick, NotifyUnspawn {
+    /** Ares pauses AttachEffect state updates while a Techno is temporally warped out. */
+    readonly ticksWhenWarpedOut = false;
     private readonly gameObject?: any;
     private readonly getPlayerIndex?: (player: any) => number | undefined;
     private instances: AresAttachEffectInstance[];
