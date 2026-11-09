@@ -92,6 +92,55 @@ describe("Ares damage-particle render integration", () => {
         expect(effectsAdded).toBe(1);
     });
 
+    test("keeps damage smoke active while the techno remains damaged", () => {
+        const gameObject: any = {
+            healthTrait: { health: 40 },
+            isDestroyed: false,
+            position: { worldPosition: new THREE.Vector3() },
+            rules: { damageSmokeOffset: new THREE.Vector3() },
+        };
+        let smokeFx: any;
+        let finishCalls = 0;
+        const plugin = new DamageSmokePlugin(
+            gameObject,
+            {
+                hasObject: () => true,
+                getAnimation: () => ({
+                    paletteType: "anim",
+                    art: { getBool: () => false },
+                }),
+            },
+            { getPalette: () => ({}) },
+            { findByObjectArt: () => ({}) },
+            { value: 1 },
+            [{
+                id: "PersistentSmokeSys",
+                particle: { id: "PersistentSmoke", image: "PERSISTENTSMOKE" },
+            }],
+        );
+        plugin.onCreate({
+            addEffect: (effect: any) => {
+                if (effect instanceof DamageSmokeFx) {
+                    smokeFx = effect;
+                    const finishAndRemove = effect.finishAndRemove.bind(effect);
+                    effect.finishAndRemove = () => {
+                        finishCalls++;
+                        finishAndRemove();
+                    };
+                }
+            },
+        });
+
+        plugin.update(0);
+        plugin.update(80_001);
+        expect(smokeFx).toBeDefined();
+        expect(finishCalls).toBe(0);
+
+        gameObject.healthTrait.health = 100;
+        plugin.update(80_002);
+        expect(finishCalls).toBe(1);
+    });
+
     test("keeps the retail smoke fallback for an unresolved flat particle ID", () => {
         let animationName = "";
         let effectsAdded = 0;

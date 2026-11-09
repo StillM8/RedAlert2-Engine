@@ -40,7 +40,6 @@ export class DamageSmokePlugin {
     private renderableManager?: any;
     private smokeFx?: DamageSmokeFx;
     private lastDamaged?: boolean;
-    private smokeStartTime?: number;
     private conditionYellow: number;
     private damageSparkParticleSystems: readonly (AresParticleSystemRules | string)[];
     private damageSparksEnabled: boolean;
@@ -100,11 +99,6 @@ export class DamageSmokePlugin {
                 this.disposeSmokeFx();
                 this.disposeSparkFx();
             }
-        }
-        if (this.smokeFx &&
-            this.smokeStartTime !== undefined &&
-            time - this.smokeStartTime >= 80000 / Math.max(0.01, this.gameSpeed.value)) {
-            this.disposeSmokeFx();
         }
         if (isDamaged && !isDestroyed && this.damageSparksEnabled) {
             this.updateSparkFx(time);
@@ -210,7 +204,6 @@ export class DamageSmokePlugin {
             resolved.animation.paletteType,
             resolved.animation.customPaletteName,
         );
-        this.smokeStartTime = time;
         this.smokeFx = new DamageSmokeFx(
             this.gameObject,
             resolved.animation,
@@ -260,7 +253,6 @@ export class DamageSmokePlugin {
             this.smokeFx.finishAndRemove();
             this.smokeFx = undefined;
         }
-        this.smokeStartTime = undefined;
     }
 
     private disposeSparkFx(): void {
