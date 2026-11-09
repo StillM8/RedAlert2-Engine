@@ -8,7 +8,7 @@
  * The input installation is never copied into the repository.  --write only
  * writes the aggregate Markdown report requested by the compatibility audit.
  */
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { IniFile, type IniSection } from "../redalert2/src/data/IniFile";
 import { IniSourceLoader } from "../redalert2/src/engine/IniSourceLoader";
@@ -190,7 +190,7 @@ const IMPLEMENTED_AVAILABILITY_FIELDS = new Set([
 
 const REPORT_NOTE_OVERRIDES: Readonly<Record<string, string>> = {
     "ares.chronoshift": "Chronoshift.Allow, Chronoshift.IsVehicle, Chronoshift.Crushable, ChronoInfantryCrush, and the documented Chronosphere kill/affect/placement controls are parsed and consumed by the shared Chronosphere path. Vehicle-type and explicitly undeployable buildings use foundation-aware relocation, cargo can be killed deterministically, and non-crushable/infantry-crush collisions follow authored rules. Full transport side effects, save/load, and multiplayer/lockstep certification remain open.",
-    "ares.damage-particle-systems": "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. Parsed ParticleSystem metadata selects authored smoke images and spark parameters for every techno renderable; unresolved flat IDs retain the retail SGRYSMK1 fallback. Full non-smoke particle behavior, save/load, and multiplayer certification remain open.",
+    "ares.damage-particle-systems": "DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. Parsed ParticleSystem metadata selects authored smoke images and spark parameters for every techno renderable; smoke uses planar SpawnRadius interpreted with OpenTS lepton units in engine world space and the legacy Particle.Velocity/Deacc motion path, while unresolved flat IDs retain the retail SGRYSMK1 fallback. Exact Ares smoke sampling/rate conversion, smoke slowdown, spark velocity ranges/direction, full non-smoke behavior, complete selection/lifecycle parity, save/load, and multiplayer certification remain open.",
 };
 
 function reportReferenceForSection(report: MentalOmegaCompatibilityReport, section: string): IniKeyReference[] {
@@ -425,6 +425,38 @@ function buildReport(
     return lines.join("\n");
 }
 
+function preserveSection(contents: string, heading: string, nextHeading: string): string | undefined {
+    const start = contents.indexOf(`${heading}\n`);
+    if (start < 0) return undefined;
+    const end = contents.indexOf(`\n${nextHeading}\n`, start);
+    if (end < 0) return undefined;
+    return contents.slice(start, end).trimEnd();
+}
+
+function preserveSupplementalSections(generated: string, existing: string): string {
+    const supplements = [
+        {
+            heading: "### Latest implementation checkpoint",
+            nextHeading: "## 1. Canonical profile roots and raw counts",
+            insertBefore: "## 1. Canonical profile roots and raw counts",
+        },
+        {
+            heading: "### Current stock map-trigger and campaign slice",
+            nextHeading: "## 4. Custom superweapon inventory",
+            insertBefore: "## 4. Custom superweapon inventory",
+        },
+    ];
+    let output = generated;
+    for (const supplement of supplements) {
+        if (output.includes(supplement.heading)) continue;
+        const section = preserveSection(existing, supplement.heading, supplement.nextHeading);
+        const insertion = output.indexOf(supplement.insertBefore);
+        if (!section || insertion < 0) continue;
+        output = `${output.slice(0, insertion)}${section}\n\n${output.slice(insertion)}`;
+    }
+    return output;
+}
+
 const { vfs, archives } = createMentalOmegaVfs(installRoot);
 const profile = getGameProfile("mental-omega");
 const loader = new IniSourceLoader(vfs);
@@ -468,7 +500,11 @@ const customTypes = superWeaponNames.flatMap((name) => {
     }];
 });
 
-const output = buildReport(report, rawRoots, archives, customTypes);
+const existingReport = existsSync(reportPath) ? readFileSync(reportPath, "utf8") : "";
+const output = preserveSupplementalSections(
+    buildReport(report, rawRoots, archives, customTypes),
+    existingReport,
+);
 if (shouldWrite) {
     writeFileSync(reportPath, output.endsWith("\n") ? output : output + "\n", "utf8");
     console.log(output.split("\n").slice(0, 18).join("\n"));

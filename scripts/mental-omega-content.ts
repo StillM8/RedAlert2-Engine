@@ -61,7 +61,9 @@ export function createMentalOmegaVfs(installRoot: string): { vfs: VirtualFileSys
             layer: ResourceLayer.ModPatch,
             source: "mod",
             profile: "mental-omega",
-            provenance: [filename],
+            // Provenance uses virtual game paths; the absolute install path is
+            // both invalid for the VFS and unnecessary in the compatibility report.
+            provenance: [archiveName],
         });
     }
 

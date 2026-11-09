@@ -6,6 +6,15 @@ import * as THREE from "three";
 
 const { getDamageSmokeParticleSystems } = await import("@/engine/renderable/entity/RenderableFactory");
 const { DamageSmokePlugin } = await import("@/engine/renderable/entity/plugin/DamageSmokePlugin");
+const { DamageSmokeFx } = await import("@/engine/renderable/fx/DamageSmokeFx");
+const { ImageUtils } = await import("@/engine/gfx/ImageUtils");
+
+function installLegacyThreeGlobal(): void {
+    (globalThis as any).window = globalThis;
+    (globalThis as any).THREE = Object.assign({}, THREE, {
+        Math: { generateUUID: THREE.MathUtils.generateUUID },
+    });
+}
 
 describe("Ares damage-particle render integration", () => {
     test("uses the pre-resolved Ares smoke selection when present", () => {
@@ -148,5 +157,82 @@ describe("Ares damage-particle render integration", () => {
         plugin.update(0);
 
         expect(effectsAdded).toBe(1);
+    });
+
+    test("applies authored smoke spawn radius in the map plane and particle motion", () => {
+        const originalConvertShpToCanvas = ImageUtils.convertShpToCanvas;
+        (ImageUtils as any).convertShpToCanvas = () => ({});
+        try {
+            const fx = new DamageSmokeFx(
+                {
+                    position: { worldPosition: new THREE.Vector3(1, 2, 3) },
+                    rules: { damageSmokeOffset: new THREE.Vector3() },
+                },
+                {
+                    art: {
+                        getBool: () => false,
+                        getNumber: (_key: string, defaultValue = 0) => _key === "Rate" ? 60 : defaultValue,
+                        getNumberArray: () => [],
+                    },
+                },
+                {},
+                { numImages: 2, width: 8, height: 8 } as any,
+                { value: 1 },
+                {
+                    spawnRadius: 2,
+                    velocity: 9,
+                    deacc: 0.02,
+                },
+            );
+
+            installLegacyThreeGlobal();
+            fx.create3DObject();
+            const emitter = (fx as any).particleEmitter;
+
+            // SpawnRadius is in engine leptons; x/z are the map plane and y is altitude.
+            expect(emitter.position._spread.toArray()).toEqual([2, 0, 2]);
+            expect(emitter.velocity._value.toArray()).toEqual([0, 9, 0]);
+            expect(emitter.acceleration._value.toArray()).toEqual([0, -0.02, 0]);
+            fx.dispose();
+        }
+        finally {
+            (ImageUtils as any).convertShpToCanvas = originalConvertShpToCanvas;
+            DamageSmokeFx.clearTextureCache();
+        }
+    });
+
+    test("preserves legacy smoke spread when authored motion fields are omitted", () => {
+        const originalConvertShpToCanvas = ImageUtils.convertShpToCanvas;
+        (ImageUtils as any).convertShpToCanvas = () => ({});
+        try {
+            const fx = new DamageSmokeFx(
+                {
+                    position: { worldPosition: new THREE.Vector3() },
+                    rules: { damageSmokeOffset: new THREE.Vector3() },
+                },
+                {
+                    art: {
+                        getBool: () => false,
+                        getNumber: (_key: string, defaultValue = 0) => _key === "Rate" ? 60 : defaultValue,
+                        getNumberArray: () => [],
+                    },
+                },
+                {},
+                { numImages: 2, width: 8, height: 8 } as any,
+                { value: 1 },
+            );
+
+            installLegacyThreeGlobal();
+            fx.create3DObject();
+            const emitter = (fx as any).particleEmitter;
+
+            expect(emitter.position._spread.toArray()).toEqual([0, 0, 0]);
+            expect(emitter.velocity._spread.toArray()).toEqual([0.9, 0, 0.9]);
+            fx.dispose();
+        }
+        finally {
+            (ImageUtils as any).convertShpToCanvas = originalConvertShpToCanvas;
+            DamageSmokeFx.clearTextureCache();
+        }
     });
 });

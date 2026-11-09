@@ -221,13 +221,7 @@ export class DamageSmokePlugin {
                 particleCap: resolved.system?.particleCap,
                 velocity: resolved.system?.particle?.velocity,
                 deacc: resolved.system?.particle?.deacc,
-                slowdown: resolved.system?.slowdown,
                 spawnRadius: resolved.system?.spawnRadius,
-                velocitySpread: {
-                    x: resolved.system?.particle?.xVelocity,
-                    y: resolved.system?.particle?.yVelocity,
-                    z: resolved.system?.particle?.zVelocityRange,
-                },
             },
         );
         this.renderableManager.addEffect(this.smokeFx);

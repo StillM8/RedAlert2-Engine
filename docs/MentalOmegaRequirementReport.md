@@ -8,15 +8,17 @@
 
 The scan mounted 15 MIX archive(s) and resolved 5 canonical INI source(s). The raw packed-root audit measured **214,282 key entries**, **14,137 section headers**, and **14,129 unique section names** across the five profile roots.
 
-The scanner classified **23,391 Ares-known**, **29,451 MO-content**, **121,832 vanilla**, and **39,544 unclassified** effective key entries. Unknown keys are intentionally not inferred to be Ares fields.
+The scanner classified **25,037 Ares-known**, **29,451 MO-content**, **122,873 vanilla**, and **36,857 unclassified** effective key entries. Unknown keys are intentionally not inferred to be Ares fields.
 
-The refreshed custom-superweapon inventory contains **96 custom-type definitions**, **1921 authored key occurrences in those definitions**, and **1011 Ares-recognized occurrences**. The earlier planning baseline of 552 must therefore be treated as a comparison point, not as an assumed current count.
+The refreshed custom-superweapon inventory contains **96 custom-type definitions**, **1921 authored key occurrences in those definitions**, and **1036 Ares-recognized occurrences**. The earlier planning baseline of 552 must therefore be treated as a comparison point, not as an assumed current count.
 
 The planning figure of 14,104 sections was not reproduced by the current packed 3.3.6 roots: this audit distinguishes 14,137 section headers from 14,129 unique section names. The scanner's effective INI representation contains 214,218 key entries because its parser normalizes duplicate/array entries; the raw line audit remains the 214,282-key reference total.
 
 ### Latest implementation checkpoint
 
-The current beta implementation batch started at `1b9c6a6250e76c28ee5f2a30cb09694f88bbdb88`. The current code-only checkpoint adds per-projectile `BallisticScatter`; typed MultiMissile `Nuke.Payload`/`Nuke.SiloLaunch`; the per-weapon Lightning Storm scheduler; a hashed/restored chrono-aftereffect lock; AttachEffect automatic-effect deactivation suppression; multi-launch AutoFire; P7-decoded preferred-cell actions; stock ZoneEntryBy/discovery/selection producers; trigger lifetime/event-mark/teardown guards; AllowWin holds; action 106 object-tech overrides; and action 13/campaign AI-trigger compatibility. It also retains the active-effect snapshot, planner, authored-effect, and laser-fence work from the preceding checkpoint. The aggregate scan counts were not regenerated for these code-only changes. A full world snapshot (`WorldStateSnapshot`, replay format v3) now covers players, objects, trait codecs, selection, alliances, map teams, and the world traits, qualified by an end-to-end restore-and-continue test against `Game.getHash()`; runtime-attached traits restore through a registered factory. Campaign dynamic attachment runtime, unreachable event IDs 3/18, unsupported presentation/AI breadth, target-content behavior, and live multiplayer remain explicit gaps.
+The current beta implementation batch started at `1b9c6a6250e76c28ee5f2a30cb09694f88bbdb88`. The current code-only checkpoint adds per-projectile `BallisticScatter`; typed MultiMissile `Nuke.Payload`/`Nuke.SiloLaunch`; the per-weapon Lightning Storm scheduler; a hashed/restored chrono-aftereffect lock; AttachEffect automatic-effect deactivation suppression; multi-launch AutoFire; P7-decoded preferred-cell actions; stock ZoneEntryBy/discovery/selection producers; trigger lifetime/event-mark/teardown guards; AllowWin holds; action 106 object-tech overrides; and action 13/campaign AI-trigger compatibility. It also retains the active-effect snapshot, planner, authored-effect, and laser-fence work from the preceding checkpoint. The aggregate scan counts above were refreshed from the user-owned MO installation. A full world snapshot (`WorldStateSnapshot`, replay format v3) now covers players, objects, trait codecs, selection, alliances, map teams, and the world traits, qualified by an end-to-end restore-and-continue test against `Game.getHash()`; runtime-attached traits restore through a registered factory. Campaign dynamic attachment runtime, unreachable event IDs 3/18, unsupported presentation/AI breadth, target-content behavior, and live multiplayer remain explicit gaps.
+
+This checkpoint also applies `ParticleSystem.SpawnRadius` as planar smoke spread in the engine's lepton-scaled world coordinates, while retaining the legacy scalar `Particle.Velocity`/`Deacc` path. Spark velocity ranges are no longer passed to smoke, and `ParticleSystem.Slowdown` remains open because it controls smoke spawn cadence in the [OpenTS reference](https://opents-developers.github.io/OpenTS/systems/particle-systems/). The exact Ares smoke sampling and animation-rate conversion remain unverified; the [Ares 0.7 documentation](https://ares-developers.github.io/Ares-docs/new/damageparticlesystems.html) confirms candidate selection and that Smoke/Spark are the fully supported damage-particle behaviors.
 
 ### Deterministic-state inventory status
 
@@ -49,12 +51,14 @@ authored rules, derived, presentation-only, or external.
 | Focused Ares catalog/registry tests | 9 passed, 0 failed, 48 expectations |
 | Focused trigger/campaign tests | 78 passed, 0 failed, 312 expectations across 10 files |
 | Related capability/state regressions | 92 passed, 0 failed, 398 expectations across 10 files |
-| Type-check | `typecheck:entry` passed |
-| Previously recorded full unit/regression suite | 581 passed, 0 failed, 1,924 expectations; not rerun for this documentation-only checkpoint |
-| Previously recorded real MO content verifier | passed: 14 archives, 8 AttachedSystem projectile definitions, 0 failures; not rerun here |
+| Focused damage-smoke render integration | 8 passed, 0 failed, 14 assertions |
+| Type-check | `bun run typecheck:entry` passed |
+| Full unit/regression suite | 1,333 tests across 239 files passed |
+| Production build | `bun run build` passed; existing bundler warnings remain |
+| MO requirement audit | regenerated from the local installation; 15 archives and 5 canonical profile roots |
 | Previously recorded AI stress harness | 25/50/100/200/300/500 units; 0 over-budget frames, maximum one turn per frame, maximum debt 22.2222 ms |
 
-Post-change simulation p50/p95/max (ms) from the deterministic AI and Mental Omega stress scenarios:
+Earlier post-change simulation p50/p95/max (ms) from the deterministic AI and Mental Omega stress scenarios:
 
 | Units | AI | Mental Omega |
 |---:|---:|---:|
@@ -92,10 +96,10 @@ Resolver checks:
 
 | Classification | Meaning | Count |
 |---|---|---:|
-| vanilla | Recognized base-game/Yuri schema in a known section context | 121,832 |
-| ares-known | Explicitly mapped Ares field/type with a feature ID | 23,391 |
+| vanilla | Recognized base-game/Yuri schema in a known section context | 122,873 |
+| ares-known | Explicitly mapped Ares field/type with a feature ID | 25,037 |
 | mo-content | Content-profile sections or explicit MO naming convention | 29,451 |
-| unclassified | No safe classification; requires evidence before implementation | 39,544 |
+| unclassified | No safe classification; requires evidence before implementation | 36,857 |
 
 Unknown keys are not placed in an `ares.unknown-key` bucket and do not imply Ares support. Every unclassified key is listed in Section 6.
 
@@ -105,50 +109,60 @@ Unknown keys are not placed in an `ares.unknown-key` bucket and do not imply Are
 |---|---|---:|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | ares.additional-armor-types | P2 | 8916 | 877 | complete | complete | complete | missing | missing | missing | missing | yes | synthetic | unknown | ares.effective-ini | AresCompatibilityScanner.test.ts, AresArmor.test.ts | Additional armor IDs, dynamic Versus values, and separate force-fire/retaliation/passive-acquire target gates are wired into weapon selection. |
 | ares.custom-foundations | P2 | 2671 | 79 | complete | complete | complete | complete | partial | partial | complete | yes | synthetic | required | ares.effective-ini | AresCompatibilityScanner.test.ts, AresFoundation.test.ts | Foundation=Custom cells are parsed with their optional outline and used by placement preview, build validation, and tile occupation; factory-specific exit behavior remains a separate compatibility task. |
-| ares.bounty | P0 | 1343 | 626 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.dynamic-sides-countries | AresBounty.test.ts | Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. Save/load and multiplayer certification remain open. |
-| ares.chronoshift | P0 | 1180 | 1144 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini | AresChronoshift.test.ts, AresCompatibilityScanner.test.ts, MoveTraitStateCodec.test.ts, MoveTraitLockstepHash.test.ts, ExtensionStateSnapshot.test.ts, SuperWeaponEffectState.test.ts | Chronoshift.Allow, Chronoshift.IsVehicle, Chronoshift.Crushable, ChronoInfantryCrush, and Chronosphere kill/affect/placement controls are consumed by the shared path. An explicit chrono-aftereffect lock, distinct from generic movement disable, excludes repeat selection, holds through the deferred teleport, releases afterward, and is hashed/restored with MoveTrait and the world snapshot. Full transport/building edges, in-flight path references, target-content verification, and live multiplayer remain open. |
-| ares.customizable-insignia | P0 | 855 | 401 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresInsignia.test.ts | Insignia and InsigniaFrame values are parsed and consumed by the generic PipOverlay SHP/frame path. Missing-file fallback and the vanilla path remain intact; render-host, save/mod-hash, and multiplayer certification remain open. |
-| ares.status-effects | P0 | 820 | 218 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini | AresAttachEffect.test.ts, AresAttachEffectRuntime.test.ts, AresAttachEffectTraitBridge.test.ts, AresAttachEffectObjectFactory.test.ts, AresAttachEffectCombat.test.ts, AresAttachEffectCombatCallsites.test.ts, AresAttachEffectLifecycleSeams.test.ts, AresAttachEffectRestoreDeterminism.test.ts, ExtensionStateSnapshot.test.ts, AresCompatibilityScanner.test.ts | The documented AttachEffect fields are normalized; the generic trait covers automatic timing/renewal, protection retry, instances, stacking, expiry, entry discard, aggregate modifiers, Cloakable, and attached/standalone animation damage. EMP, missing-operator, Ares power-off, and robot-control deactivation suppress initial application/renewal of the automatic TechnoType-owned effect, expire an active automatic instance, and leave Warhead-applied effects active. A strict versioned subsystem codec restores instances, scheduler phase/delay, attribution, and origins, and the owning objects participate in the world snapshot. Full transport/temporal replay, unsupported presentation/AI breadth, target-content verification, and live multiplayer remain open. |
+| ares.bounty | P0 | 1343 | 626 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.dynamic-sides-countries | AresBounty.test.ts, AresBountyDisplay.test.ts | Bounty, Bounty.Display, value tiers, BountyEnablers, BountyDisplay, and GivesBounty are normalized; weapon/crush destruction awards use the generic Game.destroyObject path and publish a shared signed world-text event when display is enabled. Bounty.Display currently has a functional HUD fallback (combat message with the killer's house color); spatial victim-position floating text parity with retail remains open. Save/load is not applicable (credits are already player state); multiplayer certification remains open. |
+| ares.chronoshift | P0 | 1180 | 1144 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini | AresChronoshift.test.ts, AresCompatibilityScanner.test.ts, MoveTraitStateCodec.test.ts, MoveTraitLockstepHash.test.ts, ExtensionStateSnapshot.test.ts | Chronoshift.Allow, Chronoshift.IsVehicle, Chronoshift.Crushable, ChronoInfantryCrush, and the documented Chronosphere kill/affect/placement controls are parsed and consumed by the shared Chronosphere path. Vehicle-type and explicitly undeployable buildings use foundation-aware relocation, cargo can be killed deterministically, and non-crushable/infantry-crush collisions follow authored rules. Full transport side effects, save/load, and multiplayer/lockstep certification remain open. |
+| ares.custom-superweapons | P0 | 919 | 217 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters, ares.superweapon-ai-targeting | AresSuperWeapons.test.ts, AresCompatibilityScanner.test.ts, GenericWarheadEffect.test.ts, AresBattery.test.ts, AresChronoWarp.test.ts, AresMentalOmegaSuperWeaponHost.test.ts, AresSuperWeaponAIHost.test.ts, AresSuperWeaponPresentationRuntime.test.ts, AresSuperWeaponLaunchTargeting.test.ts, AresSuperWeaponAutoFire.test.ts, AresNuke.test.ts, AresLightningStormScheduler.test.ts, SuperWeaponEffectState.test.ts, ExtensionStateSnapshot.test.ts | Generic host paths cover GenericWarhead, UnitDelivery, EMPulse, SonarPulse, DropPod, HunterSeeker, Battery, Firestorm, MultiMissile payload/silo routing, and the ChronoWarp destination stage with representative Mental Omega fixtures. Nuke.Payload/Nuke.SiloLaunch are typed and default to NukePayload/enabled; a configured payload can fire without WeaponType, while carrier launch requires an eligible powered silo and the authored flag. Per-weapon Lightning Storm settings preserve Duration=-1, independent nonpositive/positive delay streams, bounded Manhattan-separated scatter, authored damage/warhead, and relation-aware radar outage; MO Lightning.Seperation is accepted while canonical Separation wins. AutoFire can launch multiple ready supported weapons in deterministic order. Authored presentation fields use shared deferred events, and the supported active-effect/pending-source slice is captured/restored transactionally. Unsupported handlers/effect internals, full AI/presentation breadth, target-content verification, and live multiplayer remain open. Radar-outage state and the supported world graph are checkpointed. |
+| ares.customizable-insignia | P0 | 855 | 401 | complete | complete | complete | missing | complete | partial | partial | yes | synthetic | required | ares.effective-ini | AresInsignia.test.ts | Insignia and InsigniaFrame values are parsed and consumed with the active theater unit palette; missing rank art falls back to pips frames 14/15, while enemy/observer visibility and vanilla paths remain intact. |
+| ares.status-effects | P0 | 820 | 218 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini | AresAttachEffect.test.ts, AresAttachEffectRuntime.test.ts, AresAttachEffectTraitBridge.test.ts, AresAttachEffectObjectFactory.test.ts, AresAttachEffectCombat.test.ts, AresAttachEffectCombatCallsites.test.ts, AresAttachEffectLifecycleSeams.test.ts, AresAnimationDamage.test.ts, AresExtensionState.test.ts, AresAttachEffectRestoreDeterminism.test.ts, AresCompatibilityScanner.test.ts | The documented AttachEffect fields are normalized for TechnoType and Warhead sections; ObjectFactory registration and a generic trait cover automatic spawn timing, renewal, protection retry, instances, reapplication/stacking, expiry, entry discard, aggregate numeric modifiers, and effective Speed/Armor/Firepower/ROF callsites. EMP, missing-operator, Ares power-off, and robot-control deactivation suppress initial application and renewal of the automatic TechnoType-owned effect, expire an active automatic instance, and leave independently applied Warhead effects active. Cloakable sources and authored animation damage/visibility are wired. The versioned codec snapshots instances, automatic phase/delay, damage attribution, and definition origins; strict restore rebinds definitions and rejects invalid identities transactionally. Full transport/temporal replay, unsupported presentation/AI breadth, target-content verification, and live multiplayer remain open. The owning objects participate in the world snapshot. |
+| ares.warhead-effects | P0 | 716 | 460 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.additional-armor-types, ares.target-filters | AresWarheadEffects.test.ts, AresProtectionState.test.ts, AresPreImpactTemporal.test.ts | IronCurtain.Duration/Cap and per-Techno modifiers, permanent mind-control, deployed damage, temporal WarpAway overrides, visual ripple events, authored InfDeathAnim classification, and projectile PreImpactAnim timing are wired through the shared warhead and projectile paths. Broader presentation, AI, and multiplayer certification remain open. |
 | ares.pcx-cameos | P0 | 708 | 525 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresPcxCameos.test.ts, AresSuperWeapons.test.ts, AresCompatibilityScanner.test.ts | CameoPCX, AltCameoPCX, and SidebarPCX are normalized with .pcx validation, 60x48 validation during VFS discovery, and legacy fallback precedence. GameLoader carries the validated manifest to the HUD, which decodes direct PCX surfaces and selects them per sidebar item with a legacy SHP fallback; save/mod-hash coverage and multiplayer certification remain open. |
-| ares.custom-superweapons | P0 | 636 | 182 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters, ares.superweapon-ai-targeting | AresSuperWeapons.test.ts, AresCompatibilityScanner.test.ts, GenericWarheadEffect.test.ts, AresBattery.test.ts, AresChronoWarp.test.ts, AresMentalOmegaSuperWeaponHost.test.ts, AresSuperWeaponAIHost.test.ts, AresSuperWeaponPresentationRuntime.test.ts, AresSuperWeaponLaunchTargeting.test.ts, AresSuperWeaponAutoFire.test.ts, AresNuke.test.ts, AresLightningStormScheduler.test.ts, SuperWeaponEffectState.test.ts, ExtensionStateSnapshot.test.ts | Generic host paths cover the locally dispatched custom handlers plus MultiMissile Nuke.Payload/Nuke.SiloLaunch and the ChronoWarp destination stage. The Lightning scheduler preserves Duration=-1, independent delay streams, bounded Manhattan-separated scatter, authored damage/warhead, and relation-aware radar outage, with MO Lightning.Seperation accepted and canonical Separation winning. AutoFire can launch multiple ready supported weapons; P7-decoded preferred cells and the supported active-effect/pending-source slice are covered. Unsupported handlers/effect internals, complete AI/presentation breadth, target-content verification, and live multiplayer remain open. Radar-outage state is hashed and restored, and a full world snapshot covers the supported world graph. |
-| ares.projectile-extensions | P0 | 614 | 232 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.damage-particle-systems | AresProjectileExtensions.test.ts, AresCompatibilityScanner.test.ts | ProjectileRules preserves Proximity, Airburst/AirburstWeapon, Cluster, AirburstSpread, AroundTarget, Splits, RetargetAccuracy, RetargetSelf, AttachedSystem, and nullable per-projectile BallisticScatter.Min/Max. Ballistic bounds apply only to Inaccurate=yes and Arcing=yes; omitted bounds retain global FlakScatter/Inviso defaults, including independently range-scaled Inviso extra scatter. Airburst and Splits use deterministic child projectiles. Full Proximity edge parity, in-flight persistence, non-smoke particle breadth, target-content verification, live multiplayer, and trajectory extensions beyond this MO-required slice remain open. |
-| ares.damage-particle-systems | P0 | 590 | 590 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresParticleSystems.test.ts, AresDamageParticles.test.ts, AresDamageParticlesTechnoIntegration.test.ts, AresDamageParticlesRenderIntegration.test.ts, AresCompatibilityScanner.test.ts | DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. Parsed ParticleSystem metadata selects authored smoke images and spark parameters for every techno renderable; unresolved flat IDs retain the retail SGRYSMK1 fallback. Full non-smoke particle behavior, save/load, and multiplayer certification remain open. |
+| ares.projectile-extensions | P0 | 694 | 251 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.damage-particle-systems | AresProjectileExtensions.test.ts, AresCompatibilityScanner.test.ts | ProjectileRules preserves Proximity, Airburst/AirburstWeapon, Cluster, AirburstSpread, AroundTarget, Splits, RetargetAccuracy, RetargetSelf, AttachedSystem, and nullable per-projectile BallisticScatter.Min/Max. Ballistic bounds apply only to Inaccurate=yes and Arcing=yes shots; omitted bounds retain the global FlakScatter/Inviso defaults, including independently range-scaled Inviso extra scatter. Airburst cell fan-out and Splits retargeting use deterministic native child projectiles, and smoke-only AttachedSystem definitions resolve the authored ParticleSystem -> Particle -> Image chain. Full Proximity edge parity, in-flight persistence, non-smoke particles, target-content verification, live multiplayer, and trajectory extensions beyond this MO-required slice remain open. |
+| ares.damage-particle-systems | P0 | 590 | 590 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresParticleSystems.test.ts, AresDamageParticles.test.ts, AresDamageParticlesTechnoIntegration.test.ts, AresDamageParticlesRenderIntegration.test.ts, AresCompatibilityScanner.test.ts | DamageSparks and explicit Smoke/Spark particle lists are normalized in TechnoRules with Ares defaults. Parsed ParticleSystem metadata selects authored smoke images and spark parameters for every techno renderable; smoke uses planar SpawnRadius interpreted with OpenTS lepton units in engine world space and the legacy Particle.Velocity/Deacc motion path, while unresolved flat IDs retain the retail SGRYSMK1 fallback. Exact Ares smoke sampling/rate conversion, smoke slowdown, spark velocity ranges/direction, full non-smoke behavior, complete selection/lifecycle parity, save/load, and multiplayer certification remain open. |
 | ares.custom-animation-palettes | P2 | 541 | 541 | complete | complete | complete | missing | complete | complete | complete | yes | synthetic | required | ares.effective-ini | AresCustomPalette.test.ts | ObjectArt reads CustomPalette for animations/projectiles; Theater resolves complete .pal names and Ares's first ~~~ theater substitution while preserving legacy Palette= basename fallback. |
-| ares.reverse-engineer | P0 | 515 | 515 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.generic-prerequisites | AresReverseEngineer.test.ts, AresFactoryOwnerPersistence.test.ts | ReverseEngineersVictims, CanBeReversed, ReversedAs, and spy reset are normalized and consumed by the grinder/production path. EVA, AI, full-game save/load, and lockstep certification remain open. |
-| ares.ifv-modes | P0 | 484 | 237 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresTechnoExtensions.test.ts, AresIfvRuntimeIntegration.test.ts, AresCompatibilityScanner.test.ts | IFVMode, 1-based WeaponTurretIndexX, WeaponUINameX, and VoiceIFVRepair are normalized generically; passenger changes now re-evaluate the selected weapon, turret, and tooltip through the shared IFV path. Repair-voice consumption, full passenger weapon/turret parity, save/load, and multiplayer synchronization remain open. |
-| ares.emp | P1 | 432 | 392 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | unknown | ares.effective-ini, ares.warhead-effects | AresEMP.test.ts | EMP.Duration/Cap, EMP.Modifier, default immunity including SuperWeapon2 providers, same-owner EMP-capable-weapon TypeImmune, ImmuneToEMP, AffectsEnemies, veteran EMPIMMUNE, per-Techno counters, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and flying-aircraft crash entry are wired; sparkle presentation and full subsystem notifications remain separate. |
+| ares.reverse-engineer | P0 | 516 | 516 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.generic-prerequisites | AresReverseEngineer.test.ts, AresFactoryOwnerPersistence.test.ts | ReverseEngineersVictims, CanBeReversed, ReversedAs, and spy reset are normalized and consumed by the grinder/production path. EVA, AI, full-game save/load, and lockstep certification remain open. |
+| ares.ifv-modes | P0 | 484 | 237 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresTechnoExtensions.test.ts, AresIfvRuntimeIntegration.test.ts, AresCompatibilityScanner.test.ts | IFVMode, 1-based WeaponTurretIndexX, WeaponUINameX, and VoiceIFVRepair are normalized generically, including IFVMode-only sections; passenger changes re-evaluate the selected weapon, turret, and tooltip through the shared IFV path. |
+| ares.emp | P1 | 432 | 392 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.warhead-effects | AresEMP.test.ts | EMP.Duration/Cap, EMP.Modifier, default immunity including SuperWeapon2 providers, same-owner EMP-capable-weapon TypeImmune, ImmuneToEMP, AffectsEnemies, veteran EMPIMMUNE, per-Techno counters, movement/attack paralysis, unloading-boundary deferral, power-output blackout, factory/production suspension, spawner/slave suspension, powered-superweapon pause, and flying-aircraft crash entry are wired; sparkle presentation and full subsystem notifications remain separate. |
 | ares.customizable-veterancy | P0 | 427 | 427 | complete | complete | partial | missing | missing | missing | partial | yes | synthetic | required | ares.effective-ini | AresCustomizableVeterancy.test.ts | Trainable and all documented Experience.* passenger, airstrike, spawn, and mind-control modifiers are normalized and routed through generic deterministic kill-credit attribution. Airstrike designator, passenger gating/promotion, spawned-owner, mind-controller, and Trainable=no decisions are covered; full occupier/passenger lifecycle, presentation, persistence, AI, and multiplayer certification remain open. |
-| ares.killing-drivers | P0 | 375 | 374 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | unknown | ares.effective-ini, ares.operator | AresKillingDrivers.test.ts | KillDriver and ProtectedDriver use a normalized driver state, deterministic owner resolution, passenger/operator handling, driverless movement/weapon suppression, and optional veterancy reset on ownership transfer. CanDrive and TechnoType/Country CanBeDriven gates feed the generic VehicleThief reclaim path; broader Ares trigger/script, AI, presentation, save, and network parity remain open. |
-| ares.urban-combat | P0 | 352 | 176 | complete | complete | partial | missing | missing | missing | partial | yes | synthetic | required | ares.effective-ini | AresUrbanCombat.test.ts, AresUrbanCombatRuntimeAdapter.test.ts, AresUrbanCombatProjectileHook.test.ts, AresStatefulTraitLockstep.test.ts, AresCompatibilityScanner.test.ts | The documented Urban Combat fields are normalized and the projectile path now applies generic pass-through, fatal-rate, and occupant damage decisions while preserving ordinary detonation when optional data is absent. The garrison-occupant membership bridge participates in the canonical object hash and carries a versioned snapshot codec with id-based host re-linking. Trench traversal, raidable capture, rubble transitions, foundation validation, broader projectile/occupant integration, save/load, and multiplayer synchronization remain open. |
+| ares.killing-drivers | P0 | 375 | 374 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.operator | AresKillingDrivers.test.ts | KillDriver and ProtectedDriver use a normalized driver state, deterministic owner resolution, passenger/operator handling, driverless movement/weapon suppression, and optional veterancy reset on ownership transfer. CanDrive and TechnoType/Country CanBeDriven gates feed the generic VehicleThief reclaim path; broader Ares trigger/script, AI, presentation, save, and network parity remain open. |
+| ares.urban-combat | P0 | 352 | 176 | complete | complete | partial | missing | missing | missing | partial | yes | synthetic | required | ares.effective-ini | AresUrbanCombat.test.ts, AresUrbanCombatRuntimeAdapter.test.ts, AresUrbanCombatProjectileHook.test.ts, AresCompatibilityScanner.test.ts | The documented Urban Combat fields are normalized and the projectile path now applies generic pass-through, fatal-rate, and occupant damage decisions while preserving ordinary detonation when optional data is absent. Trench traversal, raidable capture, rubble transitions, foundation validation, and broader projectile/occupant integration remain open; GarrisonTrait has a trait-level occupant/retained-owner codec and the owning object is checkpointed; multiplayer synchronization remains open. |
 | ares.emp-threshold | P0 | 324 | 324 | complete | complete | partial | partial | missing | partial | partial | yes | synthetic | unknown | ares.emp | AresEMP.test.ts | Positive thresholds and negative in-air thresholds are evaluated after EMP counter updates; parachuting and non-air targets follow the documented distinction. Full hover/aircraft edge coverage, persistence, and network certification remain separate. |
-| ares.vehicle-thief | P0 | 271 | 263 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.killing-drivers, ares.operator | AresVehicleThief.test.ts | VehicleThief and CanDrive share a data-defined hijack action path. Enemy hijacks, neutral DriverKilled reclaim, TechnoType/Country CanBeDriven gates, mind-control cleanup, absorbed-hijacker recovery/recycle state, and target/task integration are wired; building hijacks, survivor pilot-count integration, sounds, and trigger/event parity remain open. |
-| ares.chrono-prisons | P0 | 185 | 175 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresChronoPrisons.test.ts, AresChronoPrisonRuntimeDecision.test.ts, AresChronoPrisonBridge.test.ts, AresStatefulTraitLockstep.test.ts, AresCompatibilityScanner.test.ts | The documented Abductor, Abductor.Temporal, Abductor.ChangeOwner, health gates, PassengerTurret, and ImmuneToAbduction fields are parsed into the shared rules model. Live vehicle holds now absorb eligible units, preserve conventional damage on rejection, complete temporal abduction at erase time, emit the configured animation/events, and switch PassengerTurret by passenger count. The PassengerTurret latch participates in the canonical object hash and carries a versioned snapshot codec. Building/infantry passenger-hold edge cases, PSIONICSIMMUNE veteran ability parity, save/load, and multiplayer synchronization remain open. |
-| ares.weapon-visuals | P0 | 154 | 61 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresWeaponVisuals.test.ts | Beam.Color/IsHouseColor/Duration/Amplitude, Bolt.Color1/2/3, Wave.IsLaser/IsBigLaser/Color/IsHouseColor/ReverseAgainst*, and standalone [WeaponTypes] declarations are parsed and consumed by the shared renderer/simulation path. Native wave lifecycle, persistence, and multiplayer certification remain open. |
-| ares.superweapon-ai-targeting | P0 | 149 | 103 | complete | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponAITargeting.test.ts, AresSuperWeaponAIHost.test.ts, AresSuperWeaponLaunchTargeting.test.ts, AresSuperWeaponAutoFire.test.ts, AresSuperWeaponTargetingCell.test.ts | Documented modes, required-house defaults, provider constraints, non-unit land/water masks, local Dominator/Genetic clusters, ParaDrop/base-point selection, and supported handler selectors are consumed by the built-in AI host. Actions 135/140 use the shared signed/spreadsheet P7 decoder to set or clear stored offensive/defensive preferred cells, which are included in the extension snapshot. The automatic pump may launch multiple ready supported weapons. Complete selector/scheduling parity, preferred-cell behavior beyond those actions, manual UseAITargeting flow, unsupported presentation/AI breadth, target-content verification, and live multiplayer remain open. |
-| ares.custom-ivan-bombs | P0 | 114 | 17 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresIvanBombs.test.ts | Weapon-local IvanBomb damage, warhead, delay, bridge, detachable, sell, image, flicker, and sound settings are parsed and consumed by the shared charge/targeting/presentation path. Remote-detonation UI, death-bomb lifecycle parity, persistence, and multiplayer certification remain open. |
-| ares.superweapon-radar-event | P1 | 111 | 111 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponRadar.test.ts | Explicit CreateRadarEvent launches notify every combatant through RadarTrait, preserving host suppression/duration rules; full-map SonarPulse remains exempt from its local radar event path. |
-| ares.promotion-presentation | P1 | 108 | 54 | complete | complete | partial | missing | partial | missing | missing | yes | synthetic | required | ares.effective-ini | AresPromotionSettings.test.ts | Per-type Promote.VeteranSound/Promote.EliteSound override the global [AudioVisual] UpgradeVeteranSound/UpgradeEliteSound and EVA.VeteranPromoted/EVA.ElitePromoted override EVA_UnitPromoted at the shared promotion event, which now carries the achieved rank; this also fixed an elite-promotion comparison that could never select the elite sound. VeteranFlashTimer/EliteFlashTimer and per-type Promote.VeteranFlash/EliteFlash frames are parsed. Per-unit visual flashing, persistence, and multiplayer certification remain open. |
-| ares.superweapon-shroud-targeting | P1 | 84 | 84 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponTargeting.test.ts, AresSuperWeapons.test.ts | The documented default is permissive; when explicitly disabled, manual activation rejects only unexplored cells using the owner's MapShroud, while temporary reveals remain valid. AI actions pass through the same final activation gate. |
+| ares.vehicle-thief | P0 | 271 | 263 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.killing-drivers, ares.operator | AresVehicleThief.test.ts, AresSurvivorRuntime.test.ts | VehicleThief and CanDrive share a data-defined hijack action path. Enemy hijacks, neutral DriverKilled reclaim, TechnoType/Country CanBeDriven gates, mind-control cleanup, absorbed-hijacker recovery/recycle state, target/task integration, and survivor pilot-count adjustment are wired; building hijacks, sounds, trigger/event parity, and full save/network integration remain open. |
+| ares.weapon-visuals | P0 | 213 | 118 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresWeaponVisuals.test.ts | Beam.Color/IsHouseColor/Duration/Amplitude, Bolt.Color1/2/3, Wave.IsLaser/IsBigLaser/Color/IsHouseColor/ReverseAgainst*, AmbientDamage, LaserThickness, and standalone [WeaponTypes] declarations are parsed and consumed by the shared renderer/simulation path. Native wave lifecycle, persistence, and multiplayer certification remain open. |
+| ares.chrono-prisons | P0 | 185 | 175 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresChronoPrisons.test.ts, AresChronoPrisonRuntimeDecision.test.ts, AresChronoPrisonBridge.test.ts, AresCompatibilityScanner.test.ts | The documented Abductor, Abductor.Temporal, Abductor.ChangeOwner, health gates, PassengerTurret, and ImmuneToAbduction fields are parsed into the shared rules model. Live vehicle holds now absorb eligible units, preserve conventional damage on rejection, complete temporal abduction at erase time, emit the configured animation/events, and switch PassengerTurret by passenger count. Building/infantry passenger-hold edge cases, PSIONICSIMMUNE veteran ability parity, save/load, and multiplayer synchronization remain open. |
+| ares.superweapon-ai-targeting | P0 | 149 | 103 | complete | partial | partial | partial | missing | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponAITargeting.test.ts, AresSuperWeaponAIHost.test.ts, AresSuperWeaponLaunchTargeting.test.ts, AresSuperWeaponAutoFire.test.ts, AresSuperWeaponTargetingCell.test.ts | Documented modes, SW.AutoFire routing, offensive/defensive preferred-cell selection, cloaked-target exclusion for offensive Ares modes, shared provider-range/designator/inhibitor filtering, inactive LightningStorm/Dominator constraints, AI-required house and land/water/content masks, ThreatPosed MultiMissile scoring, true no-target/LightningRandom behavior, HunterSeeker favorite-enemy gating, EMPulse cannon reachability/TargetSelf, UnitDelivery landing-area selection, and DropPod outer-sector selection are consumed by the built-in AI host. The shared planner handles non-unit land/water masks, local Dominator/Genetic clusters, ParaDrop free-area ranking, and owning-base fallback. Map actions 135/140 use the shared signed/spreadsheet P7 decoder to set or clear stored preferred cells, which participate in the extension snapshot. Iron Curtain waits for team-script activation and ForceShield only responds through the defense path; complete selector/scheduling parity, preferred-cell behavior beyond those actions, manual UseAITargeting flow, unsupported presentation/AI breadth, target-content verification, and live multiplayer remain open. |
+| ares.spy-behavior | P0 | 135 | 68 | complete | complete | complete | complete | complete | complete | partial | yes | synthetic | required | ares.effective-ini, ares.superweapons | AresSpyBehavior.test.ts, AresCompatibilityScanner.test.ts, ProductionQueueDeterminism.test.ts | All documented SpyEffect fields use strict documented defaults. Custom policy composes independent effects, retail policy retains first-match precedence, every attached provider resets, and production-reveal relationships are deterministic production state. Live multiplayer certification remains open. |
+| ares.survivors | P0 | 120 | 36 | complete | untracked | complete | untracked | untracked | untracked | untracked | untracked | unverified | unknown | untracked | AresSurvivors.test.ts, AresSurvivorRuntime.test.ts, CrashableLifecycle.test.ts | Survivor.PilotCount, rank-specific pilot/passenger chances, Survivor.Side#, Ares percentage normalization, 50%-health pilot spawning, inherited pilot veterancy/XP, explicit airborne passenger paradrops, crash-time resolution, and VehicleThief pilot-count adjustment are wired. Positive-chance failed/blocked pilot virtual kill credit, save/load, multiplayer certification, and real target-content verification remain open. |
+| ares.custom-ivan-bombs | P0 | 114 | 17 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresIvanBombs.test.ts | Weapon-local IvanBomb damage, warhead, delay, bridge, detachable, sell, image, flicker, and sound settings are parsed and consumed by the shared charge/targeting/presentation path. Complete SHP frame selection, zero-delay handling, normal manual detonation, and death-bomb last-frame presentation are wired. Persistence and multiplayer certification remain open. |
+| ares.solid-buildings | P2 | 111 | 111 | complete | complete | complete | complete | complete | complete | complete | yes | synthetic | unknown | ares.effective-ini, ares.custom-foundations | AresSolidBuildings.test.ts | SubjectToBuildings and integer-cell SolidHeight are normalized with documented defaults. Opt-in swept trajectory checks use projectile elevation, foundation cells, deterministic path order, and the existing wall collision and detonation flow. |
+| ares.superweapon-radar-event | P1 | 111 | 111 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponRadar.test.ts | Explicit CreateRadarEvent launches notify every combatant through RadarTrait, preserving host suppression/duration rules; full-map SonarPulse remains exempt from its local radar event path. |
+| ares.superweapon-shroud-targeting | P1 | 84 | 84 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponTargeting.test.ts, AresSuperWeapons.test.ts | The documented default is permissive; when explicitly disabled, manual activation rejects only unexplored cells using the owner's MapShroud, while temporary reveals remain valid. AI actions pass through the same final activation gate. |
 | ares.superweapon-availability | P1 | 83 | 61 | complete | complete | complete | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponAvailability.test.ts, AresSuperWeapons.test.ts, AresSuperWeaponPresentationAdapter.test.ts, AresCompatibilityScanner.test.ts | The generic parser/evaluator, owner adapter, provider-based grant/revoke lifecycle, AlwaysGranted handling, finite Shots tracking, activation-time shot gate, SW.ShowCameo sidebar filtering, and SW.TimerVisibility relation filtering are implemented. SW.Group remains normalized for AI/action consumers; full AI certification, charge-lifecycle edge coverage, persistence, and multiplayer/network certification remain partial. |
-| ares.superweapon-money | P0 | 68 | 68 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponMoney.test.ts | Money.Amount is validated before charge consumption and applied once after launch acceptance; recurring Money.DrainAmount/DrainDelay are tracked by the separate charge-drain capability. |
-| ares.firestorm-wall | P0 | 54 | 54 | complete | complete | partial | missing | missing | partial | partial | yes | synthetic | unknown | ares.superweapon-charge-drain | AresFirestorm.test.ts, AresStatefulTraitLockstep.test.ts | Firestorm.Wall, SubjectToFirestorm, and IgnoresFirestorm are normalized. Same-owner four-way links, active hostile projectile interception along the full projectile path, direct-contact immolation, and damage-to-active-charge feedback follow the Antares 3.0p1 semantics. The wall's active latch and RNG-gating flicker cooldown participate in the canonical object hash and carry a versioned snapshot codec; a diverged cooldown would otherwise desync the deterministic RNG stream. Persistent superweapon state, active/idle wall animation presentation, and trigger/network action coverage remain open. |
-| ares.superweapon-deferment | P1 | 52 | 52 | partial | partial | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponDeferment.test.ts, AresLightningStormScheduler.test.ts, SuperWeaponEffectState.test.ts | Per-superweapon deferment overrides the Lightning Storm and Psychic Dominator pre-effect delays; UnitDelivery already uses the same field with its documented default. Lightning radar outage starts after the resolved deferment. The supported active-effect deferment/timer slice is snapshotted/restored, but the radar outage latch is not; other types intentionally do not consume SW.Deferment because Antares does not apply it to them. |
-| ares.superweapon-hunter-seeker | P0 | 47 | 31 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresHunterSeeker.test.ts | Per-superweapon/side/global launch configuration, deterministic eligible-building selection, data-defined aircraft launch, enemy target acquisition, pursuit, and weapon/warhead detonation are wired. Antares ascent/descent speed choreography, specialized target preference edge cases, AI auto-fire, presentation, and in-flight persistence remain open. |
-| ares.superweapon-target-requirements | P0 | 42 | 42 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponTargeting.test.ts, AresSuperWeaponLaunchTargeting.test.ts | Manual cell/content and house-relation validation follows Antares IsCellEligible/IsTechnoEligible semantics; the shared planner applies the same land/water requirements to non-unit selectors. Complete AI/multi-techno edge parity, cursor presentation, and target-content certification remain open. |
-| ares.superweapon-empulse | P1 | 37 | 24 | partial | partial | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresEMPulse.test.ts, AresSuperWeapons.test.ts, SuperWeaponEffectState.test.ts | Antares launch-site defaults, EMPulse.Cannons override, linked range behavior, SW.MaxCount, TargetSelf immediate detonation, and PulseDelay-backed normal firing are wired; pending frames, launch state, and launch-site IDs are included in the supported active-effect slice. Pulse-ball animation, complete AI targeting, and target-content verification remain open. |
-| ares.superweapon-fire-mode | P0 | 34 | 17 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponTargeting.test.ts, AresSuperWeapons.test.ts, AresSuperWeaponAutoFire.test.ts | Auto-only superweapons reject human click actions while allowing AI-created actions; ManualFire remains ignored when AutoFire is disabled, matching Antares. The human automatic pump evaluates every ready supported non-ChronoSphere profile and can launch multiple weapons in deterministic order in one pass. Complete selector/scheduling parity, unsupported presentation breadth, target-content verification, and live multiplayer remain open. |
+| ares.superweapon-money | P0 | 68 | 68 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponMoney.test.ts | Money.Amount is validated before charge consumption and applied once after launch acceptance; recurring Money.DrainAmount/DrainDelay are tracked by the separate charge-drain capability. |
+| ares.passenger-extensions | P0 | 56 | 17 | complete | untracked | complete | untracked | untracked | untracked | untracked | untracked | unverified | unknown | untracked | AresPassengers.test.ts, AresBuildingPassengerHost.test.ts, AresSurvivorRuntime.test.ts, AresPassengerLivePath.test.ts | Passengers.Allowed/Disallowed, Passengers.BySize, NoManualEnter/Unload, InitialPayload.Types/Nums, Promote.IncludePassengers, InfantryAbsorb and UnitAbsorb are normalized and consumed by shared transport/building entry paths. Initial payload obeys Ares building-host restrictions. The live player boarding path (EnterTransportOrder.process -> EnterTransportTask -> TransportTrait) is certified against Specific Passengers gates including the order-created task boarding into the hold, and the transport hash covers held units and the load queue with length-separated sections. AI boarding policy, full open-topped edge parity, and target-content certification remain open. |
+| ares.firestorm-wall | P0 | 54 | 54 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.superweapon-charge-drain | AresFirestorm.test.ts | Firestorm.Wall, SubjectToFirestorm, and IgnoresFirestorm are normalized. Same-owner four-way links, active hostile projectile interception along the full projectile path, direct-contact immolation, and damage-to-active-charge feedback follow the Antares 3.0p1 semantics. Persistent superweapon state, active/idle wall animation presentation, and trigger/network action coverage remain open. |
+| ares.superweapon-deferment | P1 | 52 | 52 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponDeferment.test.ts, AresLightningStormScheduler.test.ts, SuperWeaponEffectState.test.ts | Per-superweapon deferment overrides the Lightning Storm and Psychic Dominator pre-effect delays; UnitDelivery already uses the same field with its documented default. Lightning radar outage starts after the resolved deferment. The supported active-effect deferment/timer slice is snapshotted/restored, but the radar outage latch is not; other types intentionally do not consume SW.Deferment because Antares does not apply it to them. |
+| ares.superweapon-hunter-seeker | P0 | 47 | 31 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresHunterSeeker.test.ts | Per-superweapon/side/global launch configuration, deterministic eligible-building selection, data-defined aircraft launch, enemy target acquisition, pursuit, and weapon/warhead detonation are wired. Native-lepton proximity thresholds and shared emerge/ascent/descent speeds are consumed by the common aircraft locomotor. Specialized target preference edge cases, AI auto-fire, full presentation parity, and in-flight persistence remain open. |
+| ares.customizable-parachute-animations | P2 | 45 | 36 | complete | complete | complete | missing | complete | partial | partial | yes | synthetic | optional | ares.effective-ini, ares.dynamic-sides-countries | AresParachute.test.ts, AresParachuteHierarchy.test.ts | Parachute.Anim resolves Techno then country then side then the authored/default animation, uses the unit palette, and switches to NoParachuteMaxFallRate after completion. |
+| ares.superweapon-target-requirements | P0 | 42 | 42 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponTargeting.test.ts | Manual cell/content and house-relation validation follows Antares IsCellEligible/IsTechnoEligible semantics; the shared planner applies land/water requirements to non-unit selectors. Complete AI/multi-techno edge parity and cursor presentation remain separate. |
+| ares.superweapon-empulse | P1 | 37 | 24 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresEMPulse.test.ts, AresSuperWeapons.test.ts, SuperWeaponEffectState.test.ts | Antares launch-site defaults, EMPulse.Cannons override, linked range behavior, SW.MaxCount, TargetSelf immediate detonation, PulseDelay-backed normal firing, and PulseBall default/none/custom animation at the authored weapon FLH are wired. Pending frames, launch state, and launch-site identities are included in the supported active-effect snapshot; complete AI selector parity and multiplayer certification remain separate. |
+| ares.superweapon-fire-mode | P0 | 34 | 17 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponTargeting.test.ts, AresSuperWeapons.test.ts, AresSuperWeaponAutoFire.test.ts | Auto-only superweapons reject human click actions while allowing AI-created actions; ManualFire remains ignored when AutoFire is disabled, matching Antares. The human automatic pump evaluates every ready supported non-ChronoSphere profile, allowing multiple launches in deterministic order in one pass. Complete selector and AI scheduling parity, cursor and broader presentation behavior, target-content verification, and live multiplayer remain open. |
 | ares.generic-prerequisites | P2 | 27 | 5 | complete | complete | complete | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.dynamic-sides-countries | AresPrerequisites.test.ts | Supports generic groups, alternate TechnoTypes, negative prerequisites, alternative lists, required theaters when map context is available, and stolen-tech gates. |
-| ares.superweapon-range | P0 | 27 | 24 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponRange.test.ts, AresPsychicDominatorForceShieldSettings.test.ts | A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range plus authored per-weapon settings are consumed by Psychic Dominator, Genetic Mutator, Force Shield, Psychic Reveal, ChronoSphere, and Lightning Storm; effect-specific edge cases and complete target-content/network coverage remain open. |
-| ares.target-filters | P1 | 25 | 19 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponFilters.test.ts, AresSuperWeaponLaunchTargeting.test.ts | AffectsHouse/AffectsTarget masks and house relations are normalized for the generic superweapon target layer; the shared planner now applies land/water masks to non-unit selectors. Empty-cell and complete handler-specific behavior remain separate. |
+| ares.superweapon-range | P0 | 27 | 24 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponRange.test.ts, AresSuperWeaponTargeting.test.ts, AresPsychicDominatorForceShieldSettings.test.ts | A generic Antares-compatible cell resolver is shared with SonarPulse and explicit SW.Range plus authored per-weapon settings are consumed by Psychic Dominator, Genetic Mutator, Force Shield, Psychic Reveal, ChronoSphere, and Lightning Storm. The common activation path enforces SW.RangeMinimum/Maximum against operational providers, SW.Designators/SW.AnyDesignator against owned TechnoTypes, and SW.Inhibitors/SW.AnyInhibitor against enemy target areas; effect-specific range edges, complete AI presentation, and multiplayer certification remain open. |
+| ares.target-filters | P1 | 25 | 19 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponFilters.test.ts | AffectsHouse/AffectsTarget masks and house relations are normalized for the generic superweapon target layer; the shared planner applies land/water masks to non-unit selectors as well. Empty-cell and complete handler-specific behavior remain separate. |
+| ares.staged-weapons | P0 | 18 | 18 | complete | untracked | complete | untracked | untracked | untracked | untracked | untracked | unverified | unknown | untracked | AresGattlingCycle.test.ts | Gattling.Cycle is parsed from TechnoType rules and wraps the deterministic gattling accumulator back to stage zero instead of pinning at the final stage. Save/load of mid-cycle gattling state and multiplayer/target-content certification remain open; this entry does not claim a second generic staged-weapon subsystem. |
 | ares.factory-owner-prerequisites | P0 | 15 | 15 | complete | complete | complete | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.dynamic-sides-countries | AresPrerequisites.test.ts, AresFactoryOwnerPersistence.test.ts | Initial-factory-country checks, active HasAllPlans buildings, and Permanent capture plans are wired. Production extension state now has a versioned serializer/restorer; full-game snapshot integration remains open because current saves resume action logs. |
-| ares.superweapon-charge-drain | P0 | 10 | 4 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponChargeDrain.test.ts | The shared timer implements Antares' Ready/Draining/Charging conversion, per-SW/global charge-to-drain ratio, scheduled money transactions, insufficient-funds stop, and Unstoppable-aware deactivation API. Firewall wall behavior, active-effect teardown, and full UI/action serialization remain separate. |
-| ares.superweapon-drop-pod | P0 | 10 | 6 | partial | partial | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresDropPod.test.ts, AresSuperWeapons.test.ts, SuperWeaponEffectState.test.ts | Antares 3.0p1 global/per-superweapon types, inclusive count range, deterministic type selection, building abort, valid landing placement, ownership, fractional veterancy, and cleanup are wired; the completed latch is included in the supported active-effect slice. DropPod locomotor descent presentation, trailer presentation, and complete AI/target-content certification remain open. |
-| ares.superweapon-battery | P0 | 4 | 2 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresBattery.test.ts, AresSuperWeaponChargeDrain.test.ts | Battery.Power, Battery.KeepOnline, Battery.Overpower, duplicate-preserving activation/deactivation, low-power radar retention, and charge-drain lifecycle are wired from Antares 3.0p1 semantics. Full sidebar/action, AI, save/load, and network presentation remain open. |
-| ares.powered-by | P0 | 2 | 2 | complete | complete | partial | missing | missing | missing | partial | yes | synthetic | required | ares.effective-ini | AresTechnoExtensions.test.ts, AresPoweredUnitRuntimeDecision.test.ts, AresPoweredByTrait.test.ts, AresPoweredByObjectFactory.test.ts, AresCompatibilityScanner.test.ts | PoweredBy alternatives are normalized as an ordered data-defined OR-list; ObjectFactory registration and generic provider matching plus powered-unit power-down/power-up decisions are covered by a trait bridge. Power output accounting, superweapon availability coupling, save/load, and multiplayer synchronization remain open. |
-| ares.superweapon-charge-state | P0 | 2 | 2 | partial | partial | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponCharge.test.ts | Initial grants and deterministic elapsed charging while a VirtualCharge superweapon is unavailable are wired; per-house shot-history re-grant semantics and save/load of unavailable intervals remain open. |
-| ares.superweapon-post-dependent | P0 | 1 | 1 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponPostDependent.test.ts, AresChronoWarp.test.ts, SuperWeaponEffectState.test.ts | The authored dependent ID is resolved case-insensitively, with the first authored ChronoWarp fallback for ChronoSphere; the generic action path records the source and lets the dependent ChronoWarp supply the destination. The supported active-effect and pending-source slice is snapshotted/restored transactionally. Full dependent-graph coverage, cursor/presentation resources, AI, unsupported state, full-world save integration, target-content, and multiplayer certification remain open. |
+| ares.hardcoded-unit-properties | P2 | 13 | 13 | complete | complete | complete | complete | complete | complete | complete | yes | synthetic | optional | ares.effective-ini | AresHardcodedUnitProperties.test.ts | COW and DESO retain their documented defaults, explicit no excludes them, and other infantry can opt in to cow idle/scatter or deployed secondary/radiation behavior. |
+| ares.superweapon-charge-drain | P0 | 10 | 4 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponChargeDrain.test.ts | The shared timer implements Antares' Ready/Draining/Charging conversion, per-SW/global charge-to-drain ratio, scheduled money transactions, insufficient-funds stop, and Unstoppable-aware deactivation API. Firewall wall behavior, active-effect teardown, and full UI/action serialization remain separate. |
+| ares.superweapon-drop-pod | P0 | 10 | 6 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresDropPod.test.ts, AresSuperWeapons.test.ts, SuperWeaponEffectState.test.ts | Antares 3.0p1 global/per-superweapon infantry type lists, inclusive count range, deterministic type selection, valid landing placement, ownership, fractional veterancy, cleanup, default/custom trailer animation, and optional landing impact weapon are wired. The completed latch is included in the supported active-effect slice; DropPod locomotor descent presentation, complete AI/target-content certification, and target-content verification remain open. |
+| ares.alternate-theater-art | P2 | 4 | 4 | complete | complete | complete | missing | complete | complete | complete | yes | synthetic | optional | ares.effective-ini | AresAlternateTheaterArt.test.ts | AlternateTheaterArt defaults to no, uses the active theater letter only when the suffixed SHP art section exists, falls back to the base section, and leaves voxel art unchanged. |
+| ares.superweapon-battery | P0 | 4 | 2 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresBattery.test.ts, AresSuperWeaponChargeDrain.test.ts | Battery.Power, Battery.KeepOnline, Battery.Overpower, duplicate-preserving activation/deactivation, low-power radar retention, and charge-drain lifecycle are wired from Antares 3.0p1 semantics. Full sidebar/action, AI, save/load, and network presentation remain open. |
+| ares.laser-fences | P1 | 3 | 3 | complete | complete | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.custom-foundations | AresLaserFences.test.ts | LaserFencePost and LaserFence default to no, canonical post/fence topology is rebuilt deterministically using each post's GuardRange (including asymmetric reach), active sections block ground movement and normal damage, power cycles sweep crossings once, and post lifecycle state is snapshotted. AI, complete presentation, and network certification remain open. |
+| ares.powered-by | P0 | 2 | 2 | complete | complete | partial | missing | partial | missing | partial | yes | synthetic | required | ares.effective-ini | AresTechnoExtensions.test.ts, AresPoweredUnitRuntimeDecision.test.ts, AresPoweredByTrait.test.ts, AresPoweredByObjectFactory.test.ts, AresCompatibilityScanner.test.ts | PoweredBy alternatives are normalized as an ordered OR-list; only spawned, alive, ready operational buildings without warp, EMP, operator, or power-off suppression provide power, and a missing PoweredTrait remains online. |
+| ares.radar-jammers | P0 | 2 | 2 | missing | untracked | missing | untracked | untracked | untracked | untracked | untracked | unverified | unknown | untracked | unregistered | No registry entry; implementation status must be resolved. |
+| ares.superweapon-charge-state | P0 | 2 | 2 | partial | partial | partial | partial | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponCharge.test.ts | Initial grants and deterministic elapsed charging while a VirtualCharge superweapon is unavailable are wired; per-house shot-history re-grant semantics and save/load of unavailable intervals remain open. |
+| ares.superweapon-post-dependent | P0 | 1 | 1 | complete | complete | partial | missing | partial | partial | partial | yes | synthetic | required | ares.effective-ini, ares.target-filters | AresSuperWeaponPostDependent.test.ts, AresChronoWarp.test.ts, SuperWeaponEffectState.test.ts | The authored dependent ID is resolved case-insensitively, with the first authored ChronoWarp fallback for ChronoSphere; the generic action path records the source and lets the dependent ChronoWarp supply the destination. The supported active-effect and pending-source slice is captured/restored transactionally; full dependent graphs, unsupported effect fields, cursor/presentation resources, AI, target-content, and multiplayer certification remain open. |
 
-The focused generic ledger also contains the restored laser-fence capability. Its synthetic tests cover `LaserFencePost`, `LaserFence`, `WallTower`, mixed authored art, power/EMP transitions, movement and projectile collision, cleanup, versioned state, and per-post `GuardRange` topology; the report keeps target-usage classification separate from that implementation evidence rather than promoting the capability to complete MO integration. Psychic Dominator and Force Shield authored settings are covered by a dedicated synthetic fixture, but presentation, complete AI/world integration, and target-content verification remain open.
+The registry status is deliberately conservative: parsed fields are not reported as implemented unless runtime behavior and tests are separately recorded.
 
 ### Current stock map-trigger and campaign slice
 
@@ -167,7 +181,7 @@ The registry status is deliberately conservative: parsed fields are not reported
 
 ## 4. Custom superweapon inventory
 
-The [SuperWeaponTypes] list contains **96 definitions using an Ares custom type**. The following table enumerates every such definition, its exact authored keys, type-specific handler mapping, provider buildings, target/AI evidence, and current persistence gap. The final column is handler-specific state beyond the shared active-effect snapshot; the shared slice now restores supported effect phase/timer/reference state, but it does not certify every custom definition or a full-world save.
+The [SuperWeaponTypes] list contains **96 definitions using an Ares custom type**. The following table enumerates every such definition, its exact authored keys, type-specific handler mapping, provider buildings, target/AI evidence, and current persistence gap.
 
 | Definition | Type | Providers | Exact authored keys | Ares handler/features | Unsupported or partial | Target evidence | AI evidence | Persistence/determinism |
 |---|---|---|---|---|---|---|---|---|
@@ -240,7 +254,7 @@ The [SuperWeaponTypes] list contains **96 definitions using an Ares custom type*
 | Deploy4Special | HunterSeeker | none found | Type, Action, Text.Ready, Cursor, NoCursor | ares.custom-superweapons, ares.superweapon-hunter-seeker | ares.custom-superweapons, ares.superweapon-hunter-seeker | handler/default | default or absent | stateful handler; save/load and network certification remain open |
 | OldIronCurtainSpecial | GenericWarhead | NAICUR | UIName, Name, IsPowered, RechargeTime, Type, Action, SidebarPCX, ShowTimer, DisableableFromShell, Range, LineMultiplier, SW.FireIntoShroud, SW.AffectsHouse, SW.AffectsTarget, SW.CreateRadarEvent, EVA.Ready, SW.Warhead, SW.Animation, SW.AnimationHeight, EVA.Activated, SW.Inhibitors, Cursor, NoCursor, SW.NegBuildings | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-availability, ares.superweapon-radar-event, ares.superweapon-shroud-targeting, ares.target-filters | ares.custom-superweapons, ares.pcx-cameos | SW.FireIntoShroud, SW.AffectsHouse, SW.AffectsTarget | default or absent | no additional persistent runtime state certified |
 | EliteReservesSpecial | UnitDelivery | none found | UIName, Name, IsPowered, RechargeTime, Money.Amount, Type, Action, ShowTimer, SidebarPCX, DisableableFromShell, Range, SW.Animation, EVA.Ready, SW.UseAITargeting, SW.AITargeting, SW.CreateRadarEvent, SW.ActivationSound, SW.Deferment, Deliver.Types, FlashSidebarTabFrames, Text.Ready, SW.AuxBuildings | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-availability, ares.superweapon-deferment, ares.superweapon-money, ares.superweapon-radar-event | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-money | Deliver.Types | SW.UseAITargeting, SW.AITargeting | no additional persistent runtime state certified |
-| EliteReservesMessage | HunterSeeker | F_ERESB | Name, SW.ShowCameo, IsPowered, RechargeTime, Type, Action, ShowTimer, DisableableFromShell, Range, SW.AutoFire, SW.ManualFire, SW.AITargeting, SW.CreateRadarEvent, Message.FirerColor, Message.Ready | ares.superweapon-ai-targeting, ares.superweapon-availability, ares.superweapon-fire-mode, ares.superweapon-hunter-seeker, ares.superweapon-radar-event | ares.superweapon-ai-targeting, ares.superweapon-fire-mode, ares.superweapon-hunter-seeker | handler/default | SW.AITargeting | stateful handler; save/load and network certification remain open |
+| EliteReservesMessage | HunterSeeker | F_ERESB | Name, SW.ShowCameo, IsPowered, RechargeTime, Type, Action, ShowTimer, DisableableFromShell, Range, SW.AutoFire, SW.ManualFire, SW.AITargeting, SW.CreateRadarEvent, Message.FirerColor, Message.Ready | ares.custom-superweapons, ares.superweapon-ai-targeting, ares.superweapon-availability, ares.superweapon-fire-mode, ares.superweapon-hunter-seeker, ares.superweapon-radar-event | ares.custom-superweapons, ares.superweapon-ai-targeting, ares.superweapon-fire-mode, ares.superweapon-hunter-seeker | handler/default | SW.AITargeting | stateful handler; save/load and network certification remain open |
 | PsychicFlashSpecial | Battery | YATECH | UIName, Name, IsPowered, RechargeTime, Type, Action, SidebarPCX, ShowTimer, DisableableFromShell, Text.Charging, Text.Active, Text.Ready, EVA.Ready, UseChargeDrain, SW.ChargeToDrainRatio, SW.Unstoppable, SW.Sound, SW.CreateRadarEvent, SW.AITargeting, SW.AITargeting.Constraints, Money.Amount, Battery.Overpower, SW.AuxBuildings, FlashSidebarTabFrames | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-availability, ares.superweapon-battery, ares.superweapon-charge-drain, ares.superweapon-money, ares.superweapon-radar-event | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-battery, ares.superweapon-charge-drain, ares.superweapon-money | handler/default | SW.AITargeting, SW.AITargeting.Constraints | stateful handler; save/load and network certification remain open |
 | CryoshotSpecial | GenericWarhead | GADEPO | UIName, Name, EVA.Detected, EVA.Activated, EVA.Ready, SW.CreateRadarEvent, Cursor, NoCursor, Money.Amount, RechargeTime, Type, Action, SidebarPCX, IsPowered, ShowTimer, DisableableFromShell, Range, SW.Warhead, SW.Damage, SW.Deferment, SW.Animation, SW.AITargeting, LineMultiplier, SW.Inhibitors, SW.NegBuildings, FlashSidebarTabFrames | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-availability, ares.superweapon-deferment, ares.superweapon-money, ares.superweapon-radar-event | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-money | handler/default | SW.AITargeting | no additional persistent runtime state certified |
 | CryospearSpecial | GenericWarhead | GADEPO | UIName, Name, EVA.Detected, EVA.Activated, EVA.Ready, SW.CreateRadarEvent, Cursor, NoCursor, Money.Amount, RechargeTime, Type, Action, SidebarPCX, IsPowered, ShowTimer, DisableableFromShell, Range, SW.Warhead, SW.Damage, SW.Deferment, SW.Animation, SW.AITargeting, LineMultiplier, SW.Inhibitors, SW.AuxBuildings, FlashSidebarTabFrames | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-availability, ares.superweapon-deferment, ares.superweapon-money, ares.superweapon-radar-event | ares.custom-superweapons, ares.pcx-cameos, ares.superweapon-ai-targeting, ares.superweapon-money | handler/default | SW.AITargeting | no additional persistent runtime state certified |
@@ -274,12 +288,12 @@ The [SuperWeaponTypes] list contains **96 definitions using an Ares custom type*
 |---|---:|
 | Custom-type definitions | 96 |
 | Authored key occurrences in those definitions | 1921 |
-| Ares-recognized occurrences in those definitions | 1011 |
-| Ares feature-mapped occurrences in those definitions | 1011 |
+| Ares-recognized occurrences in those definitions | 1036 |
+| Ares feature-mapped occurrences in those definitions | 1036 |
 
 | Feature mapped within custom-type definitions | Occurrences |
 |---|---:|
-| ares.custom-superweapons | 386 |
+| ares.custom-superweapons | 411 |
 | ares.superweapon-ai-targeting | 109 |
 | ares.superweapon-radar-event | 76 |
 | ares.pcx-cameos | 64 |
@@ -1502,9 +1516,8 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 |---|---:|---|---|---|---|
 | Limit | 368 | soundmo.ini (effective) | Unknown, Weapon | [AssaulterClear], [BarrierCollapse], [BlastFurnaceReady], [BlastFurnaceStop], [BoidmachineChargeUp], [BoidmachineDeploySound], [Defaults], [ParadoxCharge] | 1, 12, 2, 3, 4, 5, 6, 8 |
 | Explodes | 255 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [D_COVE], [D_KNIGHT], [IVAN], [KAOS], [LIBRA], [LIBRC], [MOTOR], [SBTR] | no, yes |
-| ProneDamage | 203 | rulesmo.ini (effective) | Unknown | [BuzzardWH], [CamoSAE], [CamoSA], [DKnightSAWH], [HummSAE], [HummSA], [SAE], [SA] | 300%, 50%, 600% |
+| ProneDamage | 203 | rulesmo.ini (effective) | Unknown, Warhead | [BuzzardWH], [CamoSAE], [CamoSA], [DKnightSAWH], [HummSAE], [HummSA], [SAE], [SA] | 300%, 50%, 600% |
 | Crater | 190 | artmo.ini (effective), rulesmo.ini (effective) | Unknown, Weapon | [CRATER01], [CRATER02], [CRATER03], [CRATER04], [CRATER05], [CRATER06], [CRATER07], [CRATER08] | no, yes |
-| AffectsAllies | 188 | rulesmo.ini (effective) | Unknown | [BlueJammer], [CyanCryo], [ExtendLifeWH], [FakeArrowWH], [OneMoreSecond], [StructureBuffLargeWH], [SuperIronWeaponWH], [TrueSuperIronWeaponWH] | no, yes |
 | SlowdownDistance | 188 | rulesmo.ini (effective) | Aircraft, Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | 0.001, 1, 1000, 1200, 1500, 3000, 500 |
 | Acceleration | 184 | rulesmo.ini (effective) | Unknown | [JumpjetControls], [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperSuppressP] | 10, 100, 2, 20, 3, 30, 50, 60 |
 | Flat | 181 | artmo.ini (effective) | Building, Unknown, Weapon | [GAAIRF], [GAGATE_CT], [GAGATE_DT], [GAHPAD], [NAAIR], [NADEPT], [NAGATE_AT], [NAGATE_BT] | false, true, yes |
@@ -1518,7 +1531,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ImmuneToVeins | 170 | rulesmo.ini (effective) | Infantry, Vehicle | [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [GHOST], [SNIPE], [TANY] | yes |
 | Ranged | 170 | rulesmo.ini (effective) | Unknown | [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperJammerP], [SuperSuppressP] | no, yes |
 | SelfHealing | 167 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [AIMORA], [AMEDIC], [ARMR], [MORALES], [RIOT], [SIEG], [SUPR], [TANY] | no, yes |
-| End | 166 | artmo.ini (effective) | Unknown, Weapon | [GACSPH_FD], [GACSPH_F], [GACSPH_HD], [GACSPH_H], [GAPRIS_AD], [GAPRIS_A], [GAROD_B], [GAWETH_F] | 11, 14, 19, 23, 24, 29, 40, 9 |
+| End | 166 | artmo.ini (effective) | Unknown, Warhead, Weapon | [GACSPH_FD], [GACSPH_F], [GACSPH_HD], [GACSPH_H], [GAPRIS_AD], [GAPRIS_A], [GAROD_B], [GAWETH_F] | 11, 14, 19, 23, 24, 29, 40, 9 |
 | BehavesLike | 164 | rulesmo.ini (effective) | Unknown | [GyroBulletSys], [RuinerSys], [SingleBulletGoldSys], [SingleBulletRedSys], [SingleBulletSys], [SpeederShotSys], [StalkerShotSys], [TealBulletSys] | Fire, Gas, Railgun, Smoke, Spark, Web |
 | Sequence | 164 | artmo.ini (effective) | Infantry, Unknown | [ADOG], [AENGINEER], [AMEDIC], [ENFO], [GGI2], [GI], [SEALA], [SEAL] | DogSequence, EnforcerSequence, EngineerSequence, GISequence, GuardianGISequence, MedicSequence, RocketeerSequence, SealSequence |
 | Crawls | 163 | artmo.ini (effective) | Infantry, Unknown | [ADOG], [AENGINEER], [AMEDIC], [ENFO], [GGI2], [GI], [SEALA], [SEAL] | no, yes |
@@ -1537,27 +1550,23 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Pip | 147 | rulesmo.ini (effective) | Infantry | [ADOG], [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [JUMPJET], [SPY] | Blue, blue, red, white, yellow |
 | LaserInnerColor | 146 | rulesmo.ini (effective) | Weapon | [BlizzardBeamE], [BlizzardBeam], [ClairIFVWeb], [ClairWeb], [DClairWeb], [ShadowPowerE], [ShadowPower], [StalkerWeb] | 0,0,0, 0,175,0, 0,200,0, 100,100,245, 100,100,255, 123,123,163, 255,123,163, 50,170,0 |
 | LaserOuterColor | 146 | rulesmo.ini (effective) | Weapon | [BlizzardBeamE], [BlizzardBeam], [ClairIFVWeb], [ClairWeb], [DClairWeb], [ShadowPowerE], [ShadowPower], [StalkerWeb] | 0,0,0, 0,200,0, 10,10,245, 123,123,163, 20,20,255, 255,123,163, 255,255,255, 50,170,0 |
-| Tiberium | 146 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [GotterBombWHE], [GotterBombWH], [MothraWH], [Powerups], [SquidHE], [StalkerDrainWH], [StalkerWHE], [StalkerWH] | 0,<none>,no, no, yes |
+| Tiberium | 146 | artmo.ini (effective), rulesmo.ini (effective) | Unknown, Warhead | [GotterBombWHE], [GotterBombWH], [MothraWH], [Powerups], [SquidHE], [StalkerDrainWH], [StalkerWHE], [StalkerWH] | 0,<none>,no, no, yes |
 | IsLaser | 145 | rulesmo.ini (effective) | Weapon | [BlizzardBeamE], [BlizzardBeam], [ClairIFVWeb], [ClairWeb], [DClairWeb], [ShadowPowerE], [ShadowPower], [StalkerWeb] | true, yes |
-| AffectsEnemies | 141 | rulesmo.ini (effective) | Unknown | [BlueJammer], [CyanCryo], [ExtendLifeWH], [FakeArrowWH], [OneMoreSecond], [StructureBuffLargeWH], [SuperIronWeaponWH], [TrueSuperIronWeaponWH] | no, yes |
-| Scorch | 139 | artmo.ini (effective) | Unknown, Weapon | [BSHIPEXP], [DBRIEXP1F], [DBRIEXP1], [DBRIEXP2], [DESTEXPB], [DESTEXP], [HOWIEXPB], [SQUIDEXP] | no, yes |
+| Scorch | 139 | artmo.ini (effective) | Unknown, Warhead, Weapon | [BSHIPEXP], [DBRIEXP1F], [DBRIEXP1], [DBRIEXP2], [DESTEXPB], [DESTEXP], [HOWIEXPB], [SQUIDEXP] | no, yes |
 | Land | 138 | rulesmo.ini (effective) | Unknown | [FENCE01], [FENCE02], [FENCE03], [FENCE04], [FENCE05], [FENCE06], [VEINHOLE], [X] | Clear, Railroad, Road, Rock, Water |
 | IsTilter | 137 | rulesmo.ini (effective) | Infantry, Vehicle | [BEETLE], [DNOA], [DNOB], [ELEPHANT], [ETNK2], [ETNK], [KTNK], [MTNK] | no, yes |
 | TrailerSeperation | 136 | artmo.ini (effective) | Aircraft, Unknown, Weapon | [BLIMPEXPE], [BLIMPEXP], [MIGSPY], [RIGDIGA], [RIGDIGB], [SPAWNFAST], [SPAWNGAST], [WALPIMP] | 12, 2, 20, 24, 30, 32, 36, 42 |
 | SpeedType | 134 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [ADOG], [ARMR], [DOG], [GHOST], [JUMPJET], [RIOT], [SUPR], [TANY] | Amphibious, Float, Hover |
 | DamageRadius | 132 | artmo.ini (effective), rulesmo.ini (effective) | Unknown, Weapon | [4TNKTURRET], [CNTRHEAD], [GASTANK], [MOLES], [PIECE], [SCRCHB], [SONICTURRET], [SPIKES] | 10, 100, 1000, 10000, 3, 300, 5, 50 |
-| CombatLightSize | 130 | rulesmo.ini (effective) | Unknown | [GotterBombWHE], [GotterBombWH], [LibraWHE], [LibraWH], [RepulsorEffectWH], [StalkerWHE], [StalkerWH], [StratoWH] | 100%, 140%, 160%, 180%, 40%, 60%, 75%, 80% |
-| InfDeathAnim | 128 | rulesmo.ini (effective) | Unknown | [CutteringB], [Cuttering], [FirestormTempestWH], [GreatTempestAnim2WH], [GreatTempestAnimWH], [GreatTempestBlastWH], [GreatTempestRockWH], [MegaslashWH] | FREEZE, HUNTHEAL, HURRDIE, LASERGUY, MEGADIE, PLASMDIE, SIEGDIE, STAKDIE |
-| Inviso | 127 | rulesmo.ini (effective) | Unknown | [ConfuseFlareFragP], [GyroProj], [InvisibleInaccAA], [RiotGunP], [SeawolfProj], [TimeWarpP1], [TimeWarpP2], [WarRigProj] | yes |
+| CombatLightSize | 130 | rulesmo.ini (effective) | Warhead | [GotterBombWHE], [GotterBombWH], [LibraWHE], [LibraWH], [RepulsorEffectWH], [StalkerWHE], [StalkerWH], [StratoWH] | 100%, 140%, 160%, 180%, 40%, 60%, 75%, 80% |
 | AreaFire | 126 | rulesmo.ini (effective) | Weapon | [CryoReal], [FauxDomAttach], [GreenArrow], [JammerReal], [SuperCryo], [SuperJammer], [SuperSuppress], [SuppressReal] | yes |
 | Arm | 125 | rulesmo.ini (effective) | Unknown | [ArchelonProj], [ConfuseFlareFragP], [EurekaBlastFragP], [HuntressProj], [KrukovSwordFragP], [MadBlastFragP], [MadMineFragP], [UCLancerProj] | 0, 1, 10, 2, 200, 9999999 |
 | RevealOnFire | 125 | rulesmo.ini (effective) | Unknown, Weapon | [CryomineBomb], [FakeHyperion], [GenomineBomb], [MadMineStart], [MineBomb], [NavalMineBomb], [NotAStrategyLarge], [StealthScanner] | no, yes |
 | Unsellable | 124 | rulesmo.ini (effective) | Building | [AILOCK], [CASHGIVE], [CASHTAKE], [DUMMYDUMMY], [FABOID], [F_ERESB], [GAROD], [NOTHING] | no, yes |
-| IronCurtain.Modifier | 119 | rulesmo.ini (effective) | Aircraft, Building, Vehicle | [AITHOR], [COMA], [CRYOAI], [CRYO], [DLPH], [DRON], [SUNB], [THOR] | 0, 0.8, 1.2 |
 | VoiceFeedback | 119 | rulesmo.ini (effective) | Infantry, Vehicle | [ADOG], [E1], [ENFO], [ENGINEER], [GGI], [JUMPJET], [SPY], [TANY] | DogFear, EngAllFear, GIFear, GuardianGIFear, RocketeerFear, SiegeCadreFear, SpyFear, TanyaPrimeFear |
 | ActiveAnimTwo | 117 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GACNST], [GAPILE], [GAPOWR], [GAREFN], [GATECH], [GAWEAP], [GAYARD] | GAAIRF_B, GACNST_E, GAPILE_B, GAPOWR_C, GAREFNL1, GATECH_B, GAWEAP_B, GAYARD_B |
 | DecloakToFire | 117 | rulesmo.ini (effective) | Unknown, Weapon | [ConfusionField], [CryomineBomb], [GenomineBomb], [MadMineStart], [MineBomb], [NavalMineBomb], [NotAStrategyLarge], [StunGrid] | no, yes |
-| PreventScatter | 115 | rulesmo.ini (effective) | Unknown | [BlueJammer], [CyanCryo], [ExtendLifeWH], [FakeArrowWH], [FauxDomAttachWH], [FauxDomIntroWH], [StructureBuffLargeWH], [TrueSuperIronWeaponWH] | yes |
+| PreventScatter | 115 | rulesmo.ini (effective) | Warhead | [BlueJammer], [CyanCryo], [ExtendLifeWH], [FakeArrowWH], [FauxDomAttachWH], [FauxDomIntroWH], [StructureBuffLargeWH], [TrueSuperIronWeaponWH] | yes |
 | PreventAttackMove | 114 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [ENGINEER], [INTRUDER], [SBTR], [SENGINEER], [SIEG], [SNIPE], [SPY], [YENGINEER] | no |
 | AttachedParticleSystem | 113 | rulesmo.ini (effective) | Weapon | [CRNeutronRifleE], [CRNeutronRifle], [NeutronBlasterE], [NeutronBlaster], [NeutronRifle2E], [NeutronRifle2], [NeutronRifleE], [NeutronRifle] | ChronoPrisonSys, NeutronBlasterSys, NeutronBlasterSysE, NeutronCannonSys, NeutronCannonSysE, NeutronRifleSys, NeutronRifleSysE, SingleBulletSys |
 | Cheer | 113 | artmo.ini (effective) | Unknown | [BaneNSequence], [BaneSequence], [CoveSequence], [RahnSequence], [ScourgeSequence], [SuprSequence], [SyncNSequence], [SyncSequence] | 112,18,0,E, 112,35,0,E, 135,7,0, 215,12,0,SE, 228,18,0,E, 233,12,0,SE, 265,21,0,E, 84,12,0,SE |
@@ -1582,8 +1591,8 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | RadarVisible | 109 | rulesmo.ini (effective) | Aircraft, Building, Vehicle | [BOIDF], [CDUMMY], [DMCV], [DYBTR], [GCHF], [ICE1], [MIGSPY], [NCHF] | no, yes |
 | ShowTimer | 109 | rulesmo.ini (effective) | SuperWeapon | [BlasticadeSpecial], [ForceShieldSpecial], [IonStormSpecial], [IronCurtainSpecial], [LightningStormSpecial], [NukeSpecial], [PsychicFlashSpecial], [TechMissileSpecial] | no, yes |
 | Prone | 108 | artmo.ini (effective) | Unknown | [BaneNSequence], [BaneSequence], [CoveSequence], [RahnSequence], [ScourgeSequence], [SuprSequence], [SyncNSequence], [SyncSequence] | 0,1,1, 165,1,6, 200,1,10, 552,1,10, 64,1,6, 68,1,6, 8,1,8, 86,1,6 |
-| LineTrailColor | 106 | artmo.ini (effective) | Aircraft, Infantry, Unknown, Vehicle, Weapon | [CLAIR], [CLEG], [CMIN], [CSIEG], [EUREKA], [UMIN], [ZORB], [ZORB_N] | 125,125,125, 15,100,255, 20,200,255, 20,200,280, 200,200,255, 200,200,260, 205,200,260, 255,182,67 |
-| LineTrailColorDecrement | 106 | artmo.ini (effective) | Aircraft, Infantry, Unknown, Vehicle, Weapon | [CLAIR], [CLEG], [CMIN], [CSIEG], [EUREKA], [UMIN], [ZORB], [ZORB_N] | 12, 20, 24, 25, 288, 32, 36, 8 |
+| LineTrailColor | 106 | artmo.ini (effective) | Aircraft, Infantry, Unknown, Vehicle, Warhead, Weapon | [CLAIR], [CLEG], [CMIN], [CSIEG], [EUREKA], [UMIN], [ZORB], [ZORB_N] | 125,125,125, 15,100,255, 20,200,255, 20,200,280, 200,200,255, 200,200,260, 205,200,260, 255,182,67 |
+| LineTrailColorDecrement | 106 | artmo.ini (effective) | Aircraft, Infantry, Unknown, Vehicle, Warhead, Weapon | [CLAIR], [CLEG], [CMIN], [CSIEG], [EUREKA], [UMIN], [ZORB], [ZORB_N] | 12, 20, 24, 25, 288, 32, 36, 8 |
 | NoCursor | 105 | rulesmo.ini (effective) | SuperWeapon | [ChronoSphereSpecial], [ChronoWarpSpecial], [ForceShieldSpecial], [GreatTempestSpecial], [IronCurtainSpecial], [LightningStormSpecial], [NukeSpecial], [TechMissileSpecial] | NoCanDo, NoForce, NoWarpIn |
 | NoUseTileLandType | 105 | rulesmo.ini (effective) | Unknown | [FENCE12], [FENCE13], [FENCE14], [FENCE15], [FENCE16], [RUBBLE_OVERLAY], [VEINHOLE], [X] | false, true |
 | ActiveAnimTwoDamaged | 103 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GACLAB], [GACNST], [GAOREF], [GAPILE], [GATECH], [GAWEAP], [GAYARD] | DUMMYANIM, GAAIRF_BD, GACLAB_BD, GACNST_E, GAOREF_C, GAPILE_BD, GAWEAP_B, GAYARD_B |
@@ -1595,7 +1604,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | DebrisMaximums | 101 | rulesmo.ini (effective) | Vehicle | [BOIDF], [CDUMMY], [DBOAT], [GCHF], [MAGNET], [NCHF], [SCAV], [SUNB] | 0, 2, 20, 4, 6, 9 |
 | Drainable | 101 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [NAFURY], [NAGRUM], [YAQUAD] | no, yes |
 | FlashSidebarTabFrames | 101 | rulesmo.ini (effective) | SuperWeapon | [ChronoWarpSpecial], [ChronoliftSpecial], [ForceShieldSpecial], [IonStormSpecial], [PostliftSpecial], [PsychicFlashSpecial], [SonarPulseSpecial], [TechMissileSpecial] | 0 |
-| UseLineTrail | 101 | artmo.ini (effective) | Aircraft, Infantry, Unknown, Vehicle, Weapon | [CLAIR], [CLEG], [CMIN], [CSIEG], [EUREKA], [UMIN], [ZORB], [ZORB_N] | no, yes |
+| UseLineTrail | 101 | artmo.ini (effective) | Aircraft, Infantry, Unknown, Vehicle, Warhead, Weapon | [CLAIR], [CLEG], [CMIN], [CSIEG], [EUREKA], [UMIN], [ZORB], [ZORB_N] | no, yes |
 | Bunkerable | 100 | rulesmo.ini (effective) | Aircraft, Vehicle | [BASS2], [COMA], [CRYOAI], [CRYO], [LCRF], [SHAD], [SUNB], [SUNB_1] | no, yes |
 | Down | 100 | artmo.ini (effective) | Unknown | [CoveSequence], [LionSequence], [RahnSequence], [ScourgeSequence], [StComSequence], [StalkerSequence], [SyncNSequence], [SyncSequence] | 0,1,1, 112,2,2, 164,1,1, 213,2,2, 260,2,2, 360,2,2, 8,2,2, 968,2,2 |
 | CanRetaliate | 99 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [AICLEG], [COW], [HIJACKER], [INTRUDER], [PIG], [SBTR], [SPY], [UNDER] | no, yes |
@@ -1611,7 +1620,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Crushable | 94 | rulesmo.ini (effective) | Building, Infantry | [AICLEG], [ARMR], [CLEG], [GGI], [RIOT], [SIEG], [SUPR], [TANY] | no, yes |
 | EligibileForAllyBuilding | 94 | rulesmo.ini (effective) | Building | [GAAIRC], [GACNST], [GAPILEB], [GAPILE], [GAPOWR], [GAREFN], [GAWEAPB], [GAWEAP] | no, yes |
 | Fearless | 94 | rulesmo.ini (effective) | Infantry | [ADOG], [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [JUMPJET], [SPY] | no, yes |
-| SubjectToBuildings | 94 | rulesmo.ini (effective) | Unknown | [GharialProj], [LancerFragProj2], [LancerFragProj], [LancerProj2], [RiotGrenadeP], [RiotGunP], [SeawolfProj], [WarRigProj] | no, yes |
 | ActiveAnimPoweredLight | 93 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GACLAB], [GADEPO], [GAHPAD], [GAHYPE], [GATECH], [GAZEPH], [NASAM] | false, no, true, yes |
 | IsDetachedRailgun | 93 | rulesmo.ini (effective) | Weapon | [CRNeutronRifleE], [CRNeutronRifle], [NeutronBlasterE], [NeutronBlaster], [NeutronRifle2E], [NeutronRifle2], [NeutronRifleE], [NeutronRifle] | true |
 | IsFlammable | 92 | rulesmo.ini (effective) | Unknown | [TREE01], [TREE02], [TREE03], [TREE04], [TREE05], [TREE06], [TREE07], [TREE08] | no |
@@ -1624,14 +1632,13 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | OpenToppedAnim | 86 | rulesmo.ini (effective) | Weapon | [ClairWeb], [DrainGrenade], [NeutronRifle2E], [NeutronRifle2], [PlasmaE], [Plasma], [StalkerGrenadeE], [StalkerGrenade] | CYPLASM, ENFOMUZ, MSHIFT2, NEUTR2, STAKMUZA, STAKMUZB, TORPMUZZ, WEBDROP |
 | HasStupidGuardMode | 85 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [NAFURY], [NAGRUM], [YAQUAD] | false, no, true |
 | MaxEC | 85 | rulesmo.ini (effective) | Unknown | [GyroBulletPart], [SingleBulletGoldPart], [SingleBulletPart], [SingleBulletRedPart], [SmokeFirePart], [SpeederShotPart], [StalkerShotPart], [TealBulletPart] | 10, 15, 16, 20, 3, 4, 6, 60 |
-| Arcing | 84 | rulesmo.ini (effective) | Unknown | [CataProj], [GharialProj], [LancerFragProj2], [LancerFragProj], [LancerProj2], [RiotGrenadeP], [StalkerDrainProj], [StalkerProj] | yes |
 | IsHouseColor | 84 | rulesmo.ini (effective) | Weapon | [BlizzardAAE], [BlizzardAA], [BlizzardBeamE], [BlizzardBeam], [ClairIFVWeb], [ClairWeb], [DClairWeb], [StalkerWeb] | false, true, yes |
 | FireProne | 83 | artmo.ini (effective) | Unknown | [CoveSequence], [CyborgSequence], [RahnSequence], [SaboteurSequence], [ScourgeSequence], [StComSequence], [StalkerSequence], [VolkovSequence] | 0,1,1, 116,6,6, 142,8,8, 56,25,25, 56,6,6, 56,9,9, 72,6,6, 88,10,10 |
 | GuardRange | 83 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [ADOG], [AMEDIC], [BRUTE], [DOG], [ENGINEER], [SENGINEER], [YDOG], [YENGINEER] | 10, 14, 30, 5, 6, 7, 8, 9 |
 | LineMultiplier | 83 | rulesmo.ini (effective) | SuperWeapon | [ChronoSphereSpecial], [ChronoWarpSpecial], [ForceShieldSpecial], [GreatTempestSpecial], [IronCurtainSpecial], [LightningStormSpecial], [NukeSpecial], [TechMissileSpecial] | 0, 1, 2, 3 |
 | NavalTargeting | 83 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [AIMORA], [ASSN], [CHITZ], [GHOST], [IVAN], [KAOS], [MORALES], [TANY] | 0, 1, 3, 4, 5, 6 |
-| Next | 82 | artmo.ini (effective) | Unknown, Weapon | [BLIMPEXPE], [BLIMPEXP], [DBRIEXP1F], [DBRIEXP2F], [NPLMEXP], [RADNUKE1], [REPUEXPA], [WALPIMP] | KTSTLEXP, MINFIRE01, MINFIRE02, MINIMISS, NPLMEXPF, RADNUKE2, REPUEXPB, WALLIMP |
-| Rocker | 81 | rulesmo.ini (effective) | Unknown | [AntiGravityWH], [CruiserWH], [CutteringB], [ElephantWH], [GreatTempestRockWH], [MegaslashWH], [ParasitePro], [StratoWH] | no, yes |
+| Next | 82 | artmo.ini (effective) | Unknown, Warhead, Weapon | [BLIMPEXPE], [BLIMPEXP], [DBRIEXP1F], [DBRIEXP2F], [NPLMEXP], [RADNUKE1], [REPUEXPA], [WALPIMP] | KTSTLEXP, MINFIRE01, MINFIRE02, MINIMISS, NPLMEXPF, RADNUKE2, REPUEXPB, WALLIMP |
+| Rocker | 81 | rulesmo.ini (effective) | Warhead | [AntiGravityWH], [CruiserWH], [CutteringB], [ElephantWH], [GreatTempestRockWH], [MegaslashWH], [ParasitePro], [StratoWH] | no, yes |
 | Repairable | 80 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [GAMGG], [NAFURY], [NAGRUM] | false, no, true, yes |
 | FoundationOutline.0 | 79 | artmo.ini (effective) | Building, Unknown | [CASEIM02], [CASEIM03], [CASEIM05], [CASTSGN], [CAVHNG], [FABARR], [GASTAS], [NANRCT] | -1,-1 |
 | FoundationOutline.1 | 79 | artmo.ini (effective) | Building, Unknown | [CASEIM02], [CASEIM03], [CASEIM05], [CASTSGN], [CAVHNG], [FABARR], [GASTAS], [NANRCT] | 0,-1 |
@@ -1649,9 +1656,9 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | FoundationOutline.9 | 79 | artmo.ini (effective) | Building, Unknown | [CASEIM02], [CASEIM03], [CASEIM05], [CASTSGN], [CAVHNG], [FABARR], [GASTAS], [NANRCT] | -1,1, -1,2, 0,1, 2,0, 2,2, 4,1, 6,0, 8,-1 |
 | FoundationOutline.Length | 79 | artmo.ini (effective) | Building, Unknown | [CASEIM02], [CASEIM03], [CASEIM05], [CASTSGN], [CAVHNG], [FABARR], [GASTAS], [NANRCT] | 14, 16, 18, 20, 22, 28, 30, 48 |
 | TurretROT | 78 | rulesmo.ini (effective) | Building, Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | 10, 12, 14, 15, 16, 20, 8, 9 |
-| CLDisableBlue | 77 | rulesmo.ini (effective) | Unknown | [GotterBombWHE], [GotterBombWH], [LibraWHE], [LibraWH], [RoboLaserWHE], [RoboLaserWH], [StalkerWHE], [StalkerWH] | false, true, yes |
+| CLDisableBlue | 77 | rulesmo.ini (effective) | Warhead | [GotterBombWHE], [GotterBombWH], [LibraWHE], [LibraWH], [RoboLaserWHE], [RoboLaserWH], [StalkerWHE], [StalkerWH] | false, true, yes |
 | CrashingSound | 77 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [ARMR], [GYRO], [JUMPJET], [LUNR], [ORCA], [SHAD], [URAGAN], [WASP] | ArmormanDie, BlackEagleDie, BlackOpsDie, ComancheDie, Explosion05, IntruderDie, NeonwaspDie, RocketeerDie |
-| Bullets | 76 | rulesmo.ini (effective) | Unknown | [BuzzardWH], [CamoSAE], [CamoSA], [DKnightSAWH], [HummSAE], [HummSA], [SAE], [SA] | yes |
+| Bullets | 76 | rulesmo.ini (effective) | Unknown, Warhead | [BuzzardWH], [CamoSAE], [CamoSA], [DKnightSAWH], [HummSAE], [HummSA], [SAE], [SA] | yes |
 | CourseLockDuration | 76 | rulesmo.ini (effective) | Unknown | [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperCryoP], [SuperJammerP], [SuperSuppressP] | 0, 1, 10, 2, 25, 3, 5, 8 |
 | FireInTransport | 76 | rulesmo.ini (effective) | Unknown, Weapon | [BeetleRam], [EurekaBlast], [FVEurekaBlast], [FVGiantsbaneMissile], [GiantsbaneMissile], [MegaslashE], [Megaslash], [SpecialC4] | no |
 | HoldsWhat | 76 | rulesmo.ini (effective) | Unknown | [GyroBulletSys], [RuinerSys], [SingleBulletGoldSys], [SingleBulletRedSys], [SingleBulletSys], [SpeederShotSys], [StalkerShotSys], [TealBulletSys] | GyroBulletPart, RuinerPart, SingleBulletGoldPart, SingleBulletPart, SingleBulletRedPart, SpeederShotPart, StalkerShotPart, TealBulletPart |
@@ -1659,7 +1666,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ForceShield.Modifier | 74 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [GAMGG], [NAFURY], [NAGRUM] | 0 |
 | FoundationOutline.14 | 74 | artmo.ini (effective) | Building, Unknown | [CASEIM02], [CASEIM03], [CASEIM05], [CASTSGN], [CAVHNG], [FABARR], [GASTAS], [NANRCT] | -1,1, -1,4, 1,3, 1,4, 13,-1, 3,1, 3,3, 5,3 |
 | FoundationOutline.15 | 74 | artmo.ini (effective) | Building, Unknown | [CASEIM02], [CASEIM03], [CASEIM05], [CASTSGN], [CAVHNG], [FABARR], [GASTAS], [NANRCT] | -1,4, 10,1, 14,-1, 2,3, 2,4, 3,4, 4,1, 4,3 |
-| Malicious | 74 | rulesmo.ini (effective) | Unknown | [BlackoutMissileWH], [FauxDomAttachWH], [GravitronAnimWH], [IceCloudWH], [RaccoonWH], [RamHackArenaWH], [ScorchbombDWH], [VirusGas] | no |
 | AntiArmorValue | 71 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [NAFURY], [NAGRUM], [YAQUAD] | 0, 10, 15, 20, 25, 30, 40, 50 |
 | AntiInfantryValue | 71 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [NAFURY], [NAGRUM], [YAQUAD] | 0, 10, 20, 25, 30, 5, 50, 6 |
 | GroupAs | 71 | rulesmo.ini (effective) | Building, Infantry, Vehicle | [ADOG], [AICLEG], [AIMORA], [CLEG], [DOG], [ENGINEER], [MORALES], [SENGINEER] | ChronoLeg, Clair, Dogs, Engineers, Morales, Robots, Siblings, Technician |
@@ -1671,11 +1677,9 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Cursor.Spy | 68 | rulesmo.ini (effective) | Building | [GAAIRC], [GACNST], [GAPILEB], [GAPILE], [GAPOWR], [GAREFN], [GAWEAPB], [GAWEAP] | SpyCount, SpyFree, SpyMoney, SpyPower, SpyRadar, SpyStar, SpySuper, SpyTech |
 | EndStateAI | 68 | rulesmo.ini (effective) | Unknown | [GyroBulletPart], [SingleBulletGoldPart], [SingleBulletPart], [SingleBulletRedPart], [SmokeFirePart], [SpeederShotPart], [StalkerShotPart], [TealBulletPart] | 0, 10, 19, 20, 21, 24, 28, 4 |
 | Reload | 68 | rulesmo.ini (effective) | Building, Infantry, Vehicle | [AIMORA], [ARSO], [DESOR], [DESO], [MORALES], [REPU], [SCRG], [SIEG] | 120, 165, 20, 240, 250, 30, 360, 80 |
-| SpyEffect.Custom | 68 | rulesmo.ini (effective) | Building | [GAAIRC], [GACNST], [GADEPO], [GAPILEB], [GAPILE], [GAREFN], [GAWEAPB], [GAWEAP] | yes |
 | StateAIAdvance | 68 | rulesmo.ini (effective) | Unknown | [GyroBulletPart], [SingleBulletGoldPart], [SingleBulletPart], [SingleBulletRedPart], [SmokeFirePart], [SpeederShotPart], [StalkerShotPart], [TealBulletPart] | 0, 1, 2, 3, 4, 6, 8 |
 | ActiveAnimTwoPoweredLight | 66 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GACLAB], [GACNST], [GAOREF], [GAPILE], [GASTAS], [GATECH], [GAYARD] | false, no, true, yes |
 | AntiAirValue | 66 | rulesmo.ini (effective) | Building | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [NAFURY], [NAGRUM], [YAQUAD] | 0, 10, 20, 30, 40, 5, 50, 75 |
-| Inaccurate | 66 | rulesmo.ini (effective) | Unknown | [Cannon3E], [Cannon3], [ChaosPill], [GotterDart], [PyroProj], [SeawolfProj], [ToxicPill], [WarRigProj] | no, true, yes |
 | PipWrap | 66 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [AIMORA], [ARSO], [DESOR], [DESO], [MORALES], [REPU], [SCRG], [SIEG] | 1, 2, 24, 3, 4, 5, 6 |
 | KeepAlive | 65 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [CMIN], [CMON], [D_CLAIR], [D_COVE], [D_KNIGHT], [SNAKE], [UMINW], [UMIN] | no |
 | RemoveOccupy4 | 65 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GAHPAD], [GAWEAP], [GAYARD], [NACNST], [NAFIST], [NAREFN], [NAWEAP] | -2,-2, 0,-2, 0,2, 1,-2, 2,-1, 2,2, 3,-1, 3,1 |
@@ -1711,7 +1715,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | MinZVel | 53 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [CNTRHEAD], [GASTANK], [MOLES], [PIECE], [SCRCHB], [SONICTURRET], [SPIKES], [TIRE] | -100.0, 20.0, 24.0, 28.0, 30.0, 38.0, 40.0, 6.0 |
 | Sensors | 53 | rulesmo.ini (effective) | Infantry, Vehicle | [AIMORA], [GHOST], [MORALES], [SHK], [SHOCK], [SIEG], [TANY], [VOLKOV] | no, yes |
 | SizeLimit | 53 | rulesmo.ini (effective) | Building, Vehicle | [AHMV], [AMC], [BFRT], [FV], [LCRF], [SHAD], [SUNB], [TENGU] | 1, 12, 15, 2, 6, 9 |
-| AmbientDamage | 52 | rulesmo.ini (effective) | Weapon | [CRNeutronRifleE], [CRNeutronRifle], [NeutronBlasterE], [NeutronBlaster], [NeutronRifle2E], [NeutronRifle2], [NeutronRifleE], [NeutronRifle] | 0, 10, 12, 300, 40, 50, 75 |
 | DeathWeaponDamageModifier | 52 | rulesmo.ini (effective) | Aircraft, Building, Vehicle | [AITHOR], [COMA], [CRYOAI], [CRYO], [EDRN], [SCHPAI], [SCHP], [THOR] | .01, .02, .05, .1, .15, .2, .7, .75 |
 | DeploySound | 52 | rulesmo.ini (effective) | AudioVisual, Building, Infantry, Vehicle | [AMCV], [AudioVisual], [E1], [ETNK2], [ETNK], [GGI], [SIREN], [SNIPE] | BuratinoSwitch, CommandBar, ConstructionYardDeploy, GIDeploy, GuardianGIDeploy, HazequadDeploy, MWFDeploySound, SirenSwitch |
 | JumpJetAccel | 52 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [ARMR], [GYRO], [JUMPJET], [LUNR], [MOTHRA], [SHAD], [URAGAN], [WASP] | 10, 100, 11, 12, 15, 7, 9 |
@@ -1723,14 +1726,14 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | WindEffect | 52 | rulesmo.ini (effective) | Unknown | [AvalonRailgunPart], [NeonwaspPart], [PlasmaRailgunPart], [RuinerPart], [SmokeFirePart], [SpeederShotPart], [SpotLightParticle], [StalkerShotPart] | 0, 1, 2, 3 |
 | ActiveAnimThreeDamaged | 51 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GACLAB], [GACNST], [GAOREF], [GAPOWR], [GASCEA], [GAWEAP], [GAYARD] | DUMMYANIM, GAAIRF_CD, GACLAB_C, GACNST_F, GAOREF_D, GASCPF_BD, GAWEAP_CD, GAYARD_CD |
 | ActiveAnimThreePowered | 51 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GACLAB], [GACNST], [GAPOWR], [GASCEA], [GASCPF], [GAWEAP], [GAYARD] | false, no, true, yes |
-| AnimPalette | 51 | artmo.ini (effective) | Unknown, Weapon | [ARESLASERB], [ARESLASERC], [ARESLASER], [DART], [RIGDIGA], [RIGDIGB], [SALAMUZZ1], [TORPMUZZ] | yes |
+| AnimPalette | 51 | artmo.ini (effective) | Unknown, Warhead, Weapon | [ARESLASERB], [ARESLASERC], [ARESLASER], [DART], [RIGDIGA], [RIGDIGB], [SALAMUZZ1], [TORPMUZZ] | yes |
 | Attack | 51 | soundmo.ini (effective) | Unknown | [BlackEagleMoveLoop], [CenturionMoveLoop], [IntruderMoveLoop], [IrkallaMoveLoop], [MegaMoveLoop], [ScoutMoveLoop], [StealthMoveLoop], [StormchildMoveLoop] | 1, 2, 3, 7 |
 | FoundationOutline.20 | 51 | artmo.ini (effective) | Building, Unknown | [CACOLO], [CAPETE], [CARING2], [CARING], [CASEIM02], [CASEIM03], [CASEIM05], [CAVHNG] | -1,2, -1,3, -1,4, -1,6, 3,2, 3,3, 3,6, 4,4 |
 | FoundationOutline.21 | 51 | artmo.ini (effective) | Building, Unknown | [CACOLO], [CAPETE], [CARING2], [CARING], [CASEIM02], [CASEIM03], [CASEIM05], [CAVHNG] | -1,7, 14,2, 2,6, 4,2, 4,3, 5,4, 6,6, 8,3 |
 | Landable | 51 | rulesmo.ini (effective) | Aircraft, Vehicle | [BEAG], [FORTRESS], [ORCA], [SHAD], [SNAKE], [STORM], [WIDOWA], [WIDOW] | no, yes |
 | WorkingSound | 51 | rulesmo.ini (effective) | Building | [ATESLA], [GACRYO], [GACSPH], [GAGAP], [GAHYPE], [GAPOST], [GTGCAN], [NASAM] | ChronosphereSelectSound, CryomineReady, EMPMineReady, GapWorking, IronCurtainSelect, NukeSiloSelect, PowerOn, WeatherControlSelect |
 | Civilian | 50 | rulesmo.ini (effective) | Infantry, Side | [BISON], [COW], [DEER], [HYENA], [PIG], [SEL], [Sides], [TAPIR] | Neutral, yes |
-| CLDisableGreen | 50 | rulesmo.ini (effective) | Unknown | [GotterBombWHE], [LibraWHE], [LibraWH], [RoboLaserWHE], [RoboLaserWH], [StalkerWHE], [SunburstLaserWH], [VentrexWH] | false, true, yes |
+| CLDisableGreen | 50 | rulesmo.ini (effective) | Warhead | [GotterBombWHE], [LibraWHE], [LibraWH], [RoboLaserWHE], [RoboLaserWH], [StalkerWHE], [SunburstLaserWH], [VentrexWH] | false, true, yes |
 | DeleteOnStateLimit | 50 | rulesmo.ini (effective) | Unknown | [GyroBulletPart], [SingleBulletGoldPart], [SingleBulletPart], [SingleBulletRedPart], [SmokeFirePart], [SpeederShotPart], [StalkerShotPart], [TealBulletPart] | yes |
 | Cursor.Deploy | 49 | rulesmo.ini (effective) | Infantry, Vehicle | [DESOR], [DESO], [E1], [GGI], [SNIPE], [YUNRU], [YURIPR], [YURI] | DeployA, DeployRad, ModeI, ModeII, Sandbag |
 | EmptyReload | 49 | rulesmo.ini (effective) | Building, Infantry, Vehicle | [AIMORA], [ARSO], [DESOR], [DESO], [MORALES], [REPU], [SCRG], [SIEG] | 120, 160, 165, 240, 250, 360, 40, 80 |
@@ -1758,13 +1761,13 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | IsElectricBolt | 42 | rulesmo.ini (effective) | Weapon | [AssaultBolt], [CRElectricBoltE], [CRElectricBolt], [ElectricBoltE], [ElectricBolt], [ShockBoltE], [ShockBolt], [TeslaFragment] | true |
 | JumpjetWobbles | 42 | rulesmo.ini (effective) | Infantry, Vehicle | [ARMR], [GYRO], [JUMPJET], [LUNR], [MOTHRA], [SHAD], [URAGAN], [WASP] | .01, .1 |
 | AmbientSound | 41 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Unknown, Vehicle | [COW], [DNOB], [HYENA], [JOSH], [SHEEP], [SPYP], [ZORB], [ZORB_N] | BrontoAmbient, ChimpAmbient, CowAmbient, HyenaAmbient, MADAmbient, SheepAmbient, SpyPlaneSnapshot, WindglobeAmbient |
-| AnimHigh | 41 | artmo.ini (effective) | Unknown, Weapon | [ALIZEBALL], [BOIDBALL], [CHATOUCH], [CONFUBEAM2], [CONFUBEAM], [IVANBOMB], [LEVIBALL], [TARCPROJ] | 144, 15, 2, 42, 45, 7, 80, 84 |
-| AnimLow | 41 | artmo.ini (effective) | Unknown, Weapon | [ALIZEBALL], [BOIDBALL], [CHATOUCH], [CONFUBEAM2], [CONFUBEAM], [IVANBOMB], [LEVIBALL], [TARCPROJ] | 0, 4 |
-| AnimRate | 41 | artmo.ini (effective) | Unknown, Weapon | [ALIZEBALL], [BOIDBALL], [CHATOUCH], [CONFUBEAM2], [CONFUBEAM], [IVANBOMB], [LEVIBALL], [TARCPROJ] | 0, 1 |
+| AnimHigh | 41 | artmo.ini (effective) | Unknown, Warhead, Weapon | [ALIZEBALL], [BOIDBALL], [CHATOUCH], [CONFUBEAM2], [CONFUBEAM], [IVANBOMB], [LEVIBALL], [TARCPROJ] | 144, 15, 2, 42, 45, 7, 80, 84 |
+| AnimLow | 41 | artmo.ini (effective) | Unknown, Warhead, Weapon | [ALIZEBALL], [BOIDBALL], [CHATOUCH], [CONFUBEAM2], [CONFUBEAM], [IVANBOMB], [LEVIBALL], [TARCPROJ] | 0, 4 |
+| AnimRate | 41 | artmo.ini (effective) | Unknown, Warhead, Weapon | [ALIZEBALL], [BOIDBALL], [CHATOUCH], [CONFUBEAM2], [CONFUBEAM], [IVANBOMB], [LEVIBALL], [TARCPROJ] | 0, 1 |
 | DeployTime | 41 | rulesmo.ini (effective) | Building, Vehicle | [AMC], [FV], [HTK], [LCRF], [SAPC], [SCAR], [TENGU], [YHVR] | .022, .044 |
 | JumpjetDeviation | 41 | rulesmo.ini (effective) | Infantry, Vehicle | [ARMR], [GYRO], [JUMPJET], [LUNR], [MOTHRA], [SHAD], [URAGAN], [WASP] | 1, 15 |
 | LandTargeting | 41 | rulesmo.ini (effective) | Aircraft, Building, Vehicle | [AEGIS], [AERO2], [AERO], [ASW], [HCRUIS], [SAPC], [SENT], [SIREN] | 0, 1, 2 |
-| Particle | 41 | rulesmo.ini (effective) | Unknown | [ChaosTouchWH], [DMISLEWH], [FauxDomStrikeWH], [MadbombWH], [SpotLightWH], [SwarmBombEWH], [SwarmBombWH], [WallbusterWH] | AetherLightSys, ChaosTouchSys, DredLightSys, GasCloudSys, PromeLightSys, ScorchCloudSys, SpotLightSys, VultureCloudSys |
+| Particle | 41 | rulesmo.ini (effective) | Warhead | [ChaosTouchWH], [DMISLEWH], [FauxDomStrikeWH], [MadbombWH], [SpotLightWH], [SwarmBombEWH], [SwarmBombWH], [WallbusterWH] | AetherLightSys, ChaosTouchSys, DredLightSys, GasCloudSys, PromeLightSys, ScorchCloudSys, SpotLightSys, VultureCloudSys |
 | ChainReaction | 40 | rulesmo.ini (effective) | Unknown | [TIB2_01], [TIB2_02], [TIB2_03], [TIB2_04], [TIB2_05], [TIB2_06], [TIB2_07], [TIB2_08] | no |
 | Decay | 40 | soundmo.ini (effective) | Unknown | [BlackEagleAttackCommand], [BlackEagleMove], [BlackEagleSelect], [BlightAttackCommand], [BlightMove], [BlightSelect], [MovieOff], [MovieOn] | 2, 3, 7 |
 | Dropping | 40 | rulesmo.ini (effective) | Unknown | [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperJammerP], [SuperSuppressP] | yes |
@@ -1783,11 +1786,9 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Bouncer | 37 | artmo.ini (effective) | Unknown | [DBRIS1HV], [DBRIS1LG], [DBRIS1SM], [DBRIS2HV], [DBRIS2LG], [DBRIS2SM], [DBRIS3LG], [HURRDIE] | yes |
 | JumpjetNoWobbles | 37 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [ARMR], [GYRO], [JUMPJET], [LUNR], [MOTHRA], [THOR], [URAGAN], [WASP] | no, yes |
 | VoiceSecondaryWeaponAttack | 37 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [AIMORA], [ARMR], [ARSO], [CYBO], [GHOST], [HARP], [MORALES], [SPY] | ArmormanAttackCommand, ArsonistAttackCommand, CyborgAttackCommand, HarpoonSecondary, InfiltratorSabotage, MoralesAirstrikeCommand, SealSpecialAttack, SpyAttackCommand |
-| BallisticScatter.Max | 36 | rulesmo.ini (effective) | Unknown | [BuratinoRocket], [Cannon3E], [Cannon3], [FlameProjE], [FlameProj], [PyroProjE], [PyroProj], [WarRigProj] | 0.25, 0.3, 0.5, 0.75, 0.9, 1, 1.5, 2.0 |
-| BallisticScatter.Min | 36 | rulesmo.ini (effective) | Unknown | [BuratinoRocket], [Cannon3E], [Cannon3], [FlameProjE], [FlameProj], [PyroProjE], [PyroProj], [WarRigProj] | 0, 0.15, 0.25, 0.3, 0.5, 1, 1.0, 2 |
 | DeployFire | 36 | rulesmo.ini (effective) | Infantry, Vehicle | [DESOR], [DESO], [E1], [GGI], [SIEG], [SNIPE], [YUNRU], [YURI] | no, yes |
 | DrawFlat | 36 | rulesmo.ini (effective) | Unknown | [FENCE12], [FENCE13], [FENCE14], [FENCE15], [FENCE16], [FENCE17], [RUBBLE_OVERLAY], [X] | false, true |
-| EMEffect | 36 | rulesmo.ini (effective) | Unknown | [BeetleRollWH], [BlueJammer], [ChronoFreezeWH], [EmitterWarhead], [GharialBetaWH], [JackalWarhead], [KnightBetaSA], [SeawolfHE] | yes |
+| EMEffect | 36 | rulesmo.ini (effective) | Warhead | [BeetleRollWH], [BlueJammer], [ChronoFreezeWH], [EmitterWarhead], [GharialBetaWH], [JackalWarhead], [KnightBetaSA], [SeawolfHE] | yes |
 | FireWhileMoving | 36 | rulesmo.ini (effective) | Weapon | [CRNeutronRifleE], [CRNeutronRifle], [EurekaBlast], [FVEurekaBlast], [MadBlastStartAI], [MadBlastStart], [MegaslashE], [Megaslash] | no, yes |
 | FoundationOutline.24 | 36 | artmo.ini (effective) | Building, Unknown | [CACOLO], [CARING2], [CARING], [CASEIM02], [CASEIM03], [CASEIM05], [CAVHNG], [MODEV] | -1,4, -1,6, -1,7, 0,8, 1,4, 1,7, 7,2, 8,2 |
 | FoundationOutline.25 | 36 | artmo.ini (effective) | Building, Unknown | [CACOLO], [CARING2], [CARING], [CASEIM02], [CASEIM03], [CASEIM05], [CAVHNG], [MODEV] | 0,4, 0,7, 1,8, 10,6, 14,4, 2,4, 2,7, 8,2 |
@@ -1808,26 +1809,21 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ActiveAnimThreePoweredLight | 34 | artmo.ini (effective) | Building, Unknown | [GACLAB], [GACNST], [GAGAP], [GAMERC], [GAPOST], [GASCEA], [GASCPF], [GAWEAP] | no, true, yes |
 | MaxDC | 34 | rulesmo.ini (effective) | Unknown | [AntaresPartBlue], [AntaresPart], [DominatorPart], [FireStream], [LightBeamPart], [MarauderPart], [MiniAntaresPartBlue], [MiniAntaresPart] | 0, 10, 20, 240, 3, 30, 60, 80 |
 | NotHuman | 34 | rulesmo.ini (effective) | Infantry, Vehicle | [ADOG], [CHITZ], [CYBO], [DOG], [KAOS], [SIEG], [VOLKOV], [YDOG] | yes |
-| PenetratesBunker | 34 | rulesmo.ini (effective) | Unknown | [DSeekerBombWH], [EMPBeamWH], [EMPYunru], [FVTanyaLaserWH], [SeekerBombWH], [TanyaLaserWH], [UnderBladeWH], [VentrexWH] | yes |
+| PenetratesBunker | 34 | rulesmo.ini (effective) | Warhead | [DSeekerBombWH], [EMPBeamWH], [EMPYunru], [FVTanyaLaserWH], [SeekerBombWH], [TanyaLaserWH], [UnderBladeWH], [VentrexWH] | yes |
 | ShrapnelCount | 34 | rulesmo.ini (effective) | Unknown | [Ballistic], [DLancerProj], [GrandCannonBallE], [GrandCannonBall], [LancerProj2], [LancerProj], [SwordfishProj], [UCLancerProj] | 1, 2, 3, 5, 6 |
 | ShrapnelWeapon | 34 | rulesmo.ini (effective) | Unknown | [Ballistic], [DLancerProj], [GrandCannonBallE], [GrandCannonBall], [LancerProj2], [LancerProj], [SwordfishProj], [UCLancerProj] | 155mmPart, DLancerFrag, DeathBoltFragment, GrandCannonPart, LancerFrag, MagneticPart, SwordfishFrag, TeslaFragment |
-| FlakScatter | 33 | rulesmo.ini (effective) | Unknown | [FlameProjE], [FlameProj], [GharialProj], [PyroProjE], [PyroProj], [RiotGrenadeP], [SeawolfProj], [WarRigProj] | yes |
 | NeverUse | 33 | rulesmo.ini (effective) | Unknown, Weapon | [ColossusAAFake], [EngineerScanner], [NotADeployer], [NotAStrategyLarge], [OxidizerFake], [SentinelFake], [StealthScanner], [VirtualScanner] | yes |
-| ShakeYhi | 33 | rulesmo.ini (effective) | Unknown | [AthenaWHSmall], [GravitronFieldWH], [MODeathWH], [Mad2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
-| ShakeYlo | 33 | rulesmo.ini (effective) | Unknown | [AthenaWHSmall], [GravitronFieldWH], [MODeathWH], [Mad2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
+| ShakeYhi | 33 | rulesmo.ini (effective) | Warhead | [AthenaWHSmall], [GravitronFieldWH], [MODeathWH], [Mad2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
+| ShakeYlo | 33 | rulesmo.ini (effective) | Warhead | [AthenaWHSmall], [GravitronFieldWH], [MODeathWH], [Mad2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
 | StartFrame | 33 | rulesmo.ini (effective) | Unknown | [AntaresPartBlue], [AntaresPart], [DominatorPart], [LightBeamPart], [MarauderPart], [MiniAntaresPartBlue], [MiniAntaresPart], [ScorchCloudPart] | 0 |
-| Survivor.ElitePassengerChance | 33 | rulesmo.ini (effective) | Vehicle | [AHMV], [AMC], [BFRT], [FV], [LCRF], [SHAD], [SUNB], [TENGU] | 0%, 100%, 80%, 90% |
-| Survivor.RookiePassengerChance | 33 | rulesmo.ini (effective) | Vehicle | [AHMV], [AMC], [BFRT], [FV], [LCRF], [SHAD], [SUNB], [TENGU] | 0%, 100%, 50%, 70%, 90% |
-| Survivor.VeteranPassengerChance | 33 | rulesmo.ini (effective) | Vehicle | [AHMV], [AMC], [BFRT], [FV], [LCRF], [SHAD], [SUNB], [TENGU] | 0%, 100%, 65%, 80%, 95% |
-| CLDisableRed | 32 | rulesmo.ini (effective) | Unknown | [BlackoutMissileWH], [BlimpHEE], [CondorWH], [RamHackArenaWH], [RoadrunnerChokeWH], [StingerSprayWH], [TyrantWH], [VentrexWH] | true, yes |
+| CLDisableRed | 32 | rulesmo.ini (effective) | Warhead | [BlackoutMissileWH], [BlimpHEE], [CondorWH], [RamHackArenaWH], [RoadrunnerChokeWH], [StingerSprayWH], [TyrantWH], [VentrexWH] | true, yes |
 | Cloneable | 32 | rulesmo.ini (effective) | Infantry, Vehicle | [AIMORA], [ARMR], [CHITZ], [MORALES], [SIEG], [TANY], [VOLKOV], [YUNRU] | no |
 | RemoveOccupy6 | 32 | artmo.ini (effective) | Building, Unknown | [FACNST], [GAWEAP], [GAYARD], [NACNST], [NAMISL], [NAREFN], [YARIREFN], [YAYARD] | -1,2, -2,-1, -2,-2, -2,0, -4,-2, 0,-2, 1,3, 2,1 |
-| ShakeXhi | 32 | rulesmo.ini (effective) | Unknown | [AthenaWHSmall], [MODeathWH], [Mad2WH], [MadMine2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
-| ShakeXlo | 32 | rulesmo.ini (effective) | Unknown | [AthenaWHSmall], [MODeathWH], [Mad2WH], [MadMine2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
+| ShakeXhi | 32 | rulesmo.ini (effective) | Warhead | [AthenaWHSmall], [MODeathWH], [Mad2WH], [MadMine2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
+| ShakeXlo | 32 | rulesmo.ini (effective) | Warhead | [AthenaWHSmall], [MODeathWH], [Mad2WH], [MadMine2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [WallbusterWH] | 1, 12, 15, 2, 20, 3, 4, 9 |
 | TurretCount | 32 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [AMC], [CRYOAI], [CRYO], [FV], [MTNK], [SREF], [TENGU] | 1, 2, 21, 4, 5, 56 |
 | FoundationOutline.26 | 31 | artmo.ini (effective) | Building, Unknown | [CACOLO], [CARING2], [CARING], [CASEIM02], [CASEIM03], [CASEIM05], [CAVHNG], [MODEV] | -1,5, -1,7, 1,4, 1,7, 2,8, 3,4, 3,7, 9,2 |
 | FoundationOutline.27 | 31 | artmo.ini (effective) | Building, Unknown | [CACOLO], [CARING2], [CARING], [CASEIM02], [CASEIM03], [CASEIM05], [CAVHNG], [MODEV] | 10,2, 10,7, 14,5, 2,4, 2,7, 3,8, 4,4, 4,7 |
-| Parachute.Anim | 31 | rulesmo.ini (effective) | Infantry, Vehicle | [BFRT], [DRON2], [DRON], [LCRF], [LIBRC], [SUNB_1], [VCARR], [YUNRU] | DUMMY, PARACHBIG, PARACHTD, YUNPARA |
 | Weapon5FLH | 31 | artmo.ini (effective) | Aircraft, Building, Unknown, Vehicle | [AEGIS], [AHVYBOT2], [AMC], [CRYO], [FV], [MAMM], [PANTHER], [TENGU] | -60,65,165, 110,-70,195, 130,0,170, 220,125,160, 270,20,100, 280,00,0, 330,0,110, 95,16,160 |
 | Weapon6FLH | 31 | artmo.ini (effective) | Aircraft, Building, Unknown, Vehicle | [AEGIS], [AHVYBOT2], [AMC], [CRYO], [FV], [MAMM], [PANTHER], [TENGU] | -60,65,165, 125,-70,195, 130,0,170, 165,0,160, 220,125,160, 270,20,100, 280,0,0, 330,0,110 |
 | CloakSound | 30 | rulesmo.ini (effective) | Aircraft, AudioVisual, Building, Infantry, Vehicle | [AudioVisual], [DLPH], [NAFURY], [SUB], [SUNB_1], [SYNC_N], [WIDOWA], [WIDOW] | NavalUnitEmerge, StealthUnitEmerge, none |
@@ -1837,7 +1833,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | NotWorkingSound | 30 | rulesmo.ini (effective) | Building | [ATESLA], [GAHYPE], [GAPOST], [GTGCAN], [NAFLAK], [NAHAMM], [NASAM], [TESLA] | CometFenceOff, PowerOff |
 | Rotates | 30 | artmo.ini (effective) | Unknown, Weapon | [DART], [FMISLE], [FMISL], [MEDUSAE], [MEDUSA], [SMISLE], [SMISL], [XMBOMB] | yes |
 | TurboBoost | 30 | rulesmo.ini (effective) | CombatDamage, Weapon | [CombatDamage], [FVGiantsbaneMissile], [GiantsbaneMissile], [RedEye2E], [RedEye2], [SAMBunkerWeaponE], [SAMBunkerWeapon], [TechRedEye2] | 1.5, yes |
-| WallAbsoluteDestroyer | 30 | rulesmo.ini (effective) | Unknown | [FauxDomStrikeWH], [Mad2WH], [MadMine2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [SiegfriedWH], [WallbusterWH] | yes |
+| WallAbsoluteDestroyer | 30 | rulesmo.ini (effective) | Warhead | [FauxDomStrikeWH], [Mad2WH], [MadMine2WH], [MadbombWH], [QuakeWeaponWHE], [QuakeWeaponWH], [SiegfriedWH], [WallbusterWH] | yes |
 | AuxSound2 | 29 | rulesmo.ini (effective) | Aircraft, Vehicle | [BEAG], [FORTRESS], [HBIRD], [ORCA], [SNAKE], [STORM], [WIDOWA], [WIDOW] | Dummy, GehennaDroneStop, HailLanding, HornetLanding, IntruderLanding, MosachildLanding, OspreyLanding |
 | BuildupTime | 29 | rulesmo.ini (effective) | Building, General | [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [General], [NAFURY], [YAQUAD] | .01, .03, .04, .06, .09, .1, .12, .15 |
 | DecloakSound | 29 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [DLPH], [NAFURY], [SUB2], [SUB], [SUNB_1], [SYNC_N], [WIDOWA], [WIDOW] | NavalUnitEmerge, none |
@@ -1847,7 +1843,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ParticlesPerCoord | 29 | rulesmo.ini (effective) | Unknown | [AvalonRailgunSys], [MastodonRailgunSys], [NeonwaspSys], [NeutronBlasterSys], [NeutronRifleSysE], [NeutronRifleSys], [PlasmaRailgunSys], [RuinerSys] | .003, .004, .006, .01, .015, .02, .025, .04 |
 | PingPong | 29 | artmo.ini (effective) | Unknown | [FACLDP_C], [FAINHI_C], [GASPST_B], [GAYARD_B], [NACNST_D], [NAMORT_A], [NASCOM_A], [YAGGUN_A] | no, yes |
 | PositionPerturbationCoefficient | 29 | rulesmo.ini (effective) | Unknown | [AvalonRailgunSys], [MastodonRailgunSys], [NeonwaspSys], [NeutronBlasterSys], [NeutronRifleSysE], [NeutronRifleSys], [PlasmaRailgunSys], [RuinerSys] | 0, 20 |
-| Ripple.Radius | 29 | rulesmo.ini (effective) | Unknown | [FauxDomStrikeWH], [GreatTempestBlastWH], [GreatTempestRockWH], [LibraWHE], [LibraWH], [MadbombWH], [RepulsorEffectWH], [WallbusterWH] | 100, 150, 20, 30, 300, 500, 70, 80 |
 | SpiralDeltaPerCoord | 29 | rulesmo.ini (effective) | Unknown | [AvalonRailgunSys], [MastodonRailgunSys], [NeonwaspSys], [NeutronBlasterSys], [NeutronRifleSysE], [NeutronRifleSys], [PlasmaRailgunSys], [RuinerSys] | .01, .025, .035, .5, 0, 1, 10, 12.5 |
 | SpiralRadius | 29 | rulesmo.ini (effective) | Unknown | [AvalonRailgunSys], [MastodonRailgunSys], [NeonwaspSys], [NeutronBlasterSys], [NeutronRifleSysE], [NeutronRifleSys], [PlasmaRailgunSys], [RuinerSys] | 0, 1, 10, 2, 24, 30, 36, 6 |
 | VelocityPerturbationCoefficient | 29 | rulesmo.ini (effective) | Unknown | [AvalonRailgunSys], [MastodonRailgunSys], [NeonwaspSys], [NeutronBlasterSys], [NeutronRifleSysE], [NeutronRifleSys], [PlasmaRailgunSys], [RuinerSys] | .6, 0 |
@@ -1855,7 +1850,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | WeaponCount | 29 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [AMC], [CRYOAI], [CRYO], [FV], [MTNK], [SREF], [TENGU] | 1, 12, 2, 21, 4, 56, 6, 8 |
 | CaptureEvaEvent | 28 | rulesmo.ini (effective) | Building | [CAACAD], [CAAERO], [CAAIRP], [CADEFB], [CAHMCH], [CASHLD], [CASTRF], [CATPAD] | EVA_TechBuildingCaptured, EVA_TechDefenseCaptured, EVA_TechPowerCaptured |
 | Convert.Deploy | 28 | rulesmo.ini (effective) | Vehicle | [AERO2], [AERO], [BASS2], [BASS], [ETNK2], [ETNK], [SIREN2], [SIREN] | AERO, AERO2, BASS, BASS2, ETNK, ETNK2, SIREN, SIREN2 |
-| DamageAirThreshold | 28 | rulesmo.ini (effective) | Unknown | [FauxDomStrikeWH], [FirestormTempestWH], [GravitronFieldWH], [GreatTempestAnim2WH], [GreatTempestAnimWH], [GreatTempestBlastWH], [IonWH], [LibraLightWH] | -1, 0, 100 |
+| DamageAirThreshold | 28 | rulesmo.ini (effective) | Warhead | [FauxDomStrikeWH], [FirestormTempestWH], [GravitronFieldWH], [GreatTempestAnim2WH], [GreatTempestAnimWH], [GreatTempestBlastWH], [IonWH], [LibraLightWH] | -1, 0, 100 |
 | EliteWeapon1 | 28 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [AMC], [CRYOAI], [CRYO], [FV], [MTNK], [SREF], [TENGU] | 105mmRE, Cryobeam1, Cryobeam1AI, HoverMissileE, JagdPantherE, MedusaE, SuperComet, TankBoltE |
 | Fighter | 28 | rulesmo.ini (effective) | Aircraft | [BEAG], [FORTRESS], [HBIRD], [ORCA], [SNAKE], [STORM], [WIDOWA], [WIDOW] | no, yes |
 | Laser | 28 | rulesmo.ini (effective) | Unknown | [AvalonRailgunSys], [MastodonRailgunSys], [NeonwaspSys], [NeutronBlasterSys], [NeutronRifleSysE], [NeutronRifleSys], [PlasmaRailgunSys], [RuinerSys] | no, yes |
@@ -1904,14 +1899,12 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Dock | 21 | rulesmo.ini (effective) | Aircraft, Vehicle | [BEAG], [CMIN], [CMON], [FORTRESS], [HBIRD], [ORCA], [STORM], [UMIN] | GAAIRC,NAAIR,GAHPAD,CAAIRP,YAAIRF,NASAIR, NAREFN,GAREFN,CAREFN,YARIREFN,FAREFN,YAMREF,GAOREP |
 | ExitCoord | 21 | rulesmo.ini (effective) | Building | [GAPILEB], [GAPILE], [GAWEAPB], [GAWEAP], [NAHANDB], [NAHAND], [NAWEAPB], [NAWEAP] | -64,32,0, -64,64,0, 0,0,0, 512,256,0 |
 | Hover | 21 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Beach], [Clear], [Road], [Rock], [Rough], [Tiberium], [Wall], [Water] | 0%, 100%, 164,6,6, 292,6,6, 8,12,12, 8,6,6, 8,6,7, 88,16,16 |
-| Message.Capture | 21 | rulesmo.ini (effective) | Building | [CAACAD], [CAAERO], [CAAIRP], [CADEFB], [CAHMCH], [CASHLD], [CASTRF], [CATPAD] | TXT_TechAeronautics_Captured, TXT_TechMachinery_Captured, TXT_TechReinfo_Captured, TXT_Tech_Academy_Captured, TXT_Tech_Airfield_Captured, TXT_Tech_Defense_Bureau_Cap, TXT_Tech_Maintenance_Captured, TXT_Tech_ShieldGen_Captured |
-| Message.Lost | 21 | rulesmo.ini (effective) | Building | [CAACAD], [CAAERO], [CAAIRP], [CADEFB], [CAHMCH], [CASHLD], [CASTRF], [CATPAD] | TXT_TechAeronautics_Lost, TXT_TechMachinery_Lost, TXT_TechReinfo_Lost, TXT_Tech_Academy_Lost, TXT_Tech_Airfield_Lost, TXT_Tech_Defense_Bureau_Lost, TXT_Tech_Maintenance_Lost, TXT_Tech_ShieldGen_Lost |
 | SinkingSound | 21 | rulesmo.ini (effective) | AudioVisual, Vehicle | [AEGIS], [AudioVisual], [CARRIER], [DEST], [HCRUIS], [SIREN2], [SIREN], [SWLF] | GenLargeWaterDie, GenSmallWaterDie |
 | Undeploy | 21 | artmo.ini (effective) | Unknown | [BaneNSequence], [DuplicantSequence], [KillerSequence], [SibAlizeSequence], [SibFinSequence], [SnipedSequence], [SuprSequence], [TerroristSequence] | 0,1,1, 164,15,0, 194,1,1, 236,12,0, 259,4,0, 276,2,2, 276,8,8, 285,15,0 |
 | Bib | 20 | rulesmo.ini (effective) | Building | [GAOREP], [GAREFN], [GAWEAPB], [GAWEAP], [NAFIST], [NAREFN], [NAWEAPB], [NAWEAP] | yes |
 | BombSight | 20 | rulesmo.ini (effective) | Building, Infantry, Vehicle | [ADOG], [ARSO], [CHITZ], [DOG], [ENGINEER], [IVAN], [SENGINEER], [YDOG] | 13, 2, 4, 6, 7, 8, 9 |
-| EffectsRequireDamage | 20 | rulesmo.ini (effective) | Unknown | [ChronoFreezeWH], [Cryobeam1WH], [Cryobeam2WH], [Cryobeam3WH], [RepulsorEffectWH], [RoadrunnerNerfWH], [TemporalShieldWH], [TimeFreezeWH] | no |
-| EffectsRequireVerses | 20 | rulesmo.ini (effective) | Unknown | [ChronoFreezeWH], [Cryobeam1WH], [Cryobeam2WH], [Cryobeam3WH], [RepulsorEffectWH], [RoadrunnerNerfWH], [TemporalShieldWH], [TimeFreezeWH] | yes |
+| EffectsRequireDamage | 20 | rulesmo.ini (effective) | Warhead | [ChronoFreezeWH], [Cryobeam1WH], [Cryobeam2WH], [Cryobeam3WH], [RepulsorEffectWH], [RoadrunnerNerfWH], [TemporalShieldWH], [TimeFreezeWH] | no |
+| EffectsRequireVerses | 20 | rulesmo.ini (effective) | Warhead | [ChronoFreezeWH], [Cryobeam1WH], [Cryobeam2WH], [Cryobeam3WH], [RepulsorEffectWH], [RoadrunnerNerfWH], [TemporalShieldWH], [TimeFreezeWH] | yes |
 | EliteWeapon5 | 20 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [AMC], [CRYOAI], [CRYO], [FV], [STNK], [TENGU], [YTNK] | AGGattling3E, CRMP5E, Cryobeam3, Cryobeam3AI, GotterLaserE, MedusaE, OpusGunYE, TeratornFake |
 | EliteWeapon6 | 20 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [AMC], [CRYOAI], [CRYO], [FV], [STNK], [TENGU], [YTNK] | AAGattling3E, CRAWPE, Cryobeam3, Cryobeam3AI, GotterLaserE, MedusaE, OpusGunZE, TeratornLaser |
 | IsARock | 20 | rulesmo.ini (effective) | Unknown | [SROCK01], [SROCK02], [SROCK03], [SROCK04], [SROCK05], [TROCK01], [TROCK02], [X] | true |
@@ -1939,12 +1932,9 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Cloakable.Stages | 18 | rulesmo.ini (effective) | Aircraft, Building, Infantry, Vehicle | [QUAD], [SHADOWF], [SHADOW], [SLAV], [SYNC_N], [WIDOWA], [WIDOW], [YAQUAD] | 1, 2, 3 |
 | DeploysInto | 18 | rulesmo.ini (effective) | Vehicle | [AMCV], [FDRON], [GRND], [MWF], [PCV], [QUAD], [SMCV], [SMIN] | GACNST, NACNST, NAFIST, NAFURY, YACNST, YAGRND, YAMREF, YAQUAD |
 | ForbiddenHouses | 18 | rulesmo.ini (effective) | Building, Infantry, Vehicle | [DESO], [ENGINEER], [FENGINEER], [MTNK], [SENGINEER], [SHK], [YENGINEER], [YURI] | Chinese, Europeans,UnitedStates,Pacific,PsiCorps,Headquaters,ScorpionCell,Guild1,Guild2,Guild3, Europeans,UnitedStates,Pacific,USSR,Chinese,Latin,PsiCorps,Headquaters,ScorpionCell, Europeans,UnitedStates,Pacific,USSR,Latin,Chinese,Guild1,Guild2,Guild3, PsiCorps, USSR, USSR,Latin,Chinese,PsiCorps,Headquaters,ScorpionCell,Guild1,Guild2,Guild3, UnitedStates,Pacific |
-| Gattling.Cycle | 18 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [CRYOAI], [CRYO], [GOTTER], [MANTA], [PANTHER], [TARCHIA], [TERA] | no, yes |
 | HalfDamageSmokeLocation1 | 18 | rulesmo.ini (effective) | Building | [AILOCK], [CASHGIVE], [CASHTAKE], [DUMMYDUMMY], [GAOREP], [GAREFN], [NAREFN], [NOTHING] | 0,0,0 |
 | Overpowerable | 18 | rulesmo.ini (effective) | Building | [ATESLA], [F_ERESB], [GAROD], [TESLA], [YAHADE], [YAPSYTAI], [YAPSYT], [YARAIL] | false, true |
-| PreImpactAnim | 18 | rulesmo.ini (effective) | Unknown | [CutteringB], [DSeekerBombWH], [EMPulsSuper], [MadWH], [SeekerBombWH], [SharkSplashWave5], [SharkSplashWave], [WallbusterWH] | ATOMPREFX, CUTTDEL, EUREKACHARGE, EUREKACHARGEB, HURRCHAR, PULSEFX1, SHARKWAVE1, WALPIMP |
 | SpawnRadius | 18 | rulesmo.ini (effective) | Unknown | [BigGreySmokeSys], [BoidSmokeSys], [GreenSmokeSys], [OrangeSmokeSys], [SmallGreySSys], [SmokeFireSys], [VatGasSys], [YellowSmallSys] | 10, 3, 400, 5 |
-| SpyEffect.ResetSuperweapons | 18 | rulesmo.ini (effective) | Building | [GACLAB], [GACSPH], [GADEPO], [GAMERC], [GASCEA], [GASCPF], [GAWEAT], [NAEMPS] | yes |
 | VoiceEnter | 18 | rulesmo.ini (effective) | Infantry, Vehicle | [ENGINEER], [FENGINEER], [INTRUDER], [SBTR], [SENGINEER], [SPY], [UNDER], [YENGINEER] | EngAllAttackCommand, EngFoeEnter, EngSovAttackCommand, EngYuriCapture, InfiltratorEnter, SaboteurEnter, SpySpecialAttack, UnderminerEnter |
 | ActiveAnimFourDamaged | 17 | artmo.ini (effective) | Building, Unknown | [GAMERC], [GASCEA], [GASCPF], [NAAIR], [NAINDP], [NARADRX], [NAREFN], [YACNST] | DUMMYANIM, FACNST_D, GASCEA_DD, NARADR_D, NAREFNL4D, YAAIRF_DD, YARIREFN_A4D, none |
 | ActiveAnimFourZAdjust | 17 | artmo.ini (effective) | Building, Unknown | [GAREFN], [GASCEA], [GASCPF], [NAAIR], [NAINDP], [NARADRX], [NAREFN], [YACNST] | -10, -128, -150, -156, -2, -24, -40, -5 |
@@ -1953,9 +1943,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | DamageLevels | 17 | artmo.ini (effective) | Building, Unknown | [CABARB], [CAFNCP], [CAFNCT], [FAWALL], [GAFWLL], [GASAND], [GAWALL], [NAWALL] | 1, 2, 3 |
 | IsPassable | 17 | rulesmo.ini (effective) | Building | [CANMIN], [FAFILD], [FAJAMM], [F_ERESB], [GACRYO], [NATRAP], [YAVISN], [YAVNMM] | no, yes |
 | IsRailgun | 17 | rulesmo.ini (effective) | Weapon | [ChronoImprison], [FVSuperSniper], [MissileLauncherDepE], [MissileLauncherDep], [SuperSniperAIE], [SuperSniperAI], [SuperSniperE], [SuperSniper] | true, yes |
-| ParaDrop.Aircraft | 17 | rulesmo.ini (effective) | Country, SuperWeapon | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | DYBTR, MIGSPY, PDPLANE2, PDPLANE3, PDPLANE4, PDPLANE5, PDPLANEUS |
-| SolidHeight | 17 | artmo.ini (effective) | Building | [FAFNCE], [FAPOST], [GAGATE_C], [GAGATE_D], [NAGATE_A], [NAGATE_B], [YAGATE_A], [YAGATE_B] | 2, 4 |
-| Sonar.Duration | 17 | rulesmo.ini (effective) | Unknown | [Cryobeam1WH], [Cryobeam2WH], [Cryobeam3WH], [Cryobeam4WH], [RepulsorEffectWH], [SquidHE], [TemporalShieldWH], [TimeFreezeWH] | 10, 200, 225, 45, 50, 615, 7200, 75 |
+| Sonar.Duration | 17 | rulesmo.ini (effective) | Warhead | [Cryobeam1WH], [Cryobeam2WH], [Cryobeam3WH], [Cryobeam4WH], [RepulsorEffectWH], [SquidHE], [TemporalShieldWH], [TimeFreezeWH] | 10, 200, 225, 45, 50, 615, 7200, 75 |
 | SpecialAnimDamaged | 17 | artmo.ini (effective) | Building, Unknown | [GAPRIS], [GAYARD], [NAHAMM], [NAPRIS], [NATSLA], [NAYARD], [YAGRND], [YAYARD] | GAPRIS_AD, GAYARD_S1D, NAHAMM_AD, NAPRIS_B, NATSLA_BD, NAYARD_S1D, YAGRND_BD, YAYARD_SD |
 | TerrainPalette | 17 | artmo.ini (effective) | Building, Unknown | [AMMO01], [CACRSH01], [CACRSH02], [CAPYR01], [CAPYR02], [CAPYR03], [GAAMMOB], [GAAMMO] | no, yes |
 | TiltCrashJumpjet | 17 | rulesmo.ini (effective) | Vehicle | [BASIL], [DISK], [DRACOD], [D_VIPER], [GOTTER], [MAGNET], [RUINER], [VIPER] | no |
@@ -1974,11 +1962,10 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | SpawnRegenRate | 16 | rulesmo.ini (effective) | Building, Vehicle | [AKULA], [BSUB], [CARRIER], [DEST], [DRED], [V3], [VCARR], [YAHCR] | 1000, 120, 250, 300, 390, 400, 450, 80 |
 | SpawnReloadRate | 16 | rulesmo.ini (effective) | Building, Vehicle | [AKULA], [BSUB], [CARRIER], [DEST], [DRED], [V3], [VCARR], [YAHCR] | 0, 130, 150, 240, 300, 50, 60, 80 |
 | SpawnsNumber | 16 | rulesmo.ini (effective) | Building, Vehicle | [AKULA], [BSUB], [CARRIER], [DEST], [DRED], [V3], [VCARR], [YAHCR] | 1, 2, 4 |
-| SpyEffect.UnitVeterancy | 16 | rulesmo.ini (effective) | Building | [GAPILEB], [GAPILE], [GAWEAPB], [GAWEAP], [NAHANDB], [NAHAND], [NAWEAPB], [NAWEAP] | yes |
 | Stage3 | 16 | rulesmo.ini (effective) | Building, Vehicle | [AEGIS], [CRYOAI], [CRYO], [GOTTER], [PROME], [TARCHIA], [TERA], [YTNK] | 120, 200, 3, 30, 340, 400, 450, 50 |
 | DeployFacing | 15 | rulesmo.ini (effective) | Building, Vehicle | [BOID], [FABOID], [FAMSAW], [FAMSA], [FAORCI], [FASWPR], [NAFURY], [YAQUAD] | 0, 2, 3, 7 |
 | DeployingAnim | 15 | artmo.ini (effective), rulesmo.ini (effective) | Building, Vehicle | [BUZZ], [COMA], [COND], [CRYOAI], [CRYO], [EDRN], [LONGBO], [WOLF] | DUMMY, FAWEAP_2, GZWEAP_2, NAFIST_2, NZWEAP_2, YZWEAP_2 |
-| Fire | 15 | rulesmo.ini (effective) | Unknown | [ArsoFire], [BlueFire], [Fire2], [FireStreamWH], [Fire], [IvanFire], [ScorchFire], [TankOGas] | no, yes |
+| Fire | 15 | rulesmo.ini (effective) | Warhead | [ArsoFire], [BlueFire], [Fire2], [FireStreamWH], [Fire], [IvanFire], [ScorchFire], [TankOGas] | no, yes |
 | Hero | 15 | rulesmo.ini (effective) | Infantry | [AIMORA], [ARMR], [CHITZ], [MORALES], [SIEG], [TANY], [VOLKOV], [YUNRU] | yes |
 | MaxZVel | 15 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [CNTRHEAD], [GASTANK], [MOLES], [PIECE], [SCRCHB], [SONICTURRET], [SPIKES], [TIRE] | -100.0, 12.0, 28.0, 32.0, 35.0, 38.0, 45.0, 55.0 |
 | MovementRestrictedTo | 15 | rulesmo.ini (effective) | Vehicle | [DLPH], [SLOCOA], [SLOCOB], [SQD], [SSUBCARB], [SSUBCARC], [SSUBCAR], [STEAM] | Railroad, Water |
@@ -1988,7 +1975,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ToProtect | 15 | rulesmo.ini (effective) | Building, Vehicle | [AKULA], [CARRIER], [CMIN], [CMON], [DRED], [UMINW], [UMIN], [UMON] | yes |
 | Tread | 15 | artmo.ini (effective) | Unknown | [RiotTrooperSequence], [SealSequence], [SibFinSequence], [SuprSequence], [TanyaBSequence], [TerroristSequence], [YuriPrSequence], [ZorbSequence] | 0,1,1, 168,12,12, 172,3,3, 172,6,6, 188,6,6, 340,6,6, 375,6,6 |
 | TurretRotateSound | 15 | rulesmo.ini (effective) | Building, Vehicle | [AHVYBOT2B], [AHVYBOT2], [AHVYBOT], [GAHYPE], [GTGCAN], [SHINBOT], [YAHADEAI], [YAHADE] | AntaresRotate, AvalonRotate, FTankRotate, GrandCannonRotate, HammerTurretRotate, HyperionRotate, NeutralizerRotate, YuriBustRotate |
-| 1 | 14 | aimo.ini (effective), artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [TunnelTypes], [VoxelAnims] | BOXES02, BasicTunnel, CABARB, CR2, ELECTRO, FireStreamSys, GasCloud2, PIECE |
 | ActiveAnimFourPowered | 14 | artmo.ini (effective) | Building, Unknown | [GAMERC], [GASCEA], [GASCPF], [NAAIR], [NAINDP], [NARADRX], [YACNST], [YACXST] | false, no, true, yes |
 | AirportBound | 14 | rulesmo.ini (effective) | Aircraft | [BEAG], [FORTRESS], [HBIRD], [ORCA], [SNAKE], [STORM], [WIDOWA], [WIDOW] | no, yes |
 | ChargedAnimTime | 14 | rulesmo.ini (effective) | Building | [FABOID], [GACSPH], [GAWEAT], [NAIRON], [NAMISL], [YAGNTC], [YAPPET], [YATXCH] | 0.5, 1, 2 |
@@ -1999,11 +1985,10 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | IdleAnimDamaged | 14 | artmo.ini (effective) | Building, Unknown | [GAPRIS], [GAYARD], [NAYARD], [YAGRND], [YAPOWR], [YAPSYT], [YARAIL], [YAYARD] | GAPRIS_CD, GAYARD_AD, NAYARD_AD, YAGRND_AD, YAPOWR_CD, YAPSYT_B, YARAIL_C, YAYARD_AD |
 | IdleAnimZAdjust | 14 | artmo.ini (effective) | Building, Unknown | [GAPRIS], [GAYARD], [NAYARD], [YAGRND], [YAPOWR], [YAPSYT], [YARAIL], [YAYARD] | -125, -140, -150, -45, -48, -50, -72, -77 |
 | MaxAngularVelocity | 14 | rulesmo.ini (effective) | Unknown | [CNTRHEAD], [GASTANK], [MOLES], [PIECE], [SCRCHB], [SONICTURRET], [SPIKES], [TIRE] | 14.0, 15.0, 24.0, 30.0, 9.0 |
-| Message.FirerColor | 14 | rulesmo.ini (effective) | SuperWeapon | [BlasticadeSpecial], [ChronoSphereSpecial], [GreatTempestSpecial], [HarbingerSpecial], [IonStormSpecial], [IronCurtainSpecial], [LightningStormSpecial], [NukeSpecial] | yes |
 | MinAngularVelocity | 14 | rulesmo.ini (effective) | Unknown | [CNTRHEAD], [GASTANK], [MOLES], [PIECE], [SCRCHB], [SONICTURRET], [SPIKES], [TIRE] | 10.0, 12.0, 5.0, 9.0 |
-| Radiation | 14 | rulesmo.ini (effective) | Unknown | [EradiationWH], [KrukovRadBeamWH], [RadBeamWarhead], [RadSmallWarhead], [ReaperDeathWH], [ReaperWH], [ScavengerRadBeamWH], [WastelotWH] | yes |
+| Radiation | 14 | rulesmo.ini (effective) | Warhead | [EradiationWH], [KrukovRadBeamWH], [RadBeamWarhead], [RadSmallWarhead], [ReaperDeathWH], [ReaperWH], [ScavengerRadBeamWH], [WastelotWH] | yes |
 | Recruitable | 14 | rulesmo.ini (effective) | Unknown | [Area Guard], [Capture], [Construction], [Eaten], [Enter], [Harmless], [Harvest], [Hunt] | no, yes |
-| SmartAI | 14 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | yes |
+| SmartAI | 14 | rulesmo.ini (effective) | Country, Unknown | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | yes |
 | Spawner | 14 | rulesmo.ini (effective) | Weapon | [ASWLauncher], [CruiseLauncher], [DredLauncher], [LeviLauncher], [NestLauncher], [PsyBomLauncher], [SeekerLauncher], [V3Launcher] | yes |
 | Suicide | 14 | rulesmo.ini (effective) | Weapon | [AtomheartDeath], [DuplicantAttack], [FVDuplicantAttack], [FVSpiderBomb], [KillEngineers], [NavalMineBomb], [SpiderBomb], [SunburstBomb] | yes |
 | SuperAnim | 14 | artmo.ini (effective) | Building, Unknown | [GACSPH], [GAWETH], [NAIRON], [NAMISL], [YAGNTC], [YAPPET], [YAPPXT], [YATXCH] | FABOID_1, GACSPH_E, GAWETH_E, NAIRON_A, NAMISL_E, YAGNTC_E, YAPPET_E, YATXCH_A |
@@ -2022,6 +2007,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | WetDie2 | 14 | artmo.ini (effective) | Unknown | [RiotTrooperSequence], [SealSequence], [SuprSequence], [TanyaBSequence], [TerroristSequence], [YuriPrSequence], [YuriXSequence], [ZorbSequence] | 0,1,1, 1104,18,0, 154,15,0, 188,20,0, 360,15,0, 372,19,0, 382,19,0, 534,19,0 |
 | WetIdle1 | 14 | artmo.ini (effective) | Unknown | [RiotTrooperSequence], [SealSequence], [SuprSequence], [TanyaBSequence], [TerroristSequence], [YuriPrSequence], [YuriXSequence], [ZorbSequence] | 204,12,0,S, 208,20,0,S, 285,15,0,S, 315,15,0,S, 316,18,0,S, 332,15,0,S, 484,15,0,S, 56,15,0,S |
 | WetIdle2 | 14 | artmo.ini (effective) | Unknown | [RiotTrooperSequence], [SealSequence], [SuprSequence], [TanyaBSequence], [TerroristSequence], [YuriPrSequence], [YuriXSequence], [ZorbSequence] | 0,1,1, 228,12,0,E, 228,20,0,S, 330,15,0,E, 334,19,0,E, 347,15,0,E, 499,15,0,E, 71,15,0,E |
+| 1 | 13 | aimo.ini (effective), artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [TunnelTypes], [VoxelAnims] | BOXES02, BasicTunnel, CABARB, CR2, ELECTRO, FireStreamSys, GasCloud2, PIECE |
 | AIDefendAgainst | 13 | rulesmo.ini (effective) | SuperWeapon | [BlackWidowSpecial], [GreatTempestSpecial], [HarbingerSpecial], [IonStormSpecial], [LightningStormSpecial], [NukeSpecial], [TechMissileSpecial], [ToxicStrikeSpecial] | no, yes |
 | AlternateFLH0 | 13 | artmo.ini (effective) | Building, Unknown, Vehicle | [BFRT], [CATA], [CNTR], [JACKAL], [MIND], [NAUT], [SALA], [SUNB] | -145,-75,-25, 0,25,90, 160,45,160, 200,0,15, 250,0,120, 40,145,395, 65,90,60, 85,190,160 |
 | Amphibious | 13 | rulesmo.ini (effective) | Unknown | [Beach], [Clear], [Road], [Rock], [Rough], [Tiberium], [Wall], [Water] | 0%, 100% |
@@ -2044,8 +2030,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | UseBuffer | 13 | artmo.ini (effective) | Unknown, Vehicle | [CNTR], [COMA], [CRYO], [DBOAT], [SCHP], [SHAD], [WOLF], [ZEP] | yes |
 | Vertical | 13 | rulesmo.ini (effective) | Unknown | [BoidSuperDown], [BoidSuperUp], [GiantNukeDown], [GiantNukeUp], [InvisibleVertical], [SmallNukeDown], [SmallNukeUp], [ThorWaveP] | yes |
 | Wheel | 13 | rulesmo.ini (effective) | Unknown | [Beach], [Clear], [Road], [Rock], [Rough], [Tiberium], [Wall], [Water] | 0%, 100% |
-| 2 | 12 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BOXES03, BigGreySmokeSys, CR3, FireStream, GAWALL, H2O_EXP1, TIRE, TankOGas |
-| 3 | 12 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BARB, BOXES04, CR4, GASTANK, H2O_EXP2, SA, SmallGreySSys, Spark |
 | AI.PowerPlants | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | FATRAP, GAPOWR,GAPOWRUP, NAPOWR,NANRCT, YAPOWR,YAPOWRB |
 | ArmorInfantryMult | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | 1.3 |
 | BuildTimeBuildingsMult | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | 1.25 |
@@ -2059,9 +2043,8 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | File.ObserverFlag | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | chin.pcx, cuba.pcx, euro.pcx, paci.pcx, psic.pcx, scrp.pcx, unst.pcx, ussr.pcx |
 | File.Taunt | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | Taunts\tauam~~.wav, Taunts\taubr~~.wav, Taunts\taucu~~.wav, Taunts\tauir~~.wav, Taunts\tauko~~.wav, Taunts\tauli~~.wav, Taunts\tauru~~.wav, Taunts\tauyu~~.wav |
 | IdleAnimYSort | 12 | artmo.ini (effective) | Building, Unknown | [FAREFN], [GAPRIS], [GAYARD], [NAYARD], [YAPOWR], [YAPSYT], [YARAIL], [YAYARD] | 254, 364, 533, 543, 564 |
-| IronCurtain.Duration | 12 | rulesmo.ini (effective) | Unknown | [IronCrateWH], [IronDragonDeathWH], [IronGuardWH], [MadEMPWH], [MadKillWH], [RoadrunnerNerfWH], [ScorchKillWH], [ScorchbombDWH] | -99999, 120, 125, 360, 675, 75, 920 |
 | IsAnimDelayedFire | 12 | artmo.ini (effective) | Building, Unknown, Vehicle | [GAPRIS], [MEGA], [NAHAMM], [NATSLA], [SQD], [YABALL], [YAPSYT], [YARAIL] | no, yes |
-| IvanBomb | 12 | rulesmo.ini (effective) | Unknown | [ArsonistPlaceWH], [BridgeKillerWH], [FVArsonistPlaceWH], [FVIvanBomb], [FlintBomb], [IvanBomb], [RepulsorPlaceWH], [VirusAttach] | yes |
+| IvanBomb | 12 | rulesmo.ini (effective) | Warhead | [ArsonistPlaceWH], [BridgeKillerWH], [FVArsonistPlaceWH], [FVIvanBomb], [FlintBomb], [IvanBomb], [RepulsorPlaceWH], [VirusAttach] | yes |
 | Level | 12 | rulesmo.ini (effective) | Unknown | [NautTorpedoE], [NautTorpedo], [RTorpedo], [SHTorpedo], [TorpedoE], [TorpedoXE], [TorpedoX], [Torpedo] | no, yes |
 | ListIndex | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | 0, 1, 2, 3, 4, 5, 6, 7 |
 | LoadScreenText.Brief | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | STT:PlayerSideAmerican, STT:PlayerSideChinese, STT:PlayerSideConfederation, STT:PlayerSideEuroAlliance, STT:PlayerSidePacificFront, STT:PlayerSidePsiCorps, STT:PlayerSideScorpionCell, STT:PlayerSideUSSR |
@@ -2069,11 +2052,8 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | LoadScreenText.Name | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | Name:Chinese, Name:Confederation, Name:EuroAlliance, Name:PacificFront, Name:PsiCorps, Name:ScorpionCell, Name:USSR, Name:UnitedStates |
 | LoadScreenText.SpecialName | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | Name:Chinese, Name:EuroAlliance, Name:LatinConfederation, Name:PacificFront, Name:PsiCorps, Name:ScorpionCell, Name:USSR, Name:UnitedStatesOfAmerica |
 | MenuText.Status | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | STT:PlayerSideAmerican, STT:PlayerSideChinese, STT:PlayerSideConfederation, STT:PlayerSideEuroAlliance, STT:PlayerSidePacificFront, STT:PlayerSidePsiCorps, STT:PlayerSideScorpionCell, STT:PlayerSideUSSR |
-| Message.Launch | 12 | rulesmo.ini (effective) | SuperWeapon | [ChronoSphereSpecial], [GreatTempestSpecial], [HarbingerSpecial], [IronCurtainSpecial], [LightningStormSpecial], [NukeSpecial], [RageInductorSpecial], [TimeFreezeSpecial] | MISSION:TimeFreeze, NAME:CHRONOACTIVE, NAME:GREATTEMPESTA, NAME:IRONACTIVE, NAME:LEVIDET, NAME:NUKEACTIVE, NAME:RAGEACTIVE, NAME:STORMACTIVE |
 | Multiplay | 12 | rulesmo.ini (effective) | Country | [Chinese], [Europeans], [Latin], [Pacific], [PsiCorps], [ScorpionCell], [USSR], [UnitedStates] | yes |
 | NoSpawnAlt | 12 | rulesmo.ini (effective) | Vehicle | [CARRIER], [DEST], [DRED], [LEVI], [QUETZ], [V3], [VCARR], [YAHCR] | no, yes |
-| SpyEffect.RevealProduction | 12 | rulesmo.ini (effective) | Building | [GAOREP], [GAYARDAI], [GAYARD], [NAINDP], [NAYARDAI], [NAYARD], [YAYARDAI], [YAYARD] | yes |
-| SpyEffect.StolenTechIndex | 12 | rulesmo.ini (effective) | Building | [GACNST], [GATECH], [NACNST], [NATECHC], [NATECHR], [NATEK], [YACNST], [YACXST] | 1, 11, 12, 13, 14, 2, 3, 31 |
 | SuperAnimDamaged | 12 | artmo.ini (effective) | Building, Unknown | [GACSPH], [GAWETH], [NAIRON], [NAMISL], [YAGNTC], [YAPPET], [YAPPXT], [YATXCH] | FANANO_A1D, GACSPH_ED, GAWETH_ED, NAIRON_AD, NAMISL_ED, YAGNTC_ED, YAPPET_ED, YATXCH_A |
 | SuperAnimFourDamaged | 12 | artmo.ini (effective) | Building, Unknown | [GACSPH], [GAWETH], [NAIRON], [NAMISL], [YAGNTC], [YAPPET], [YAPPXT], [YATXCH] | FANANOOFD, GACSPH_HD, GAWETH_HD, NAIRON_HD, NAMISL_HD, YAGNTC_HD, YAPPET_HD, YATXCH_B |
 | SuperAnimThreeDamaged | 12 | artmo.ini (effective) | Building, Unknown | [GACSPH], [GAWETH], [NAIRON], [NAMISL], [YAGNTC], [YAPPET], [YAPPXT], [YATXCH] | FANANO_A2D, GACSPH_GD, GAWETH_GD, NAIRON_GD, NAMISL_GD, YACVLT, YAGNTC_GD, YAPPET_GD |
@@ -2081,18 +2061,15 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ThreatAvoidanceCoefficient | 12 | rulesmo.ini (effective) | Infantry, Vehicle | [CAOS], [CLAIRAI], [CMIN], [ESDR], [HARV], [HORV], [UMIN], [YMIN] | .1, .65, 0.1, 1, 1.00 |
 | Weapon7FLH | 12 | artmo.ini (effective) | Vehicle | [AHVYBOT2], [AMC], [CRYO], [FV], [STING], [STNK], [TENGU], [TRACTOR] | -180,-90,-20, 110,-70,195, 115,60,175, 165,0,165, 200,-50,185, 220,125,160, 270,20,100, 280,0,0 |
 | Weapon8FLH | 12 | artmo.ini (effective) | Vehicle | [AHVYBOT2], [AMC], [CRYO], [FV], [STING], [STNK], [TENGU], [TRACTOR] | 120,-70,175, 165,0,165, 175,0,145, 220,125,160, 230,0,175, 270,-150,155, 270,20,100, 280,0,0 |
-| 0 | 11 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [TunnelTypes], [Warheads] | BOXES01, CR1, EMPuls, FatalTunnel, GASAND, GasCloud1, GasCloudSys, TWLT100 |
-| 4 | 11 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BOXES05, CR5, DebrisSmokeSys, FirestormSpark, H2O_EXP3, HE, SONICTURRET, WOOD |
-| 5 | 11 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | 4TNKTURRET, AP, BOXES06, CR6, DUMMY, LargeGreySmoke, PARACH, SparkSys |
-| 6 | 11 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BOXES07, BURN01, CRYSTAL01, DUMMY2, FirestormSparkSys, Gas, PARABOMB, SmallGreySmoke |
-| 7 | 11 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BOXES08, BURN02, CRYSTAL02, DUMMY3, Fire, RING, TestSmoke, TestSmokeSys |
+| 2 | 11 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BOXES03, BigGreySmokeSys, CR3, FireStream, GAWALL, H2O_EXP1, InvisibleLowBrute, TIRE |
+| 3 | 11 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BARB, BOXES04, CR4, GASTANK, H2O_EXP2, SmallCometP, SmallGreySSys, Spark |
 | CloakStop | 11 | rulesmo.ini (effective) | Aircraft | [BEAG], [DUST], [FORTRESS], [FOX], [HBIRD], [ORCA], [SNAKE], [STORM] | yes |
 | ColorList | 11 | rulesmo.ini (effective) | Unknown | [ChronoPrisonPart], [FirestormSpark], [NeutronBlasterPart], [NeutronCannonPart], [NeutronRiflePart], [SonicZapPart], [Spark], [WeldingSpark] | (0,0,255),(255,255,255),(200,200,80),(200,10,10),(0,0,0), (0,128,255),(255,255,255),(200,200,150),(80,80,80),(0,0,0), (128,200,255),(128,200,255), (200,200,200),(150,150,150), (25,70,205),(150,150,150), (255,255,255),(200,200,80),(200,10,10),(0,0,0) |
 | ColorSpeed | 11 | rulesmo.ini (effective) | Unknown | [ChronoPrisonPart], [FirestormSpark], [NeutronBlasterPart], [NeutronCannonPart], [NeutronRiflePart], [SonicZapPart], [Spark], [WeldingSpark] | .009, .03, .13, .5 |
 | DelayedFireDelay | 11 | artmo.ini (effective) | Building, Unknown, Vehicle | [GAPRIS], [MEGA], [NAHAMM], [NATSLA], [SQD], [YABALL], [YAPSYT], [YARAIL] | 1, 16, 20, 24, 28, 6 |
 | DeployFireWeapon | 11 | rulesmo.ini (effective) | Vehicle | [ARCHW], [BGGY], [BUZZ], [DBOAT], [DTRUCK], [HURR], [MAD], [SYCKLE] | 0, 1 |
 | DestroyAnim | 11 | rulesmo.ini (effective) | Building | [CAEAST01], [CAPARS11], [CASTL04], [CATRAN03], [CAWASH01], [CAWASH14], [CAWASH15], [CAWSH12] | CAEAST01DM, CAPR11DM, CASTL04DM, CATR03DM, CAWA14DM, CAWA15DM, CAWS01DM, CAWSH12D |
-| DieSound.Override | 11 | rulesmo.ini (effective) | Unknown | [Nanofiber1WH], [Nanofiber2WH], [Nanofiber3WH], [Nanofiber4WH], [Nanofiber5WH], [Nanofiber6WH], [Nanofiber7WH], [UnderBladeWH] | <none> |
+| DieSound.Override | 11 | rulesmo.ini (effective) | Warhead | [Nanofiber1WH], [Nanofiber2WH], [Nanofiber3WH], [Nanofiber4WH], [Nanofiber5WH], [Nanofiber6WH], [Nanofiber7WH], [UnderBladeWH] | <none> |
 | DockingOffset0 | 11 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GAHPAD], [GAYARD], [NAAIR], [NATBNK], [NAYARD], [YAAIRF], [YAYARD] | -1,-1,0, -40,-400,0, 240,-325,0, 384,-128,0, 384,0,0, 384,110,110, 40,-400,0 |
 | EligibleForDelayKill | 11 | rulesmo.ini (effective) | Building | [CAMISC01B], [CAMISC01], [CAMISC02B], [CAMISC02], [CANMIN], [CAOILD], [CARRELS], [NATRAP] | yes |
 | ExtraDamageStage | 11 | artmo.ini (effective) | Unknown | [AMMO01], [CACRSH01], [CACRSH02], [CAPYR01], [CAPYR02], [CAPYR03], [GAAMMOB], [GAAMMO] | false, no |
@@ -2106,22 +2083,21 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | PowersUpBuilding | 11 | rulesmo.ini (effective) | Building | [FABARR_B], [FABARR_D], [GAAIRC_D], [GAPOWRUP], [NANRCTUP], [YACVLT], [YAGVLT], [YAPVLT] | FABARR, FACLDP, FACYBR, FANANO, GAAIRC, GAPOWR, NANRCT, YATECH |
 | PowersUpToLevel | 11 | rulesmo.ini (effective) | Building | [FABARR_B], [FABARR_D], [GAAIRC_D], [GAPOWRUP], [NANRCTUP], [YACVLT], [YAGVLT], [YAPVLT] | -1 |
 | PrerequisiteOverride | 11 | rulesmo.ini (effective) | Aircraft, Infantry, Vehicle | [ARMA], [BEAG], [MARA], [ORCA], [SHADOW], [STORM], [TRIKE], [YURIPR] | FACLDP_B, GAMERC, GASCEA, GASCPF, NATEK, YACVLT, YAGVLT, YAPVLT |
-| Psychedelic | 11 | rulesmo.ini (effective) | Unknown | [ChaosTouchEffectWH], [ConfuseRifleWH], [ConfuseWH], [ConfusionWH], [MantaConfuseRifleWH], [SalamanderBeamWH], [SalamanderFieldWH], [SharkSplash] | yes |
+| Psychedelic | 11 | rulesmo.ini (effective) | Warhead | [ChaosTouchEffectWH], [ConfuseRifleWH], [ConfuseWH], [ConfusionWH], [MantaConfuseRifleWH], [SalamanderBeamWH], [SalamanderFieldWH], [SharkSplash] | yes |
 | Retaliate | 11 | rulesmo.ini (effective) | Unknown | [Capture], [Construction], [Eaten], [Enter], [Harmless], [Harvest], [Hunt], [Retreat] | no, yes |
 | SpecialAnimPowered | 11 | artmo.ini (effective) | Building, Unknown | [FARAIL], [GAHYBR], [GAPRIS], [NAHAMM], [NATSLA], [YABALL], [YAPSYT], [YARAIL] | no |
 | Translucent25State | 11 | rulesmo.ini (effective) | Unknown | [AvalonRailgunPart], [FireStream], [NeonwaspPart], [NeutronBlasterPart], [NeutronCannonPart], [NeutronRiflePart], [PlasmaRailgunPart], [RuinerPart] | 10, 999999, 9999999 |
 | Translucent50State | 11 | rulesmo.ini (effective) | Unknown | [AvalonRailgunPart], [FireStream], [NeonwaspPart], [NeutronBlasterPart], [NeutronCannonPart], [NeutronRiflePart], [PlasmaRailgunPart], [RuinerPart] | 15, 9999999 |
 | TurretSpins | 11 | rulesmo.ini (effective) | Vehicle | [DISK], [GOTTER], [MADAI], [MAD], [QUAD], [RUINER], [SEITAAD], [SIREN2] | no, yes |
 | Underwater | 11 | rulesmo.ini (effective) | Building, Vehicle | [AKULA], [BSUB], [DLPH], [NAUT], [SLED], [SQD], [SUB2], [SUB] | no, yes |
-| UnitLost.Suppress | 11 | rulesmo.ini (effective) | Unknown | [Nanofiber1WH], [Nanofiber2WH], [Nanofiber3WH], [Nanofiber4WH], [Nanofiber5WH], [Nanofiber6WH], [Nanofiber7WH], [UnderBladeWH] | yes |
+| UnitLost.Suppress | 11 | rulesmo.ini (effective) | Warhead | [Nanofiber1WH], [Nanofiber2WH], [Nanofiber3WH], [Nanofiber4WH], [Nanofiber5WH], [Nanofiber6WH], [Nanofiber7WH], [UnderBladeWH] | yes |
 | Weapon10FLH | 11 | artmo.ini (effective) | Vehicle | [AMC], [CRYO], [FV], [GOTTER], [STING], [STNK], [TENGU], [TRACTOR] | 0,300,155, 100,0,200, 110,-70,195, 130,-40,195, 160,20,210, 165,0,165, 270,20,100, 280,0,0 |
 | Weapon9FLH | 11 | artmo.ini (effective) | Vehicle | [AMC], [CRYO], [FV], [GOTTER], [STING], [STNK], [TENGU], [TRACTOR] | 0,0,220, 0,300,155, 110,0,195, 130,-50,185, 160,20,210, 165,0,165, 270,20,100, 280,0,0 |
-| 10 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BURN05, DUMMY6, ICE02, Organic, PEBBLE, PIFFPIFF, SmallRailgunPart, WeldingSys |
-| 11 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BURN06, DUMMY7, GUNFIRE, ICE03, IonCannonWH, LGSparkSys, LargeRailgunPart, MOLES |
-| 12 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BURN07, DUMMY8, GasCloudM1, ICE04, MONEY, Mechanical, PsychCloudSys, SPIKES |
-| 13 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BURN08, CNTRHEAD, CSHTAE, DUMMY9, GasCloudM2, ICE05, RageSys, VeinholeWH |
-| 8 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BOXES09, BURN03, DUMMY4, GasCloudD1, HollowPoint, METEOR01, SmallRailgunSys, XFLARE |
-| 9 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BURN04, DUMMY5, GasCloudD2, ICE01, LargeRailgunSys, METEOR02, PIFF, Super |
+| 0 | 10 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [TunnelTypes] | BOXES01, CR1, FatalTunnel, GASAND, GasCloud1, GasCloudSys, InvisibleWork, TWLT100 |
+| 4 | 10 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BOXES05, CR5, DebrisSmokeSys, FirestormSpark, H2O_EXP3, SONICTURRET, SmallTeslaP, WOOD |
+| 5 | 10 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | 4TNKTURRET, BOXES06, CR6, DUMMY, LargeGreySmoke, PARACH, SparkSys, SuperSmallCometP |
+| 6 | 10 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BOXES07, BURN01, CRYSTAL01, DUMMY2, FirestormSparkSys, PARABOMB, SmallGreySmoke, SmallNukeUp |
+| 7 | 10 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BOXES08, BURN02, CRYSTAL02, DUMMY3, RING, SmallNukeDown, TestSmoke, TestSmokeSys |
 | ActiveAnimFourPoweredLight | 10 | artmo.ini (effective) | Building, Unknown | [FACNST], [FAWEAP], [GASCEA], [GASCPF], [NAINDP], [YAAIRF], [YACNST], [YACXST] | true |
 | ActiveAnimFourYSort | 10 | artmo.ini (effective) | Building, Unknown | [FAREFN], [GAREFN], [GASCPF], [NAAIR], [NAINDP], [NARADRX], [YAAIRF], [YAPROT] | 128, 256, 386, 542, 543, 563, 650, 724 |
 | DeployedIdle | 10 | artmo.ini (effective) | Unknown | [BaneNSequence], [DuplicantSequence], [HijackerSequence], [SibAlizeSequence], [SibFinSequence], [SnipedSequence], [SuprSequence], [TerroristSequence] | 0,0,0, 116,6,6, 340,15,15, 367,16,0,E, 71,15,0 |
@@ -2133,15 +2109,10 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Gate | 10 | rulesmo.ini (effective) | Building | [GAGATE_A2], [GAGATE_A], [GAGATE_C], [GAGATE_D], [NAGATE_A], [NAGATE_B], [YAGATE_A], [YAGATE_B] | yes |
 | GateCloseDelay | 10 | rulesmo.ini (effective) | Building | [GAGATE_A2], [GAGATE_A], [GAGATE_C], [GAGATE_D], [NAGATE_A], [NAGATE_B], [YAGATE_A], [YAGATE_B] | .16, .2 |
 | GateStages | 10 | artmo.ini (effective) | Building | [GAGATE_A2], [GAGATE_A], [GAGATE_C], [GAGATE_D], [NAGATE_A], [NAGATE_B], [YAGATE_A], [YAGATE_B] | 16, 20, 9 |
-| IsCow | 10 | rulesmo.ini (effective) | Infantry | [ALL], [CDOG], [ELEPHANT], [GBEAR], [JOSH], [KANGAROO], [LION], [POLARB] | yes |
 | LightningRod | 10 | rulesmo.ini (effective) | Building | [ATESLA], [FARAIL], [GAROD], [TESLA], [YABALL], [YAPSYTAI], [YAPSYT], [YARAIL] | yes |
 | LightningRod.Modifier | 10 | rulesmo.ini (effective) | Building | [ATESLA], [FARAIL], [GAROD], [TESLA], [YABALL], [YAPSYTAI], [YAPSYT], [YARAIL] | 1.5, 3 |
-| Message.Detected | 10 | rulesmo.ini (effective) | SuperWeapon | [BlasticadeSpecial], [ChronoSphereSpecial], [GreatTempestSpecial], [IronCurtainSpecial], [LightningStormSpecial], [NukeSpecial], [PsychicDominatorSpecial], [RageInductorSpecial] | NAME:BLASTDETECT, NAME:CHRONODETECT, NAME:DOMINDETECT, NAME:IRONDETECT, NAME:NUKEDETECT, NAME:RAGEDETECT, NAME:STORMDETECT, NAME:TEMPDETECT |
 | NextParticle | 10 | rulesmo.ini (effective) | Unknown | [GasCloud1], [GasCloud2], [GasCloudM1], [GasCloudM2], [IceCloud1], [IceCloud2], [IceCloud3], [VirusCloud1] | GasCloud1, GasCloud2, GasCloudD1, GasCloudD2, IceCloudD1, IceCloudD2, VirusCloudD1, VirusCloudD2 |
 | OmniCrusher | 10 | rulesmo.ini (effective) | Vehicle | [BFRT], [CNTR], [MADAI], [MAD], [MWF], [PROME], [SHINBOT], [TRACTOR] | yes |
-| ParaDrop.Count | 10 | rulesmo.ini (effective) | SuperWeapon | [HijackersSpecial], [LibraCloneSpecial], [ParaDropSpecial], [RepairDroneSpecial], [RepairDronesSpecial], [SweeperDropSpecial], [TankDropSpecial], [TerrorDropSpecial] | 1, 2 |
-| ParaDrop.Num | 10 | rulesmo.ini (effective) | SuperWeapon, Unknown | [FourthSide], [HijackersSpecial], [LibraCloneSpecial], [RepairDroneSpecial], [RepairDronesSpecial], [SweeperDropSpecial], [TankDropSpecial], [TerrorDropSpecial] | 1, 1,1, 2, 2,3, 3, 3,1, 6,4 |
-| ParaDrop.Types | 10 | rulesmo.ini (effective) | SuperWeapon, Unknown | [FourthSide], [HijackersSpecial], [LibraCloneSpecial], [RepairDroneSpecial], [RepairDronesSpecial], [SweeperDropSpecial], [TankDropSpecial], [TerrorDropSpecial] | DRON, E1,GGI, HIJACKER, KNIGHT,COVE, LIBRC, SDRN, SWPR, TNKKIL,HCAN |
 | PoweredSpecial | 10 | rulesmo.ini (effective) | Building | [FATRAP], [GAAPP], [GAPOWR], [NAAPP], [NANRCT], [NAPOWR], [YAPOWRB], [YAPOWR] | yes |
 | Radar | 10 | rulesmo.ini (effective) | Building | [FACYBR], [GAAIRC], [GADOME], [NAAIR], [NADOME], [NARADR], [NASAIR], [YAPSIS] | no, yes |
 | RadialFireSegments | 10 | rulesmo.ini (effective) | Building, Infantry, Vehicle | [AEGIS], [ARMR], [GOTTER], [HEPH], [LIBRA], [LIBRC], [QUICK], [URAGAN] | 10, 12, 6, 8 |
@@ -2157,27 +2128,25 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | UndeployDelay | 10 | rulesmo.ini (effective) | Infantry, Vehicle | [BUZZ], [LIBRA], [SHARK], [SIEG], [THOR], [YURIPR], [YURIX], [YURI] | 1, 10, 120, 140, 30, 40, 640 |
 | UnitRepair | 10 | rulesmo.ini (effective) | Building, Unknown | [FAYARD], [GAYARDAI], [GAYARD], [MouseCursors], [NAYARDAI], [NAYARD], [YAYARDAI], [YAYARD] | 150,20,5,63,5,Center,Middle, no, yes |
 | WalkFrames | 10 | artmo.ini (effective) | Unknown, Vehicle | [CYCL], [DLPH], [DRON], [FDRON], [MAGNET], [MEGA], [ROADR], [SQD] | 1, 16, 20, 22, 6 |
-| 14 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [SmudgeTypes], [TerrainTypes], [VoxelAnims], [Warheads] | BURN09, DUMMY10, HEALONE, IonWH, OrangeSmokeSys, SCRCHB, TREE01, WeldingSpark |
-| CellSpread.MaxAffect | 9 | rulesmo.ini (effective) | Unknown | [BondEruptionWH], [CraneAnimWH], [HurricaneWH], [JudgementWH], [MaintAnimWH], [NuclearPathWH], [VolkovBombWHB], [VolkovBombWH] | 1 |
+| 10 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BURN05, Cyborgbounce3, DUMMY6, ICE02, PEBBLE, PIFFPIFF, SmallRailgunPart, WeldingSys |
+| 11 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BURN06, DUMMY7, GUNFIRE, ICE03, InvisibleMedium, LGSparkSys, LargeRailgunPart, MOLES |
+| 12 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BURN07, DUMMY8, GasCloudM1, ICE04, InvisibleLowChaos, MONEY, PsychCloudSys, SPIKES |
+| 13 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BURN08, CNTRHEAD, CSHTAE, DUMMY9, GasCloudM2, ICE05, LancerProj, RageSys |
+| 8 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BOXES09, BURN03, DUMMY4, GasCloudD1, Invisible, METEOR01, SmallRailgunSys, XFLARE |
+| 9 | 9 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BURN04, Cyborgbounce2, DUMMY5, GasCloudD2, ICE01, LargeRailgunSys, METEOR02, PIFF |
+| CellSpread.MaxAffect | 9 | rulesmo.ini (effective) | Warhead | [BondEruptionWH], [CraneAnimWH], [HurricaneWH], [JudgementWH], [MaintAnimWH], [NuclearPathWH], [VolkovBombWHB], [VolkovBombWH] | 1 |
 | ChronoInSound | 9 | rulesmo.ini (effective) | AudioVisual, Infantry, Vehicle | [AICLEG], [AudioVisual], [CLEG], [CMIN], [CMON], [UMINW], [UMIN], [UMON] | ChronoMinerTeleport |
 | ChronoOutSound | 9 | rulesmo.ini (effective) | AudioVisual, Infantry, Vehicle | [AICLEG], [AudioVisual], [CLEG], [CMIN], [CMON], [UMINW], [UMIN], [UMON] | ChronoMinerTeleport |
-| DisableWeapons.Duration | 9 | rulesmo.ini (effective) | Unknown | [ChronoFreezeWH], [Cryobeam6WH], [RaccoonTankWH], [RiotSuppressWH], [RuinerEffectWH], [RuinerRayWH], [TemporalShieldWH], [TimeFreezeWH] | 15, 240, 270, 30, 615, 7200, 75, 8 |
+| DisableWeapons.Duration | 9 | rulesmo.ini (effective) | Warhead | [ChronoFreezeWH], [Cryobeam6WH], [RaccoonTankWH], [RiotSuppressWH], [RuinerEffectWH], [RuinerRayWH], [TemporalShieldWH], [TimeFreezeWH] | 15, 240, 270, 30, 615, 7200, 75, 8 |
 | DockUnload | 9 | rulesmo.ini (effective) | Building | [CAREFN], [FAREFN], [GAOREP], [GAREFN], [NAREFN], [NAREF], [YAMREF], [YARIREFN] | yes |
 | EliteOccupyWeapon | 9 | rulesmo.ini (effective) | Infantry | [E1], [E2], [FLAKT], [GGI], [HARP], [INIT], [KNIGHT], [UNDER] | UCFlakGuyGun, UCKnightGunE, UCLongbowE, UCM1CarbineE, UCMissileLauncherE, UCParaE, UCPsychicJabE, UCUndermine |
 | EliteWeapon7 | 9 | rulesmo.ini (effective) | Vehicle | [AHVYBOT2], [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU] | CRElectricBoltE, Cryobeam4, Cryobeam4AI, FTankPiles, GotterBowE, OpusGunYE, ScavengerVenom |
 | EliteWeapon8 | 9 | rulesmo.ini (effective) | Vehicle | [AHVYBOT2], [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU] | Cryobeam4, Cryobeam4AI, FTankPiles, FVFlamethrowerE, GotterLaserE, OpusGunYE, ScavengerRailgun |
 | EngineerRepairable | 9 | rulesmo.ini (effective) | Building | [FAYARDAI], [FAYARD], [GAYARDAI], [GAYARD], [NAYARDAI], [NAYARD], [YAYARDAI], [YAYARD] | no |
-| FallRate.NoParachuteMax | 9 | rulesmo.ini (effective) | Infantry, Vehicle | [COVE], [DRON2], [DRON], [D_COVE], [D_KNIGHT], [FDRON], [KNIGHT], [SDRN] | -120, -150 |
 | FiringFrames | 9 | artmo.ini (effective) | Unknown, Vehicle | [DLPH], [DRON], [FDRON], [ICE1], [MAGNET], [MEGA], [ROADR], [SQD] | 1, 16, 25, 4, 6 |
-| InitialPayload.Nums | 9 | rulesmo.ini (effective) | Building, Vehicle | [CYCL], [DRACO], [GHTNK], [MAGNET], [NABNKRR], [NAUT], [SALA], [SUNB] | 1, 2, 3, 3,1, 5 |
-| InitialPayload.Types | 9 | rulesmo.ini (effective) | Building, Vehicle | [CYCL], [DRACO], [GHTNK], [MAGNET], [NABNKRR], [NAUT], [SALA], [SUNB] | CYCL_1, DRACOD, E2, KNIGHT, MAGNET_1, MAGNET_2, SALA_1,SALA_2, SUNB_1 |
 | IsPlug | 9 | rulesmo.ini (effective) | Building | [FABARRB], [FABARR], [FACYBR], [FANANO], [GAAIRC], [GAPOWR], [NANRCT], [YATECH] | true |
-| Light.Blue | 9 | rulesmo.ini (effective) | SuperWeapon | [FauxDominatorSpecial], [GreatTempestSpecial], [IonStormSpecial], [LightningStormSpecial], [NukeSpecial], [PsychicDominatorSpecial], [SuperFlashSpawn], [TimeFreezeSpecial] | 0, 120, 25, 255, 30, 75, 95 |
-| Light.Green | 9 | rulesmo.ini (effective) | SuperWeapon | [FauxDominatorSpecial], [GreatTempestSpecial], [IonStormSpecial], [LightningStormSpecial], [NukeSpecial], [PsychicDominatorSpecial], [SuperFlashSpawn], [TimeFreezeSpecial] | 0, 20, 45, 60, 70, 75, 95 |
-| Light.Red | 9 | rulesmo.ini (effective) | SuperWeapon | [FauxDominatorSpecial], [GreatTempestSpecial], [IonStormSpecial], [LightningStormSpecial], [NukeSpecial], [PsychicDominatorSpecial], [SuperFlashSpawn], [TimeFreezeSpecial] | 0, 120, 30, 45, 75, 80, 85 |
 | MakeInfantry | 9 | artmo.ini (effective) | Unknown | [DUPDEATH], [GENDEATH], [NANODEATH1], [NANODEATH2], [NANODEATH3], [NANODEATH4], [NANODEATH5], [NANODEATH6] | 0, 1, 2, 3, 4, 5, 6, 7 |
 | NoAmmoWeapon | 9 | rulesmo.ini (effective) | Infantry, Vehicle | [ABRM], [CBRIS], [COMA], [COND], [HCAN], [HTNK], [KRUKOV], [ROBOW] | 1 |
-| NoManualEnter | 9 | rulesmo.ini (effective) | Vehicle | [CHRP], [CYCL], [DRACO], [MAGNET], [NAUT], [RAVA], [SUNB], [TRACTOR] | yes |
 | OccupyWeapon | 9 | rulesmo.ini (effective) | Infantry | [E1], [E2], [FLAKT], [GGI], [HARP], [INIT], [KNIGHT], [UNDER] | UCFlakGuyGun, UCKnightGun, UCLongbow, UCM1Carbine, UCMissileLauncher, UCPara, UCPsychicJab, UCUndermine |
 | QueueingCell | 9 | artmo.ini (effective) | Building, Unknown | [CAREFN], [FAREFN], [GAOREF], [GAREFN], [NAREFN], [NAREF], [YAMREF], [YARIREFN] | 4,1 |
 | Refinery | 9 | rulesmo.ini (effective) | Building | [CAREFN], [FAREFN], [GAOREP], [GAREFN], [NAREFN], [NAREF], [YAMREF], [YARIREFN] | yes |
@@ -2191,39 +2160,8 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Weapon12FLH | 9 | artmo.ini (effective) | Vehicle | [AMC], [CRYO], [FV], [GOTTER], [STING], [STNK], [TENGU], [TRACTOR] | 0,300,155, 150,-50,185, 160,-20,210, 165,0,165, 270,20,100, 280,0,0, 30,0,240, 50,-70,235 |
 | Weapon7 | 9 | rulesmo.ini (effective) | Vehicle | [AHVYBOT2], [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU] | CRElectricBolt, Cryobeam4, Cryobeam4AI, FTankPiles, GotterBow, OpusGunY, ScavengerVenom |
 | Weapon8 | 9 | rulesmo.ini (effective) | Vehicle | [AHVYBOT2], [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU] | Cryobeam4, Cryobeam4AI, FTankPiles, FVFlamethrower, GotterLaser, OpusGunY, ScavengerRailgun |
-| 15 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | ARTYHE, BURN10, DUMMY11, HEALALL, InvisibleAll, LargeSpark, TREE02, VatGasSys |
-| 16 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | ARMOR, BURN11, CannonInviso, DUMMY12, MantisDeathWH, TREE03, VirusCloud1, YellowSmallSys |
-| 17 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AlizeBeamSys, BURN12, CSPRAE, ORCAAP, RedEye2Proj, TREE04, V16, VirusCloud2 |
-| 18 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURN13, CLOAK, Controller, MegaRadSys, RedEye2ProjE, TREE05, V17, VirusCloudD1 |
-| 19 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURN14, ElitePrismP, FIREPOWR, NeutronCannonSys, PsiPulse, TREE06, V18, VirusCloudD2 |
-| 20 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURN15, DUMMY13, GrandCannonBall, IvanBomb, MGUN-N, PsychCloud, SmokeFireSys, TREE07 |
-| 21 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURN16, DUMMY14, GrandCannonBallE, IvanWH, MGUN-NE, NapalmCloudSys, PsychCloudD, TREE08 |
-| 22 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT01, Electric, FENC, FlakProj, MGUN-E, SmallIceSmoke, TREE09, TargetLaserSys |
-| 23 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AlphaLightSys, BURNT02, DUMMY15, DuneGrenade, ElectricAssault, MGUN-SE, OrangeSmokePart, TREE10 |
-| 24 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BRIDGE1, BURNT03, CondorWH, LightBeamSys, MGUN-S, OPCoilBoltP, TREE11, VatGasPart |
-| 25 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BRIDGE2, BURNT04, Electricbounce, MGUN-SW, Parasite, RahnBeamSys, TREE12, YellowSmallPart |
-| 26 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AlizeBeamPart, BURNT05, ChronoPrisonSys, ElectricbounceEMP, MGUN-W, NAWALL, NUKE, TREE13 |
-| 27 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT06, BlimpHE, FVIvanBombProj, GEM01, MGUN-NW, MegaRadPart, ScorchCloudSys, TREE14 |
-| 28 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT07, GEM02, GreenSmokeSys, IceCloud1, Invisible4, IronCurtain, TREE15, VETERAN |
-| 29 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AntaresSys, BURNT08, DeathWH, GEM03, IceCloud2, REVEAL, StealthGeneratorP, TREE16 |
-| 30 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT09, GEM04, GSpinGeneratorRealP, IceCloudD1, RamHackArenaBWH, SHROUDX, SpotLightSys, TREE17 |
-| 31 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT10, BombDisarm, GAPOWR_A, GEM05, IceCloudD2, MineBombP, MiniAntaresSys, TREE18 |
-| 32 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT11, DummySys, GAPOWR_AD, GEM06, HypergateP, NeutronCannonPart, Snapshot, TREE19 |
-| 33 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | BURNT12, BlimpBombP, GEM07, NARADR_A, RadBeamWarhead, SmokeFirePart, TREE20, TargetLaserSysRed |
-| 34 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER01, FlameProj, GEM08, NARADR_AD, NapalmCloudPart, RadEruptionWarhead, RahnBeamSysE, TREE21 |
-| 35 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AlphaLightPart, ArtCannonBall, CRATER02, GEM09, GZWEAP_1, RadSite, SpeederShotSys, TREE22 |
-| 36 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER03, GEM10, GZWEAP_2, GrandCannonWH, LightBeamSysE, SAMBunkerProj, TREE23, VirusCloud1B |
-| 37 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER04, DisruptorFieldP, GAWEAP_A, GEM11, NeutronCannonSysE, TREE24, UraganDeathWH, VirusCloudD1B |
-| 38 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AirToGroundMissile, CRATER05, GAWEAP_B, GEM12, LightBeamPart, MastodonRailgunSys, TREE25, UraniumWH |
-| 39 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AirToGroundMissileE, CRATER06, CometWH, DARTRAIL, RahnBeamPart, SmallLightSys, TRACKS01, TREE26 |
-| 40 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER07, CenturionMissilesWH, DROBITE, FoehnRepairSys, IceCloud3, StormMissileProj, TRACKS02, TREE27 |
-| 41 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER08, FlakCannonWH, GAPILE_A, IceCloudD3, InvisibleStorm, ShatterSys, TRACKS03, TREE28 |
-| 42 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AvalonRailgunSys, CRATER09, CYPLASM, GreenSmokePart, OilExplosionWH, StormMissileProjE, TRACKS04, TREE29 |
-| 43 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | AntaresPart, BlizzardAAWH, CRATER10, CryoMissileProj, DECOYFX, TRACKS05, TREE30, WonderSys |
-| 44 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER11, CRNUKEWH, CryoMissileProjE, NATTCH_C, PromeLightSys, SpotLightParticle, TIBTRE01, TRACKS06 |
-| 45 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [Warheads] | CRATER12, ChronoBeam, MADNESS, MiniAntaresPart, PowerLightSmallSys, StealthMissileProj, TIBTRE02, TRACKS07 |
+| 14 | 8 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes], [VoxelAnims] | BURN09, DUMMY10, HEALONE, InvisibleHigh, OrangeSmokeSys, SCRCHB, TREE01, WeldingSpark |
 | AlternateFLH1 | 8 | artmo.ini (effective) | Unknown, Vehicle | [BCNTR], [BFRT], [CNTR], [JACKALA], [JACKAL], [MIND], [SALA], [SHINBOT] | -145,75,-25, -185,75,400, 0,-25,90, 200,-40,145, 40,-145,395, 65,-90,60, 85,-190,160 |
-| AttachedSystem | 8 | rulesmo.ini (effective) | Unknown | [BoidSuperDown], [BoidSuperUp], [GotterDart], [SpeederProjBE], [SpeederProjB], [SpeederProjE], [SpeederProj], [StalkerProj] | BoidSmokeSys, SpeederShotSys, StalkerShotSys |
 | CanDisguise | 8 | rulesmo.ini (effective) | Infantry, Vehicle | [ARSO], [HIJACKER], [INTRUDER], [MGTK], [PHNT], [REPU], [SBTR], [SPY] | yes |
 | CivilianEnemy | 8 | rulesmo.ini (effective) | Building, Infantry | [BRUTE], [CARCK01], [CARCK02], [CARCK03], [CARCK04], [CARCK05], [CARCK06], [DUPL] | yes |
 | EliteWeapon10 | 8 | rulesmo.ini (effective) | Vehicle | [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU], [TRACTOR] | CRRadBeamWeaponE, Cryobeam5, Cryobeam5AI, GotterLaserE, OpusGunZE, ScavengerMedusa |
@@ -2233,7 +2171,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Experience.PromotePassengers | 8 | rulesmo.ini (effective) | Vehicle | [AMC], [APOC], [BFRT], [CNTR], [FV], [SHINBOT], [STNK], [TENGU] | yes |
 | Experience.SpawnOwnerModifier | 8 | rulesmo.ini (effective) | Building, Vehicle | [CARRIER], [DEST], [FAGUAR], [LEVI], [QUETZ], [VCARR], [YAHCR], [YAHIVE] | 0%, 75% |
 | IsMagBeam | 8 | rulesmo.ini (effective) | Weapon | [MagneShakeE], [MagneShake], [MagneticBeamE], [MagneticBeam], [ShadrayWaveAAE], [ShadrayWaveAA], [ShadrayWaveE], [ShadrayWave] | yes |
-| Light.Ambient | 8 | rulesmo.ini (effective) | SuperWeapon | [FauxDominatorSpecial], [GreatTempestSpecial], [IonStormSpecial], [LightningStormSpecial], [NukeSpecial], [PsychicBeaconSpecial], [PsychicDominatorSpecial], [TimeFreezeSpecial] | 100, 120, 90 |
 | MassSelectable | 8 | rulesmo.ini (effective) | Building | [FAMSAW], [FAMSA], [FAORCI], [FAPOST], [GAMGG], [NAGRUM], [ORCINX], [YAQUAD] | no |
 | OmniCrusher.Aggressive | 8 | rulesmo.ini (effective) | Vehicle | [BFRT], [CNTR], [HEPH], [MADAI], [MAD], [PROME], [SHINBOT], [TRACTOR] | no |
 | PowerUp1Anim | 8 | artmo.ini (effective) | Building, Unknown | [FABARR], [FACLDP], [FACYBR], [FANANO], [GAAIRF], [GAPOWR], [NANRCT], [YATECH] | FABARR_B, FACLDP_B, FACYBR_B, FANANO_B, GAAIRF_D, GAPOWR_B, NANRCT_D, YACVLT |
@@ -2242,8 +2179,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ReselectIfLimboed | 8 | rulesmo.ini (effective) | Infantry, Vehicle | [ADOG], [CAOS], [CHITZ], [DOG], [DRON2], [DRON], [SPY], [YDOG] | yes |
 | SensorArray | 8 | rulesmo.ini (effective) | Building, Vehicle | [CANMIN], [FACONF], [FAFILD], [FAMSAW], [FAMSA], [MSAW], [MSA], [NASCOM] | yes |
 | ShouldFogRemove | 8 | artmo.ini (effective) | Unknown | [TUNTOP01], [TUNTOP02], [TUNTOP03], [TUNTOP04], [TUNTOP05], [TUNTOP06], [TUNTOP07], [TUNTOP08] | false |
-| SpyPlane.Count | 8 | rulesmo.ini (effective) | SuperWeapon | [BlackWidowAlphaSpecial], [BlackWidowSpecial], [HarbingerSpecial], [PackAttackSpecial], [RadAttackSpecial], [ReconSortieSpecial], [SmokebombsSpecial], [ToxicStrikeSpecial] | 1, 2, 4 |
-| SpyPlane.Type | 8 | rulesmo.ini (effective) | SuperWeapon | [BlackWidowAlphaSpecial], [BlackWidowSpecial], [HarbingerSpecial], [PackAttackSpecial], [RadAttackSpecial], [ReconSortieSpecial], [SmokebombsSpecial], [ToxicStrikeSpecial] | DBAT, HARB, RECON, TU16, WASTE, WIDOW, WIDOWA |
 | SuppressionThreshold | 8 | rulesmo.ini (effective) | Infantry, Vehicle | [CAOS], [CHITZ], [DIVER], [DRACOD], [DRON2], [DRON], [HUNTR], [SQD] | 100, 20, 250, 5, 500 |
 | TargetCoordOffset | 8 | rulesmo.ini (effective) | Building | [FAYARDAI], [FAYARD], [GAYARDAI], [GAYARD], [NAYARDAI], [NAYARD], [YAYARDAI], [YAYARD] | -150,0,0, -300,-200,0, 256,256,0, 300,200,0 |
 | VHPScan | 8 | rulesmo.ini (effective) | Building, Vehicle | [CASAM], [CHRTNK2], [CHRTNK], [DEVOD], [FAAVAL], [GAHYPE], [NAGRUM], [SENT] | Normal, Strong |
@@ -2252,40 +2187,37 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Weapon11 | 8 | rulesmo.ini (effective) | Vehicle | [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU], [TRACTOR] | CRNeutronRifle, Cryobeam6, Cryobeam6AI, GotterBow, OpusGunZ, ScavengerConfuseRay |
 | Weapon12 | 8 | rulesmo.ini (effective) | Vehicle | [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU], [TRACTOR] | Cryobeam6, Cryobeam6AI, FVRiotGrenade, GotterLaser, OpusGunZ, ScavengerRadBeam |
 | Weapon9 | 8 | rulesmo.ini (effective) | Vehicle | [AMC], [CRYOAI], [CRYO], [FV], [GOTTER], [STNK], [TENGU], [TRACTOR] | CRMindBlast, Cryobeam5, Cryobeam5AI, GotterLaser, OpusGunZ, ScavengerComet |
-| 46 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | DominatorSys, DummyPart, FABOID_A, HollowPoint2, StealthMissileProjE, TIBTRE03, TRACKS08 |
-| 47 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CAPHFLG_A, FoxMissileP, NukeMaker, RahnBeamPartE, TRACKS09, VEINTREE, VultureCloudSys |
-| 48 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | FakeC4WH, FoxMissilePE, HDSTN01, SpeederShotPart, TRACKS10, TargetLaserSysBlue, YARIREFNBB |
-| 49 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | BarrierSys, CANRCT_B, LT_GEN01, NormalBomb, PlasmaRailgunPart, TRACKS11, VentrexWH |
-| 50 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CataLightSys, GAPOWR_D, GehennaProj, LT_GEN02, ScorchCloudPart, TRACKS12, V3WH |
-| 51 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | DepthCharge, FlakTrackWH, LT_GEN03, PODRING, SmallLightPart, SonicZapSys, TRACKS13 |
-| 52 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AAHeatSeekerB, APSplash, FoehnRepairPart, HINDWAVE, LT_GEN04, MarauderSys, TRACKS14 |
-| 53 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AirToGroundNuke, DMISLWH, FoxtrotCloudSys, GACNST_A, LT_SGN01, ShatterPart, TRACKS15 |
-| 54 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | DemobombWH, GACNST_AD, GanzirLightSys, LT_SGN02, PsychicControl, ShatterPart2, TRACKS16 |
-| 55 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | LT_SGN03, MirageWH, PowerLightSys, RIOTMUZZ, ShatterPart3, TRACKTUNNEL01, VentrexP |
-| 56 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CannonCavalier, DFLYMUZ, DarkLightSys, LT_SGN04, SSA, ShatterPart4, TRACKTUNNEL02 |
-| 57 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AAHeatSeekerBE, LT_EUR01, MERCUR, SSAB, SensorPart, SuperNapalmCloudSys, TRACKTUNNEL03 |
-| 58 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AvalonRailgunPart, BoidSmokeSys, CataAP, LT_EUR02, MP5Proj, TRACKTUNNEL04, YUNRING |
-| 59 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CHROPAL, ChronoPrisonPart, HARVWH, NotbounceEMP, POLE01, RAILBRDG1, StalkerShotSys |
-| 60 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AetherLightSys, CryomineBombP, PLSMTC, POLE02, PromeLightPart, RAILBRDG2, V3EWH |
-| 61 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CASWLL, DMISLEWH, DRAKRING, DarkLightPart, Psychic, RuinerSys, SIGN01 |
-| 62 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CABRFC, DominatorPart, GAGATE_DT, GiantNukeDown, MiniAntaresSysBlue, TRFF01, TerrorBombWH |
-| 63 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AntaresSysBlue, EnforcerProj, FARWAL, FlakGuyAAWH, MarauderPart, PSYCHGUY, TRFF02 |
-| 64 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CRAT04, DSeekerBombWH, EnforcerProjE, PTOWMUZ, RegenSys, SonicZapPart, TRFF03 |
-| 65 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CRAT0A, ColossusAnimWH, GOLDTERA, InvisibleShadray, LargeBoidSmoke, SmallIceSSys, TRFF04 |
-| 66 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CRAT0B, ChaosTouchSys, ControllerBuilding, InvisibleShadrayAA, NAGATE_BT, SIGN02, StalkerShotPart |
-| 67 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CRAT0C, InvisibleLaser, NAGATE_AT, NeutronRifleSys, RuinerPart, SIGN03, SuperPsiPulse |
-| 68 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CBLACK, ComaStrike, DominatorWH, GAHPAD_A, NeutronRifleSysE, SIGN04, SuperNapalmCloudPart |
-| 69 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AirstrikeFlare, CBLACK02, GAHPAD_AD, HowitzerProj, MiniAntaresPartBlue, NeutronBlasterSys, SIGN05 |
-| 70 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AntaresPartBlue, GAPOWR_B, HowitzerProjInacc, NeutronBlasterSysE, PALET01, SIGN06, VirusGas |
-| 71 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | BasswaveP, DefaultPart, FLAKSML, PALET02, PlasmaRailgunSys, SPKR01, VirusWH |
-| 72 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CannonAbrams, FLAKMED, NeutronRiflePart, NuclearReactorDeathWH, PALET03, SingleBulletSys, TREE31 |
-| 73 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | AeroProj, FLAKBIG, NeutronBlasterPart, PALET04, SingleBulletRedSys, SodarBoostRealWH, TREE32 |
-| 74 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | Battering, FireSparkPart1, GATECH_A, LOBRDG01, LargeCometP, SingleBulletGoldSys, TREE33 |
-| 75 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | FireSparkPart2, GATECH_AD, GattWH, GyroBulletSys, LOBRDG02, SuperCometP, TREE34 |
-| 76 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | HOLDTHELINE, HuntressProj, LOBRDG03, Mutate, PlasmaSparkPart, TREE35, TealBulletSys |
-| 77 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CMISLWH, DredLightSys, LOBRDG04, STUNFX, SyncSparkPart, TREE36, ThorProj |
-| 78 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes], [Warheads] | CABSFLG_A, CMISLEWH, LOBRDG05, NeonwaspSys, SmokeSparkPart1, TNLEND01, ThorWaveP |
-| AffectsOwner | 7 | rulesmo.ini (effective) | Unknown | [GlacialScreenWH], [IrradiateBetaWH], [IrradiateWH], [JudgementWH], [NanochargeWH], [NuclearPathWH], [ShutDownFactoriesWH] | no, yes |
+| 15 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURN10, DUMMY11, HEALALL, InvisibleAll, LargeSpark, TREE02, VatGasSys |
+| 16 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | ARMOR, BURN11, CannonInviso, DUMMY12, TREE03, VirusCloud1, YellowSmallSys |
+| 17 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AlizeBeamSys, BURN12, CSPRAE, RedEye2Proj, TREE04, V16, VirusCloud2 |
+| 18 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURN13, CLOAK, MegaRadSys, RedEye2ProjE, TREE05, V17, VirusCloudD1 |
+| 19 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURN14, ElitePrismP, FIREPOWR, NeutronCannonSys, TREE06, V18, VirusCloudD2 |
+| 20 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURN15, DUMMY13, GrandCannonBall, MGUN-N, PsychCloud, SmokeFireSys, TREE07 |
+| 21 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURN16, DUMMY14, GrandCannonBallE, MGUN-NE, NapalmCloudSys, PsychCloudD, TREE08 |
+| 22 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT01, FENC, FlakProj, MGUN-E, SmallIceSmoke, TREE09, TargetLaserSys |
+| 23 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AlphaLightSys, BURNT02, DUMMY15, DuneGrenade, MGUN-SE, OrangeSmokePart, TREE10 |
+| 24 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BRIDGE1, BURNT03, LightBeamSys, MGUN-S, OPCoilBoltP, TREE11, VatGasPart |
+| 25 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BRIDGE2, BURNT04, Electricbounce, MGUN-SW, RahnBeamSys, TREE12, YellowSmallPart |
+| 26 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AlizeBeamPart, BURNT05, ChronoPrisonSys, ElectricbounceEMP, MGUN-W, NAWALL, TREE13 |
+| 27 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT06, FVIvanBombProj, GEM01, MGUN-NW, MegaRadPart, ScorchCloudSys, TREE14 |
+| 28 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT07, GEM02, GreenSmokeSys, IceCloud1, Invisible4, TREE15, VETERAN |
+| 29 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AntaresSys, BURNT08, GEM03, IceCloud2, REVEAL, StealthGeneratorP, TREE16 |
+| 30 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT09, GEM04, GSpinGeneratorRealP, IceCloudD1, SHROUDX, SpotLightSys, TREE17 |
+| 31 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT10, GAPOWR_A, GEM05, IceCloudD2, MineBombP, MiniAntaresSys, TREE18 |
+| 32 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT11, DummySys, GAPOWR_AD, GEM06, HypergateP, NeutronCannonPart, TREE19 |
+| 33 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | BURNT12, BlimpBombP, GEM07, NARADR_A, SmokeFirePart, TREE20, TargetLaserSysRed |
+| 34 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER01, FlameProj, GEM08, NARADR_AD, NapalmCloudPart, RahnBeamSysE, TREE21 |
+| 35 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AlphaLightPart, ArtCannonBall, CRATER02, GEM09, GZWEAP_1, SpeederShotSys, TREE22 |
+| 36 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER03, GEM10, GZWEAP_2, LightBeamSysE, SAMBunkerProj, TREE23, VirusCloud1B |
+| 37 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER04, DisruptorFieldP, GAWEAP_A, GEM11, NeutronCannonSysE, TREE24, VirusCloudD1B |
+| 38 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AirToGroundMissile, CRATER05, GAWEAP_B, GEM12, LightBeamPart, MastodonRailgunSys, TREE25 |
+| 39 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AirToGroundMissileE, CRATER06, DARTRAIL, RahnBeamPart, SmallLightSys, TRACKS01, TREE26 |
+| 40 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER07, DROBITE, FoehnRepairSys, IceCloud3, StormMissileProj, TRACKS02, TREE27 |
+| 41 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER08, GAPILE_A, IceCloudD3, InvisibleStorm, ShatterSys, TRACKS03, TREE28 |
+| 42 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AvalonRailgunSys, CRATER09, CYPLASM, GreenSmokePart, StormMissileProjE, TRACKS04, TREE29 |
+| 43 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | AntaresPart, CRATER10, CryoMissileProj, DECOYFX, TRACKS05, TREE30, WonderSys |
+| 44 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER11, CryoMissileProjE, NATTCH_C, PromeLightSys, SpotLightParticle, TIBTRE01, TRACKS06 |
+| 45 | 7 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [SmudgeTypes], [TerrainTypes] | CRATER12, MADNESS, MiniAntaresPart, PowerLightSmallSys, StealthMissileProj, TIBTRE02, TRACKS07 |
 | AirDeathFalling | 7 | artmo.ini (effective) | Unknown | [ArmormanSequence], [CosmonautSequence], [GyroSequence], [KillerSequence], [MothraSequence], [NeonwaspSequence], [RocketeerSequence] | 200,1,0, 203,1,0, 220,1,0, 325,15,0, 348,1,0, 74,13,0 |
 | AirDeathFinish | 7 | artmo.ini (effective) | Unknown | [ArmormanSequence], [CosmonautSequence], [GyroSequence], [KillerSequence], [MothraSequence], [NeonwaspSequence], [RocketeerSequence] | 201,9,0, 204,15,0, 221,6,0, 325,15,0, 349,6,0, 86,1,0 |
 | AirDeathStart | 7 | artmo.ini (effective) | Unknown | [ArmormanSequence], [CosmonautSequence], [GyroSequence], [KillerSequence], [MothraSequence], [NeonwaspSequence], [RocketeerSequence] | 192,8,0, 200,3,0, 212,8,0, 325,15,0, 340,8,0, 72,1,0 |
@@ -2303,29 +2235,50 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | FoundationOutline.41 | 7 | artmo.ini (effective) | Building, Unknown | [CACPTL], [CAPALACE01], [CAPALACE04], [CAPENT], [CAVHNG], [MODEV2], [MODEV] | -1,16, 0,15, 3,13, 8,10, 8,8, 9,10 |
 | IdleAnimPoweredLight | 7 | artmo.ini (effective) | Building, Unknown | [FACOMP], [FAELEV], [FARAIL], [GAHYBR], [GAPRIS], [YAPSYT], [YARAIL] | true, yes |
 | InitialAmmo | 7 | rulesmo.ini (effective) | Building, Vehicle | [CHRP], [CHRTNK2], [CHRTNK], [FASWPR], [LTNK], [SHARK], [ZEP] | 0, 2, 4, 5 |
-| LaserThickness | 7 | rulesmo.ini (effective) | Weapon | [MegalaserAAE], [MegalaserAA], [MegalaserE], [Megalaser], [RaccoonBeam], [RaccoonEMP], [ScavengerJammer] | 4 |
 | LeaveWaterSound | 7 | rulesmo.ini (effective) | Infantry | [ADOG], [DOG], [GHOST], [IVAN], [RIOT], [TANY], [YDOG] | TanyaLeavesWater |
-| Light.Enabled | 7 | rulesmo.ini (effective) | SuperWeapon | [BoidBlitzSpecial], [EMPulsSpecial], [FauxDominatorSpecial], [GreatTempestSpecial], [PsychicBeaconSpecial], [SuperFlashSpawn], [TechMissileSpecial] | no, yes |
 | MakeInfantryOwner | 7 | artmo.ini (effective) | Unknown | [NANODEATH1], [NANODEATH2], [NANODEATH3], [NANODEATH4], [NANODEATH5], [NANODEATH6], [NANODEATH7] | victim |
-| NoManualUnload | 7 | rulesmo.ini (effective) | Vehicle | [CYCL], [DRACO], [MAGNET], [NAUT], [SALA], [SUNB], [TRACTOR] | yes |
 | PBarrelLength | 7 | artmo.ini (effective) | Building, Unknown, Vehicle | [FASONI], [GAAAGUN], [NAMORT], [NASAMT], [NASNTY], [TRUCKA], [TRUCKB] | 192, 200 |
-| SpyPlane.Mission | 7 | rulesmo.ini (effective) | SuperWeapon | [BlackWidowAlphaSpecial], [BlackWidowSpecial], [HarbingerSpecial], [PackAttackSpecial], [RadAttackSpecial], [SmokebombsSpecial], [ToxicStrikeSpecial] | Attack |
 | Tumble | 7 | artmo.ini (effective) | Unknown | [ArmormanSequence], [CosmonautSequence], [GyroSequence], [KillerSequence], [MothraSequence], [NeonwaspSequence], [RocketeerSequence] | 192,18,0, 200,19,0, 212,15,0, 325,15,0, 340,15,0, 72,14,0, 8,12,0 |
 | TurretAnimDamaged | 7 | rulesmo.ini (effective) | Building | [CAEAST02], [FACOMPAI], [FACOMP], [FARAIL], [GAGUN], [GAHYPE], [NAFTUR] | CAHEADDM, FACOMPTURD, FARAILTURD, GAGUNTURD, GAHYPETURD, NAFTUR_AD |
-| 79 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | BlizzardP, GAGATE_CT, LOBRDG06, Smashing, SmokeSparkPart2, TNLEND02 |
-| 80 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | FSMOKE, FortMisl, LOBRDG07, LocomotorBeam, SingleBulletPart, TREEJP02 |
-| 81 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | FortMislE, GMUZZLEFLASH_N, LOBRDG08, MIGWH, SingleBulletRedPart, TREEJP04 |
-| 82 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | Ballistic, GMUZZLEFLASH_NE, LOBRDG09, LUNARWH, SingleBulletGoldPart, TREEN21 |
-| 83 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | ASWVirt, GMUZZLEFLASH_E, GUARDWH, GyroBulletPart, LOBRDG10, TREEN22 |
-| 84 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | DiskDrainWH, GMUZZLEFLASH_SE, LOBRDG11, ScorchStartPE, TREEN23, TealBulletPart |
-| 85 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | DredLightPart, GMUZZLEFLASH_S, KnightBetaSA, LOBRDG12, ScorchP, TREEB01 |
-| 86 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes], [Warheads] | ColossusAAWH, GMUZZLEFLASH_SW, LOBRDG13, MedusaProjectile, NeonwaspPart, TREEB02 |
+| 46 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | DominatorSys, DummyPart, FABOID_A, StealthMissileProjE, TIBTRE03, TRACKS08 |
+| 47 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CAPHFLG_A, FoxMissileP, RahnBeamPartE, TRACKS09, VEINTREE, VultureCloudSys |
+| 48 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | FoxMissilePE, HDSTN01, SpeederShotPart, TRACKS10, TargetLaserSysBlue, YARIREFNBB |
+| 49 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | BarrierSys, CANRCT_B, LT_GEN01, NormalBomb, PlasmaRailgunPart, TRACKS11 |
+| 50 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CataLightSys, GAPOWR_D, GehennaProj, LT_GEN02, ScorchCloudPart, TRACKS12 |
+| 51 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | DepthCharge, LT_GEN03, PODRING, SmallLightPart, SonicZapSys, TRACKS13 |
+| 52 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AAHeatSeekerB, FoehnRepairPart, HINDWAVE, LT_GEN04, MarauderSys, TRACKS14 |
+| 53 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AirToGroundNuke, FoxtrotCloudSys, GACNST_A, LT_SGN01, ShatterPart, TRACKS15 |
+| 54 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | GACNST_AD, GanzirLightSys, LT_SGN02, PsychicControl, ShatterPart2, TRACKS16 |
+| 55 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | LT_SGN03, PowerLightSys, RIOTMUZZ, ShatterPart3, TRACKTUNNEL01, VentrexP |
+| 56 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CannonCavalier, DFLYMUZ, DarkLightSys, LT_SGN04, ShatterPart4, TRACKTUNNEL02 |
+| 57 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AAHeatSeekerBE, LT_EUR01, MERCUR, SensorPart, SuperNapalmCloudSys, TRACKTUNNEL03 |
+| 58 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AvalonRailgunPart, BoidSmokeSys, LT_EUR02, MP5Proj, TRACKTUNNEL04, YUNRING |
+| 59 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CHROPAL, ChronoPrisonPart, NotbounceEMP, POLE01, RAILBRDG1, StalkerShotSys |
+| 60 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AetherLightSys, CryomineBombP, PLSMTC, POLE02, PromeLightPart, RAILBRDG2 |
+| 61 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CASWLL, DRAKRING, DarkLightPart, Psychic, RuinerSys, SIGN01 |
+| 62 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CABRFC, DominatorPart, GAGATE_DT, GiantNukeDown, MiniAntaresSysBlue, TRFF01 |
+| 63 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AntaresSysBlue, EnforcerProj, FARWAL, MarauderPart, PSYCHGUY, TRFF02 |
+| 64 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CRAT04, EnforcerProjE, PTOWMUZ, RegenSys, SonicZapPart, TRFF03 |
+| 65 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CRAT0A, GOLDTERA, InvisibleShadray, LargeBoidSmoke, SmallIceSSys, TRFF04 |
+| 66 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CRAT0B, ChaosTouchSys, InvisibleShadrayAA, NAGATE_BT, SIGN02, StalkerShotPart |
+| 67 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CRAT0C, InvisibleLaser, NAGATE_AT, NeutronRifleSys, RuinerPart, SIGN03 |
+| 68 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CBLACK, ComaStrike, GAHPAD_A, NeutronRifleSysE, SIGN04, SuperNapalmCloudPart |
+| 69 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CBLACK02, GAHPAD_AD, HowitzerProj, MiniAntaresPartBlue, NeutronBlasterSys, SIGN05 |
+| 70 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AntaresPartBlue, GAPOWR_B, HowitzerProjInacc, NeutronBlasterSysE, PALET01, SIGN06 |
+| 71 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | BasswaveP, DefaultPart, FLAKSML, PALET02, PlasmaRailgunSys, SPKR01 |
+| 72 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CannonAbrams, FLAKMED, NeutronRiflePart, PALET03, SingleBulletSys, TREE31 |
+| 73 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | AeroProj, FLAKBIG, NeutronBlasterPart, PALET04, SingleBulletRedSys, TREE32 |
+| 74 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | FireSparkPart1, GATECH_A, LOBRDG01, LargeCometP, SingleBulletGoldSys, TREE33 |
+| 75 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | FireSparkPart2, GATECH_AD, GyroBulletSys, LOBRDG02, SuperCometP, TREE34 |
+| 76 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | HOLDTHELINE, HuntressProj, LOBRDG03, PlasmaSparkPart, TREE35, TealBulletSys |
+| 77 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | DredLightSys, LOBRDG04, STUNFX, SyncSparkPart, TREE36, ThorProj |
+| 78 | 6 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [ParticleSystems], [Particles], [Projectiles], [TerrainTypes] | CABSFLG_A, LOBRDG05, NeonwaspSys, SmokeSparkPart1, TNLEND01, ThorWaveP |
 | Agent | 6 | rulesmo.ini (effective) | Infantry | [CLAIRAI], [CLAIR], [D_CLAIR], [INTRUDER], [SBTR], [SPY] | no, yes |
 | AIInnerBase | 6 | rulesmo.ini (effective) | Building | [FACLDP], [GATECH], [NATECHC], [NATECHR], [NATEK], [YATECH] | yes |
 | AN | 6 | rulesmo.ini (effective) | Unknown | [AcidProj], [Cannon3E], [Cannon3], [ChaosPill], [GrumbleRocketP], [ToxicPill] | no |
 | AutoCrush | 6 | rulesmo.ini (effective) | Unknown, Vehicle | [CMIN], [HARV], [IQ], [NMIN], [UMIN], [YMIN] | 1, no |
 | CanApproachTarget | 6 | rulesmo.ini (effective) | Vehicle | [EMPR], [HEPH], [MGTK], [PHNT], [SHADOWF], [SHADOW] | no, yes |
-| CellInset | 6 | rulesmo.ini (effective) | Unknown | [BondEruptionWH], [RadBigWarhead], [RadEradicationWH], [RadEruptionWarhead], [RadSmallWarhead], [SpecialRadWH] | 3 |
+| CellInset | 6 | rulesmo.ini (effective) | Warhead | [BondEruptionWH], [RadBigWarhead], [RadEradicationWH], [RadEruptionWarhead], [RadSmallWarhead], [SpecialRadWH] | 3 |
 | DockingOffset1 | 6 | artmo.ini (effective) | Building, Unknown | [CAAIRF], [GAAIRF], [GAHPAD], [NAAIR], [NASAIR], [YAAIRF] | -40,150,0, 240,175,0, 40,150,0 |
 | DockingOffset2 | 6 | artmo.ini (effective) | Building, Unknown | [CAAIRF], [GAAIRF], [GAHPAD], [NAAIR], [NASAIR], [YAAIRF] | 140,-150,0, 220,-150,0, 40,-125,0 |
 | DockingOffset3 | 6 | artmo.ini (effective) | Building, Unknown | [CAAIRF], [GAAIRF], [GAHPAD], [NAAIR], [NASAIR], [YAAIRF] | 140,400,0, 220,400,0, 40,425,0 |
@@ -2343,7 +2296,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | MissileSpawn | 6 | rulesmo.ini (effective) | Aircraft | [CMISL], [DMISL], [ICBMROCKET], [PSBOM], [V2ROCKET], [V3ROCKET] | yes |
 | Organic | 6 | rulesmo.ini (effective) | Infantry, Vehicle | [BEETLE], [DLPH], [DNOA], [DNOB], [ELEPHANT], [SQD] | yes |
 | Overrides | 6 | rulesmo.ini (effective) | Unknown | [BRIDGE1], [BRIDGE2], [BRIDGEB1], [BRIDGEB2], [RAILBRDG1], [RAILBRDG2] | yes |
-| Passengers.Allowed | 6 | rulesmo.ini (effective) | Vehicle | [CYCL], [DRACO], [MAGNET], [NAUT], [SALA], [SUNB] | CYCL_1, DRACOD, MAGNET_1, MAGNET_2, SALA_1,SALA_2, SUNB_1 |
 | PermaDisguise | 6 | rulesmo.ini (effective) | Infantry | [ARSO], [HIJACKER], [INTRUDER], [REPU], [SBTR], [SPY] | yes |
 | ProduceCashAmount | 6 | rulesmo.ini (effective) | Building | [CABANK], [CAOILD], [FAREPR], [GAOREP], [NACLON], [NAINDP] | 20, 40 |
 | ProduceCashDelay | 6 | rulesmo.ini (effective) | Building | [CABANK], [CAOILD], [FAREPR], [GAOREP], [NACLON], [NAINDP] | 100 |
@@ -2351,7 +2303,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | StartStateAI | 6 | rulesmo.ini (effective) | Unknown | [FireStream], [GyroBulletPart], [SingleBulletGoldPart], [SingleBulletPart], [SingleBulletRedPart], [TealBulletPart] | 0, 1 |
 | SuperAnimPowered | 6 | artmo.ini (effective) | Building | [FABLST], [FABOID], [FAELEV], [FANANO], [YAGNTC], [YATXCH] | false, true |
 | UndeploySound | 6 | rulesmo.ini (effective) | Infantry, Vehicle | [CONF], [DEVOD], [DEVO], [E1], [GGI], [SNIPE] | DevourerUndeploy, GIUndeploy, IrritatorUndeploy |
-| UnitAbsorb | 6 | rulesmo.ini (effective) | Building | [NAPRIS], [NATUNE], [NATUNH], [YAPOWRB], [YAPOWR], [YAROCK] | no, yes |
 | UnitReload | 6 | rulesmo.ini (effective) | Building | [CAAIRP], [GAAIRC], [GAHPAD], [NAAIR], [NASAIR], [YAAIRF] | yes |
 | Unnatural | 6 | rulesmo.ini (effective) | Vehicle | [AKULA], [BSUB], [CAOS], [ESDR], [LEVI], [NAUT] | no, yes |
 | VoiceCapture | 6 | rulesmo.ini (effective) | Infantry | [ENGINEER], [FENGINEER], [HIJACKER], [HUNTR], [SENGINEER], [YENGINEER] | EngAllAttackCommand, EngFoeEnter, EngSovAttackCommand, EngYuriCapture, HijackerStealCommand, HuntressEnter |
@@ -2362,38 +2313,24 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Weapon16FLH | 6 | artmo.ini (effective) | Vehicle | [AMC], [FV], [STING], [STNK], [TENGU], [TRACTOR] | 100,0,155, 110,-70,195, 150,-60,180, 165,0,165, 270,20,100 |
 | Weapon17FLH | 6 | artmo.ini (effective) | Vehicle | [AMC], [FV], [STING], [STNK], [TENGU], [TRACTOR] | 100,-70,205, 165,0,165, 250,-50,185, 270,20,100, 50,52,220 |
 | Width | 6 | rulesmo.ini (effective) | Unknown | [BURNT07], [BURNT08], [BURNT11], [BURNT12], [CRATER11], [CRATER12] | 2 |
-| 100 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | GattAAWH, LOBRDG27, NuwaProj, TREE44, WB04X |
-| 101 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | HollowPointSEAL, LOBRDG28, MadBlastFragP, TREE45, WC01X |
-| 102 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | InvisibleInaccAA, MTWH, TIB01, TREE46, WC02X |
-| 103 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | CenturionCannonBall, ShovelSA, TIB02, TREE47, WC03X |
-| 104 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | BlimpBombPE, CivilianSA, TIB03, TREE48, WC04X |
-| 105 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | IFVWH, TIB04, TREE49, Torpedo, WD01X |
-| 106 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | InfernoRailgunWH, TIB05, TREE50, TorpedoE, WD02X |
-| 107 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | AssasinWH, SeawolfProj, TIB06, TREE51, WD03X |
-| 108 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | SlickWH, SuperCryoP, TIB07, TREE52, WD04X |
-| 109 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | FINPIFF, GotterBombWH, InvisibleLow, TIB08, TREE53 |
-| 87 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | GMUZZLEFLASH_W, LOBRDG14, MedusaProjectileE, SAFlame, TREEH01 |
-| 88 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | GMUZZLEFLASH_NW, LOBRDG15, SSABFlame, TREEH02, VolkovBombP |
-| 89 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | Cannon3, DiskLaserWH, GVTMUZZLE, LOBRDG16, TREEH03 |
-| 90 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | BRUTPFX, Cannon3E, DSonicRayWH, LOBRDG17, TREEH04 |
-| 91 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | BORISWH, JUMP, LOBRDG18, TOXBTRL, TREEH05 |
-| 92 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | LOBRDG19, PLSM, QuadShell, TREEH06, VultureBombsWHE |
-| 93 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | BuratinoRocket, LOBRDG20, TREE37, TRexWH, WA01X |
-| 94 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | BuratinoRocketE, LOBRDG21, MutateExplosion, TREE38, WA02X |
-| 95 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | LOBRDG22, TREE39, TRexInfWH, WA03X, WolfMissileProj |
-| 96 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | Crush, LOBRDG23, TREE40, WA04X, WolfMissileProjE |
-| 97 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | BlimpHEEffect, CataProj, LOBRDG24, TREE41, WB01X |
-| 98 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | LOBRDG25, MammothTuskProj, TREE42, VultureSA, WB02X |
-| 99 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes], [Warheads] | DummyWH, LOBRDG26, MammothTuskProjE, TREE43, WB03X |
+| 79 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | BlizzardP, GAGATE_CT, LOBRDG06, SmokeSparkPart2, TNLEND02 |
+| 80 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | FSMOKE, FortMisl, LOBRDG07, SingleBulletPart, TREEJP02 |
+| 81 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | FortMislE, GMUZZLEFLASH_N, LOBRDG08, SingleBulletRedPart, TREEJP04 |
+| 82 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | Ballistic, GMUZZLEFLASH_NE, LOBRDG09, SingleBulletGoldPart, TREEN21 |
+| 83 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | ASWVirt, GMUZZLEFLASH_E, GyroBulletPart, LOBRDG10, TREEN22 |
+| 84 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | GMUZZLEFLASH_SE, LOBRDG11, ScorchStartPE, TREEN23, TealBulletPart |
+| 85 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | DredLightPart, GMUZZLEFLASH_S, LOBRDG12, ScorchP, TREEB01 |
+| 86 | 5 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Particles], [Projectiles], [TerrainTypes] | GMUZZLEFLASH_SW, LOBRDG13, MedusaProjectile, NeonwaspPart, TREEB02 |
 | ActiveAnimPoweredSpecial | 5 | artmo.ini (effective) | Building | [CAFDZ], [DUMMYDUMMY], [GAPOWR], [NANRCT], [NAPOWR] | true |
 | AlternateFLH2 | 5 | artmo.ini (effective) | Unknown, Vehicle | [BCNTR], [BFRT], [CNTR], [MIND], [SALA] | -10,0,500, -100,200,140, -145,75,-25, -50,25,90 |
 | AS | 5 | rulesmo.ini (effective) | Unknown | [AcidProj], [Cannon3E], [Cannon3], [ChaosPill], [ToxicPill] | no |
 | BuildingDieSound | 5 | rulesmo.ini (effective) | AudioVisual, Building | [AudioVisual], [CACEAS], [FAJAMM], [F_ERESB], [YAVISN] | Dummy |
-| CausesDelayKill | 5 | rulesmo.ini (effective) | Unknown | [CryomineBombWH], [GenomineWH], [MineBombWH], [OilDerrickExplosionWH], [OilExplosionWH] | yes |
+| CausesDelayKill | 5 | rulesmo.ini (effective) | Warhead | [CryomineBombWH], [GenomineWH], [MineBombWH], [OilDerrickExplosionWH], [OilExplosionWH] | yes |
+| Color | 5 | rulesmo.ini (effective) | Unknown | [Aboreus], [Cruentus], [Riparius], [Special], [Vinifera] | Grey, NeonBlue, NeonGreen |
 | CreateSound | 5 | rulesmo.ini (effective) | Vehicle | [CNTR], [MEGA], [SYCKLE], [TRIKE2], [TRIKE] | CenturionCreated, MegalodonCreate, SyckleCreate, TrikeCreate |
 | Cursor.Attack | 5 | rulesmo.ini (effective) | Weapon | [DiskDrain], [Flare], [HowitzerBeaconE], [HowitzerBeacon], [MakeupKit] | Disguise, Drain, Flare, ZephyrA |
-| DelayKillAtMax | 5 | rulesmo.ini (effective) | Unknown | [CryomineBombWH], [GenomineWH], [MineBombWH], [OilDerrickExplosionWH], [OilExplosionWH] | 4.0, 7.0 |
-| DelayKillFrames | 5 | rulesmo.ini (effective) | Unknown | [CryomineBombWH], [GenomineWH], [MineBombWH], [OilDerrickExplosionWH], [OilExplosionWH] | 2, 5 |
+| DelayKillAtMax | 5 | rulesmo.ini (effective) | Warhead | [CryomineBombWH], [GenomineWH], [MineBombWH], [OilDerrickExplosionWH], [OilExplosionWH] | 4.0, 7.0 |
+| DelayKillFrames | 5 | rulesmo.ini (effective) | Warhead | [CryomineBombWH], [GenomineWH], [MineBombWH], [OilDerrickExplosionWH], [OilExplosionWH] | 2, 5 |
 | DeployedCrushable | 5 | rulesmo.ini (effective) | Infantry | [DESOR], [DESO], [GGI], [UNDER], [YUNRU] | no |
 | DeployingAnimDamaged | 5 | artmo.ini (effective) | Building | [FAWEAP], [GAWEAP], [NAFIST], [NAWEAP], [YAWEAP] | FAWEAP_2D, GZWEAP_2D, NAFIST_2D, NZWEAP_2D, YZWEAP_2D |
 | DisableVoxelCache | 5 | artmo.ini (effective) | Aircraft | [PDPLANE2], [PDPLANE3], [PDPLANE4], [PDPLANEUS], [PDPLANE] | yes |
@@ -2411,10 +2348,9 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ExtraPower | 5 | rulesmo.ini (effective) | Building | [GAGAP], [GAMGG], [GARGAP], [YAPOWRB], [YAPOWR] | -99999, -999999, 50 |
 | FlyBy | 5 | rulesmo.ini (effective) | Aircraft | [BPLNE], [BPLN], [IRONWING], [RECON], [SPYP] | true |
 | HasSpotlight | 5 | rulesmo.ini (effective) | Building | [FASPOT], [GASNPR], [NAPRIS], [NASPOT], [YASPOT] | no, yes |
-| InfantryAbsorb | 5 | rulesmo.ini (effective) | Building | [NAPRIS], [NATUNE], [NATUNH], [YAPOWRB], [YAPOWR] | yes |
 | IsMeteor | 5 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [METEOR01], [METEOR02], [METLARGE], [METMEDI], [METSMALL] | true |
 | LowSelectionPriority | 5 | rulesmo.ini (effective) | Aircraft | [ASW], [HORNET], [LEVIA], [SHRIKE], [VENTREX] | yes |
-| MindControl | 5 | rulesmo.ini (effective) | Unknown | [ControllerBeacon], [ControllerBuilding], [ControllerSeizer], [ControllerSpecial], [Controller] | yes |
+| MindControl | 5 | rulesmo.ini (effective) | Warhead | [ControllerBeacon], [ControllerBuilding], [ControllerSeizer], [ControllerSpecial], [Controller] | yes |
 | PBarrelThickness | 5 | artmo.ini (effective) | Building, Unknown | [FASONI], [GAAAGUN], [NAMORT], [NASAMT], [NASNTY] | 48 |
 | PowerUp1AnimDamaged | 5 | artmo.ini (effective) | Building | [FABARR], [FACLDP], [FACYBR], [FANANO], [YATECH] | FABARR_B, FACLDP_B, FACYBR_B, FANANO_B, YACVLT |
 | Radius | 5 | rulesmo.ini (effective) | Unknown | [DominatorPart], [FoehnRepairPart], [NapalmCloudPart], [ScorchCloudPart], [SuperNapalmCloudPart] | 10, 400 |
@@ -2425,7 +2361,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ReversedAs | 5 | rulesmo.ini (effective) | Infantry, Vehicle | [AICLEG], [ARCH2], [BURA2], [SHADOWF], [TRIKE2] | ARCH, BURA, CLEG, SHADOW, TRIKE |
 | RoofDeployingAnim | 5 | artmo.ini (effective) | Building | [FAWEAP], [GAWEAP], [NAFIST], [NAWEAP], [YAWEAP] | FAWEAP_3, GZWEAP_3, NAFIST_4, NZWEAP_4, YZWEAP_3 |
 | RoofDeployingAnimDamaged | 5 | artmo.ini (effective) | Building | [FAWEAP], [GAWEAP], [NAFIST], [NAWEAP], [YAWEAP] | FAWEAP_3D, GZWEAP_3D, NAFIST_4D, NZWEAP_4D, YZWEAP_3D |
-| Sonic | 5 | rulesmo.ini (effective) | Unknown | [BackwarpWH], [ExtendLifeHeal], [MastodonHeal], [MechanicalNegative], [MechanicalRig] | yes |
+| Sonic | 5 | rulesmo.ini (effective) | Warhead | [BackwarpWH], [ExtendLifeHeal], [MastodonHeal], [MechanicalNegative], [MechanicalRig] | yes |
 | SpawnCount | 5 | artmo.ini (effective), rulesmo.ini (effective) | Unknown | [METEOR01], [METEOR02], [METLARGE], [METMEDI], [METSMALL] | 4, 5, 6, 7, 8 |
 | SpecialAnimThree | 5 | artmo.ini (effective) | Building | [FAYARD], [GAYARD], [NATBNK], [NAYARD], [YAYARD] | FAYARD_CE, GAYARD_S3, NATBNK_A2, NAYARD_S3, YAYARD_S |
 | SpecialAnimThreeDamaged | 5 | artmo.ini (effective) | Building | [FAYARD], [GAYARD], [NATBNK], [NAYARD], [YAYARD] | FAYARD_CE, GAYARD_S3D, NATBNK_A2D, NAYARD_S3D, YAYARD_S3D |
@@ -2456,158 +2392,34 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Weapon21 | 5 | rulesmo.ini (effective) | Vehicle | [AMC], [FV], [STNK], [TENGU], [TRACTOR] | HealBullet, OpusGunY, ScavengerHail |
 | Weapon21FLH | 5 | artmo.ini (effective) | Vehicle | [AMC], [FV], [STNK], [TENGU], [TRACTOR] | 100,-70,185, 150,0,200, 180,50,185, 270,20,100 |
 | ZFudgeBridge | 5 | rulesmo.ini (effective) | Vehicle | [CMIN], [HARV], [NMIN], [UMIN], [YMIN] | 7 |
-| 110 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AcidProj, HummSA, TIB09, YACNST_E |
-| 111 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ShadowPulse, SpeederProjB, TIB10, WASTEKILL |
-| 112 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FUSIKILL, GAPOWR_C, SpeederProjBE, TIB11 |
-| 113 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DEVOBALL, InvisibleMag, SeismicDeathWH, TIB12 |
-| 114 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CenturionCannonWH, DEVOEXP, InvisibleMagShake, TIB13 |
-| 115 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AbramsLaserWH, MORALEXP, TIB14, ToxicPill |
-| 116 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AbramsCannonWH, NAPOWR_A, TIB15, ToxicBarrel |
-| 117 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ColossusBallInacc, NAPOWR_AD, TIB16, TankScannerWH |
-| 118 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AeroblazeWH, CAHOSP_A, ColossusAAProj, TIB17 |
-| 119 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ColossusBallInaccE, MINDHAZEBUM, TIB18, TargetPainterWH |
-| 120 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BasiliskCannonball, KineticBarrierWH, TIB19, XGRYGOLD |
-| 121 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BasiliskCannonballE, PLSMRING1, RepairMechanical, TIB20 |
-| 122 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ARMTRAIL, GSpinGeneratorWH, InvisibleAA, LOBRDGE1 |
-| 123 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | InvisibleVertical, LOBRDGE2, OxidizerTargetWH, SPHERE |
-| 124 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | LOBRDGE3, PiranhaProj, PyroWH, TELEMAG |
-| 125 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | LOBRDGE4, PiranhaProjE, ScorchKillWH, TUNTOP01 |
-| 126 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DUMMYOLD, SpeederProj, TUNTOP02, UnitDeathWH |
-| 127 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | SAMBunkerWH, SpeederProjE, TIB2_01, TUNTOP03 |
-| 128 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BEAGAP, BuratinoRocketSpread, TIB2_02, TUNTOP04 |
-| 129 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BuratinoRocketSpreadE, FRING, TIB2_03, WolfhoundSA |
-| 130 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BLUEXP, CannonBunkerWH, MTStrikeE, TIB2_04 |
-| 131 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BlizzardBeamWH, ConfuseProj, MANDIE, TIB2_05 |
-| 132 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | IceCloudWH, MTStrike, STUNPIFF, TIB2_06 |
-| 133 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | GotterDart, GrinderWH, MUZZLEARTY_N, TIB2_07 |
-| 134 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ChronoWarpWH, Invisible3, MUZZLEARTY_NE, TIB2_08 |
-| 135 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BeetleRollWH, MUZZLEARTY_E, SiegfriedBall, TIB2_09 |
-| 136 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | IceBeamP, MUZZLEARTY_SE, SwarmBombWH, TIB2_10 |
-| 137 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ArmorMissileProj, MUZZLEARTY_S, StealthExplosionWH, TIB2_11 |
-| 138 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ArmorMissileProjE, MUZZLEARTY_SW, NotAnEiffelWH, TIB2_12 |
-| 139 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FlakTProj, MODeathWH, MUZZLEARTY_W, TIB2_13 |
-| 140 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ElephantWH, InvisibleElectric, MUZZLEARTY_NW, TIB2_14 |
-| 141 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | PyroProj, StingerSprayWH, TEMPROJ, TIB2_15 |
-| 142 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | PyroProjE, RAZGREN, SSANoBuilding, TIB2_16 |
-| 143 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | HINDRFX, HollowPointAnimal, MortarProj, TIB2_17 |
-| 144 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | HINDRVX, MortarProjE, TIB2_18, UnderBladeWH |
-| 145 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DLancerWH, GyroProj, HAMMUZZ, TIB2_19 |
-| 146 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EROCKER, GyroProjE, TIB2_20, TanyaC4WH |
-| 147 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AMNSFX, Cyborgbounce, MarauderRailgunWH, TIB3_01 |
-| 148 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BIOREXP, CyborgbounceE, ParasitePro, TIB3_02 |
-| 149 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CHITZJUMP, CruiserWH, RUINIDLE, TIB3_03 |
-| 150 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DSpiderWebWH, SuperSniperP, TIB3_04, TWLT026 |
-| 151 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ElectricSuper, LongbowProj, TIB3_05, TWLT036 |
-| 152 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | LongbowProjE, SpeederToxicHE, TIB3_06, TWLT050 |
-| 153 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BustLaserWH, OverchargeP, TIB3_07, TWLT070 |
-| 154 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | SodarBoostP, StalkerWH, TIB3_08, URANBOOM |
-| 155 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | JumpjetSSA, S_BANG16, TIB3_09, ToxicBarrelBig |
-| 156 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AntiGravityProj, FlakGuyATWH, S_BANG24, TIB3_10 |
-| 157 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | IvanFire, S_BANG34, StalkerProj, TIB3_11 |
-| 158 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BoidSuperUp, IvanDeathWH, S_BANG48, TIB3_12 |
-| 159 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | MutationRailgunP, S_BRNL20, StormGunWH, TIB3_13 |
-| 160 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | PsychicDart, S_BRNL30, TIB3_14, WOLFWH |
-| 161 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | GenomineBombP, IronCaster, S_BRNL40, TIB3_15 |
-| 162 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CryobeamIVPAnimA, S_BRNL58, SealC4WH, TIB3_16 |
-| 163 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EMPulsSuper, S_CLSN16, SuperSuppressP, TIB3_17 |
-| 164 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CyCannon, SSABFlameBlue, S_CLSN22, TIB3_18 |
-| 165 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | SAFlameBlue, S_CLSN30, SuperJammerP, TIB3_19 |
-| 166 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | PlasmaTorpedo, S_CLSN42, SpeederHE, TIB3_20 |
-| 167 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | InvisibleEMP, RhadHE, S_CLSN58, USELESS |
-| 168 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | GeneburstWH, GiantNukeUp, SROCK01, S_TUMU22 |
-| 169 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | SROCK02, S_TUMU30, SmokebombsP, SpotLightWH |
-| 170 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FutureAP, SROCK03, S_TUMU42, SmokeCannonP |
-| 171 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | Cyborgbounce2E, MechanicalNegative, SROCK04, S_TUMU60 |
-| 172 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | Cyborgbounce3E, MineBombWH, RING1, SROCK05 |
-| 173 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FlameProjE, IONBEAM, TROCK01, TanyaLaserWH |
-| 174 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BackwarpWH, HowitzerProjE, INFISTART, TROCK02 |
-| 175 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BuratinoWH, HowitzerProjInaccE, INFIGREN, TROCK03 |
-| 176 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | INFIRED, MercuryStrikeWH, TROCK04, ZorbBall |
-| 177 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ConfuseFlareFragP, INFIORAN, SentinelWH, TROCK05 |
-| 178 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DefenseBuffP, INFIYELW, ShockCyborg, VEINHOLEDUMMY |
-| 179 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BorilloWH, CRATE, INFIPURP, WarRigProj |
-| 180 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BridgeKillerWH, FENCE01, INFIBLUE, SpinGeneratorP |
-| 181 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BridgeBoom, CAINFI_A, FENCE02, InvisibleMerc |
-| 182 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAINFI_B, FENCE03, MercuryP, PhalanxWH |
-| 183 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ControllerBeacon, FENCE04, FIRE01, GSpinGeneratorP |
-| 184 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE05, FIRE02, SmokebombsWH, VultureNapalmP |
-| 185 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE06, FIRE03, ThorHTLWH, VultureNapalmPE |
-| 186 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CENTDEATH, FENCE07, GeneburstP, TechMissileWH |
-| 187 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE08, HurraP, JAGDWH, TOXBARL |
-| 188 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE09, GharialPilesP, ScavengerDeathWH, TOXBOMB |
-| 189 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ARROWWH, BlimpBombNukeP, EMP_FX01, FENCE10 |
-| 190 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AresCannonProj, FENCE11, ORCAAPB, SMKPUFF |
-| 191 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EurekaBlastFragP, FENCE12, FlakSeawolfWH, V3TRAIL |
-| 192 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE13, LancerFragProj, PlagueWH, V3TAKOFF |
-| 193 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DisruptorFieldWH, FENCE14, MadBlastP, NUKEANIM |
-| 194 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE15, FortressSSA, GridWeaponP, NUKEBALL |
-| 195 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE16, HTRKPUFF, HarbingerFragP, VirusAttach |
-| 196 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE17, FireStreamWH, IRONFX, LightningRodP |
-| 197 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DepthChargeE, FENCE18, IRONBLST, QuakeWeaponWH |
-| 198 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EMPYunru, FENCE19, WARPIN, WOCP |
-| 199 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE20, GodsbaneFragP, ShockTrooper, WARPOUT |
-| 200 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE21, ScorchStartP, Special3, WARPAWAY |
-| 201 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FENCE22, GAREFNBB, IronOldFlashWH, SharkWaveP |
-| 202 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ChronoFreezeWH, GAREFNL1, GAWRONG, SharkWaveP2 |
-| 203 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAFNCB, GAREFNL2, RazgarWH, SharkWaveP3 |
-| 204 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAFNCW, GAREFNL3, RazgarWH2, SharkWaveP4 |
-| 205 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AntiGravityWH, GAREFNOR, LOBRDB01, SharkWaveP5 |
-| 206 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BackwarpP1, CAGRD1_A, LOBRDB02, LibraWH |
-| 207 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BackwarpP2, GAREFNL4, LOBRDB03, PsychicDartsWH |
-| 208 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BackwarpP3, ComancheWH, LOBRDB04, YAPOWR_A |
-| 209 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BackwarpP4, LOBRDB05, SiegfriedWH, YAPOWR_AD |
-| 210 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BackwarpP5, GAROBO_A, LOBRDB06, SiegfriedWH2 |
-| 211 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | LOBRDB07, MagneticStop, TimeWarpP1, YACNST_C |
-| 212 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | KillEngiWH, LOBRDB08, TEMPSHLD, TimeWarpP2 |
-| 213 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS1LG, LOBRDB09, MantisLifeWH, TarchiaProj |
-| 214 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS1SM, LOBRDB10, MechanicalRig, WidowSignal2P |
-| 215 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS2LG, GyroWH, LOBRDB11, WidowSignal3P |
-| 216 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS2SM, LOBRDB12, ShutDownFakeP, StunGunWH |
-| 217 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AirToGroundMissileFox, DBRIS3LG, LOBRDB13, OrganicAnim |
-| 218 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AirToGroundMissileFoxE, DBRIS3SM, LOBRDB14, RageInductorWH |
-| 219 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS4LG, LOBRDB15, Nanofiber1P, SuppressorWH |
-| 220 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS4SM, LOBRDB16, MagneticHold, Nanofiber2P |
-| 221 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BasiliskWH, DBRIS5LG, LOBRDB17, Nanofiber3P |
-| 222 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS5SM, LOBRDB18, Nanofiber4P, SuperSeal |
-| 223 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS6LG, FoxBurnAPE, LOBRDB19, Nanofiber5P |
-| 224 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AntaresWH, DBRIS6SM, LOBRDB20, Nanofiber6P |
-| 225 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS7LG, HornetAP, LOBRDB21, Nanofiber7P |
-| 226 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | Cryobeam6PAnimA, DBRIS7SM, ElectricTank, LOBRDB22 |
-| 227 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | Cryobeam6PAnimB, DBRIS8LG, LOBRDB23, RoadrunnerDeathWH |
-| 228 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | Cryobeam6PAnimC, DBRIS8SM, LOBRDB24, ZTargetKill |
-| 229 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS9LG, LOBRDB25, MadMineP, ThorSSA |
-| 230 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS9SM, HowitzerBeaconWH, LOBRDB26, MadMineFragP |
-| 231 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DBRIS10LG, LOBRDB27, StormAP, WallbusterP |
-| 232 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BlackoutMissileP, DBRIS10SM, LOBRDB28, UnderminerWH |
-| 233 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BoidSuperDown, DEATH_A, LOBRDGB1, UCUnderminerWH |
-| 234 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DEATH_B, DevourerProj, HowitzerWH, LOBRDGB2 |
-| 235 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DEATH_C, HammerWH, LOBRDGB3, StructureBuffP |
-| 236 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DEATH_D, DKnightSAWH, LOBRDGB4, MegaarenaP |
-| 237 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BRIDGEB1, DEATH_E, MedusaWH, SweeperP |
-| 238 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | ArsoFire, BRIDGEB2, DEATH_F, HazequadGeneratorP |
-| 239 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DROPPODX, MadMineStartP, RUBBLE_OVERLAY, TyrantWH |
-| 240 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAKRMW, DROPPODY, GrumbleRocketP, GyroAAWH |
-| 241 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAFNCP, FLAMEGUY, FuryP, SeawolfHE |
-| 242 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | IronDragonProj, NavyAreaRemoverWH, WCRATE, YURIDIE |
-| 243 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | AirAreaRemoverWH, GAFWLL, GehennaGroundProj, NUKEDIE |
-| 244 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EXPLOSML, IceBeamWH, LUNRK1, VenomP |
-| 245 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EMPBeamWH, EXPLOMED, LUNRK2, WidowSignalFakeP |
-| 246 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | EXPLOLRG, LUNRK3, OverchargeWH, SeekerBombP |
-| 247 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | DybbukControl, LUNRK4, MiniNukeRadWH, XGRYMED1 |
-| 248 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CyComWH, LUNRK5, TeratornP, XGRYMED2 |
-| 249 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | LUNRK6, LionheartP, RadEradicationWH, XGRYSML1 |
-| 250 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAWALL, EradiationWH, HarbingerFakeP, XGRYSML2 |
-| 251 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | FAWALL, LeviPilesP, StealthGeneratorWH, VIRUSP |
-| 252 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CAOPIP, JAGDWHE, RiotGrenadeP, WAKE1 |
-| 253 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | CBOX1, GehennaWH, KrukovSwordFragP, WAKE2 |
-| 254 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [Warheads] | BEACON, CACRCK, DolphinProj, PiranhaWH |
-| AlternateTheaterArt | 4 | rulesmo.ini (effective) | Infantry | [GHOST], [SIBFIN], [SICALI], [TANY] | no, yes |
+| 100 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG27, NuwaProj, TREE44, WB04X |
+| 101 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG28, MadBlastFragP, TREE45, WC01X |
+| 102 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | InvisibleInaccAA, TIB01, TREE46, WC02X |
+| 103 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | CenturionCannonBall, TIB02, TREE47, WC03X |
+| 104 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | BlimpBombPE, TIB03, TREE48, WC04X |
+| 105 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | TIB04, TREE49, Torpedo, WD01X |
+| 106 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | TIB05, TREE50, TorpedoE, WD02X |
+| 107 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | SeawolfProj, TIB06, TREE51, WD03X |
+| 108 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | SuperCryoP, TIB07, TREE52, WD04X |
+| 109 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | FINPIFF, InvisibleLow, TIB08, TREE53 |
+| 87 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | GMUZZLEFLASH_W, LOBRDG14, MedusaProjectileE, TREEH01 |
+| 88 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | GMUZZLEFLASH_NW, LOBRDG15, TREEH02, VolkovBombP |
+| 89 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | Cannon3, GVTMUZZLE, LOBRDG16, TREEH03 |
+| 90 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | BRUTPFX, Cannon3E, LOBRDG17, TREEH04 |
+| 91 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | JUMP, LOBRDG18, TOXBTRL, TREEH05 |
+| 92 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG19, PLSM, QuadShell, TREEH06 |
+| 93 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | BuratinoRocket, LOBRDG20, TREE37, WA01X |
+| 94 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | BuratinoRocketE, LOBRDG21, TREE38, WA02X |
+| 95 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG22, TREE39, WA03X, WolfMissileProj |
+| 96 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG23, TREE40, WA04X, WolfMissileProjE |
+| 97 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | CataProj, LOBRDG24, TREE41, WB01X |
+| 98 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG25, MammothTuskProj, TREE42, WB02X |
+| 99 | 4 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles], [TerrainTypes] | LOBRDG26, MammothTuskProjE, TREE43, WB03X |
 | ApplyDamage | 4 | rulesmo.ini (effective) | Weapon | [EmitterZapE], [EmitterZap], [JackalZapE], [JackalZap] | yes |
 | BurstDelay4 | 4 | rulesmo.ini (effective) | Vehicle | [BURA2], [CONFD], [CONF], [WORMQ] | 1, 2 |
 | BurstDelay5 | 4 | rulesmo.ini (effective) | Vehicle | [BURA2], [CONFD], [CONF], [WORMQ] | 1, 2 |
 | CampaignScore.OverParTheme | 4 | rulesmo.ini (effective) | Unknown | [FourthSide], [GDI], [Nod], [ThirdSide] | AlliedLose, EpsilonLose, FoehnLose, SovietLose |
 | CampaignScore.UnderParTheme | 4 | rulesmo.ini (effective) | Unknown | [FourthSide], [GDI], [Nod], [ThirdSide] | AlliedWin, EpsilonWin, FoehnWin, SovietWin |
-| Color | 4 | rulesmo.ini (effective) | Unknown | [Aboreus], [Cruentus], [Riparius], [Vinifera] | NeonBlue, NeonGreen |
 | ConstructionYard | 4 | rulesmo.ini (effective) | Building | [FACNST], [GACNST], [NACNST], [YACNST] | yes |
 | ContentScan | 4 | rulesmo.ini (effective) | Unknown | [Difficult], [Easy], [IQ], [Normal] | 2, yes |
 | Cursor.AttackOutOfRange | 4 | rulesmo.ini (effective) | Weapon | [DiskDrain], [Flare], [HowitzerBeaconE], [HowitzerBeacon] | Drain, OutFlare, ZephyrA |
@@ -2658,7 +2470,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | IdleRate | 4 | artmo.ini (effective), rulesmo.ini (effective) | Vehicle | [DLPH], [MIXER], [SQD], [SUNB] | 3, 4, 8 |
 | InfiniteMindControl | 4 | rulesmo.ini (effective) | Weapon | [MultipleMindControlTankE], [MultipleMindControlTank], [MultipleMindControlTowE], [MultipleMindControlTower] | no, yes |
 | LoadingTheme | 4 | rulesmo.ini (effective) | Unknown | [FourthSide], [GDI], [Nod], [ThirdSide] | AlliedLoad, EpsilonLoad, FoehnLoad, SovietLoad |
-| Message.Abort | 4 | rulesmo.ini (effective) | SuperWeapon | [FauxDominatorSpecial], [GreatTempestSpecial], [LightningStormSpecial], [PsychicDominatorSpecial] | NAME:GREATTEMPESTNO |
 | MessageTextColor | 4 | rulesmo.ini (effective) | Unknown | [FourthSide], [GDI], [Nod], [ThirdSide] | FirstText, FourthText, SecondText, ThirdText |
 | MinZVelocity | 4 | rulesmo.ini (effective) | Unknown | [FirestormSpark], [LargeSpark], [Spark], [WeldingSpark] | 40 |
 | MultiplayerScore.Bars | 4 | rulesmo.ini (effective) | Unknown | [FourthSide], [GDI], [Nod], [ThirdSide] | mpnone.pcx |
@@ -2667,7 +2478,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | NODBarracks | 4 | rulesmo.ini (effective) | Building | [FABARRB], [FABARR], [NAHANDB], [NAHAND] | yes |
 | NormalZAdjust | 4 | artmo.ini (effective) | Building, Unknown | [FABTRC], [FAFNCE], [FIREWALL], [YAVULT] | -24, -25, -3 |
 | PowerUp1AnimPowered | 4 | artmo.ini (effective) | Building | [FABARR], [FACLDP], [FACYBR], [FANANO] | false |
-| PsychicDamage | 4 | rulesmo.ini (effective) | Unknown | [PsiPulse], [SiblingAlizeHeal], [SiblingFinHeal], [SuperPsiPulse] | yes |
+| PsychicDamage | 4 | rulesmo.ini (effective) | Warhead | [PsiPulse], [SiblingAlizeHeal], [SiblingFinHeal], [SuperPsiPulse] | yes |
 | Refinery.UseStorage | 4 | rulesmo.ini (effective) | Building | [FAREPR], [GAOREP], [NACLON], [NAINDP] | no |
 | RollAngle | 4 | rulesmo.ini (effective) | Aircraft, Vehicle | [D_QUETZ], [F_KSNAK], [QUETZ], [WASTE] | 100, 20 |
 | SabotageCursor | 4 | rulesmo.ini (effective) | Unknown, Weapon | [Sapper], [SealC4], [SpecialC4], [TanyaC4] | yes |
@@ -2681,8 +2492,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Spotlight.StartHeight | 4 | rulesmo.ini (effective) | Building | [FASPOT], [GASNPR], [NASPOT], [YASPOT] | 400 |
 | Spread | 4 | rulesmo.ini (effective) | Unknown | [Aboreus], [Cruentus], [Riparius], [Vinifera] | 10000, 1200 |
 | SpreadPercentage | 4 | rulesmo.ini (effective) | Unknown | [Aboreus], [Cruentus], [Riparius], [Vinifera] | .4, 0 |
-| SpyEffect.ResetRadar | 4 | rulesmo.ini (effective) | Building | [FACYBR], [GAAIRC], [NARADR], [YAPSIS] | yes |
-| SpyEffect.StolenMoneyAmount | 4 | rulesmo.ini (effective) | Building | [FAREFN], [GAREFN], [NAREFN], [YARIREFN] | 5000 |
 | StandingFrames | 4 | artmo.ini (effective) | Unknown, Vehicle | [MAGNET], [MEGA], [ROADR], [ZTARGETZ] | 1, 16 |
 | UseSparkParticles | 4 | rulesmo.ini (effective) | Weapon | [AvalonBlast], [PrometheusBetaBlast], [PrometheusBlast], [RailgunTowerBlast] | no, yes |
 | Value | 4 | rulesmo.ini (effective) | Unknown | [Aboreus], [Cruentus], [Riparius], [Vinifera] | 50, 75 |
@@ -2758,106 +2567,151 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | XVelocity | 4 | rulesmo.ini (effective) | Unknown | [FirestormSpark], [LargeSpark], [Spark], [WeldingSpark] | 10, 13, 16 |
 | YVelocity | 4 | rulesmo.ini (effective) | Unknown | [FirestormSpark], [LargeSpark], [Spark], [WeldingSpark] | 10, 13, 16 |
 | ZVelocityRange | 4 | rulesmo.ini (effective) | Unknown | [FirestormSpark], [LargeSpark], [Spark], [WeldingSpark] | 15 |
-| 255 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CHRONOFD, DolphinProjE, MothraWH |
-| 256 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CHRONOTG, IllusionWH, SalamanderProj |
-| 257 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | HummSAE, NUKETO, SalamanderProjAA |
-| 258 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ARMORAP, BladeInvisible2, NUKEPUFF |
-| 259 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CRYSTAL1, CannonScourge, PatriotWH |
-| 260 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CRYSTAL2, QuadMortarWH, TorpedoX |
-| 261 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CRYSTAL3, GrinderRigWH, TorpedoXE |
-| 262 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CRYSTAL4, InvisibleCryo, SpiderWebWH |
-| 263 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAMISL_D, CryobeamIP, SpecialRadWH |
-| 264 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CryobeamIVP, IonStormWH, SGRYSMK1 |
-| 265 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | Cryobeam6P, INVISO, SmokebombsSingleWH |
-| 266 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | NAPSIS_A, SeitaadMissileFragP, StealthScannerWH |
-| 267 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | AlanqaAAP, MaintAnimWH, NAPSIS_AD |
-| 268 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ApocalypseWH, FlareProj, PSIWARN |
-| 269 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | FLAKMEDB, MadBlastStartP, SSAE |
-| 270 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BladeInvisible, FoxBurnAP, GAYARD_A |
-| 271 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GharialProj, LASERGUY, OldIronCurtain |
-| 272 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | PrismWarhead, RaccoonEMPP, YGMREFBB |
-| 273 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DummyWarhead, InvisibleQuetz, UCFLASH |
-| 274 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BuzzardMinesP, EnforcerWH, UCELEC |
-| 275 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | AthenaStrikeWH, RoadrunnerNerfP, UCBLOOD |
-| 276 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GAPOST_A, PhalanxProjectile, Special |
-| 277 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GZWEAP_3, PhalanxProjectileE, RHINAPE |
-| 278 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GZWEAP_4, MagneShakeWH, SeitaadEMPCannonProj |
-| 279 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | NZWEAP_3, RepairMechanicalReju, SeitaadMissileP |
-| 280 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ColossusWH, NZWEAP_4, RamHackArenaP |
-| 281 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | MadBlastStartAIP, MegalodonDeathWH, WARPTHOR |
-| 282 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAOILD_A, KillDriverWH, TarchiaProjFake |
-| 283 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ArchelonProj, DustbombsWH, NAREFNL1 |
-| 284 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CryomineFreezeWH, NAREFNL2, SwordfishProj |
-| 285 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | HollowPoint4, NAREFNL3, SHTorpedo |
-| 286 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BaneP, Meteorite, NAREFNL4 |
-| 287 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | FTankCannonP, Fire2, NACNST_A |
-| 288 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ConfuseWH, DiverbeeP, NANRCT_B |
-| 289 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BlimpHEE, CannonDraco, NACNST_C |
-| 290 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | NAREFNOR, StalkerDrainProj, SwarmBombEWH |
-| 291 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | LibraLightWH, NACLON_A, SuppressorBombP |
-| 292 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GotterWH, NANRCT_A, RiotGunP |
-| 293 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | IrkallaEffect, NATSLA_A, NuwaProjZ |
-| 294 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CHRONOBM, SAMBunkerProjE, SSABE |
-| 295 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CHRONOAR, FVBondP, JumpjetSSAE |
-| 296 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CHRONOWAVE, HollowPointSEALE, ZorbBallN |
-| 297 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | EurekaBlastP, GACSPH_E, PyroWHE |
-| 298 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GACSPH_F, GodsbaneP, HollowPoint4E |
-| 299 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GACSPH_FD, IvanWHE, UraganP |
-| 300 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ExtendLifeP, GACSPH_G, QuakeWeaponWHE |
-| 301 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | FortressSSAE, GACSPH_H, StructureBuffLargeP |
-| 302 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GACSPH_HD, GreenArrowP, ThorSSAE |
-| 303 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | OrcinusWaveP, STURTRM, SuperSpecial |
-| 304 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAWSH12D, StalkerWHE, StrikerGunRunP |
-| 305 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | FLAKMUZ, FVArsoBombProj, MirageWHE |
-| 306 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | AeroFake, DBRI-WM1, HARVWHE |
-| 307 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ApocalypseWHE, DBRI-WM2, NautTorpedo |
-| 308 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DBRI-WM3, MagneticStopE, NautTorpedoE |
-| 309 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BasiliskWHE, BuzzardProj, NAMISL_E |
-| 310 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GotterBombWHE, JagdStrike, NAMISL_F |
-| 311 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | JagdStrikeE, NAMISL_G, VultureSAE |
-| 312 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BladeInvisibleE, NAMISL_H, WolfhoundSAE |
-| 313 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAAIRFBB, CryobeamIPAI, GattWHE |
-| 314 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CryobeamIVPAI, GattAAWHE, WCCLOUD1 |
-| 315 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | Cryobeam6PAI, StratoWH, WCCLOUD2 |
-| 316 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BorilloWHE, ScavengerMachineGunP, WCCLOUD3 |
-| 317 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ScavMedusaP, VirusWHE, WCLBOLT1 |
-| 318 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ControllerSpecial, DeathBoltP, WCLBOLT3 |
-| 319 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | AthenaWHSmall, UraganPunchesP, WCLBOLT2 |
-| 320 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | EXPLOLB, KrukovSwordP, VisionKillWH |
-| 321 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAUSFGL_A, CryobeamIPAnimA, SAE |
-| 322 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BrightFlashWH, DBRI-WM4, TarchiaCannonBall |
-| 323 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DBRI-WM5, TankSnapshot, WastelotP |
-| 324 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DBRI-WM6, LibraDustWH, NormalBombE |
-| 325 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GAWETH_E, WarpnodeBombP, WasteKillWH |
-| 326 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CyborgbounceB, GAWETH_F, WastelotWH |
-| 327 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CyborgbounceB2, GAWETH_FD, RoboLaserWH |
-| 328 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CyborgbounceB3, GAWETH_G, RoboLaserWHE |
-| 329 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DroppingP, GAWETH_H, SpecialC4WH |
-| 330 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GAWETH_HD, GrandCannonShrapnel, LibraWHE |
-| 331 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | NAIRON_A, ShieldGeneratorP, SpinGeneratorWH |
-| 332 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ComaStrikeE, PrometheusWH, TWNK1 |
-| 333 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | HydraMachineGunP, NAYARD_A, PromCharWH |
-| 334 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | Electricmouse, HurricaneSpawnWH, NAYARD_B |
-| 335 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BallisticShrapnel, HurricaneWH, NAYARD_C |
-| 336 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | MagnetShiftWH, NAYARD_D, ReaperProj |
-| 337 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ArtilleryProj, CAWS01DM, DLancer2WH |
-| 338 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | ArtilleryProjE, GharialPilesWH, NATSLA_B |
-| 339 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DefenseBuffWH, NATSLA_BD, ShinMissileProj |
-| 340 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GAPRIS_A, HypergateWH, ShinMissileProjE |
-| 341 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BallisticInacc, GAPRIS_AD, Nanofiber1WH |
-| 342 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CHRONOSK, Nanofiber2WH, ScavengerCryoP |
-| 343 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAWA14DM, DLancerProj, GreatTempestAnimWH |
-| 344 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CAJPFLG_A, GreatTempestAnim2WH, VentrexScavP |
-| 345 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CyborgGrenadeWH, SnakeMissileProj, YARIFT_A |
-| 346 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GAWEAP_AD, IronDragonDeathWH, SnakeMissileProjE |
-| 347 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GZWEAP_1D, InvisibleSnake, RaccoonBWH |
-| 348 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | CondorBlastP, GZWEAP_2D, ZorbWH |
-| 349 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | FVRepulsorProj, GZWEAP_3D, StardustHEEffect |
-| 350 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GZWEAP_4D, SonicRayWH, StratoP |
-| 351 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GACSPH_GD, GreatTempestBlastWH, RTorpedo |
-| 352 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | GAAIRF_A, RTorpedoE, SeekerWH |
-| 353 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | BladeInvisible2E, GAAIRF_AD, KnightSA |
-| 666 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles], [Warheads] | DebrisHE, GBLDEXP9, PulsPr |
+| 110 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | AcidProj, TIB09, YACNST_E |
+| 111 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | SpeederProjB, TIB10, WASTEKILL |
+| 112 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GAPOWR_C, SpeederProjBE, TIB11 |
+| 113 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DEVOBALL, InvisibleMag, TIB12 |
+| 114 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DEVOEXP, InvisibleMagShake, TIB13 |
+| 115 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | MORALEXP, TIB14, ToxicPill |
+| 116 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | NAPOWR_A, TIB15, ToxicBarrel |
+| 117 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ColossusBallInacc, NAPOWR_AD, TIB16 |
+| 118 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAHOSP_A, ColossusAAProj, TIB17 |
+| 119 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ColossusBallInaccE, MINDHAZEBUM, TIB18 |
+| 120 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BasiliskCannonball, TIB19, XGRYGOLD |
+| 121 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BasiliskCannonballE, PLSMRING1, TIB20 |
+| 122 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ARMTRAIL, InvisibleAA, LOBRDGE1 |
+| 123 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | InvisibleVertical, LOBRDGE2, SPHERE |
+| 124 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LOBRDGE3, PiranhaProj, TELEMAG |
+| 125 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LOBRDGE4, PiranhaProjE, TUNTOP01 |
+| 126 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DUMMYOLD, SpeederProj, TUNTOP02 |
+| 127 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | SpeederProjE, TIB2_01, TUNTOP03 |
+| 128 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BuratinoRocketSpread, TIB2_02, TUNTOP04 |
+| 129 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BuratinoRocketSpreadE, FRING, TIB2_03 |
+| 130 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BLUEXP, MTStrikeE, TIB2_04 |
+| 131 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ConfuseProj, MANDIE, TIB2_05 |
+| 132 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | MTStrike, STUNPIFF, TIB2_06 |
+| 133 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GotterDart, MUZZLEARTY_N, TIB2_07 |
+| 134 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | Invisible3, MUZZLEARTY_NE, TIB2_08 |
+| 135 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | MUZZLEARTY_E, SiegfriedBall, TIB2_09 |
+| 136 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | IceBeamP, MUZZLEARTY_SE, TIB2_10 |
+| 137 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ArmorMissileProj, MUZZLEARTY_S, TIB2_11 |
+| 138 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ArmorMissileProjE, MUZZLEARTY_SW, TIB2_12 |
+| 139 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FlakTProj, MUZZLEARTY_W, TIB2_13 |
+| 140 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | InvisibleElectric, MUZZLEARTY_NW, TIB2_14 |
+| 141 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | PyroProj, TEMPROJ, TIB2_15 |
+| 142 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | PyroProjE, RAZGREN, TIB2_16 |
+| 143 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | HINDRFX, MortarProj, TIB2_17 |
+| 144 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | HINDRVX, MortarProjE, TIB2_18 |
+| 145 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GyroProj, HAMMUZZ, TIB2_19 |
+| 146 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | EROCKER, GyroProjE, TIB2_20 |
+| 147 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | AMNSFX, Cyborgbounce, TIB3_01 |
+| 148 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BIOREXP, CyborgbounceE, TIB3_02 |
+| 149 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CHITZJUMP, RUINIDLE, TIB3_03 |
+| 150 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | SuperSniperP, TIB3_04, TWLT026 |
+| 151 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LongbowProj, TIB3_05, TWLT036 |
+| 152 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LongbowProjE, TIB3_06, TWLT050 |
+| 153 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | OverchargeP, TIB3_07, TWLT070 |
+| 154 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | SodarBoostP, TIB3_08, URANBOOM |
+| 155 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | S_BANG16, TIB3_09, ToxicBarrelBig |
+| 156 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | AntiGravityProj, S_BANG24, TIB3_10 |
+| 157 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | S_BANG34, StalkerProj, TIB3_11 |
+| 158 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BoidSuperUp, S_BANG48, TIB3_12 |
+| 159 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | MutationRailgunP, S_BRNL20, TIB3_13 |
+| 160 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | PsychicDart, S_BRNL30, TIB3_14 |
+| 161 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GenomineBombP, S_BRNL40, TIB3_15 |
+| 162 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CryobeamIVPAnimA, S_BRNL58, TIB3_16 |
+| 163 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | S_CLSN16, SuperSuppressP, TIB3_17 |
+| 164 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CyCannon, S_CLSN22, TIB3_18 |
+| 165 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | S_CLSN30, SuperJammerP, TIB3_19 |
+| 166 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | PlasmaTorpedo, S_CLSN42, TIB3_20 |
+| 167 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | InvisibleEMP, S_CLSN58, USELESS |
+| 168 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GiantNukeUp, SROCK01, S_TUMU22 |
+| 169 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | SROCK02, S_TUMU30, SmokebombsP |
+| 170 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | SROCK03, S_TUMU42, SmokeCannonP |
+| 171 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | Cyborgbounce2E, SROCK04, S_TUMU60 |
+| 172 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | Cyborgbounce3E, RING1, SROCK05 |
+| 173 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FlameProjE, IONBEAM, TROCK01 |
+| 174 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | HowitzerProjE, INFISTART, TROCK02 |
+| 175 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | HowitzerProjInaccE, INFIGREN, TROCK03 |
+| 176 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | INFIRED, TROCK04, ZorbBall |
+| 177 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | ConfuseFlareFragP, INFIORAN, TROCK05 |
+| 178 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DefenseBuffP, INFIYELW, VEINHOLEDUMMY |
+| 179 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CRATE, INFIPURP, WarRigProj |
+| 180 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE01, INFIBLUE, SpinGeneratorP |
+| 181 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAINFI_A, FENCE02, InvisibleMerc |
+| 182 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAINFI_B, FENCE03, MercuryP |
+| 183 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE04, FIRE01, GSpinGeneratorP |
+| 184 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE05, FIRE02, VultureNapalmP |
+| 185 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE06, FIRE03, VultureNapalmPE |
+| 186 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CENTDEATH, FENCE07, GeneburstP |
+| 187 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE08, HurraP, TOXBARL |
+| 188 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE09, GharialPilesP, TOXBOMB |
+| 189 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BlimpBombNukeP, EMP_FX01, FENCE10 |
+| 190 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | AresCannonProj, FENCE11, SMKPUFF |
+| 191 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | EurekaBlastFragP, FENCE12, V3TRAIL |
+| 192 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE13, LancerFragProj, V3TAKOFF |
+| 193 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE14, MadBlastP, NUKEANIM |
+| 194 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE15, GridWeaponP, NUKEBALL |
+| 195 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE16, HTRKPUFF, HarbingerFragP |
+| 196 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE17, IRONFX, LightningRodP |
+| 197 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DepthChargeE, FENCE18, IRONBLST |
+| 198 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE19, WARPIN, WOCP |
+| 199 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE20, GodsbaneFragP, WARPOUT |
+| 200 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE21, ScorchStartP, WARPAWAY |
+| 201 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FENCE22, GAREFNBB, SharkWaveP |
+| 202 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GAREFNL1, GAWRONG, SharkWaveP2 |
+| 203 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAFNCB, GAREFNL2, SharkWaveP3 |
+| 204 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAFNCW, GAREFNL3, SharkWaveP4 |
+| 205 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GAREFNOR, LOBRDB01, SharkWaveP5 |
+| 206 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BackwarpP1, CAGRD1_A, LOBRDB02 |
+| 207 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BackwarpP2, GAREFNL4, LOBRDB03 |
+| 208 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BackwarpP3, LOBRDB04, YAPOWR_A |
+| 209 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BackwarpP4, LOBRDB05, YAPOWR_AD |
+| 210 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BackwarpP5, GAROBO_A, LOBRDB06 |
+| 211 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LOBRDB07, TimeWarpP1, YACNST_C |
+| 212 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LOBRDB08, TEMPSHLD, TimeWarpP2 |
+| 213 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS1LG, LOBRDB09, TarchiaProj |
+| 214 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS1SM, LOBRDB10, WidowSignal2P |
+| 215 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS2LG, LOBRDB11, WidowSignal3P |
+| 216 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS2SM, LOBRDB12, ShutDownFakeP |
+| 217 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | AirToGroundMissileFox, DBRIS3LG, LOBRDB13 |
+| 218 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | AirToGroundMissileFoxE, DBRIS3SM, LOBRDB14 |
+| 219 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS4LG, LOBRDB15, Nanofiber1P |
+| 220 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS4SM, LOBRDB16, Nanofiber2P |
+| 221 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS5LG, LOBRDB17, Nanofiber3P |
+| 222 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS5SM, LOBRDB18, Nanofiber4P |
+| 223 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS6LG, LOBRDB19, Nanofiber5P |
+| 224 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS6SM, LOBRDB20, Nanofiber6P |
+| 225 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS7LG, LOBRDB21, Nanofiber7P |
+| 226 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | Cryobeam6PAnimA, DBRIS7SM, LOBRDB22 |
+| 227 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | Cryobeam6PAnimB, DBRIS8LG, LOBRDB23 |
+| 228 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | Cryobeam6PAnimC, DBRIS8SM, LOBRDB24 |
+| 229 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS9LG, LOBRDB25, MadMineP |
+| 230 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS9SM, LOBRDB26, MadMineFragP |
+| 231 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DBRIS10LG, LOBRDB27, WallbusterP |
+| 232 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BlackoutMissileP, DBRIS10SM, LOBRDB28 |
+| 233 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BoidSuperDown, DEATH_A, LOBRDGB1 |
+| 234 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DEATH_B, DevourerProj, LOBRDGB2 |
+| 235 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DEATH_C, LOBRDGB3, StructureBuffP |
+| 236 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DEATH_D, LOBRDGB4, MegaarenaP |
+| 237 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BRIDGEB1, DEATH_E, SweeperP |
+| 238 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BRIDGEB2, DEATH_F, HazequadGeneratorP |
+| 239 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DROPPODX, MadMineStartP, RUBBLE_OVERLAY |
+| 240 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAKRMW, DROPPODY, GrumbleRocketP |
+| 241 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAFNCP, FLAMEGUY, FuryP |
+| 242 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | IronDragonProj, WCRATE, YURIDIE |
+| 243 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | GAFWLL, GehennaGroundProj, NUKEDIE |
+| 244 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | EXPLOSML, LUNRK1, VenomP |
+| 245 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | EXPLOMED, LUNRK2, WidowSignalFakeP |
+| 246 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | EXPLOLRG, LUNRK3, SeekerBombP |
+| 247 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | DybbukControl, LUNRK4, XGRYMED1 |
+| 248 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LUNRK5, TeratornP, XGRYMED2 |
+| 249 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | LUNRK6, LionheartP, XGRYSML1 |
+| 250 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAWALL, HarbingerFakeP, XGRYSML2 |
+| 251 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | FAWALL, LeviPilesP, VIRUSP |
+| 252 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CAOPIP, RiotGrenadeP, WAKE1 |
+| 253 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | CBOX1, KrukovSwordFragP, WAKE2 |
+| 254 | 3 | rulesmo.ini (effective) | Unknown | [Animations], [OverlayTypes], [Projectiles] | BEACON, CACRCK, DolphinProj |
 | AARate | 3 | rulesmo.ini (effective) | Unknown | [Area Guard], [Attack], [Guard] | .016, .032 |
 | Academy.Ignore | 3 | rulesmo.ini (effective) | Building | [CAACAD], [CADOCK], [CAHMCH] | DLPH,SQD, LCRF,DEST,AEGIS,CARRIER,HCRUIS,SIREN,SIREN2,DLPH,SAPC,SUB,SUB2,SWLF,REAP,REAPL,DBOAT,DRED,AKULA,SLED,SQD,NAUT,BSUB,SWORD,LEVI,SHARK,MANTA, ROBO,ROBOW |
 | Academy.VehicleVeterancy | 3 | rulesmo.ini (effective) | Building | [CADOCK], [CAHMCH], [F_ERESB] | 1, 2 |
@@ -2879,7 +2733,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Convert.Water | 3 | rulesmo.ini (effective) | Vehicle | [MSA], [REAPL], [ROBO] | MSAW, REAP, ROBOW |
 | Cursor.NoEnter | 3 | rulesmo.ini (effective) | Building | [NAPRIS], [YAPOWRB], [YAPOWR] | NoBioReactor, NoImprison |
 | DestroyWalls | 3 | rulesmo.ini (effective) | Unknown | [Difficult], [Easy], [Normal] | no |
-| Dominator.FirstAnimHeight | 3 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial], [PsychicBeaconSpecial], [PsychicDominatorSpecial] | 1200, 650, 750 |
 | EliteAirstrikeRechargeTime | 3 | rulesmo.ini (effective) | Infantry | [AIMORA], [CBRIS], [MORALES] | 25, 75 |
 | EliteAirstrikeTeam | 3 | rulesmo.ini (effective) | Infantry | [AIMORA], [CBRIS], [MORALES] | 4 |
 | EliteAirstrikeTeamType | 3 | rulesmo.ini (effective) | Infantry | [AIMORA], [CBRIS], [MORALES] | BPLNE, YAPLN |
@@ -2891,17 +2744,14 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | EliteWeapon4FLH | 3 | artmo.ini (effective) | Vehicle | [MANTA], [TERA], [YTNK] | -15,0,155, 160,30,150, 85,-60,200 |
 | Experience.FromAirstrike | 3 | rulesmo.ini (effective) | Infantry | [AIMORA], [CBRIS], [MORALES] | 100% |
 | Experience.ShowEnemy | 3 | rulesmo.ini (effective) | Infantry | [EUREKA], [LIBRA], [LIBRC] | no |
-| FallRate.ParachuteMax | 3 | rulesmo.ini (effective) | Vehicle | [DRON2], [DRON], [FDRON] | -30, -50 |
 | FoundationOutline.46 | 3 | artmo.ini (effective) | Building | [CACPTL], [CAPALACE04], [CAVHNG] | 13,8, 4,16, 5,15 |
 | FoundationOutline.47 | 3 | artmo.ini (effective) | Building | [CACPTL], [CAPALACE04], [CAVHNG] | 14,8, 5,16, 6,15 |
 | Groundspeed | 3 | rulesmo.ini (effective) | Unknown | [Difficult], [Easy], [Normal] | 1.0 |
 | IsAlternateColor | 3 | rulesmo.ini (effective) | Weapon | [AssaultBolt], [OPCoilBoltE], [OPCoilBolt] | true, yes |
 | IsAnimated | 3 | rulesmo.ini (effective) | Unknown | [TIBTRE01], [TIBTRE02], [TIBTRE03] | yes |
 | IsChargeTurret | 3 | rulesmo.ini (effective) | Vehicle | [PLAG], [SREF], [TTNK] | true |
-| IsDesolator | 3 | rulesmo.ini (effective) | Infantry | [DESOR], [UNDER], [YUNRU] | yes |
 | IsFlamingGuy | 3 | artmo.ini (effective) | Unknown | [FLAMEGUY], [LASERGUY], [PSYCHGUY] | true |
 | IsRubble | 3 | rulesmo.ini (effective) | Unknown | [PALET01], [PALET04], [RUBBLE_OVERLAY] | yes |
-| Lightning.RadarOutage | 3 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [LightningStormSpecial], [SuperFlashSpawn] | -1, 300, 450 |
 | LimboLaunch | 3 | rulesmo.ini (effective) | Weapon | [DroneJump], [RoboTeethE], [RoboTeeth] | yes |
 | Missile.Acceleration | 3 | rulesmo.ini (effective) | Aircraft | [ICBMROCKET], [PSBOM], [V2ROCKET] | 0.8, 1, 3.0 |
 | Missile.Altitude | 3 | rulesmo.ini (effective) | Aircraft | [ICBMROCKET], [PSBOM], [V2ROCKET] | 1400, 768, 900 |
@@ -2918,10 +2768,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Missile.TiltFrames | 3 | rulesmo.ini (effective) | Aircraft | [ICBMROCKET], [PSBOM], [V2ROCKET] | 100, 12, 80 |
 | Missile.TurnRate | 3 | rulesmo.ini (effective) | Aircraft | [ICBMROCKET], [PSBOM], [V2ROCKET] | 0.05, 0.1, 1 |
 | Missile.Warhead | 3 | rulesmo.ini (effective) | Aircraft | [ICBMROCKET], [PSBOM], [V2ROCKET] | NUKE, SwarmBombWH, V3WH |
-| Nuke.Payload | 3 | rulesmo.ini (effective) | SuperWeapon | [BoidBlitzSpecial], [EMPulsSpecial], [TechMissileSpecial] | BoidBlitzSuper, EMPPayload, MissilePayload |
-| Nuke.SiloLaunch | 3 | rulesmo.ini (effective) | SuperWeapon | [BoidBlitzSpecial], [EMPulsSpecial], [TechMissileSpecial] | no, yes |
 | NukeSilo | 3 | rulesmo.ini (effective) | Building | [CAMISL], [FABOID], [NAMISL] | yes |
-| Passengers.BySize | 3 | rulesmo.ini (effective) | Building, Vehicle | [CHRP], [NATUNE], [NATUNH] | no |
 | PostClick | 3 | rulesmo.ini (effective) | SuperWeapon | [CWarpCloneSpecial], [ChronoWarpSpecial], [PostliftSpecial] | yes |
 | PowerUp1AnimPoweredLight | 3 | artmo.ini (effective) | Building | [FACLDP], [FACYBR], [FANANO] | false |
 | PowerUp1DamagedAnim | 3 | artmo.ini (effective) | Building, Unknown | [GAAIRF], [GAPOWR], [NANRCT] | GAAIRF_DD, GAPOWR_BD, NANRCT_DD |
@@ -2950,17 +2797,10 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | SuperAnimFourPowered | 3 | artmo.ini (effective) | Building | [FABOID], [FANANO], [YAGNTC] | false |
 | SuperAnimThreePowered | 3 | artmo.ini (effective) | Building | [FABOID], [FANANO], [YAGNTC] | false, true |
 | SuperAnimTwoPowered | 3 | artmo.ini (effective) | Building | [FABOID], [FANANO], [YAGNTC] | false |
-| Survivor.ElitePilotChance | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | 100, 100% |
-| Survivor.RookiePilotChance | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | 100, 75% |
-| Survivor.Side0 | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | CTECHM, TERROR |
-| Survivor.Side1 | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | CTECHM, TERROR |
-| Survivor.Side2 | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | CTECHM, TERROR |
-| Survivor.Side3 | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | CTECHM, TERROR |
-| Survivor.VeteranPilotChance | 3 | rulesmo.ini (effective) | Vehicle | [JTNK], [MADAI], [MAD] | 100, 85% |
 | SurvivorDivisor | 3 | rulesmo.ini (effective) | Unknown | [Civilian], [FourthSide], [Mutant] | 1000, 99999 |
 | TargetLaser | 3 | rulesmo.ini (effective) | Vehicle | [AITHOR], [NMIN], [THOR] | yes |
-| Temporal | 3 | rulesmo.ini (effective) | Unknown | [ChronoBeam], [ChronoBlasterWH], [ChronoWarpWH] | yes |
-| Temporal.HealthFactor | 3 | rulesmo.ini (effective) | Unknown | [ChronoBeam], [ChronoBlasterWH], [ChronoWarpWH] | 1.0 |
+| Temporal | 3 | rulesmo.ini (effective) | Warhead | [ChronoBeam], [ChronoBlasterWH], [ChronoWarpWH] | yes |
+| Temporal.HealthFactor | 3 | rulesmo.ini (effective) | Warhead | [ChronoBeam], [ChronoBlasterWH], [ChronoWarpWH] | 1.0 |
 | TerrainFire | 3 | rulesmo.ini (effective) | Weapon | [MirageGunE], [MirageGun], [TankMakeupKit] | no, yes |
 | TiberiumHeal | 3 | rulesmo.ini (effective) | General, Infantry | [CBRIS], [General], [VOLKOV] | .010, yes |
 | UnderDoorAnimZAdjust | 3 | artmo.ini (effective) | Building | [FAWEAP], [NAFIST], [NAWEAP] | -45 |
@@ -2968,391 +2808,112 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Weapon56FLH | 3 | artmo.ini (effective) | Vehicle | [AMC], [FV], [TENGU] | 80,-70,205, 95,0,260 |
 | WeaponType | 3 | rulesmo.ini (effective) | SuperWeapon | [BoidBlitzSpecial], [NukeSpecial], [TechMissileSpecial] | BoidBlitzUp, MissileCarrier, NukeCarrier |
 | YuriBarracks | 3 | rulesmo.ini (effective) | Building | [NACLON], [YABRCKB], [YABRCK] | yes |
-| 354 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAAIRF_B, KnightSAE |
-| 355 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AvalonWH, GAAIRF_BD |
-| 356 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAAIRF_C, RepairMechanicalNMIN |
-| 357 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAAIRF_CD, HuntressWH |
-| 358 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IrradiateBetaWH, NAYARD_AD |
-| 359 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IrradiateWH, NAYARD_BD |
-| 360 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FauxDomAttachWH, NAYARD_CD |
-| 361 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AvalonChargeWH, NAYARD_DD |
-| 362 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MaintenanceWH, NATSLA_AD |
-| 363 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CARUS01D, ScavengerCryoWH |
-| 364 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DiverbeeWH, GACSPH_ED |
-| 365 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAREFNL1D, VoyagerWH |
-| 366 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DLancerOTWH, NAREFNL2D |
-| 367 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAREFNL3D, StunGridWH |
-| 368 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAREFNL4D, VultureBombsWH |
-| 369 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MagKillWH, NZWEAP_1 |
-| 370 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NZWEAP_2, SpiderBombWH |
-| 371 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NZWEAP_1D, StrikerGunRunWH |
-| 372 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IronOrcinusFlashWH, NZWEAP_2D |
-| 373 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MadKillWH, NZWEAP_3D |
-| 374 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NZWEAP_4D, PromeNanoWH |
-| 375 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AirstrikeFlareAI, NAWEAP_A |
-| 376 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cuttering, STAREXPA |
-| 377 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAOREFBB, MegaslashWH |
-| 378 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AirhackWH, GAOREFOR |
-| 379 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AirhackAnimWH, CAPARS12D |
-| 380 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CACHIG04D, GharialWH |
-| 381 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAREFNBB, Eureka1WH |
-| 382 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Eureka2WH, NANRCT_AD |
-| 383 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GASPST_A, LancerWH |
-| 384 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GASPST_AD, Lancer2WH |
-| 385 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NACLON_AD, RegenHealWH |
-| 386 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AircraftDeathWH, CAWSH18A |
-| 387 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BondBreakerWH, NAIRON_AD |
-| 388 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAPILE_AD, StructureBuffWH |
-| 389 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_C, MeteorImpactWH |
-| 390 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FortressAP, GAYARD_CD |
-| 391 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_D, SalamanderWH |
-| 392 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_DD, RoadrunnerChokeWH |
-| 393 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_AD, GiantsbaneWH |
-| 394 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAPSYA_A, ShadrayWaveWH |
-| 395 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HydraSSA, NAPSYA_AD |
-| 396 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HydraSSAE, NAPSYB_A |
-| 397 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAPSYB_AD, TarchiaOldWH |
-| 398 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BondEruption2WH, HELIMUZ |
-| 399 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NACNST_D, SweeperWH |
-| 400 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AlanqaAAWH, GACNST_F |
-| 401 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DuplicantWH, NADIST_A |
-| 402 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | LionheartWH, NADIST_B |
-| 403 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | LionheartEMPWH, OMGASHLD |
-| 404 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DISTBRST, JackalWarhead |
-| 405 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DISTFX, SeitaadMissileWH |
-| 406 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MadWH, NAINDP_D |
-| 407 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MadEMPWH, SMOKEY3 |
-| 408 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Mad2WH, TRAILALL |
-| 409 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ConfuseFlareWH, NADEPT_B |
-| 410 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVTanyaLaserWH, NADEPT_BD |
-| 411 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TRAILTU16, TargetAllCaster |
-| 412 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FirestormWH, TRAILWSTE |
-| 413 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MegashieldWH, TRAILHBRD |
-| 414 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAOREF_B, Nanofiber3WH |
-| 415 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAOREF_C, HunterSpikesWH |
-| 416 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAOREF_D, SpikesWH |
-| 417 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAINDP_CD, Nanofiber4WH |
-| 418 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GrandCannonWHB, NAPALMF |
-| 419 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CARUFGL_A, RaccoonWH |
-| 420 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAFRFGL_A, Special2 |
-| 421 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BORISWHE, CAIRFGL_A |
-| 422 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CACUFGL_A, Nanofiber5WH |
-| 423 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CASKFGL_A, SuperGehennaWH |
-| 424 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BuzzardMinesWH, CALBFGL_A |
-| 425 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FauxDomSoundWH, PIFFX2 |
-| 426 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CryomineBombWH, PIFFX2E |
-| 427 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BoidMaker, CASTL04DM |
-| 428 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAHOSP_AD, HurrRockWH |
-| 429 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NACNST_CD, SeekerBombWH |
-| 430 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ASWSplash, GAPRIS_B |
-| 431 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAPRIS_BD, NanochargeWH |
-| 432 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAGAP_A, GroundhackWH |
-| 433 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAGAP_AD, MegaarenaRealWH |
-| 434 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DRAINEXP, NuwaDeathWH |
-| 435 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BEHIND, SeitaadMissileFragWH |
-| 436 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GravitronFieldWH, NACNST_AD |
-| 437 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAGEFGL_A, GravitronAnimWH |
-| 438 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAUKFGL_A, VenomKillWH |
-| 439 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPOFGL_A, JammerKillWH |
-| 440 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ConfuseFlareFragWH, NAIRON_F |
-| 441 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | LightningRodWH, NAIRON_FD |
-| 442 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAIRON_H, TemporalShieldWH |
-| 443 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MastodonHeal, NAIRON_HD |
-| 444 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | JudgementWH, NAIRON_G |
-| 445 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAIRON_GD, RailguneerWH |
-| 446 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ConfuseRifleWH, TRAILDBAT |
-| 447 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | OilDerrickExplosionWH, RADERUPT |
-| 448 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CANY04DM, HollowPointE |
-| 449 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ElectricTankEMP, KTSTLEXP |
-| 450 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DEMTEXP, RaccoonTankWH |
-| 451 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CorossionBWH, GCMUZZLE |
-| 452 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DiverKillWH, VTEXPLOD |
-| 453 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CyclopsBuffWH, VTMUZZLE |
-| 454 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CRIVEXP, MADAIWH |
-| 455 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CRIVEXP2, TarchiaCannonWH |
-| 456 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SirenKillWH, TSTIMPCT |
-| 457 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BRRLEXP1, TarchiaWH |
-| 458 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BRRLEXP2, InfantryDeathWH |
-| 459 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ArchelonWH, GAYARD_S1 |
-| 460 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | EvolverRunWH, GAYARD_S2 |
-| 461 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_S3, RiotGunWH |
-| 462 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MININUKE, OrcinusWaveWH |
-| 463 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPR01DM, DevourerWH |
-| 464 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAYARD_S1, SharkSplash |
-| 465 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAYARD_S2, SharkSplashWave |
-| 466 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAYARD_S3, SharkSplashWave5 |
-| 467 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AthenaLaserWH, NAMISL_ED |
-| 468 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CometFragmentWH, NAMISL_FD |
-| 469 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MercuryLaserWH, NAMISL_GD |
-| 470 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CryobaseWH, NAMISL_HD |
-| 471 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAAIRFBB, SuperFlashWH |
-| 472 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAHPADBB, TimeWarp1WH |
-| 473 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPR11DM, TimeWarp2WH |
-| 474 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWDEST, WormqueenBoltWH |
-| 475 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWN, BlackoutMissileWH |
-| 476 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWS, WallbusterWH |
-| 477 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWE, BlackoutBWH |
-| 478 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWW, ShadrayWaveAAWH |
-| 479 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWNW, WidowSignalFakeWH |
-| 480 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWNE, WidowSignalNerfWH |
-| 481 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWSW, MIDASDeathWH |
-| 482 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARRWSE, StealthHazequadWH |
-| 483 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMOV01_A, TarchiaTargetWH |
-| 484 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMOV01_AD, ShutDownFactoriesWH |
-| 485 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMOV02_A, CataAPE |
-| 486 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMOV02_AD, CyComWHE |
-| 487 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPLANT_CD, GehennaGroundWH |
-| 488 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAOILD_AD, StalkerDrainWH |
-| 489 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAAIRF_B, StalkerDrainWHAnim |
-| 490 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FinAutoSniperGunWH, SADFACE |
-| 491 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAAIRF_A, SiblingFinHeal |
-| 492 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SPEED, SiblingAlizeHeal |
-| 493 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAYARD_S1D, TurretFireWH |
-| 494 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAYARD_S2D, RocksExplosionWH |
-| 495 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AlizeGunWH, NAYARD_S3D |
-| 496 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_S1D, HarbingerWH |
-| 497 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_S2D, HarbingerDummyWH |
-| 498 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAYARD_S3D, TimeFreezeWH |
-| 499 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAEAST01DM, NuclearPathWH |
-| 500 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ConfusionWH, YAPPET_E |
-| 501 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARTYHE2, YAPPET_ED |
-| 502 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | WonderWH, YAPPET_F |
-| 503 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NautFlame, YAPPET_FD |
-| 504 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ScorchFire, YAPPET_G |
-| 505 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | UraniumWH2, YAPPET_GD |
-| 506 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TeratornWH, YAPPET_H |
-| 507 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RiotGrenadeWH, YAPPET_HD |
-| 508 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BondEruptionWH, MISSANIM |
-| 509 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Nanofiber7WH, VIRUSD |
-| 510 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FakeShadWH, NAINDP_A |
-| 511 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAINDP_AD, RiotGrenadeGarrisonWH |
-| 512 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChronoImprisonWH, YAMPSI_A |
-| 513 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ArsonistPlaceWH, YAMPSI_AD |
-| 514 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ArsonistWH, YAGRND_A |
-| 515 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FuryKillWH, YAGRND_AD |
-| 516 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FuryWH, YAGRND_B |
-| 517 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IronGuardWH, YAGRND_BD |
-| 518 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CraneWeaponWH, YAGRND_C |
-| 519 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CraneAnimWH, YAGRND_CD |
-| 520 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BoidBlitzWH, YZWEAP_1 |
-| 521 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | LeviWH, YZWEAP_2 |
-| 522 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GrumbleWH, YZWEAP_3 |
-| 523 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SeitaadEMPWH, YZWEAP_4 |
-| 524 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NavalMineWH, YAWEAP_A |
-| 525 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ParadoxPrismWH, YAWEAP_AD |
-| 526 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IronDragonWarhead, NATBNK_A |
-| 527 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IronDragonResidue, NATBNK_B |
-| 528 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NATBNK_A2, PhantasmWH |
-| 529 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NATBNK_B2, Nanofiber6WH |
-| 530 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NATBNK_AD, RoadrunnerNerfWH |
-| 531 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NATBNK_BD, NeutralizerWeldWH |
-| 532 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NATBNK_A2D, ParadoxMedusaWH |
-| 533 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MADMineStartWH, NATBNK_B2D |
-| 534 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GENDEATH, GenomineWH |
-| 535 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RamWeldWH, YAROCK_A |
-| 536 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | VolkovBombWH, YABRCK_A |
-| 537 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RamHackArenaWH, YAYARD_C |
-| 538 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam1WH, YAYARD_CD |
-| 539 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam2WH, YAYARD_A |
-| 540 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam3WH, YAYARD_AD |
-| 541 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam4WH, TRAILHARB |
-| 542 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam5WH, TANKEXP1 |
-| 543 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam6WH, YAYARD_S |
-| 544 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam6AnimAWH, YAYARD_SD |
-| 545 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam6AnimBWH, YAYARD_S2 |
-| 546 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Cryobeam6AnimCWH, YAYARD_S2D |
-| 547 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GodsbaneMissileWH, YAYARD_S3 |
-| 548 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GodsbaneFragWH, YAYARD_S3D |
-| 549 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | KillDriverAIWH, YAPSYT_A |
-| 550 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SalamanderBeamWH, YAPSYT_AD |
-| 551 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | EngineerWH, YATECH_A |
-| 552 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SalamanderFieldWH, YATECH_AD |
-| 553 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AddonKillWH, NAREFBB |
-| 554 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DRUGWFX, RailgunTowerWH |
-| 555 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MantaConfuseRifleWH, YAGNTC_E |
-| 556 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | YAGNTC_ED, ZorbAnimWH |
-| 557 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CeasefireWH, YAGNTC_F |
-| 558 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CeasekillWH, YAGNTC_FD |
-| 559 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MadMineWH, YAGNTC_G |
-| 560 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MadMine2WH, YAGNTC_GD |
-| 561 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HealthyWH, YAGNTC_H |
-| 562 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RadBigWarhead, YAGNTC_HD |
-| 563 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BoidmachineFlashWH, YACNST_A |
-| 564 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChargeWH, YACNST_AD |
-| 565 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | STAKNTRL, WidowSignalWH |
-| 566 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | COLFIRE, HollowPointDrone |
-| 567 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CALND6_A, KrukovSwordWH |
-| 568 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CALND6_AD, KrukovRadBeamWH |
-| 569 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CATR03DM, ShockCyborgFV |
-| 570 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CutteringC, UCCONS |
-| 571 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ApocMissileWH, UCINIT |
-| 572 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CASEAT02_A, JAGDMissileWH |
-| 573 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CASEAT02_AD, RuptureWH |
-| 574 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MINDANIM, ScavSSA |
-| 575 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DISKRAY, ScavSSAE |
-| 576 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | PDFXCLD, TankKillerWH |
-| 577 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | PDFXLOC, TankKillerWHE |
-| 578 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DBRIEXP1, HECannonWH |
-| 579 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DBRIEXP2, ScavengerLaserWH |
-| 580 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPLANT_B, InfAreaRemoverWH |
-| 581 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPLANT_BD, ScavengerMedusaWH |
-| 582 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CALA10_A, SuperRuptureWH |
-| 583 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CALA10_AD, ScavengerRadBeamWH |
-| 584 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAPLANT_C, SwordfishWH |
-| 585 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HAILMUZ, ScavAP |
-| 586 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Uragan1WH, YAGRND_D |
-| 587 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Uragan2WH, YAGRND_DD |
-| 588 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BuzzardWH, YACNST_CD |
-| 589 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FORCSHLD, KingsGunWH |
-| 590 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CATIME_A, ExtendLifeWH |
-| 591 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | INITFIRE, OneMoreSecond |
-| 592 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HEPHLSR, StructureBuffLargeWH |
-| 593 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMSC14_A, CutteringB |
-| 594 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FakeArrowWH, YAPOWR_B |
-| 595 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ExtendLifeHeal, YAPOWR_C |
-| 596 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CASLAB_A, MagnetShift2WH |
-| 597 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | APSplashNaut, YAPPET_A |
-| 598 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DolphinWH, YAPPET_AD |
-| 599 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BRUTDIE, RedSuppress |
-| 600 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CyanCryo, YAGNTC_P |
-| 601 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BlueJammer, YAGNTC_PD |
-| 602 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | KnightSAB, NANRCT_P |
-| 603 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | KnightSABE, NANRCT_PD |
-| 604 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NUKESmall, YAPOWR_BD |
-| 605 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChronoboostWH, YAPOWR_CD |
-| 606 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAROBO_AD, IronDeviceFlashWH |
-| 607 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | APMUZZLE, MineBombEMPWH |
-| 608 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CryobeamIAnimAWH, GAWETH_ED |
-| 609 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CryobeamIVAnimAWH, GAWETH_GD |
-| 610 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ReaperWH, YABRCK_AD |
-| 611 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GZWEAPBB, ToxicMolesWH |
-| 612 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | EmitterWarhead, NZWEAPBB |
-| 613 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CannonBunkerWHE, IRRADIATEX |
-| 614 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVSpiderBombWH, YZWEAPBB |
-| 615 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVDuplicantWH, YZWEAP_1D |
-| 616 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | PsychicSSA, YZWEAP_2D |
-| 617 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | PsychicSSAE, YZWEAP_3D |
-| 618 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVIvanBomb, YZWEAP_4D |
-| 619 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CATIME_AD, FVFlakGuyAAWH |
-| 620 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVArsonistPlaceWH, WA05X |
-| 621 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVTerrorBombWH, WA06X |
-| 622 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | KillDriverFixWH, WA07X |
-| 623 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ElectricCoil, WA08X |
-| 624 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FauxDomIntroWH, WB05X |
-| 625 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FauxDomStrikeWH, WB06X |
-| 626 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BlizzardNerfWH, WB07X |
-| 627 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SuperIronWeaponWH, WB08X |
-| 628 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TrueSuperIronWeaponWH, WC05X |
-| 629 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HarbingerOldWH, WC06X |
-| 630 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DiverbeeOldWH, WC07X |
-| 631 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TriggerShakerWH, WC08X |
-| 632 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TyrantTargetWH, WD05X |
-| 633 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ControllerSeizer, WD06X |
-| 634 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BuzzardMinesStunWH, WD07X |
-| 635 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SunburstBombWH, WD08X |
-| 636 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GBLDEXP1, SunburstLaserWH |
-| 637 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FirestormTempestWH, GBLDEXP2 |
-| 638 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GBLDEXP3, TurretFireWHE |
-| 639 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GBLDEXP4, RailguneerOTWH |
-| 640 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GBLDEXP5, HollowPointCRSEALWH |
-| 641 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GBLDEXP6, HollowPointCRSEALWHE |
-| 642 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GBLDEXP7, RuinerRayWH |
-| 643 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FTankCannonWH, GBLDEXP8 |
-| 644 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BFIRE01, RiotSuppressWH |
-| 645 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BFIRE02, RuinerEffectWH |
-| 646 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BFIRE03, ShieldGeneratorWH |
-| 647 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BFIRE04, PerunChargeWH |
-| 648 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BFIRE05, DeathBoltWH |
-| 649 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BFIRE06, DeathFlashWH |
-| 650 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | PIXELR, ShockCyborgB |
-| 651 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BulldogPainterWH, PIXELY |
-| 652 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Comanche2WH, PIXELG |
-| 653 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ComancheHealWH, GONFIRE1 |
-| 654 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GONFIRE2, LancerOTWH |
-| 655 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CavalierTargetWH, GONFIRE3 |
-| 656 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | UNITEXPL1, VolkovBombWHB |
-| 657 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GharialBetaWH, UNITEXPL2 |
-| 658 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | UNITEXPL3, WhiteFlameWH |
-| 659 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | UNITEXPL4, WhiteFlameWHE |
-| 660 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ShadrayFlashWH, UNITEXPL5 |
-| 661 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DemobombEWH, UNITEXPL6 |
-| 662 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChargeWH2, MINFIRE01 |
-| 663 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | InfernoRailgunWHBlue, MINFIRE02 |
-| 664 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DBRIEXP1F, MantaWH |
-| 665 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | AntaresWHBlue, DBRIEXP2F |
-| 667 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ElectricTower, GBLDEXP10 |
-| 668 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CryoshotSuperWH, TUNTOP05 |
-| 669 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CryospearSuperWH, TUNTOP06 |
-| 670 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HydraMissileWH, TUNTOP07 |
-| 671 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RegenWH, TUNTOP08 |
-| 672 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FSTART01, TankBunkerBuffWH |
-| 673 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FSTART02, FakeKillSelfWH |
-| 674 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FSTART03, IronBlastFlashWH |
-| 675 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FSTART04, HyperionFlashWH |
-| 676 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FSTART05, WidowSignalAlphaFakeWH |
-| 677 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FSTART06, HyperionWH |
-| 678 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IronCrateWH, SMOKEY |
-| 679 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SMOKEY4, WarpnodeWH |
-| 680 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | IceBeamNerfWH, SMOKEY5 |
-| 681 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SCAVEXP, SuppressorPartWH |
-| 682 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TurretAnimFireWH, WARPMIN |
-| 683 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MaverickNerfWH, NOANIM |
-| 684 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ABRMEXP, ShrikeWH |
-| 685 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | SONARFX, SuperSubAP |
-| 686 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChaosTouchWH, SMOKEY2 |
-| 687 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChaosTouchEffectWH, MIRAGEBULLET |
-| 688 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | DominatorParticlesWH, ICBMCRATE |
-| 689 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BlueFire, NAINDP_B |
-| 690 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MutationClairFixWH, NAINDP_BD |
-| 691 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NASNTYTUR, WarRigDrillsWH |
-| 692 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BulletBattering, YAAIRF_D |
-| 693 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GreatTempestRockWH, YAAIRF_DD |
-| 694 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ORANGESMOKE, ScourgeWH |
-| 695 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ScourgeWHE, VATSGAZ |
-| 696 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GOLDGASSMALL, ScourgeEMPWH |
-| 697 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RAHNANIM, RadSmallWarhead |
-| 698 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ScorchbombWH, YAPSYT_C |
-| 699 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | Scorchbomb2WH, YAPSYT_CD |
-| 700 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | PRISMDIE, ScorchbombFragWH |
-| 701 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NATECH_A, ScorchbombDWH |
-| 702 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMISL_E, FoxSplitAP |
-| 703 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMISL_F, MegalaserWH |
-| 704 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMISL_G, MegalaserWHE |
-| 705 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAMISL_H, MegalaserAAWH |
-| 706 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MegalaserAAEWH, PULSMUZ |
-| 707 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GAWEAP_CD, MonolithLaserWH |
-| 708 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ChronoBlasterWH, GACSPH_A |
-| 709 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ARESLASER, AeroblazeSniperWH |
-| 710 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GlacialScreenWH, NANRCT_D |
-| 711 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RepulsorEffectWH, YAPSYB_B |
-| 712 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RepulsorPlaceWH, YAPSYB_BD |
-| 713 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FVRepulsorPlaceWH, NANRCT_DD |
-| 714 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | RepulsorWH, TANKEXP2 |
-| 715 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ReaperDeathWH, TRAILSPYP |
-| 716 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | STAREXPB, StormAPB |
-| 717 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | EMPulsSuperB, STAREXPC |
-| 718 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CAAEFLG_A, HuntressHealWH |
-| 719 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CamoSA, DIG |
-| 720 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | CamoSAE, YAPSYB_A |
-| 721 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | FlintBomb, NAAIR_D |
-| 722 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAAIR_C, TurretAP |
-| 723 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAAIR_A, TurretAPE |
-| 724 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | MadbombWH, NAAIR_B |
-| 725 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | TNKIMPCT, TeslaAP |
-| 726 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | BARREXP, TeslaAPE |
-| 727 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | HalfLifeWH, NAFISTBB |
-| 728 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAFIST_1, RoboSplash |
-| 729 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | ASWLaunchWH, NAFIST_1D |
-| 730 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | GeneticGasWH, NAFIST_2 |
-| 731 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAFIST_2D, NeonWeldWH |
-| 732 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAFIST_3, TeralaserWH |
-| 733 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Warheads] | NAFIST_3D, SquidHE |
+| 255 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CHRONOFD, DolphinProjE |
+| 256 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CHRONOTG, SalamanderProj |
+| 257 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NUKETO, SalamanderProjAA |
+| 258 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BladeInvisible2, NUKEPUFF |
+| 259 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CRYSTAL1, CannonScourge |
+| 260 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CRYSTAL2, TorpedoX |
+| 261 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CRYSTAL3, TorpedoXE |
+| 262 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CRYSTAL4, InvisibleCryo |
+| 263 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAMISL_D, CryobeamIP |
+| 264 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CryobeamIVP, SGRYSMK1 |
+| 265 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | Cryobeam6P, INVISO |
+| 266 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NAPSIS_A, SeitaadMissileFragP |
+| 267 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | AlanqaAAP, NAPSIS_AD |
+| 268 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | FlareProj, PSIWARN |
+| 269 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | FLAKMEDB, MadBlastStartP |
+| 270 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BladeInvisible, GAYARD_A |
+| 271 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GharialProj, LASERGUY |
+| 272 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | RaccoonEMPP, YGMREFBB |
+| 273 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | InvisibleQuetz, UCFLASH |
+| 274 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BuzzardMinesP, UCELEC |
+| 275 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | RoadrunnerNerfP, UCBLOOD |
+| 276 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GAPOST_A, PhalanxProjectile |
+| 277 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GZWEAP_3, PhalanxProjectileE |
+| 278 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GZWEAP_4, SeitaadEMPCannonProj |
+| 279 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NZWEAP_3, SeitaadMissileP |
+| 280 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NZWEAP_4, RamHackArenaP |
+| 281 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | MadBlastStartAIP, WARPTHOR |
+| 282 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAOILD_A, TarchiaProjFake |
+| 283 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ArchelonProj, NAREFNL1 |
+| 284 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NAREFNL2, SwordfishProj |
+| 285 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NAREFNL3, SHTorpedo |
+| 286 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BaneP, NAREFNL4 |
+| 287 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | FTankCannonP, NACNST_A |
+| 288 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DiverbeeP, NANRCT_B |
+| 289 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CannonDraco, NACNST_C |
+| 290 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NAREFNOR, StalkerDrainProj |
+| 291 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NACLON_A, SuppressorBombP |
+| 292 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NANRCT_A, RiotGunP |
+| 293 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NATSLA_A, NuwaProjZ |
+| 294 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CHRONOBM, SAMBunkerProjE |
+| 295 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CHRONOAR, FVBondP |
+| 296 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CHRONOWAVE, ZorbBallN |
+| 297 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | EurekaBlastP, GACSPH_E |
+| 298 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GACSPH_F, GodsbaneP |
+| 299 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GACSPH_FD, UraganP |
+| 300 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ExtendLifeP, GACSPH_G |
+| 301 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GACSPH_H, StructureBuffLargeP |
+| 302 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GACSPH_HD, GreenArrowP |
+| 303 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | OrcinusWaveP, STURTRM |
+| 304 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAWSH12D, StrikerGunRunP |
+| 305 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | FLAKMUZ, FVArsoBombProj |
+| 306 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | AeroFake, DBRI-WM1 |
+| 307 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DBRI-WM2, NautTorpedo |
+| 308 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DBRI-WM3, NautTorpedoE |
+| 309 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BuzzardProj, NAMISL_E |
+| 310 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | JagdStrike, NAMISL_F |
+| 311 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | JagdStrikeE, NAMISL_G |
+| 312 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BladeInvisibleE, NAMISL_H |
+| 313 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAAIRFBB, CryobeamIPAI |
+| 314 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CryobeamIVPAI, WCCLOUD1 |
+| 315 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | Cryobeam6PAI, WCCLOUD2 |
+| 316 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ScavengerMachineGunP, WCCLOUD3 |
+| 317 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ScavMedusaP, WCLBOLT1 |
+| 318 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DeathBoltP, WCLBOLT3 |
+| 319 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | UraganPunchesP, WCLBOLT2 |
+| 320 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | EXPLOLB, KrukovSwordP |
+| 321 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAUSFGL_A, CryobeamIPAnimA |
+| 322 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DBRI-WM4, TarchiaCannonBall |
+| 323 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DBRI-WM5, WastelotP |
+| 324 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DBRI-WM6, NormalBombE |
+| 325 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GAWETH_E, WarpnodeBombP |
+| 326 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CyborgbounceB, GAWETH_F |
+| 327 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CyborgbounceB2, GAWETH_FD |
+| 328 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CyborgbounceB3, GAWETH_G |
+| 329 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | DroppingP, GAWETH_H |
+| 330 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GAWETH_HD, GrandCannonShrapnel |
+| 331 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NAIRON_A, ShieldGeneratorP |
+| 332 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ComaStrikeE, TWNK1 |
+| 333 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | HydraMachineGunP, NAYARD_A |
+| 334 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | Electricmouse, NAYARD_B |
+| 335 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BallisticShrapnel, NAYARD_C |
+| 336 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NAYARD_D, ReaperProj |
+| 337 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ArtilleryProj, CAWS01DM |
+| 338 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | ArtilleryProjE, NATSLA_B |
+| 339 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | NATSLA_BD, ShinMissileProj |
+| 340 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GAPRIS_A, ShinMissileProjE |
+| 341 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BallisticInacc, GAPRIS_AD |
+| 342 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CHRONOSK, ScavengerCryoP |
+| 343 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAWA14DM, DLancerProj |
+| 344 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CAJPFLG_A, VentrexScavP |
+| 345 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | SnakeMissileProj, YARIFT_A |
+| 346 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GAWEAP_AD, SnakeMissileProjE |
+| 347 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GZWEAP_1D, InvisibleSnake |
+| 348 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | CondorBlastP, GZWEAP_2D |
+| 349 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | FVRepulsorProj, GZWEAP_3D |
+| 350 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GZWEAP_4D, StratoP |
+| 351 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GACSPH_GD, RTorpedo |
+| 352 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GAAIRF_A, RTorpedoE |
+| 353 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | BladeInvisible2E, GAAIRF_AD |
+| 666 | 2 | rulesmo.ini (effective) | Unknown | [Animations], [Projectiles] | GBLDEXP9, PulsPr |
 | Academy.InfantryVeterancy | 2 | rulesmo.ini (effective) | Building | [CAACAD], [F_ERESB] | 1, 2 |
 | Academy.Types | 2 | rulesmo.ini (effective) | Building | [CADOCK], [F_ERESB] | E2,FLAKT,HTNK,SCAR,HARV,HTK,JTNK,CTNK,DTRUCK,BGGY,DOG,SUB,DBOAT, LCRF,DEST,AEGIS,CARRIER,HCRUIS,SIREN,SIREN2,DLPH,SAPC,SUB,SUB2,SWLF,REAP,REAPL,DBOAT,DRED,AKULA,SLED,SQD,NAUT,BSUB,SWORD,LEVI,MANTA |
 | ActiveAnimThreeSort | 2 | artmo.ini (effective) | Building, Unknown | [GAPOSTB], [GAPOST] | 362 |
 | ActiveAnimTwoSort | 2 | artmo.ini (effective) | Building, Unknown | [GAPOSTB], [GAPOST] | 362 |
-| Airstrike | 2 | rulesmo.ini (effective) | Unknown | [AirstrikeFlareAI], [AirstrikeFlare] | yes |
-| AllowZeroDamage | 2 | rulesmo.ini (effective) | Unknown | [ChronoFreezeWH], [NanochargeWH] | yes |
+| Airstrike | 2 | rulesmo.ini (effective) | Warhead | [AirstrikeFlareAI], [AirstrikeFlare] | yes |
+| AllowZeroDamage | 2 | rulesmo.ini (effective) | Warhead | [ChronoFreezeWH], [NanochargeWH] | yes |
 | AlphaLight | 2 | rulesmo.ini (effective) | Unknown | [AlizeBeamSys], [LightBeamSysE] | DARKDOT |
 | BarrelCompressFrames | 2 | rulesmo.ini (effective) | Building | [CAEAST02], [GTGCAN] | 3 |
 | BarrelHoldFrames | 2 | rulesmo.ini (effective) | Building | [CAEAST02], [GTGCAN] | 3 |
@@ -3368,18 +2929,12 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | DisguiseFireOnly | 2 | rulesmo.ini (effective) | Weapon | [MirageGunE], [MirageGun] | no |
 | DisguiseWhenStill | 2 | rulesmo.ini (effective) | Vehicle | [MGTK], [PHNT] | yes |
 | DockUnloadCell | 2 | artmo.ini (effective) | Building, Unknown | [GAOREF], [YAMREF] | 2,1 |
-| Dominator.ControlAnim | 2 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial], [PsychicDominatorSpecial] | MINDANIMR, TWNK1 |
-| Dominator.FireAtPercentage | 2 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial], [PsychicBeaconSpecial] | 20, 95 |
-| Dominator.FirstAnim | 2 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial], [PsychicBeaconSpecial] | FVORTEX, TWNK1 |
-| Dominator.Ripple | 2 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial], [PsychicBeaconSpecial] | no, yes |
-| Dominator.SecondAnim | 2 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial], [PsychicBeaconSpecial] | FBLAST, TWNK1 |
-| Dominator.SecondAnimHeight | 2 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial], [PsychicBeaconSpecial] | 0, 650 |
 | ElitePrimaryFireFLH | 2 | artmo.ini (effective) | Building, Vehicle | [YAGGUN], [YTNK] | 150,65,200, 160,30,150 |
 | EliteSecondaryFireFLH | 2 | artmo.ini (effective) | Building, Vehicle | [YAGGUN], [YTNK] | 150,65,200, 160,30,150 |
 | EliteWeapon5FLH | 2 | artmo.ini (effective) | Vehicle | [TERA], [YTNK] | 10,45,200, 160,30,150 |
 | EliteWeapon6FLH | 2 | artmo.ini (effective) | Vehicle | [TERA], [YTNK] | 10,45,200, 160,30,150 |
 | FiringSyncFrame1 | 2 | artmo.ini (effective) | Vehicle | [MEGA], [SQD] | 16, 6 |
-| Flash.Duration | 2 | rulesmo.ini (effective) | Unknown | [ChronoFreezeWH], [NanochargeWH] | 10, 15 |
+| Flash.Duration | 2 | rulesmo.ini (effective) | Warhead | [ChronoFreezeWH], [NanochargeWH] | 10, 15 |
 | FlyBack | 2 | rulesmo.ini (effective) | Aircraft | [CMISL], [DMISL] | true |
 | FogOfWar | 2 | rulesmo.ini (effective) | General, Unknown | [General], [MultiplayerDialogSettings] | no |
 | FoundationOutline.48 | 2 | artmo.ini (effective) | Building | [CACPTL], [CAPALACE04] | 6,16, 7,15 |
@@ -3394,30 +2949,18 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | IsLine | 2 | rulesmo.ini (effective) | Weapon | [FlareAI], [Flare] | true |
 | IsRadEruption | 2 | rulesmo.ini (effective) | Weapon | [RadEradicationWeaponE], [RadEruptionWeaponE] | yes |
 | IsVeins | 2 | rulesmo.ini (effective) | Unknown | [VEINHOLEDUMMY], [VEINHOLE] | true |
-| Lightning.Bolts | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | DUMMY, LBOLT1,LBOLT2,LBOLT3 |
-| Lightning.CloudHeight | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | 10, 1200 |
-| Lightning.Clouds | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | DUMMY, LBOLT1,LBOLT2,LBOLT3 |
-| Lightning.Duration | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | -1, 300 |
-| Lightning.HitDelay | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | 30, 500 |
-| Lightning.IgnoreLightningRod | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | yes |
-| Lightning.PrintText | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | no, none |
-| Lightning.RadarOutageAffects | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [LightningStormSpecial] | enemies |
-| Lightning.ScatterCount | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | 1, 30 |
-| Lightning.ScatterDelay | 2 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial], [SuperFlashSpawn] | 30, 300 |
-| MakesDisguise | 2 | rulesmo.ini (effective) | Unknown | [Snapshot], [TankSnapshot] | yes |
+| MakesDisguise | 2 | rulesmo.ini (effective) | Warhead | [Snapshot], [TankSnapshot] | yes |
 | MaxSize | 2 | rulesmo.ini (effective) | Unknown | [BasicTunnel], [FatalTunnel] | 2, 6 |
-| Message.Ready | 2 | rulesmo.ini (effective) | SuperWeapon | [EliteReservesMessage], [TimeFreezeSpecial] | MISSION:FreezeReady, NAME:ERESREADY |
 | MigAttackCursor | 2 | rulesmo.ini (effective) | Weapon | [FlareAI], [Flare] | no |
 | Money | 2 | rulesmo.ini (effective) | Unknown | [MultiplayerDialogSettings], [Powerups] | 10000, 5,MONEY,yes,3000 |
-| MultiplayPassive | 2 | rulesmo.ini (effective) | Country | [Neutral], [Special] | true |
+| MultiplayPassive | 2 | rulesmo.ini (effective) | Country, Unknown | [Neutral], [Special] | true |
 | NaturalSmokeLocation | 2 | rulesmo.ini (effective) | Building | [GAFACT], [NAFACT] | -12,0,370 |
 | NextParticleOffset | 2 | rulesmo.ini (effective) | Unknown | [GasCloudM1], [GasCloudM2] | 0,0,150 |
 | NoThreat | 2 | rulesmo.ini (effective) | Unknown | [Harmless], [Selling] | yes |
-| NukeMaker | 2 | rulesmo.ini (effective) | Unknown | [BoidMaker], [NukeMaker] | yes |
+| NukeMaker | 2 | rulesmo.ini (effective) | Warhead | [BoidMaker], [NukeMaker] | yes |
 | OneFrameLight | 2 | rulesmo.ini (effective) | Unknown | [LGSparkSys], [WeldingSys] | true |
-| Parasite | 2 | rulesmo.ini (effective) | Unknown | [ParasitePro], [Parasite] | yes |
-| Passengers.Disallowed | 2 | rulesmo.ini (effective) | Building | [NATUNE], [NATUNH] | KTNK,ROBO,LCRF,SAPC,SDRN,TELE,YHVR,JACKAL,COON,ORCIN,TARCHIA,SEAT,MECHA |
-| Poison | 2 | rulesmo.ini (effective) | Unknown | [IceCloudWH], [VirusGas] | no, yes |
+| Parasite | 2 | rulesmo.ini (effective) | Warhead | [ParasitePro], [Parasite] | yes |
+| Poison | 2 | rulesmo.ini (effective) | Warhead | [IceCloudWH], [VirusGas] | no, yes |
 | PowerUp1YSort | 2 | artmo.ini (effective) | Building | [GAPOWR], [NANRCT] | 156, 362 |
 | PowerUp2Anim | 2 | artmo.ini (effective) | Building | [FABARR], [YATECH] | FABARR_D, YAGVLT |
 | PowerUp2AnimDamaged | 2 | artmo.ini (effective) | Building | [FABARR], [YATECH] | FABARR_D, YAGVLT |
@@ -3430,9 +2973,8 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ProduceCashStartup | 2 | rulesmo.ini (effective) | Building | [CABANK], [CAOILD] | 1000, 500 |
 | PsychicDetectionRadius | 2 | rulesmo.ini (effective) | Building | [YAMPSI], [YAVISN] | 10, 14 |
 | Purple | 2 | rulesmo.ini (effective) | Unknown | [ColorAdd], [Colors] | 12,0,21, 190,135,170 |
-| RadarJamRadius | 2 | rulesmo.ini (effective) | Aircraft | [WIDOWA], [WIDOW] | 16, 24 |
-| RelativeDamage | 2 | rulesmo.ini (effective) | Unknown | [HalfLifeWH], [JudgementWH] | yes |
-| RelativeDamage.Buildings | 2 | rulesmo.ini (effective) | Unknown | [HalfLifeWH], [JudgementWH] | -32, -50 |
+| RelativeDamage | 2 | rulesmo.ini (effective) | Warhead | [HalfLifeWH], [JudgementWH] | yes |
+| RelativeDamage.Buildings | 2 | rulesmo.ini (effective) | Warhead | [HalfLifeWH], [JudgementWH] | -32, -50 |
 | Smoke | 2 | rulesmo.ini (effective) | AudioVisual, Unknown | [AudioVisual], [MouseCursors] | 690,12,5,-1,1,Center,Middle, SMOKEY2 |
 | StartStandFrame | 2 | artmo.ini (effective) | Vehicle | [MEGA], [ROADR] | 0 |
 | StartWalkFrame | 2 | artmo.ini (effective) | Vehicle | [MEGA], [ROADR] | 0, 8 |
@@ -4705,6 +4247,385 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | 2259 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | EEYEL |
 | 2260 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | EEWHI |
 | 2261 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | EEGRE |
+| 354 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAAIRF_B |
+| 355 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAAIRF_BD |
+| 356 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAAIRF_C |
+| 357 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAAIRF_CD |
+| 358 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_AD |
+| 359 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_BD |
+| 360 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_CD |
+| 361 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_DD |
+| 362 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATSLA_AD |
+| 363 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CARUS01D |
+| 364 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GACSPH_ED |
+| 365 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAREFNL1D |
+| 366 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAREFNL2D |
+| 367 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAREFNL3D |
+| 368 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAREFNL4D |
+| 369 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAP_1 |
+| 370 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAP_2 |
+| 371 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAP_1D |
+| 372 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAP_2D |
+| 373 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAP_3D |
+| 374 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAP_4D |
+| 375 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAWEAP_A |
+| 376 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | STAREXPA |
+| 377 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAOREFBB |
+| 378 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAOREFOR |
+| 379 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPARS12D |
+| 380 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CACHIG04D |
+| 381 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAREFNBB |
+| 382 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NANRCT_AD |
+| 383 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GASPST_A |
+| 384 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GASPST_AD |
+| 385 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NACLON_AD |
+| 386 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAWSH18A |
+| 387 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_AD |
+| 388 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAPILE_AD |
+| 389 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_C |
+| 390 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_CD |
+| 391 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_D |
+| 392 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_DD |
+| 393 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_AD |
+| 394 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAPSYA_A |
+| 395 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAPSYA_AD |
+| 396 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAPSYB_A |
+| 397 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAPSYB_AD |
+| 398 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | HELIMUZ |
+| 399 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NACNST_D |
+| 400 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GACNST_F |
+| 401 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NADIST_A |
+| 402 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NADIST_B |
+| 403 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | OMGASHLD |
+| 404 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DISTBRST |
+| 405 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DISTFX |
+| 406 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAINDP_D |
+| 407 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SMOKEY3 |
+| 408 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILALL |
+| 409 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NADEPT_B |
+| 410 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NADEPT_BD |
+| 411 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILTU16 |
+| 412 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILWSTE |
+| 413 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILHBRD |
+| 414 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAOREF_B |
+| 415 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAOREF_C |
+| 416 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAOREF_D |
+| 417 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAINDP_CD |
+| 418 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAPALMF |
+| 419 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CARUFGL_A |
+| 420 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAFRFGL_A |
+| 421 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAIRFGL_A |
+| 422 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CACUFGL_A |
+| 423 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CASKFGL_A |
+| 424 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CALBFGL_A |
+| 425 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PIFFX2 |
+| 426 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PIFFX2E |
+| 427 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CASTL04DM |
+| 428 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAHOSP_AD |
+| 429 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NACNST_CD |
+| 430 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAPRIS_B |
+| 431 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAPRIS_BD |
+| 432 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAGAP_A |
+| 433 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAGAP_AD |
+| 434 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DRAINEXP |
+| 435 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BEHIND |
+| 436 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NACNST_AD |
+| 437 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAGEFGL_A |
+| 438 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAUKFGL_A |
+| 439 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPOFGL_A |
+| 440 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_F |
+| 441 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_FD |
+| 442 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_H |
+| 443 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_HD |
+| 444 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_G |
+| 445 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAIRON_GD |
+| 446 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILDBAT |
+| 447 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | RADERUPT |
+| 448 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CANY04DM |
+| 449 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | KTSTLEXP |
+| 450 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DEMTEXP |
+| 451 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GCMUZZLE |
+| 452 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | VTEXPLOD |
+| 453 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | VTMUZZLE |
+| 454 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CRIVEXP |
+| 455 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CRIVEXP2 |
+| 456 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TSTIMPCT |
+| 457 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BRRLEXP1 |
+| 458 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BRRLEXP2 |
+| 459 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_S1 |
+| 460 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_S2 |
+| 461 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_S3 |
+| 462 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | MININUKE |
+| 463 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPR01DM |
+| 464 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_S1 |
+| 465 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_S2 |
+| 466 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_S3 |
+| 467 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAMISL_ED |
+| 468 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAMISL_FD |
+| 469 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAMISL_GD |
+| 470 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAMISL_HD |
+| 471 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAAIRFBB |
+| 472 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAHPADBB |
+| 473 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPR11DM |
+| 474 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWDEST |
+| 475 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWN |
+| 476 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWS |
+| 477 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWE |
+| 478 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWW |
+| 479 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWNW |
+| 480 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWNE |
+| 481 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWSW |
+| 482 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARRWSE |
+| 483 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMOV01_A |
+| 484 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMOV01_AD |
+| 485 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMOV02_A |
+| 486 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMOV02_AD |
+| 487 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPLANT_CD |
+| 488 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAOILD_AD |
+| 489 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAAIRF_B |
+| 490 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SADFACE |
+| 491 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAAIRF_A |
+| 492 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SPEED |
+| 493 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_S1D |
+| 494 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_S2D |
+| 495 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAYARD_S3D |
+| 496 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_S1D |
+| 497 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_S2D |
+| 498 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAYARD_S3D |
+| 499 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAEAST01DM |
+| 500 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_E |
+| 501 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_ED |
+| 502 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_F |
+| 503 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_FD |
+| 504 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_G |
+| 505 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_GD |
+| 506 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_H |
+| 507 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_HD |
+| 508 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | MISSANIM |
+| 509 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | VIRUSD |
+| 510 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAINDP_A |
+| 511 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAINDP_AD |
+| 512 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAMPSI_A |
+| 513 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAMPSI_AD |
+| 514 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_A |
+| 515 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_AD |
+| 516 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_B |
+| 517 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_BD |
+| 518 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_C |
+| 519 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_CD |
+| 520 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_1 |
+| 521 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_2 |
+| 522 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_3 |
+| 523 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_4 |
+| 524 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAWEAP_A |
+| 525 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAWEAP_AD |
+| 526 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_A |
+| 527 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_B |
+| 528 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_A2 |
+| 529 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_B2 |
+| 530 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_AD |
+| 531 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_BD |
+| 532 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_A2D |
+| 533 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATBNK_B2D |
+| 534 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GENDEATH |
+| 535 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAROCK_A |
+| 536 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YABRCK_A |
+| 537 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_C |
+| 538 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_CD |
+| 539 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_A |
+| 540 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_AD |
+| 541 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILHARB |
+| 542 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TANKEXP1 |
+| 543 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_S |
+| 544 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_SD |
+| 545 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_S2 |
+| 546 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_S2D |
+| 547 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_S3 |
+| 548 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAYARD_S3D |
+| 549 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYT_A |
+| 550 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYT_AD |
+| 551 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YATECH_A |
+| 552 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YATECH_AD |
+| 553 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAREFBB |
+| 554 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DRUGWFX |
+| 555 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_E |
+| 556 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_ED |
+| 557 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_F |
+| 558 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_FD |
+| 559 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_G |
+| 560 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_GD |
+| 561 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_H |
+| 562 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_HD |
+| 563 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YACNST_A |
+| 564 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YACNST_AD |
+| 565 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | STAKNTRL |
+| 566 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | COLFIRE |
+| 567 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CALND6_A |
+| 568 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CALND6_AD |
+| 569 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CATR03DM |
+| 570 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UCCONS |
+| 571 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UCINIT |
+| 572 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CASEAT02_A |
+| 573 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CASEAT02_AD |
+| 574 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | MINDANIM |
+| 575 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DISKRAY |
+| 576 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PDFXCLD |
+| 577 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PDFXLOC |
+| 578 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DBRIEXP1 |
+| 579 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DBRIEXP2 |
+| 580 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPLANT_B |
+| 581 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPLANT_BD |
+| 582 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CALA10_A |
+| 583 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CALA10_AD |
+| 584 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAPLANT_C |
+| 585 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | HAILMUZ |
+| 586 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_D |
+| 587 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGRND_DD |
+| 588 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YACNST_CD |
+| 589 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FORCSHLD |
+| 590 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CATIME_A |
+| 591 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | INITFIRE |
+| 592 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | HEPHLSR |
+| 593 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMSC14_A |
+| 594 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPOWR_B |
+| 595 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPOWR_C |
+| 596 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CASLAB_A |
+| 597 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_A |
+| 598 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPPET_AD |
+| 599 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BRUTDIE |
+| 600 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_P |
+| 601 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAGNTC_PD |
+| 602 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NANRCT_P |
+| 603 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NANRCT_PD |
+| 604 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPOWR_BD |
+| 605 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPOWR_CD |
+| 606 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAROBO_AD |
+| 607 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | APMUZZLE |
+| 608 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAWETH_ED |
+| 609 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAWETH_GD |
+| 610 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YABRCK_AD |
+| 611 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GZWEAPBB |
+| 612 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NZWEAPBB |
+| 613 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | IRRADIATEX |
+| 614 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAPBB |
+| 615 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_1D |
+| 616 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_2D |
+| 617 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_3D |
+| 618 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YZWEAP_4D |
+| 619 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CATIME_AD |
+| 620 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WA05X |
+| 621 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WA06X |
+| 622 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WA07X |
+| 623 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WA08X |
+| 624 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WB05X |
+| 625 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WB06X |
+| 626 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WB07X |
+| 627 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WB08X |
+| 628 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WC05X |
+| 629 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WC06X |
+| 630 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WC07X |
+| 631 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WC08X |
+| 632 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WD05X |
+| 633 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WD06X |
+| 634 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WD07X |
+| 635 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WD08X |
+| 636 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP1 |
+| 637 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP2 |
+| 638 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP3 |
+| 639 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP4 |
+| 640 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP5 |
+| 641 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP6 |
+| 642 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP7 |
+| 643 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP8 |
+| 644 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BFIRE01 |
+| 645 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BFIRE02 |
+| 646 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BFIRE03 |
+| 647 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BFIRE04 |
+| 648 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BFIRE05 |
+| 649 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BFIRE06 |
+| 650 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PIXELR |
+| 651 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PIXELY |
+| 652 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PIXELG |
+| 653 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GONFIRE1 |
+| 654 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GONFIRE2 |
+| 655 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GONFIRE3 |
+| 656 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UNITEXPL1 |
+| 657 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UNITEXPL2 |
+| 658 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UNITEXPL3 |
+| 659 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UNITEXPL4 |
+| 660 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UNITEXPL5 |
+| 661 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | UNITEXPL6 |
+| 662 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | MINFIRE01 |
+| 663 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | MINFIRE02 |
+| 664 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DBRIEXP1F |
+| 665 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DBRIEXP2F |
+| 667 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GBLDEXP10 |
+| 668 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TUNTOP05 |
+| 669 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TUNTOP06 |
+| 670 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TUNTOP07 |
+| 671 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TUNTOP08 |
+| 672 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FSTART01 |
+| 673 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FSTART02 |
+| 674 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FSTART03 |
+| 675 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FSTART04 |
+| 676 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FSTART05 |
+| 677 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | FSTART06 |
+| 678 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SMOKEY |
+| 679 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SMOKEY4 |
+| 680 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SMOKEY5 |
+| 681 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SCAVEXP |
+| 682 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | WARPMIN |
+| 683 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NOANIM |
+| 684 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ABRMEXP |
+| 685 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SONARFX |
+| 686 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | SMOKEY2 |
+| 687 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | MIRAGEBULLET |
+| 688 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ICBMCRATE |
+| 689 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAINDP_B |
+| 690 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAINDP_BD |
+| 691 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NASNTYTUR |
+| 692 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAAIRF_D |
+| 693 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAAIRF_DD |
+| 694 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ORANGESMOKE |
+| 695 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | VATSGAZ |
+| 696 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GOLDGASSMALL |
+| 697 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | RAHNANIM |
+| 698 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYT_C |
+| 699 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYT_CD |
+| 700 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PRISMDIE |
+| 701 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NATECH_A |
+| 702 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMISL_E |
+| 703 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMISL_F |
+| 704 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMISL_G |
+| 705 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAMISL_H |
+| 706 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | PULSMUZ |
+| 707 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GAWEAP_CD |
+| 708 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | GACSPH_A |
+| 709 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | ARESLASER |
+| 710 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NANRCT_D |
+| 711 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYB_B |
+| 712 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYB_BD |
+| 713 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NANRCT_DD |
+| 714 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TANKEXP2 |
+| 715 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TRAILSPYP |
+| 716 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | STAREXPB |
+| 717 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | STAREXPC |
+| 718 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAAEFLG_A |
+| 719 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | DIG |
+| 720 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | YAPSYB_A |
+| 721 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAAIR_D |
+| 722 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAAIR_C |
+| 723 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAAIR_A |
+| 724 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAAIR_B |
+| 725 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | TNKIMPCT |
+| 726 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | BARREXP |
+| 727 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFISTBB |
+| 728 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_1 |
+| 729 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_1D |
+| 730 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_2 |
+| 731 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_2D |
+| 732 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_3 |
+| 733 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_3D |
 | 734 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_4 |
 | 735 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | NAFIST_4D |
 | 736 | 1 | rulesmo.ini (effective) | Unknown | [Animations] | CAFNFLG_A |
@@ -4982,6 +4903,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | ActiveAnimTwoZSort | 1 | artmo.ini (effective) | Building | [GACLAB] | 50 |
 | AddOccupy | 1 | artmo.ini (effective) | Building | [CATEXS06] | -1,2 |
 | AddPlanningModeCommandSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | PlanningModeAdd |
+| AffectsAllies | 1 | rulesmo.ini (effective) | Unknown | [SmokeCannonWH] | no |
 | AI.BaseDefenseCounts | 1 | rulesmo.ini (effective) | Unknown | [FourthSide] | 40,20,12 |
 | AI.BaseDefenses | 1 | rulesmo.ini (effective) | Unknown | [FourthSide] | FAGUAR,FASONI,FARAIL,FACOMPAI |
 | AIAlternateProductionCreditCutoff | 1 | rulesmo.ini (effective) | General | [General] | 4000 |
@@ -5059,7 +4981,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | AttackCursorOnDisguise | 1 | rulesmo.ini (effective) | General | [General] | no |
 | AttackingAircraftSightRange | 1 | rulesmo.ini (effective) | General | [General] | 2 |
 | Backwarp | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 659,10,5,-1,1,Center,Middle |
-| BallisticScatter | 1 | rulesmo.ini (effective) | CombatDamage | [CombatDamage] | 1.0 |
 | BalloonHoverAcceleration | 1 | rulesmo.ini (effective) | General | [General] | .04 |
 | BalloonHoverBob | 1 | rulesmo.ini (effective) | General | [General] | 1.2 |
 | BalloonHoverBoost | 1 | rulesmo.ini (effective) | General | [General] | 150% |
@@ -5084,7 +5005,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Bloatick | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 729,10,5,-1,1,Center,Middle |
 | Boid | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 577,16,5,-1,1,Center,Middle |
 | BombAttachSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | CrazyIvanAttack |
-| BombDisarm | 1 | rulesmo.ini (effective) | Unknown | [BombDisarm] | yes |
+| BombDisarm | 1 | rulesmo.ini (effective) | Warhead | [BombDisarm] | yes |
 | BombParachute | 1 | rulesmo.ini (effective) | General | [General] | PARACH |
 | BombTickingSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | CrazyIvanBombTick |
 | Boost | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 808,17,5,-1,1,Center,Middle |
@@ -5258,7 +5179,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Dig | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | DIG |
 | DigIn | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 837,10,5,42,10,Center,Middle |
 | DigSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | Dummy |
-| DirectRocker | 1 | rulesmo.ini (effective) | Unknown | [BeetleRollWH] | yes |
+| DirectRocker | 1 | rulesmo.ini (effective) | Warhead | [BeetleRollWH] | yes |
 | DirectRockingCoefficient | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | 1.5 |
 | DisabledDisguiseDetectionPercent | 1 | rulesmo.ini (effective) | General | [General] | 15,5,2 |
 | DisableEmptySpawnPositions | 1 | uimd.ini (effective) | Unknown | [LoadingScreen] | no |
@@ -5282,12 +5203,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | DMislType | 1 | rulesmo.ini (effective) | General | [General] | DMISL |
 | DMislWarhead | 1 | rulesmo.ini (effective) | CombatDamage | [CombatDamage] | DMISLWH |
 | Dominate | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 249,10,5,516,1,Center,Middle |
-| Dominator.Capture | 1 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial] | no |
-| Dominator.CaptureImmuneToPsionics | 1 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial] | yes |
-| Dominator.CaptureMindControlled | 1 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial] | yes |
-| Dominator.CapturePermaMindControlled | 1 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial] | yes |
-| Dominator.Captures | 1 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial] | yes |
-| Dominator.PermanentCapture | 1 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial] | yes |
 | DominatorCaptureRange | 1 | rulesmo.ini (effective) | General | [General] | 1 |
 | DominatorDamage | 1 | rulesmo.ini (effective) | General | [General] | 1000 |
 | DominatorFireAtPercentage | 1 | rulesmo.ini (effective) | General | [General] | 20 |
@@ -5305,14 +5220,13 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | DropPodAngle | 1 | rulesmo.ini (effective) | General | [General] | 1 |
 | DropPodHeight | 1 | rulesmo.ini (effective) | General | [General] | 2000 |
 | DropPodSpeed | 1 | rulesmo.ini (effective) | General | [General] | 75 |
-| DropPodWeapon | 1 | rulesmo.ini (effective) | General | [General] | NotAWeapon |
 | DropZoneAnim | 1 | rulesmo.ini (effective) | General | [General] | FLARU |
 | DumbMyEffectivenessCoefficient | 1 | rulesmo.ini (effective) | General | [General] | 2.0 |
 | DumbTargetDistanceCoefficient | 1 | rulesmo.ini (effective) | General | [General] | -0.1 |
 | DumbTargetEffectivenessCoefficient | 1 | rulesmo.ini (effective) | General | [General] | 2.0 |
 | DumbTargetSpecialThreatCoefficient | 1 | rulesmo.ini (effective) | General | [General] | 2.0 |
 | DumbTargetStrengthCoefficient | 1 | rulesmo.ini (effective) | General | [General] | 2.0 |
-| ElectricAssault | 1 | rulesmo.ini (effective) | Unknown | [ElectricAssault] | yes |
+| ElectricAssault | 1 | rulesmo.ini (effective) | Warhead | [ElectricAssault] | yes |
 | ElevationBonusCap | 1 | rulesmo.ini (effective) | Unknown | [ElevationModel] | 2 |
 | ElevationIncrement | 1 | rulesmo.ini (effective) | Unknown | [ElevationModel] | 4 |
 | ElevationIncrementBonus | 1 | rulesmo.ini (effective) | Unknown | [ElevationModel] | 2 |
@@ -5475,7 +5389,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | IronCurtainFlash | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | no |
 | IronCurtainInvokeAnim | 1 | rulesmo.ini (effective) | General | [General] | IRONBLSTX |
 | Irrad | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 957,5,5,-1,1,Center,Middle |
-| IsLocomotor | 1 | rulesmo.ini (effective) | Unknown | [LocomotorBeam] | yes |
+| IsLocomotor | 1 | rulesmo.ini (effective) | Warhead | [LocomotorBeam] | yes |
 | IsVeinhole | 1 | rulesmo.ini (effective) | Unknown | [VEINTREE] | true |
 | IsVeinholeMonster | 1 | rulesmo.ini (effective) | Unknown | [VEINHOLE] | true |
 | Ivan | 1 | rulesmo.ini (effective) | Infantry | [IVAN] | yes |
@@ -5488,8 +5402,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Khaki | 1 | rulesmo.ini (effective) | Unknown | [Colors] | 40,110,190 |
 | Knight | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 431,2,5,-1,1,Center,Middle |
 | LargeVisceroid | 1 | rulesmo.ini (effective) | General | [General] |  |
-| LaserFence | 1 | rulesmo.ini (effective) | Building | [FAFNCE] | yes |
-| LaserFencePost | 1 | rulesmo.ini (effective) | Building | [FAPOST] | yes |
 | LaserTargetColor | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | 4 |
 | LeaveBioReactorSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | CloningVatsCreate |
 | LeaveGrinderSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] |  |
@@ -5502,12 +5414,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | LightBlue | 1 | rulesmo.ini (effective) | Unknown | [Colors] | 128,255,255 |
 | LightGold | 1 | rulesmo.ini (effective) | Unknown | [Colors] | 25,100,230 |
 | LightGrey | 1 | rulesmo.ini (effective) | Unknown | [Colors] | 0,0,255 |
-| Lightning.BoltExplosion | 1 | rulesmo.ini (effective) | SuperWeapon | [SuperFlashSpawn] | DUMMY |
-| Lightning.Debris | 1 | rulesmo.ini (effective) | SuperWeapon | [SuperFlashSpawn] | DUMMY |
-| Lightning.DebrisMax | 1 | rulesmo.ini (effective) | SuperWeapon | [SuperFlashSpawn] | 0 |
-| Lightning.DebrisMin | 1 | rulesmo.ini (effective) | SuperWeapon | [SuperFlashSpawn] | 0 |
-| Lightning.Seperation | 1 | rulesmo.ini (effective) | SuperWeapon | [IonStormSpecial] | 2 |
-| Lightning.Sounds | 1 | rulesmo.ini (effective) | SuperWeapon | [SuperFlashSpawn] | none |
 | LightningCellSpread | 1 | rulesmo.ini (effective) | General | [General] | 10 |
 | LightningDamage | 1 | rulesmo.ini (effective) | General | [General] | 250 |
 | LightningDeferment | 1 | rulesmo.ini (effective) | General | [General] | 250 |
@@ -5548,7 +5454,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | MaxWaypointPathLength | 1 | rulesmo.ini (effective) | General | [General] | 25 |
 | MCVRedeploys | 1 | rulesmo.ini (effective) | Unknown | [MultiplayerDialogSettings] | yes |
 | Mercury | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 669,9,5,-1,1,Center,Middle |
-| Message.Activate | 1 | rulesmo.ini (effective) | SuperWeapon | [GreatTempestSpecial] | NAME:GREATTEMPESTS |
 | MessageCharTyped | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | TextBleep |
 | MessageDelay | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | 1.4 |
 | MetallicDebris | 1 | rulesmo.ini (effective) | General | [General] | DBRIS1LG,DBRIS2LG,DBRIS3LG,DBRIS4LG,DBRIS5LG,DBRIS6LG,DBRIS7LG,DBRIS8LG,DBRIS9LG,DBRIS10LG,DBRIS1SM,DBRIS2SM,DBRIS3SM,DBRIS4SM,DBRIS5SM,DBRIS6SM,DBRIS7SM,DBRIS8SM,DBRIS9SM,DBRIS10SM |
@@ -5556,7 +5461,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | MidWhite | 1 | rulesmo.ini (effective) | Unknown | [ColorAdd] | 14,28,14 |
 | MinDamage | 1 | rulesmo.ini (effective) | CombatDamage | [CombatDamage] | 1 |
 | MindClearedSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | MindCleared |
-| MindControl.Permanent | 1 | rulesmo.ini (effective) | Unknown | [ControllerBuilding] | yes |
 | MindControlAttackLineFrames | 1 | rulesmo.ini (effective) | CombatDamage | [CombatDamage] | 20 |
 | Mine | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 505,1,5,-1,1,Center,Middle |
 | MinimumAIDefensiveTeams | 1 | rulesmo.ini (effective) | General | [General] | 1,1,1 |
@@ -5610,15 +5514,12 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | NoForce | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 460,10,5,-1,1,Center,Middle |
 | NoImprison | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 1011,1,5,88,1,Center,Middle |
 | None | 1 | rulesmo.ini (effective) | Unknown | [ColorAdd] | 0,0,0 |
-| NoParachuteMaxFallRate | 1 | rulesmo.ini (effective) | General | [General] | -100 |
 | NormalTargetingDelay | 1 | rulesmo.ini (effective) | General | [General] | 27 |
 | NormalTurretIndex | 1 | rulesmo.ini (effective) | Vehicle | [STING] | 0 |
 | NormalTurretWeapon | 1 | rulesmo.ini (effective) | Vehicle | [STING] | 0 |
 | NoSelfGuardArea | 1 | rulesmo.ini (effective) | Infantry | [AMEDIC] | yes |
 | NoWarpIn | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 345,1,5,-1,1,Center,Middle |
 | Nuke | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 319,10,5,513,1,Center,Middle |
-| Nuke.PsiWarning | 1 | rulesmo.ini (effective) | SuperWeapon | [EMPulsSpecial] | NOANIM |
-| Nuke.TakeOff | 1 | rulesmo.ini (effective) | SuperWeapon | [BoidBlitzSpecial] | BOIDMUZZLE |
 | NukeDown | 1 | rulesmo.ini (effective) | SuperWeapon | [SpecialWeapons] | GiantNukeDown |
 | NukeProjectile | 1 | rulesmo.ini (effective) | SuperWeapon | [SpecialWeapons] | GiantNukeUp |
 | NukeTakeOff | 1 | rulesmo.ini (effective) | General | [General] | NUKETO |
@@ -5651,31 +5552,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Paint | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 702,6,5,-1,1,Center,Middle |
 | PanicSounds | 1 | artmo.ini (effective) | Unknown | [SibAlizeSequence] | 1 FinPanic |
 | Parachute | 1 | rulesmo.ini (effective) | General | [General] | PARACH |
-| ParachuteMaxFallRate | 1 | rulesmo.ini (effective) | General | [General] | -10 |
-| ParaDrop.Chinese.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.Chinese.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | CTNK,HTK,DRON |
-| ParaDrop.Europeans.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.Europeans.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | MTNK,AMC,ROBO |
-| ParaDrop.Guild1.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,1 |
-| ParaDrop.Guild1.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | CYCL,TERA,JACKAL |
-| ParaDrop.Guild2.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,1 |
-| ParaDrop.Guild2.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | DRACO,TERA,JACKAL |
-| ParaDrop.Guild3.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,1 |
-| ParaDrop.Guild3.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | ROACH,TERA,JACKAL |
-| ParaDrop.Headquaters.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.Headquaters.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | STNK,YTNK,STING |
-| ParaDrop.Latin.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.Latin.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | JTNK,HTK,DRON |
-| ParaDrop.Pacific.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.Pacific.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | KTNK,TENGU,ROBO |
-| ParaDrop.PsiCorps.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.PsiCorps.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | LTNK,YTNK,STING |
-| ParaDrop.ScorpionCell.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.ScorpionCell.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | QTNK,YTNK,STING |
-| ParaDrop.UnitedStates.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.UnitedStates.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | ETNK,FV,ROBO |
-| ParaDrop.USSR.Num | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | 1,1,2 |
-| ParaDrop.USSR.Types | 1 | rulesmo.ini (effective) | SuperWeapon | [ReinfoPadSpecial] | HTNK,SCAR,DRON |
 | ParadropRadius | 1 | rulesmo.ini (effective) | General | [General] | 1024 |
 | Paralyzed | 1 | rulesmo.ini (effective) | Unknown | [Sticky] | yes |
 | Path | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 1058,3,5,-1,1,Center,Middle |
@@ -5703,6 +5579,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | PowerUp3AnimDamaged | 1 | artmo.ini (effective) | Building | [YATECH] | YAPVLT |
 | PowerUp3LocZZ | 1 | artmo.ini (effective) | Building | [YATECH] | -18 |
 | PParatrooper | 1 | rulesmo.ini (effective) | General | [General] | E1 |
+| Prefix | 1 | rulesmo.ini (effective) | Unknown | [Special] | J |
 | PrerequisiteBarracks | 1 | rulesmo.ini (effective) | General | [General] | NAHAND,GAPILE,YABRCK,FABARR,GAPILEB,NAHANDB,YABRCKB,FABARRB |
 | PrerequisiteFactory | 1 | rulesmo.ini (effective) | General | [General] | GAWEAP,NAWEAP,YAWEAP,FAWEAP,GAWEAPB,NAWEAPB,YAWEAPB,FAWEAPB |
 | PrerequisitePower | 1 | rulesmo.ini (effective) | General | [General] | GAPOWR,NAPOWR,NANRCT,YAPOWR,YAPOWRB,FATRAP,CAPOWR,CANRCT |
@@ -5718,9 +5595,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | PrismSupportModifier | 1 | rulesmo.ini (effective) | General | [General] | 125% |
 | PrismType | 1 | rulesmo.ini (effective) | General | [General] | ATESLA |
 | Production | 1 | rulesmo.ini (effective) | Unknown | [IQ] | 4 |
-| Protect.Duration | 1 | rulesmo.ini (effective) | SuperWeapon | [ForceShieldSpecial] | 450 |
-| Protect.PlayFadeSoundTime | 1 | rulesmo.ini (effective) | SuperWeapon | [ForceShieldSpecial] | 75 |
-| Protect.PowerOutage | 1 | rulesmo.ini (effective) | SuperWeapon | [ForceShieldSpecial] | 0 |
 | PsiWarning | 1 | artmo.ini (effective) | Unknown | [PSIWARN] | yes |
 | PsychicDominatorActivateSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | PsychicDominatorActivate |
 | PsychicRevealActivateSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | PsychicRevealActivate |
@@ -5756,9 +5630,9 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Red | 1 | rulesmo.ini (effective) | Unknown | [Colors] | 0,255,255 |
 | RefundPercent | 1 | rulesmo.ini (effective) | General | [General] | 50% |
 | Regen | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 895,3,5,-1,1,Center,Middle |
-| RelativeDamage.Aircraft | 1 | rulesmo.ini (effective) | Unknown | [JudgementWH] | -50 |
-| RelativeDamage.Infantry | 1 | rulesmo.ini (effective) | Unknown | [JudgementWH] | -50 |
-| RelativeDamage.Vehicles | 1 | rulesmo.ini (effective) | Unknown | [JudgementWH] | -50 |
+| RelativeDamage.Aircraft | 1 | rulesmo.ini (effective) | Warhead | [JudgementWH] | -50 |
+| RelativeDamage.Infantry | 1 | rulesmo.ini (effective) | Warhead | [JudgementWH] | -50 |
+| RelativeDamage.Vehicles | 1 | rulesmo.ini (effective) | Warhead | [JudgementWH] | -50 |
 | RelaxedStray | 1 | rulesmo.ini (effective) | General | [General] | 3.0 |
 | ReloadIncrement | 1 | rulesmo.ini (effective) | Vehicle | [ZEP] | 225 |
 | RepairBridgeSound | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | BridgeRepaired |
@@ -5818,6 +5692,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | Shroud | 1 | rulesmo.ini (effective) | Unknown | [MultiplayerDialogSettings] | yes |
 | ShroudGrow | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | no |
 | ShroudRate | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | 1 |
+| Side | 1 | rulesmo.ini (effective) | Unknown | [Special] | Mutant |
 | SidebarImage | 1 | rulesmo.ini (effective) | SuperWeapon | [PsychicBeaconSpecial] | DOMNICON |
 | SilverCrate | 1 | rulesmo.ini (effective) | Unknown | [CrateRules] | HealBase |
 | SinglePlayerButton | 1 | uimd.ini (effective) | Unknown | [UISettings] | hide |
@@ -5883,8 +5758,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | SpotlightMovementRadius | 1 | rulesmo.ini (effective) | General | [General] | 2000 |
 | SpotlightSpeed | 1 | rulesmo.ini (effective) | General | [General] | .015 |
 | SpyCount | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 982,10,5,100,10,Center,Middle |
-| SpyEffect.PowerOutageDuration | 1 | rulesmo.ini (effective) | Building | [NANRCT] | 1800 |
-| SpyEffect.UndoReverseEngineer | 1 | rulesmo.ini (effective) | Building | [NAPRIS] | yes |
 | SpyFree | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 992,10,5,100,10,Center,Middle |
 | SpyMoney | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 827,10,5,100,10,Center,Middle |
 | SpyMoneyStealPercent | 1 | rulesmo.ini (effective) | General | [General] | .1 |
@@ -5913,6 +5786,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | StrongBlue | 1 | rulesmo.ini (effective) | Unknown | [ColorAdd] | 0,14,8 |
 | StrongGreen | 1 | rulesmo.ini (effective) | Unknown | [ColorAdd] | 0,63,0 |
 | StrongRed | 1 | rulesmo.ini (effective) | Unknown | [ColorAdd] | 31,0,0 |
+| Suffix | 1 | rulesmo.ini (effective) | Unknown | [Special] | JP |
 | SuperAnimThreePoweredEffect | 1 | artmo.ini (effective) | Building | [YAGNTC] | true |
 | SuperBalansEnabled | 1 | rulesmo.ini (effective) | Unknown | [GlobalControls] | yes |
 | SuperGapRadiusInCells | 1 | rulesmo.ini (effective) | Building | [GAMGG] | 6 |
@@ -5963,7 +5837,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | TrackedDownhill | 1 | rulesmo.ini (effective) | General | [General] | 1.0 |
 | TrackedUphill | 1 | rulesmo.ini (effective) | General | [General] | 1.0 |
 | Translucenct | 1 | artmo.ini (effective) | Unknown | [IRONBLSTB] | no |
-| Tree | 1 | rulesmo.ini (effective) | Unknown | [HollowPoint4] | no |
+| Tree | 1 | rulesmo.ini (effective) | Warhead | [HollowPoint4] | no |
 | TreeFire | 1 | rulesmo.ini (effective) | AudioVisual | [AudioVisual] | FIRE1,FIRE2 |
 | TreeFlammability | 1 | rulesmo.ini (effective) | General | [General] | 0.0 |
 | TreeStrength | 1 | rulesmo.ini (effective) | General | [General] | 50 |
@@ -5995,7 +5869,7 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | V3RocketType | 1 | rulesmo.ini (effective) | General | [General] | V3ROCKET |
 | V3Warhead | 1 | rulesmo.ini (effective) | CombatDamage | [CombatDamage] | V3WH |
 | VeinDamage | 1 | rulesmo.ini (effective) | General | [General] | 0 |
-| Veinhole | 1 | rulesmo.ini (effective) | Unknown | [VeinholeWH] | yes |
+| Veinhole | 1 | rulesmo.ini (effective) | Warhead | [VeinholeWH] | yes |
 | VeinholeGrowthRate | 1 | rulesmo.ini (effective) | General | [General] | 300 |
 | VeinholeShrinkRate | 1 | rulesmo.ini (effective) | General | [General] | 100 |
 | VeinholeTypeClass | 1 | rulesmo.ini (effective) | General | [General] | VEINTREE |
@@ -6022,7 +5896,6 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 | WallBuildSpeedCoefficient | 1 | rulesmo.ini (effective) | General | [General] | 3.0 |
 | Wallbust | 1 | rulesmo.ini (effective) | Unknown | [MouseCursors] | 941,16,5,-1,1,Center,Middle |
 | WallPenetratorThreshold | 1 | rulesmo.ini (effective) | Unknown | [WallModel] | 50% |
-| WallTower | 1 | rulesmo.ini (effective) | General | [General] | FAPOST |
 | WarpAway | 1 | rulesmo.ini (effective) | General | [General] | WARPAWAY |
 | WarpOut | 1 | rulesmo.ini (effective) | General | [General] | WARPOUT |
 | WaterCrate | 1 | rulesmo.ini (effective) | Unknown | [CrateRules] | Money |
@@ -6058,29 +5931,29 @@ Core availability/grant behavior is implemented generically for Ares/YR: parser/
 |---:|---|---:|---|---|---|---|
 | 1 | Limit | 368 | Unknown, Weapon | [AssaulterClear], [BarrierCollapse], [BlastFurnaceReady], [BlastFurnaceStop], [BoidmachineChargeUp], [BoidmachineDeploySound], [Defaults], [ParadoxCharge] | 1, 12, 2, 3, 4, 5, 6, 8 | Unresolved; do not treat as Ares until its section/value semantics are verified |
 | 2 | Explodes | 255 | Aircraft, Building, Infantry, Vehicle | [D_COVE], [D_KNIGHT], [IVAN], [KAOS], [LIBRA], [LIBRC], [MOTOR], [SBTR] | no, yes | MO content convention; keep outside generic Ares support |
-| 3 | ProneDamage | 203 | Unknown | [BuzzardWH], [CamoSAE], [CamoSA], [DKnightSAWH], [HummSAE], [HummSA], [SAE], [SA] | 300%, 50%, 600% | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 3 | ProneDamage | 203 | Unknown, Warhead | [BuzzardWH], [CamoSAE], [CamoSA], [DKnightSAWH], [HummSAE], [HummSA], [SAE], [SA] | 300%, 50%, 600% | Unresolved; do not treat as Ares until its section/value semantics are verified |
 | 4 | Crater | 190 | Unknown, Weapon | [CRATER01], [CRATER02], [CRATER03], [CRATER04], [CRATER05], [CRATER06], [CRATER07], [CRATER08] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 5 | AffectsAllies | 188 | Unknown | [BlueJammer], [CyanCryo], [ExtendLifeWH], [FakeArrowWH], [OneMoreSecond], [StructureBuffLargeWH], [SuperIronWeaponWH], [TrueSuperIronWeaponWH] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 6 | SlowdownDistance | 188 | Aircraft, Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | 0.001, 1, 1000, 1200, 1500, 3000, 500 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 7 | Acceleration | 184 | Unknown | [JumpjetControls], [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperSuppressP] | 10, 100, 2, 20, 3, 30, 50, 60 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 8 | Flat | 181 | Building, Unknown, Weapon | [GAAIRF], [GAGATE_CT], [GAGATE_DT], [GAHPAD], [NAAIR], [NADEPT], [NAGATE_AT], [NAGATE_BT] | false, true, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 9 | PixelSelectionBracketDelta | 180 | Aircraft, Building, Infantry, Vehicle | [ADOG], [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [JUMPJET], [SPY] | -10, -3, -4, -5, -6, -7, -8, -9 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 10 | TooBigToFitUnderBridge | 178 | Infantry, Vehicle | [BEETLE], [DNOA], [DNOB], [ELEPHANT], [ETNK2], [ETNK], [KTNK], [MTNK] | true | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 11 | AccelerationFactor | 177 | Infantry, Vehicle | [BEETLE], [DNOA], [DNOB], [ELEPHANT], [ETNK2], [ETNK], [KTNK], [MTNK] | 0.01, 1, 5 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 12 | AIBuildThis | 177 | Building, Unknown | [CASHROUD], [FABOID], [FAMSAW], [FAMSA], [FAORCI], [F_ERESB], [GAMGG], [YAQUAD] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 13 | OmniFire | 177 | Weapon | [EvolverRun], [FauxDomAttach], [FauxDomIntro], [FauxDomStrike], [LionheartBomb], [MadBlastStartAI], [MadBlastStart], [StratoRun] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 14 | SecondaryFireFLH | 174 | Aircraft, Building, Infantry, Unknown, Vehicle | [AMEDIC], [CLEG], [ENFO], [GGI2], [GI], [RIOT], [SIEG], [SNIPED] | 0,0,0, 100,-25,85, 25,5,95, 50,-42,50, 75,-20,110, 80,0,90, 90,0,175, 95,0,115 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 15 | DeaccelerationFactor | 171 | Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | 0, 5 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 16 | ImmuneToVeins | 170 | Infantry, Vehicle | [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [GHOST], [SNIPE], [TANY] | yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 17 | Ranged | 170 | Unknown | [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperJammerP], [SuperSuppressP] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 18 | SelfHealing | 167 | Aircraft, Building, Infantry, Vehicle | [AIMORA], [AMEDIC], [ARMR], [MORALES], [RIOT], [SIEG], [SUPR], [TANY] | no, yes | MO content convention; keep outside generic Ares support |
-| 19 | End | 166 | Unknown, Weapon | [GACSPH_FD], [GACSPH_F], [GACSPH_HD], [GACSPH_H], [GAPRIS_AD], [GAPRIS_A], [GAROD_B], [GAWETH_F] | 11, 14, 19, 23, 24, 29, 40, 9 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 20 | BehavesLike | 164 | Unknown | [GyroBulletSys], [RuinerSys], [SingleBulletGoldSys], [SingleBulletRedSys], [SingleBulletSys], [SpeederShotSys], [StalkerShotSys], [TealBulletSys] | Fire, Gas, Railgun, Smoke, Spark, Web | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 21 | Sequence | 164 | Infantry, Unknown | [ADOG], [AENGINEER], [AMEDIC], [ENFO], [GGI2], [GI], [SEALA], [SEAL] | DogSequence, EnforcerSequence, EngineerSequence, GISequence, GuardianGISequence, MedicSequence, RocketeerSequence, SealSequence | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 22 | Crawls | 163 | Infantry, Unknown | [ADOG], [AENGINEER], [AMEDIC], [ENFO], [GGI2], [GI], [SEALA], [SEAL] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 23 | RemoveOccupy1 | 163 | Building, Unknown | [GAAIRF], [GAHPAD], [GAOREF], [GAREFN], [GAWEAP], [GAYARD], [NACNST], [NAHAND] | -1,0, -1,2, -2,-1, 0,-1, 0,-2, 1,0, 2,-2, 3,1 | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 24 | LegalTarget | 161 | Building, Unknown | [AILOCK], [CABHUT], [CASHGIVE], [CASHTAKE], [CAVHNG], [DUMMYDUMMY], [FAFNCE], [NOTHING] | false, no, true, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
-| 25 | OpportunityFire | 157 | Aircraft, Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 5 | SlowdownDistance | 188 | Aircraft, Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | 0.001, 1, 1000, 1200, 1500, 3000, 500 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 6 | Acceleration | 184 | Unknown | [JumpjetControls], [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperSuppressP] | 10, 100, 2, 20, 3, 30, 50, 60 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 7 | Flat | 181 | Building, Unknown, Weapon | [GAAIRF], [GAGATE_CT], [GAGATE_DT], [GAHPAD], [NAAIR], [NADEPT], [NAGATE_AT], [NAGATE_BT] | false, true, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 8 | PixelSelectionBracketDelta | 180 | Aircraft, Building, Infantry, Vehicle | [ADOG], [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [JUMPJET], [SPY] | -10, -3, -4, -5, -6, -7, -8, -9 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 9 | TooBigToFitUnderBridge | 178 | Infantry, Vehicle | [BEETLE], [DNOA], [DNOB], [ELEPHANT], [ETNK2], [ETNK], [KTNK], [MTNK] | true | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 10 | AccelerationFactor | 177 | Infantry, Vehicle | [BEETLE], [DNOA], [DNOB], [ELEPHANT], [ETNK2], [ETNK], [KTNK], [MTNK] | 0.01, 1, 5 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 11 | AIBuildThis | 177 | Building, Unknown | [CASHROUD], [FABOID], [FAMSAW], [FAMSA], [FAORCI], [F_ERESB], [GAMGG], [YAQUAD] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 12 | OmniFire | 177 | Weapon | [EvolverRun], [FauxDomAttach], [FauxDomIntro], [FauxDomStrike], [LionheartBomb], [MadBlastStartAI], [MadBlastStart], [StratoRun] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 13 | SecondaryFireFLH | 174 | Aircraft, Building, Infantry, Unknown, Vehicle | [AMEDIC], [CLEG], [ENFO], [GGI2], [GI], [RIOT], [SIEG], [SNIPED] | 0,0,0, 100,-25,85, 25,5,95, 50,-42,50, 75,-20,110, 80,0,90, 90,0,175, 95,0,115 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 14 | DeaccelerationFactor | 171 | Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | 0, 5 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 15 | ImmuneToVeins | 170 | Infantry, Vehicle | [AMEDIC], [E1], [ENFO], [ENGINEER], [GGI], [GHOST], [SNIPE], [TANY] | yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 16 | Ranged | 170 | Unknown | [SharkWaveP2], [SharkWaveP3], [SharkWaveP4], [SharkWaveP5], [SharkWaveP], [SuperIronWeaponP], [SuperJammerP], [SuperSuppressP] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 17 | SelfHealing | 167 | Aircraft, Building, Infantry, Vehicle | [AIMORA], [AMEDIC], [ARMR], [MORALES], [RIOT], [SIEG], [SUPR], [TANY] | no, yes | MO content convention; keep outside generic Ares support |
+| 18 | End | 166 | Unknown, Warhead, Weapon | [GACSPH_FD], [GACSPH_F], [GACSPH_HD], [GACSPH_H], [GAPRIS_AD], [GAPRIS_A], [GAROD_B], [GAWETH_F] | 11, 14, 19, 23, 24, 29, 40, 9 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 19 | BehavesLike | 164 | Unknown | [GyroBulletSys], [RuinerSys], [SingleBulletGoldSys], [SingleBulletRedSys], [SingleBulletSys], [SpeederShotSys], [StalkerShotSys], [TealBulletSys] | Fire, Gas, Railgun, Smoke, Spark, Web | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 20 | Sequence | 164 | Infantry, Unknown | [ADOG], [AENGINEER], [AMEDIC], [ENFO], [GGI2], [GI], [SEALA], [SEAL] | DogSequence, EnforcerSequence, EngineerSequence, GISequence, GuardianGISequence, MedicSequence, RocketeerSequence, SealSequence | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 21 | Crawls | 163 | Infantry, Unknown | [ADOG], [AENGINEER], [AMEDIC], [ENFO], [GGI2], [GI], [SEALA], [SEAL] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 22 | RemoveOccupy1 | 163 | Building, Unknown | [GAAIRF], [GAHPAD], [GAOREF], [GAREFN], [GAWEAP], [GAYARD], [NACNST], [NAHAND] | -1,0, -1,2, -2,-1, 0,-1, 0,-2, 1,0, 2,-2, 3,1 | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 23 | LegalTarget | 161 | Building, Unknown | [AILOCK], [CABHUT], [CASHGIVE], [CASHTAKE], [CAVHNG], [DUMMYDUMMY], [FAFNCE], [NOTHING] | false, no, true, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 24 | OpportunityFire | 157 | Aircraft, Vehicle | [AMC], [ETNK2], [ETNK], [FV], [KTNK], [MTNK], [ROBOW], [ROBO] | no, yes | Unresolved; do not treat as Ares until its section/value semantics are verified |
+| 25 | DemandLoadBuildup | 156 | Building, Unknown | [FASWPR], [GACNST], [GAMGG], [GAPILE], [GAPOWR], [GAREFN], [GAWEAP], [NAGRUM] | true | Unresolved; do not treat as Ares until its section/value semantics are verified |
 
 Disposition rules are conservative: a candidate is not promoted into generic Ares support from frequency alone. MO-content conventions remain profile data; Ares candidates require documentation plus parser/runtime tests.
 
@@ -6110,18 +5983,13 @@ Country coverage: 14 definitions, 3127 references, 0 unknown references.
 | Priority | Work item | Evidence | Required generic implementation boundary | Verification gate |
 |---|---|---|---|---|
 | P1 | Superweapon availability presentation and certification | SW.RequiredHouses=4, SW.ForbiddenHouses=2, SW.AuxBuildings=24, SW.NegBuildings=5, SW.AllowPlayer=1, SW.AllowAI=7, SW.Shots=2, SW.ShowCameo=17, SW.Group=21 | Keep the implemented generic availability/grant/activation service; finish ShowCameo, TimerVisibility, and Group presentation, then certify persistence and multiplayer/network state | Presentation tests, save/load replay, and host/client deterministic checks; no MO-only branch |
-| P0 | Complete custom handler coverage | 96 custom definitions; the prior 12-feature partial count predates this code-only checkpoint and was not regenerated | Keep type dispatch and data parsing generic; add handlers by Ares capability, not by MO unit name | Per-type deterministic tests, target filters, AI, UI, save/load |
+| P0 | Complete custom handler coverage | 96 custom definitions; 12 used superweapon feature(s) remain unimplemented/partial | Keep type dispatch and data parsing generic; add handlers by Ares capability, not by MO unit name | Per-type deterministic tests, target filters, AI, UI, save/load |
 | P0 | AI and target integration | 300 relevant occurrences | Share eligibility/activation rules between human and AI paths; preserve house/target/shroud semantics | Skirmish liveness, target-selection, and lockstep tests |
-| P0 | State persistence and determinism | 30 stateful custom-type definitions plus stable trigger/movement/AttachEffect/object-tech slices; the full world graph, radar-outage state, AI gates, and map-team membership are now checkpointed | Keep extending the world snapshot to unsupported effect internals, dynamic/team attachments, and built-in AI decision state | Built-in AI decision-state save/load and host/client deterministic hashes |
-| P0 | Stock trigger/team closure | Current map triggers plus 1348 MO TeamType definitions; event IDs 3/18 remain unregistered | Implement dynamic team attachment/mustTransfer semantics only after identifying the stock behavior; keep unsupported IDs explicit | Real-map trigger matrix, AI consumption of team membership, and lockstep |
-| P0 | Resolve remaining unknowns | 39544 unique unclassified keys; top 25 are listed above | Promote only keys backed by official Ares semantics or leave them profile content | New scanner fixture and runtime test per promoted field |
+| P0 | State persistence and determinism | 30 stateful custom-type definitions | Serialize charge, active effects, launched entities, and grants through the generic save/network state model | Save/load replay and host/client deterministic hashes |
+| P0 | Resolve remaining unknowns | 36857 unique unclassified keys; top 25 are listed above | Promote only keys backed by official Ares semantics or leave them profile content | New scanner fixture and runtime test per promoted field |
 
 ## 9. Verification record
 
-- Current focused catalog/registry checks: 9 passed, 0 failed, 48 expectations.
-- Current focused trigger/campaign checks: 78 passed, 0 failed, 312 expectations across 10 files; related capability/state regressions: 92 passed, 0 failed, 398 expectations across 10 files.
-- Current `typecheck:entry` and `git diff --check` passed.
-- Real-content check: `bun scripts/mental-omega-integration.ts gameres-export` previously passed against the local export, resolving all 8 authored `AttachedSystem` projectile definitions to smoke particle systems and authored images. It was not rerun for this checkpoint and does not verify rendered combat or multiplayer lockstep.
-- The full aggregate audit regeneration was attempted with a 90-second bound and did not complete within that bound; the aggregate counts above remain the previously generated inventory and are not presented as newly refreshed in this checkpoint.
+- Focused scanner/profile tests: run separately in the repository test log; the audit script itself only reads local assets and emits aggregate evidence.
 - The MO installation is required for this report and is intentionally not committed.
-- Android, browser runtime, live Ares DLL behavior, physical device behavior, target-content parity, and multiplayer/network certification are not claimed by this static MIX/INI audit or synthetic test set.
+- Android, browser runtime, live Ares DLL behavior, physical device behavior, and multiplayer/network certification are not claimed by this static MIX/INI audit.

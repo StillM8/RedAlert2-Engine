@@ -11,12 +11,8 @@ export interface DamageSmokeFxOptions {
     velocity?: number;
     /** Authored Particle deacceleration, when present. */
     deacc?: number;
-    /** Authored ParticleSystem spawn radius, in world-cell units. */
+    /** Smoke radius interpreted in leptons per OpenTS; exact Ares parity is unverified. */
     spawnRadius?: number;
-    /** Authored ParticleSystem slowdown, applied as additional drag. */
-    slowdown?: number;
-    /** Authored Particle velocity spread components. */
-    velocitySpread?: { x?: number; y?: number; z?: number };
 }
 export class DamageSmokeFx {
     private static textureCache = new Map<any, THREE.Texture>();
@@ -85,23 +81,31 @@ export class DamageSmokeFx {
             const activeMultiplier = rate / 10;
             this.particleMaxAge = (2 * this.shpFile.numImages) / animProps.rate;
             const particleCount = this.getParticleCount();
+            // Legacy visual approximation: authored smoke motion is scaled by
+            // art animation rate. The original per-game-frame physics is unverified.
             const velocity = (this.options.velocity ?? 9) * rate;
-            // Ares' Slowdown is authored at the ParticleSystem level. Treat it
-            // as deterministic drag in the same direction as Deacc instead of
-            // silently dropping it (the old renderer only used Deacc).
-            const acceleration = ((this.options.deacc ?? 0.05) + Math.max(0, this.options.slowdown ?? 0)) * rate;
+            const spawnRadius = Math.max(0, this.options.spawnRadius ?? 0);
+            // The renderer retains its legacy vertical Deacc approximation;
+            // frame-to-time conversion remains a separate compatibility gap.
+            const acceleration = (this.options.deacc ?? 0.05) * rate;
             this.particleEmitter = new SPE.Emitter({
                 particleCount,
                 maxAge: { value: this.particleMaxAge },
                 activeMultiplier: activeMultiplier / (particleCount / this.particleMaxAge),
-                position: { value: this.computeEmitterPosition() },
+                position: {
+                    value: this.computeEmitterPosition(),
+                    // Engine world positions use lepton space. OpenTS documents
+                    // this field in leptons; exact Ares sampling remains unverified.
+                    // Keep smoke spread planar in the map's X/Z axes.
+                    spread: new THREE.Vector3(spawnRadius, 0, spawnRadius),
+                },
                 acceleration: {
                     value: new THREE.Vector3(0, -acceleration, 0),
                     spread: new THREE.Vector3(2, 0, 2)
                 },
                 velocity: {
                     value: new THREE.Vector3(0, velocity, 0),
-                    spread: new THREE.Vector3(0.1 * velocity, 0, 0.1 * velocity)
+                    spread: new THREE.Vector3(0.1 * velocity, 0, 0.1 * velocity),
                 },
                 opacity: { value: 0.5 },
                 size: {
