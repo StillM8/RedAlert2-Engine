@@ -99,6 +99,36 @@ function copyMatchingRootFiles(pattern: RegExp, description: string): void {
     }
 }
 
+function findRetailRelativePath(relativePath: string): string | undefined {
+    let directory = RETAIL;
+    for (const segment of relativePath.split("/")) {
+        let match: string | undefined;
+        try {
+            match = readdirSync(directory).find((entry) => entry.toLocaleLowerCase("en-US") === segment.toLocaleLowerCase("en-US"));
+        }
+        catch {
+            return undefined;
+        }
+        if (!match) return undefined;
+        directory = join(directory, match);
+    }
+    return directory;
+}
+
+function copyProfileFiles(paths: readonly string[], description: string): void {
+    let copied = 0;
+    for (const relativePath of paths) {
+        const source = findRetailRelativePath(relativePath);
+        if (!source || !statSync(source).isFile()) continue;
+        const destination = join(OUT, relativePath.toLocaleLowerCase("en-US"));
+        mkdirSync(join(destination, ".."), { recursive: true });
+        copyFileSync(source, destination);
+        console.log(`   ${relativePath}`);
+        copied++;
+    }
+    if (copied === 0) console.warn(`   (skip) no ${description} found`);
+}
+
 function openMix(path: string): MixFile {
     const bytes = new Uint8Array(readFileSync(path));
     return new MixFile(VirtualFile.fromBytes(bytes, path).stream as any);
@@ -240,9 +270,19 @@ for (const name of ["ra2md.mix", "langmd.mix", "multimd.mix"]) {
 console.log("== Copying profile extension mixes");
 copyMatchingMixes(/^(?:ecache|expand|elocal)(?:md|mo)?\d{2}\.mix$/i, "profile extension MIX files");
 if (RESOURCE_PROFILE === "mental-omega") {
-    copyMatchingMixes(/^mapsmo\d{2}\.mix$/i, "Mental Omega map MIX files");
-    copyMatchingMixes(/^movmo\d{2}\.mix$/i, "Mental Omega movie MIX files");
-    copyMatchingMixes(/^multimo\.mix$/i, "Mental Omega multiplayer MIX");
+    // MO keeps several profile archives at the install root rather than in
+    // the numbered expandmo layers. Preserve the full map, movie,
+    // multiplayer, and music graph for the shared VFS.
+    copyMatchingMixes(/^(?:maps(?:01|02)|mapsmd\d+|mapsmo\d+|movies?\d+|mov(?:md|mo)\d+|multimo|thememo)\.mix$/i, "Mental Omega profile MIX files");
+}
+if (RESOURCE_PROFILE === "mental-omega") {
+    // These catalogs are loose files in the MO client and are required for
+    // campaign selection and the authoritative multiplayer map browser.
+    copyProfileFiles([
+        "INI/MentalOmegaMaps.ini",
+        "INI/BattleClient.ini",
+        "Resources/thememo.ini",
+    ], "Mental Omega loose catalogs");
 }
 
 // Ares can add audio outside the retail audio.mix/audiomd.mix containers.
@@ -293,6 +333,33 @@ try {
     }
 } catch (e) {
     console.warn("   (skip) YR music conversion failed:", (e as Error).message);
+}
+
+if (RESOURCE_PROFILE === "mental-omega") {
+    console.log("== Converting Mental Omega music (thememo.mix -> music/*.mp3)");
+    try {
+        if (!MEDIA_CONVERSION_AVAILABLE) throw new Error("ffmpeg is unavailable");
+        const themeIniPath = findRetailRelativePath("Resources/thememo.ini");
+        if (!themeIniPath) throw new Error("Resources/thememo.ini not found");
+        const themeIni = new IniFile(readFileSync(themeIniPath, "utf8"));
+        const tracks = new Set<string>();
+        for (const section of themeIni.getOrderedSections()) {
+            const sound = section.getString("Sound");
+            if (sound) tracks.add(sound.toLowerCase().replace(/\.wav$/i, "") + ".wav");
+        }
+        const thememoMix = openMix(retailFile("thememo.mix"));
+        for (const wavName of tracks) {
+            if (!thememoMix.containsFile(wavName)) continue;
+            const mp3Name = wavName.replace(/\.wav$/i, ".mp3");
+            if (existsSync(join(OUT, "music", mp3Name))) continue;
+            const wavPath = join(TMP, wavName);
+            extractTo(thememoMix, wavName, wavPath);
+            execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", wavPath, "-vn", "-ar", "22050", "-q:a", "5", join(OUT, "music", mp3Name)]);
+            console.log(`   ${mp3Name}`);
+        }
+    } catch (e) {
+        console.warn("   (skip) Mental Omega music conversion failed:", (e as Error).message);
+    }
 }
 // --------------------------------------------------------------------------
 
